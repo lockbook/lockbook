@@ -773,16 +773,6 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
-        let mut tabs_to_delete = vec![];
-        for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().any(|f| Some(f.id) == tab.id()) {
-                tabs_to_delete.push(i);
-            }
-        }
-        for i in tabs_to_delete {
-            self.workspace.close_tab(i);
-        }
-
         thread::spawn(move || {
             for f in &files {
                 core.delete_file(&f.id).unwrap();
