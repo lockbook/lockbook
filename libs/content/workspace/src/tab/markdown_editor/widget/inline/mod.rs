@@ -118,7 +118,9 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.show_image(ui, node, top_left, wrap, range),
+            NodeValue::Image(node_link) => {
+                self.show_image(ui, node, top_left, wrap, node_link, range)
+            }
             NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap, range),
             NodeValue::Emph => self.show_emph(ui, node, top_left, wrap, range),
             NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap, range),
@@ -159,20 +161,18 @@ impl<'ast> Editor {
     #[allow(clippy::only_used_in_recursion)]
     pub fn sense_inline(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> Sense {
         match &node.data.borrow().value {
-            NodeValue::Link(_) | NodeValue::WikiLink(_) => {
+            NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
                 let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
                     || ui.ctx().os() == egui::os::OperatingSystem::IOS;
                 let clickable = if is_mobile { true } else { ui.input(|i| i.modifiers.command) };
                 Sense { click: clickable, drag: false, focusable: false }
             }
             _ => {
-                let clickable = node.ancestors().any(|ancestor| {
-                    matches!(
-                        ancestor.data.borrow().value,
-                        NodeValue::Link(_) | NodeValue::WikiLink(_)
-                    ) && self.sense_inline(ui, ancestor).click
-                });
-                Sense { click: clickable, drag: false, focusable: false }
+                if let Some(parent) = node.parent() {
+                    self.sense_inline(ui, parent)
+                } else {
+                    Sense { click: false, drag: false, focusable: false }
+                }
             }
         }
     }
