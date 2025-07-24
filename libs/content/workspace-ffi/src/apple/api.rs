@@ -27,7 +27,7 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let id = id.into();
 
-    obj.workspace.open_file(id, new_file, true)
+    obj.workspace.open_file(id, new_file, true, true)
 }
 
 #[no_mangle]

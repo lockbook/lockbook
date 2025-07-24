@@ -156,7 +156,7 @@ impl AccountScreen {
                     ui.vertical(|ui| {
                         let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
                         if let Some(file) = full_doc_search_resp.file_to_open {
-                            self.workspace.open_file(file, false, true);
+                            self.workspace.open_file(file, false, true, false);
                         }
                         if full_doc_search_resp.advance_focus {
                             ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
@@ -231,7 +231,7 @@ impl AccountScreen {
         if self.is_new_user {
             if let Ok(metas) = self.core.list_metadatas() {
                 if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
-                    self.workspace.open_file(welcome_doc.id, false, true);
+                    self.workspace.open_file(welcome_doc.id, false, true, false);
                 }
             }
             self.is_new_user = false;
@@ -480,7 +480,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.workspace.open_file(id, false, true);
+            self.workspace.open_file(id, false, true, false);
         }
 
         if !resp.delete_requests.is_empty() {
@@ -793,7 +793,7 @@ impl AccountScreen {
                 self.tree.update_files(files);
 
                 if is_doc {
-                    self.workspace.open_file(id, true, true);
+                    self.workspace.open_file(id, true, true, true);
                 }
                 self.modals.new_folder = None;
                 ctx.request_repaint();

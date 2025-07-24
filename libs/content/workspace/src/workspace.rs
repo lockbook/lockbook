@@ -96,7 +96,7 @@ impl Workspace {
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 info!(id = ?file_id, "opening persisted tab");
-                ws.open_file(file_id, false, false);
+                ws.open_file(file_id, false, false, true);
             }
         });
         if let Some(current_tab) = current_tab {
@@ -123,7 +123,7 @@ impl Workspace {
         }
 
         for id in ids {
-            self.open_file(id, false, false)
+            self.open_file(id, false, false, true)
         }
 
         if let Some(current_tab_id) = maybe_current_tab_id {
@@ -136,21 +136,17 @@ impl Workspace {
         }
     }
 
-    /// Creates a loading-state tab for a file if needed and returns true if a tab was created
-    pub fn upsert_loading_tab(&mut self, id: Uuid, make_current: bool) -> bool {
-        let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
-        if !tab_exists {
-            self.create_tab(ContentState::Loading(id), make_current);
-        } else if make_current {
-            self.make_current_by_id(id);
-        }
-        !tab_exists
-    }
-
     pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
         let now = Instant::now();
-        let new_tab =
-            Tab { content, last_changed: now, last_saved: now, rename: None, is_closing: false };
+        let new_tab = Tab {
+            content,
+            back: Vec::new(),
+            forward: Vec::new(),
+            last_changed: now,
+            last_saved: now,
+            rename: None,
+            is_closing: false,
+        };
         self.tabs.push(new_tab);
         if make_current {
             self.current_tab = self.tabs.len() - 1;
@@ -235,10 +231,68 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        let tab_created = self.upsert_loading_tab(id, make_current);
+    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool, in_new_tab: bool) {
+        let mut create_tab = || {
+            if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
+                self.current_tab = pos;
+                self.current_tab_changed = true;
+                return false;
+            }
+            if in_new_tab {
+                return true;
+            }
+            let Some(current_tab) = self.current_tab_mut() else {
+                return true;
+            };
+            if let Some(id) = current_tab.id() {
+                current_tab.back.push(id);
+                current_tab.forward.clear();
+            }
+            current_tab.content = ContentState::Loading(id);
+            false
+        };
+        let create_tab = create_tab();
+
+        if create_tab {
+            self.create_tab(ContentState::Loading(id), make_current);
+        }
+
         self.tasks
-            .queue_load(LoadRequest { id, is_new_file, tab_created });
+            .queue_load(LoadRequest { id, is_new_file, tab_created: create_tab });
+    }
+
+    pub fn back(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(back_id) = current_tab.back.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.forward.push(current_id);
+
+                    current_tab.content = ContentState::Loading(back_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: back_id,
+                        is_new_file: false,
+                        tab_created: true,
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn forward(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(forward_id) = current_tab.forward.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.back.push(current_id);
+
+                    current_tab.content = ContentState::Loading(forward_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: forward_id,
+                        is_new_file: false,
+                        tab_created: true,
+                    });
+                }
+            }
+        }
     }
 
     pub fn close_tab(&mut self, i: usize) {
@@ -274,7 +328,7 @@ impl Workspace {
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false);
+                            self.open_file(id, false, false, false);
                         }
                     }
                 }
@@ -353,7 +407,8 @@ impl Workspace {
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
-                            if tab_created {
+                            let reload = if tab.svg().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
                                     &bytes,
                                     &ctx,
@@ -379,7 +434,9 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if ext == "md" || ext == "txt" {
-                            if tab_created {
+                            let reload =
+                                if tab.markdown().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         self.ctx.clone(),
@@ -447,7 +504,7 @@ impl Workspace {
                                         "reloading file after save failed with re-read required: {}",
                                         id
                                     );
-                                    self.open_file(id, false, false);
+                                    self.open_file(id, false, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
                                         format!("{err:?}"),
@@ -636,7 +693,7 @@ impl Workspace {
         }
 
         if different_file_type {
-            self.open_file(id, false, false);
+            self.open_file(id, false, false, false);
         }
 
         self.out.file_renamed = Some((id, new_name));

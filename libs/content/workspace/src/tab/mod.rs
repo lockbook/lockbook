@@ -28,6 +28,8 @@ pub mod svg_editor;
 
 pub struct Tab {
     pub content: ContentState,
+    pub back: Vec<Uuid>,
+    pub forward: Vec<Uuid>,
 
     pub last_changed: Instant,
     pub last_saved: Instant,

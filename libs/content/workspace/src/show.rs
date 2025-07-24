@@ -18,7 +18,7 @@ use crate::tab::{
     ContentState, Tab, TabContent, TabStatus, core_get_by_relative_path, image_viewer,
 };
 use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::widgets::{Button, IconButton};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -456,7 +456,7 @@ impl Workspace {
                                 }
 
                                 if let Some(open_file) = open_file {
-                                    self.open_file(open_file, false, true);
+                                    self.open_file(open_file, false, true, false);
                                 }
                             });
                             strip.cell(|_| {});
@@ -527,7 +527,7 @@ impl Workspace {
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
                                     if let Some(value) = response {
-                                        self.open_file(value, false, true);
+                                        self.open_file(value, false, true, false);
                                     }
                                 }
                                 TabContent::SpaceInspector(sv) => {
@@ -566,7 +566,7 @@ impl Workspace {
                     self.rename_file(req, false);
                 }
                 if let Some(id) = open_id {
-                    self.open_file(id, false, true);
+                    self.open_file(id, false, true, false);
                 }
             });
         });
@@ -600,8 +600,26 @@ impl Workspace {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
 
+        let mut back = false;
+        let mut forward = false;
+
         let cursor = ui
             .horizontal(|ui| {
+                if IconButton::new(&Icon::ARROW_BACK)
+                    .tooltip("Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    back = true;
+                }
+                if IconButton::new(&Icon::ARROW_RIGHT)
+                    .tooltip("Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    forward = true;
+                }
+
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
@@ -687,6 +705,13 @@ impl Workspace {
 
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn process_keys(&mut self) {
@@ -760,6 +785,25 @@ impl Workspace {
 
         if let Some(goto_tab) = goto_tab {
             self.make_current(goto_tab);
+        }
+
+        // forward/back
+        let mut back = false;
+        let mut forward = false;
+        self.ctx.input_mut(|input| {
+            if input.consume_key_exact(COMMAND, Key::OpenBracket) {
+                back = true;
+            }
+            if input.consume_key_exact(COMMAND, Key::CloseBracket) {
+                forward = true;
+            }
+        });
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
         }
     }
 
