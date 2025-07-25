@@ -181,7 +181,7 @@ fn run() -> CliResult<()> {
                         .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
                         .input(Arg::str("username")
-                            .completor(|prompt| input::username_completor(prompt)))
+                            .completor(input::username_completor(prompt))
                         .input(Flag::bool("read-only"))
                         .handler(|target, username, ro| share::new(target.get(), username.get(), ro.get()))
                 )
