@@ -98,6 +98,14 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip(self))]
+    pub async fn known_usernames(&self) -> LbResult<Vec<String>> {
+        let db = self.ro_tx().await;
+        let db = db.db();
+
+        Ok(db.pub_key_lookup.get().values().cloned().collect())
+    }
+
+    #[instrument(level = "debug", skip(self))]
     pub async fn reject_share(&self, id: &Uuid) -> Result<(), LbErr> {
         let pk = self.keychain.get_pk()?;
         self.delete_share(id, Some(pk)).await
