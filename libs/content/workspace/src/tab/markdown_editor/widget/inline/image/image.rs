@@ -111,8 +111,6 @@ impl<'ast> Editor {
                     }
 
                     ui.allocate_ui_at_rect(rect, |ui| {
-                        ui.add(egui::Image::from_texture((texture_id, size)).rounding(2.));
-
                         ui.painter().add(RectShape {
                             rect,
                             rounding: (2.).into(),
