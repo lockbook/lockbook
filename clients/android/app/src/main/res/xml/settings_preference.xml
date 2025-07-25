@@ -33,6 +33,11 @@
             app:iconSpaceReserved="false" />
 
         <Preference
+            android:key="@string/export_account_phrase_key"
+            android:title="@string/settings_export_account_phrase"
+            app:iconSpaceReserved="false" />
+
+        <Preference
             android:key="@string/export_account_qr_key"
             android:title="@string/settings_export_account_qr"
             app:iconSpaceReserved="false" />

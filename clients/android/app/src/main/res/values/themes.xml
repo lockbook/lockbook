@@ -42,11 +42,7 @@
     <style name="AppTheme.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" >
         <item name="android:windowTranslucentNavigation">false</item>
     </style>
-
-    <style name="MyButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
-        <item name="shapeAppearanceOverlay">@style/MyShapeAppearance</item>
-    </style>
-
+    
     <style name="MyShapeAppearance">
         <item name="cornerFamilyTopLeft">rounded</item>
         <item name="cornerSizeTopLeft">20dp</item>

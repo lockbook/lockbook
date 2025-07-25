@@ -52,11 +52,6 @@
             android:text="@string/on_boarding_copy"
             android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
 
-<!--        <androidx.viewpager2.widget.ViewPager2-->
-<!--            android:id="@+id/on_boarding_create_import_view_pager"-->
-<!--            android:layout_width="match_parent"-->
-<!--            android:layout_height="250dp" />-->
-
     </LinearLayout>
 
     <LinearLayout
@@ -83,33 +78,4 @@
             android:text="@string/on_boarding_import" />
 
     </LinearLayout>
-<!--    <com.google.android.material.tabs.TabLayout-->
-<!--        android:id="@+id/on_boarding_switcher"-->
-<!--        style="@style/Widget.Material3.TabLayout.Secondary"-->
-<!--        android:layout_width="match_parent"-->
-<!--        android:layout_height="30dp"-->
-<!--        app:layout_constraintBottom_toBottomOf="parent"-->
-<!--        app:layout_constraintEnd_toEndOf="parent"-->
-<!--        app:layout_constraintStart_toStartOf="parent"-->
-<!--        app:tabPaddingEnd="30dp"-->
-<!--        app:tabPaddingStart="30dp">-->
-
-<!--        <com.google.android.material.tabs.TabItem-->
-<!--            android:layout_width="wrap_content"-->
-<!--            android:layout_height="wrap_content"-->
-<!--            android:text="@string/on_boarding_create" />-->
-
-<!--        <com.google.android.material.tabs.TabItem-->
-<!--            android:layout_width="wrap_content"-->
-<!--            android:layout_height="wrap_content"-->
-<!--            android:text="@string/on_boarding_import" />-->
-
-<!--    </com.google.android.material.tabs.TabLayout>-->
-
-    <com.google.android.material.progressindicator.CircularProgressIndicator
-        android:id="@+id/on_boarding_progress_bar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="gone" />
 </androidx.constraintlayout.widget.ConstraintLayout>

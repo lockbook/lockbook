@@ -17,24 +17,20 @@ import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
-import androidx.activity.OnBackPressedCallback
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
-import androidx.core.view.WindowCompat
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
-import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
 import app.lockbook.databinding.ActivityOnBoardingBinding
 import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
-import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
+import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -64,8 +60,7 @@ class OnBoardingActivity : AppCompatActivity() {
     }
 }
 
-
-class WelcomeFragment :  Fragment(){
+class WelcomeFragment : Fragment() {
     private var _welcomeBinding: FragmentOnBoardingWelcomeBinding? = null
 
     private val welcomeBinding get() = _welcomeBinding!!
@@ -77,14 +72,14 @@ class WelcomeFragment :  Fragment(){
     ): View {
         _welcomeBinding = FragmentOnBoardingWelcomeBinding.inflate(inflater, container, false)
 
-        welcomeBinding.loginButton.setOnClickListener{
+        welcomeBinding.loginButton.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, ImportFragment())
                 .addToBackStack(null)
                 .commit()
         }
 
-        welcomeBinding.getStartedButton.setOnClickListener{
+        welcomeBinding.getStartedButton.setOnClickListener {
             parentFragmentManager.beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, CreateFragment())
                 .addToBackStack(null)
@@ -147,13 +142,11 @@ class CreateFragment : Fragment() {
                         .replace(R.id.on_boarding_fragment_container, CopyKeyFragment())
                         .commit()
                 }
-
             } catch (err: LbError) {
                 withContext(Dispatchers.Main) {
                     createBinding.onBoardingCreateAccountInputHolder.error = err.msg
                 }
-            }
-            catch (err: Error) {
+            } catch (err: Error) {
                 withContext(Dispatchers.Main) {
                     createBinding.onBoardingCreateAccountInputHolder.error = err.message
                 }
@@ -167,7 +160,7 @@ class CopyKeyFragment : Fragment() {
 
     private val copyKeyBinding get() = _copyKeyBinding!!
 
-    private lateinit var phrase : String
+    private lateinit var phrase: String
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -185,7 +178,7 @@ class CopyKeyFragment : Fragment() {
         }
 
         copyKeyBinding.copyKeyButton.setOnClickListener {
-            val clipboard  = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
             val clip = ClipData.newPlainText("account phrase", phrase)
             clipboard.setPrimaryClip(clip)
         }
@@ -194,7 +187,6 @@ class CopyKeyFragment : Fragment() {
             startActivity(Intent(context, MainScreenActivity::class.java))
         }
 
-
         val words = phrase.split(" ")
 
         copyKeyBinding.keyFirstHalf.text = createColoredNumberedList(words.take(12), 1)
@@ -202,7 +194,7 @@ class CopyKeyFragment : Fragment() {
 
         // prevent back button, you don't want to go back to the create
         // screen after creating an account
-        requireActivity().onBackPressedDispatcher.addCallback{}
+        requireActivity().onBackPressedDispatcher.addCallback {}
 
         return copyKeyBinding.root
     }
@@ -272,7 +264,7 @@ class ImportFragment : Fragment() {
             true
         }
 
-        importBinding.onBoardingImportAccountInput.doOnTextChanged{ text, _, _, _  ->
+        importBinding.onBoardingImportAccountInput.doOnTextChanged { text, _, _, _ ->
             importAccount(text.toString(), false)
             importBinding.onBoardingImportAccountHolder.error = ""
         }
@@ -326,21 +318,19 @@ class ImportFragment : Fragment() {
     private fun importAccount(account: String, surfaceError: Boolean) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
-
         uiScope.launch {
             try {
                 Lb.importAccount(account)
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
-                if (surfaceError){
+                if (surfaceError) {
                     withContext(Dispatchers.Main) {
                         importBinding.onBoardingImportAccountHolder.error = err.msg
                     }
                 }
-            }
-            catch (err: Error){
-                if (surfaceError){
+            } catch (err: Error) {
+                if (surfaceError) {
                     withContext(Dispatchers.Main) {
                         importBinding.onBoardingImportAccountHolder.error = err.message
                     }

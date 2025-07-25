@@ -79,7 +79,7 @@
             android:id="@+id/copy_key_button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/copy_compact_key"
+            android:text="@string/copy_account_phrase"
             style="@style/Widget.Material3.Button.TonalButton"
             />
         <com.google.android.material.button.MaterialButton
