@@ -115,7 +115,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private suspend fun maybeToggleSuggestedDocs() {
+    suspend fun maybeToggleSuggestedDocs() {
         val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
         if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
             isSuggestedDocsVisible = newIsSuggestedDocsVisible
