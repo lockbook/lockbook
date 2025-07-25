@@ -2,9 +2,11 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::style::{BlockNode, InlineNode, InlineNodeType, MarkdownNode};
+use crate::tab::markdown_editor::style::{
+    BlockNode, InlineNode, InlineNodeType, ListItem, MarkdownNode,
+};
 use crate::tab::markdown_editor::widget::ROW_SPACING;
-use crate::tab::markdown_editor::widget::utils::NodeValueExt;
+use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
@@ -12,6 +14,7 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
+use pulldown_cmark::HeadingLevel;
 
 use super::advance::AdvanceExt as _;
 use super::{Bound, Location, Offset, Region};
@@ -72,7 +75,93 @@ impl<'ast> Editor {
 
                         for node in root.descendants() {
                             if self.selected_block(node) {
-                                if !unapply { panic!("apply") } else { panic!("UNapply") }
+                                if !unapply {
+                                    let mut first_line = true;
+                                    for line_idx in self.node_lines(node).iter() {
+                                        let line = self.bounds.source_lines[line_idx];
+
+                                        // count paragraph soft breaks as node breaks pt 1
+                                        if node.data.borrow().value == NodeValue::Paragraph
+                                            && !line
+                                                .intersects(&self.buffer.current.selection, true)
+                                        {
+                                            continue;
+                                        }
+
+                                        let range = self
+                                            .line_ancestors_prefix(node, line)
+                                            .end()
+                                            .into_range();
+                                        let text = match block_style {
+                                            BlockNode::Heading(heading_level) => {
+                                                // todo: technically this makes a bunch of separate headings
+                                                match heading_level {
+                                                    HeadingLevel::H1 => "# ",
+                                                    HeadingLevel::H2 => "## ",
+                                                    HeadingLevel::H3 => "### ",
+                                                    HeadingLevel::H4 => "#### ",
+                                                    HeadingLevel::H5 => "##### ",
+                                                    HeadingLevel::H6 => "###### ",
+                                                }
+                                            }
+                                            BlockNode::Quote => "> ",
+                                            BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
+                                            BlockNode::ListItem(ListItem::Bulleted, _) => {
+                                                if first_line {
+                                                    "* "
+                                                } else {
+                                                    "  "
+                                                }
+                                            }
+                                            BlockNode::ListItem(ListItem::Numbered(_), _) => {
+                                                if first_line {
+                                                    "1. "
+                                                } else {
+                                                    "   "
+                                                }
+                                            }
+                                            BlockNode::ListItem(ListItem::Todo(true), _) => {
+                                                if first_line {
+                                                    "* [x] "
+                                                } else {
+                                                    "  "
+                                                }
+                                            }
+                                            BlockNode::ListItem(ListItem::Todo(false), _) => {
+                                                if first_line {
+                                                    "* [ ] "
+                                                } else {
+                                                    "  "
+                                                }
+                                            }
+                                            BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                                        }
+                                        .into();
+                                        operations
+                                            .push(Operation::Replace(Replace { range, text }));
+
+                                        // count paragraph soft breaks as node breaks pt 2
+                                        if node.data.borrow().value != NodeValue::Paragraph {
+                                            first_line = false;
+                                        }
+                                    }
+                                } else {
+                                    for line_idx in self.node_lines(node).iter() {
+                                        let line = self.bounds.source_lines[line_idx];
+
+                                        let target_node = if node.is_container_block() {
+                                            node
+                                        } else {
+                                            node.parent().unwrap()
+                                        };
+                                        let prefix = self.line_own_prefix(target_node, line);
+
+                                        operations.push(Operation::Replace(Replace {
+                                            range: prefix,
+                                            text: "".into(),
+                                        }));
+                                    }
+                                }
                             }
                         }
                     }
@@ -479,19 +568,9 @@ impl<'ast> Editor {
         let mut unapply = false;
         for node in root.descendants() {
             if self.selected_block(node) {
-                if node.is_container_block() {
-                    println!("selected container block");
-                    unapply |= style.node_type().matches(&node.data.borrow().value);
-                } else {
-                    println!(
-                        "selected leaf block parent: {:?} vs style {:?}",
-                        &node.parent().unwrap().data.borrow().value,
-                        style.node_type()
-                    );
-                    unapply |= style
-                        .node_type()
-                        .matches(&node.parent().unwrap().data.borrow().value);
-                }
+                let target_node =
+                    if node.is_container_block() { node } else { node.parent().unwrap() };
+                unapply |= style.node_type().matches(&target_node.data.borrow().value);
             }
         }
         unapply
