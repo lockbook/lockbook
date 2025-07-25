@@ -103,7 +103,7 @@ impl<'ast> Editor {
                 let child_rect =
                     Rect::from_min_size(top_left, Vec2 { x: child_width, y: child_height });
 
-                if self.selected(child) {
+                if self.selected_block(child) {
                     ui.painter().rect(
                         child_rect,
                         2.,

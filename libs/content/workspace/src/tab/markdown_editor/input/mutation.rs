@@ -2,8 +2,9 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::style::{InlineNodeType, MarkdownNode, MarkdownNodeType};
+use crate::tab::markdown_editor::style::{BlockNode, InlineNode, InlineNodeType, MarkdownNode};
 use crate::tab::markdown_editor::widget::ROW_SPACING;
+use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
@@ -42,36 +43,40 @@ impl<'ast> Editor {
             Event::ToggleStyle { region, style } => {
                 let range = self.region_to_range(region);
 
-                let mut unapply = false;
-                for inline_paragraph in &self.bounds.inline_paragraphs {
-                    if inline_paragraph.intersects(&range, true) {
-                        let paragraph_range = (
-                            range.start().max(inline_paragraph.start()),
-                            range.end().min(inline_paragraph.end()),
-                        );
+                match style {
+                    MarkdownNode::Document | MarkdownNode::Paragraph => {}
+                    MarkdownNode::Inline(inline_style) => {
+                        let unapply = self.unapply_inline(root, range, &inline_style);
 
-                        unapply |= self.styled(root, paragraph_range, &style);
+                        for inline_paragraph in &self.bounds.inline_paragraphs {
+                            if inline_paragraph.intersects(&range, true) {
+                                let paragraph_range = (
+                                    range.start().max(inline_paragraph.start()),
+                                    range.end().min(inline_paragraph.end()),
+                                );
+
+                                self.apply_inline_style(
+                                    root,
+                                    paragraph_range,
+                                    inline_style.clone(),
+                                    unapply,
+                                    operations,
+                                );
+                            }
+                        }
+
+                        // todo: advance cursor
+                    }
+                    MarkdownNode::Block(block_style) => {
+                        let unapply = self.unapply_block(root, &block_style);
+
+                        for node in root.descendants() {
+                            if self.selected_block(node) {
+                                if !unapply { panic!("apply") } else { panic!("UNapply") }
+                            }
+                        }
                     }
                 }
-
-                for inline_paragraph in &self.bounds.inline_paragraphs {
-                    if inline_paragraph.intersects(&range, true) {
-                        let paragraph_range = (
-                            range.start().max(inline_paragraph.start()),
-                            range.end().min(inline_paragraph.end()),
-                        );
-
-                        self.apply_inline_style(
-                            root,
-                            paragraph_range,
-                            style.clone(),
-                            unapply,
-                            operations,
-                        );
-                    }
-                }
-
-                // todo: advance cursor
             }
             Event::Newline { shift } => {
                 // insert/extend/terminate container blocks
@@ -432,9 +437,8 @@ impl<'ast> Editor {
     }
 
     /// Returns true if all text in the given range has style `style`
-    pub fn styled(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-        style: &MarkdownNode,
+    pub fn inline_styled(
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &InlineNode,
     ) -> bool {
         for node in root.descendants() {
             if style.node_type().matches(&node.data.borrow().value)
@@ -447,10 +451,56 @@ impl<'ast> Editor {
         false
     }
 
+    /// Returns true if an inline style would be unapplied instead of applied
+    pub fn unapply_inline(
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &InlineNode,
+    ) -> bool {
+        let mut unapply = false;
+        for inline_paragraph in &self.bounds.inline_paragraphs {
+            if inline_paragraph.intersects(&range, true) {
+                let paragraph_range = (
+                    range.start().max(inline_paragraph.start()),
+                    range.end().min(inline_paragraph.end()),
+                );
+
+                unapply |= self.inline_styled(root, paragraph_range, style);
+            }
+        }
+        unapply
+    }
+
+    /// Returns true if the provided node has style `style`
+    pub fn block_styled(&self, node: &'ast AstNode<'ast>, style: &BlockNode) -> bool {
+        style.node_type().matches(&node.data.borrow().value)
+    }
+
+    /// Returns true if a block style would be unapplied instead of applied
+    pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &BlockNode) -> bool {
+        let mut unapply = false;
+        for node in root.descendants() {
+            if self.selected_block(node) {
+                if node.is_container_block() {
+                    println!("selected container block");
+                    unapply |= style.node_type().matches(&node.data.borrow().value);
+                } else {
+                    println!(
+                        "selected leaf block parent: {:?} vs style {:?}",
+                        &node.parent().unwrap().data.borrow().value,
+                        style.node_type()
+                    );
+                    unapply |= style
+                        .node_type()
+                        .matches(&node.parent().unwrap().data.borrow().value);
+                }
+            }
+        }
+        unapply
+    }
+
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_inline_style(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-        style: MarkdownNode, unapply: bool, operations: &mut Vec<Operation>,
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: InlineNode,
+        unapply: bool, operations: &mut Vec<Operation>,
     ) {
         let selection = self.buffer.current.selection;
         if self.buffer.current.text.is_empty() {
@@ -497,7 +547,7 @@ impl<'ast> Editor {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
                 if self.prefix_range(start_node).unwrap().end() < range.start() {
-                    let offset = self.adjust_for_whitespace(range.start(), style.node_type(), true);
+                    let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
                     self.dehead_ast_node(start_node, operations);
@@ -510,7 +560,7 @@ impl<'ast> Editor {
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
                 if self.postfix_range(end_node).unwrap().start() > range.end() {
-                    let offset = self.adjust_for_whitespace(range.end(), style.node_type(), false);
+                    let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
                     self.detail_ast_node(end_node, operations);
@@ -520,7 +570,7 @@ impl<'ast> Editor {
             // if applying, head start and/or tail end to extend styled region to selection
             if start_node.is_none() {
                 let offset = self
-                    .adjust_for_whitespace(range.start(), style.node_type(), false)
+                    .adjust_for_whitespace(range.start(), false)
                     .min(range.end());
                 self.insert_head(offset, style.clone(), operations)
             }
@@ -530,7 +580,7 @@ impl<'ast> Editor {
 
             if end_node.is_none() {
                 let offset = self
-                    .adjust_for_whitespace(range.end(), style.node_type(), true)
+                    .adjust_for_whitespace(range.end(), true)
                     .max(range.start());
                 self.insert_tail(offset, style.clone(), operations)
             }
@@ -734,44 +784,40 @@ impl<'ast> Editor {
         }
     }
 
-    fn adjust_for_whitespace(
-        &self, mut offset: DocCharOffset, style: MarkdownNodeType, tail: bool,
-    ) -> DocCharOffset {
-        if matches!(style, MarkdownNodeType::Inline(..)) {
-            loop {
-                let c = if tail {
-                    if offset == 0 {
-                        break;
-                    }
-                    &(&self.buffer)[(offset - 1, offset)]
-                } else {
-                    if offset == self.buffer.current.segs.last_cursor_position() {
-                        break;
-                    }
-                    &(&self.buffer)[(offset, offset + 1)]
-                };
-                if c == " " {
-                    if tail { offset -= 1 } else { offset += 1 }
-                } else {
+    fn adjust_for_whitespace(&self, mut offset: DocCharOffset, tail: bool) -> DocCharOffset {
+        loop {
+            let c = if tail {
+                if offset == 0 {
                     break;
                 }
+                &(&self.buffer)[(offset - 1, offset)]
+            } else {
+                if offset == self.buffer.current.segs.last_cursor_position() {
+                    break;
+                }
+                &(&self.buffer)[(offset, offset + 1)]
+            };
+            if c == " " {
+                if tail { offset -= 1 } else { offset += 1 }
+            } else {
+                break;
             }
         }
         offset
     }
 
     fn insert_head(
-        &self, offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>,
+        &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
     ) {
-        let text = style.head();
+        let text = style.node_type().head().to_string();
         operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
     }
 
     fn insert_tail(
-        &self, offset: DocCharOffset, style: MarkdownNode, operations: &mut Vec<Operation>,
+        &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
     ) {
         let text = style.node_type().tail().to_string();
-        if style.node_type() == MarkdownNodeType::Inline(InlineNodeType::Link) {
+        if style.node_type() == InlineNodeType::Link {
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
