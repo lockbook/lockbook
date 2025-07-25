@@ -100,6 +100,17 @@ pub async fn id_completor(lb: &Lb, prompt: &str, filter: Option<Filter>) -> CliR
         .collect())
 }
 
+#[tokio::main]
+pub async fn username_completor(prompt: &str) -> CliResult<Vec<String>> {
+    let lb = &core().await?;
+    Ok(lb
+        .known_usernames()
+        .await?
+        .into_iter()
+        .filter(|cand| cand.starts_with(prompt))
+        .collect())
+}
+
 pub fn std_in<T>(prompt: impl Display) -> Result<T, CliError>
 where
     T: FromStr,

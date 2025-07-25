@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -118,7 +118,9 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.show_image(ui, node, top_left, wrap, range),
+            NodeValue::Image(node_link) => {
+                self.show_image(ui, node, top_left, wrap, node_link, range)
+            }
             NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap, range),
             NodeValue::Emph => self.show_emph(ui, node, top_left, wrap, range),
             NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap, range),
@@ -140,7 +142,9 @@ impl<'ast> Editor {
             NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap, range),
             NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, range),
             NodeValue::Underline => self.show_underline(ui, node, top_left, wrap, range),
-            NodeValue::WikiLink(_) => self.show_wikilink(ui, node, top_left, wrap, range),
+            NodeValue::WikiLink(node_wiki_link) => {
+                self.show_wikilink(ui, node, top_left, wrap, node_wiki_link, range)
+            }
 
             // leaf_block
             NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
@@ -151,6 +155,25 @@ impl<'ast> Editor {
             NodeValue::Paragraph => unimplemented!("not an inline"),
             NodeValue::TableCell => unimplemented!("not an inline"),
             NodeValue::ThematicBreak => unimplemented!("not an inline"),
+        }
+    }
+
+    #[allow(clippy::only_used_in_recursion)]
+    pub fn sense_inline(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> Sense {
+        match &node.data.borrow().value {
+            NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
+                let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
+                    || ui.ctx().os() == egui::os::OperatingSystem::IOS;
+                let clickable = if is_mobile { true } else { ui.input(|i| i.modifiers.command) };
+                Sense { click: clickable, drag: false, focusable: false }
+            }
+            _ => {
+                if let Some(parent) = node.parent() {
+                    self.sense_inline(ui, parent)
+                } else {
+                    Sense { click: false, drag: false, focusable: false }
+                }
+            }
         }
     }
 

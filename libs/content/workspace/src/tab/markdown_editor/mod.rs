@@ -488,6 +488,9 @@ impl Editor {
                     self.show_range(ui, selection, color);
                     self.show_offset(ui, selection.1, color);
                 }
+                if ui.ctx().os() == OperatingSystem::Android {
+                    self.show_selection_handles(ui);
+                }
                 if mem::take(&mut self.scroll_to_cursor) {
                     self.scroll_to_cursor(ui);
                 }

@@ -17,6 +17,7 @@ pub use help::HelpModal;
 pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
 pub use settings::SettingsModal;
+use workspace_rs::file_cache::FilesExt;
 
 use super::OpenModal;
 
@@ -64,7 +65,18 @@ impl super::AccountScreen {
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.workspace.open_file(submission.id, false, true);
+                if let Some(file) = self.tree.files.get_by_id(submission.id) {
+                    if file.is_folder() {
+                        self.tree.cursor = Some(file.id);
+                        self.tree.selected.clear();
+                        self.tree.selected.insert(file.id);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
+                    } else {
+                        self.workspace.open_file(submission.id, false, true);
+                    }
+                }
+
                 if submission.close {
                     self.modals.search = None;
                 }
