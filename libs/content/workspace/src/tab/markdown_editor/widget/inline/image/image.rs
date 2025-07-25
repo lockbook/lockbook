@@ -111,13 +111,11 @@ impl<'ast> Editor {
                     }
 
                     ui.allocate_ui_at_rect(rect, |ui| {
-                        ui.add(egui::Image::from_texture((texture_id, size)).rounding(2.));
-
                         ui.painter().add(RectShape {
                             rect,
                             rounding: (2.).into(),
                             fill: Color32::WHITE,
-                            stroke: Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                            stroke: Stroke::NONE,
                             blur_width: 0.0,
                             fill_texture_id: texture_id,
                             uv: Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
