@@ -22,7 +22,6 @@ class App : Application() {
         get() = BillingClientLifecycle.getInstance(this)
 
     var isInImportSync = false
-    var isNewAccount = false
 
     init {
         instance = this

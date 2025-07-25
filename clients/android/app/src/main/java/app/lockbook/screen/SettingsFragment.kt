@@ -167,6 +167,11 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 VerificationItem.ViewPrivateKey,
                 ::exportAccountRaw
             )
+            getString(R.string.export_account_phrase_key) -> BiometricModel.verify(
+                requireActivity(),
+                VerificationItem.ViewPrivateKey,
+                ::exportAccountPhrase
+            )
             getString(R.string.debug_info_key) -> startActivity(Intent(context, DebugInfoActivity::class.java))
             getString(R.string.background_sync_enabled_key) ->
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
@@ -239,6 +244,17 @@ class SettingsFragment : PreferenceFragmentCompat() {
             val clipBoardData = ClipData.newPlainText("account string", Lb.exportAccountPrivateKey())
             clipBoard.setPrimaryClip(clipBoardData)
             alertModel.notify(getString(R.string.settings_export_account_copied))
+        } catch (err: LbError) {
+            alertModel.notifyError(err)
+        }
+    }
+    private fun exportAccountPhrase() {
+        try {
+            val clipBoard: ClipboardManager =
+                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val clipBoardData = ClipData.newPlainText("account phrase", Lb.exportAccountPhrase())
+            clipBoard.setPrimaryClip(clipBoardData)
+            alertModel.notify(getString(R.string.settings_export_account_phrase_copied))
         } catch (err: LbError) {
             alertModel.notifyError(err)
         }
