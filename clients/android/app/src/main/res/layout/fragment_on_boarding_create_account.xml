@@ -12,6 +12,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
         tools:layout_editor_absoluteX="25dp">
 
         <com.google.android.material.textview.MaterialTextView
@@ -46,8 +47,7 @@
                 android:hint="@string/new_account_username"
                 android:imeOptions="actionDone"
                 android:importantForAutofill="no"
-                android:inputType="textVisiblePassword"
-                />
+                android:inputType="textVisiblePassword" />
 
         </com.google.android.material.textfield.TextInputLayout>
 
@@ -55,9 +55,9 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/on_boarding_create_submit"
+        android:layout_height="60dp"
         style="@style/Widget.Material3.Button.TonalButton"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:text="@string/create_account"
         app:layout_constraintBottom_toBottomOf="parent"
         tools:layout_editor_absoluteX="25dp"

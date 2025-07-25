@@ -72,16 +72,15 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/get_started_button"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/on_boarding_create"
-            />
+            android:layout_height="60dp"
+            android:text="@string/on_boarding_create" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/login_button"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/on_boarding_import"
             style="@style/Widget.Material3.Button.TextButton"
-            />
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:text="@string/on_boarding_import" />
 
     </LinearLayout>
 <!--    <com.google.android.material.tabs.TabLayout-->

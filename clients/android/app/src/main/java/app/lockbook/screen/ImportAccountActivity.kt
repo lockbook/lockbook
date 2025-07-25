@@ -25,6 +25,7 @@ class ImportAccountActivity : AppCompatActivity() {
         _binding = ActivityImportAccountBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+
         if (!getApp().isInImportSync) {
             getApp().isInImportSync = true
         }

@@ -209,10 +209,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000
         )
 
-        if (getApp().isNewAccount) {
-            updateUI(UpdateFilesUI.ShowBeforeWeStart)
-        }
-
         model.maybeLastSidebarInfo?.let { uiUpdate ->
             updateUI(uiUpdate)
         }
@@ -468,20 +464,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 )
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
-            UpdateFilesUI.ShowBeforeWeStart -> {
-                val beforeYouStartDialog = BottomSheetDialog(requireContext())
-                beforeYouStartDialog.setContentView(R.layout.sheet_before_you_start)
-                beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
-                    beforeYouStartDialog.dismiss()
-
-                    activityModel.launchActivityScreen(ActivityScreen.Settings(R.string.export_account_raw_key))
-                }
-
-                beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
-
-                beforeYouStartDialog.show()
-                getApp().isNewAccount = false
-            }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
@@ -660,7 +642,6 @@ sealed class UpdateFilesUI {
     data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
-    object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()

@@ -9,7 +9,6 @@ import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
-import android.text.method.LinkMovementMethod
 import android.text.style.ForegroundColorSpan
 import android.text.style.StyleSpan
 import android.view.LayoutInflater
@@ -18,11 +17,14 @@ import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.view.WindowCompat
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
@@ -33,9 +35,6 @@ import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
 import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
-import app.lockbook.model.AlertModel
-import app.lockbook.util.getApp
-import com.google.android.material.tabs.TabLayoutMediator
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -43,7 +42,6 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import net.lockbook.Lb
 import net.lockbook.LbError
-import java.lang.ref.WeakReference
 
 class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
@@ -51,10 +49,6 @@ class OnBoardingActivity : AppCompatActivity() {
     // This property is only valid between onCreateView and
     // onDestroyView.
     val binding get() = _binding!!
-
-    val alertModel by lazy {
-        AlertModel(WeakReference(this))
-    }
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,31 +60,6 @@ class OnBoardingActivity : AppCompatActivity() {
             supportFragmentManager.beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, WelcomeFragment())
                 .commit()
-        }
-//        binding.onBoardingCreateImportViewPager.adapter = CreateImportFragmentAdapter(this)
-
-//        TabLayoutMediator(
-//            binding.onBoardingSwitcher,
-//            binding.onBoardingCreateImportViewPager
-//        ) { tabLayout, position ->
-//            tabLayout.text = if (position == 0) {
-//                resources.getText(R.string.on_boarding_create)
-//            } else {
-//                resources.getText(R.string.on_boarding_import)
-//            }
-//        }.attach()
-    }
-
-    inner class CreateImportFragmentAdapter(activity: AppCompatActivity) :
-        FragmentStateAdapter(activity) {
-        override fun getItemCount(): Int = 2
-
-        override fun createFragment(position: Int): Fragment {
-            return if (position == 0) {
-                CreateFragment()
-            } else {
-                ImportFragment()
-            }
         }
     }
 }
@@ -126,6 +95,73 @@ class WelcomeFragment :  Fragment(){
     }
 }
 
+class CreateFragment : Fragment() {
+    private var _createBinding: FragmentOnBoardingCreateAccountBinding? = null
+
+    // This property is only valid between onCreateView and
+    // onDestroyView.
+    private val createBinding get() = _createBinding!!
+
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
+
+        createBinding.onBoardingCreateAccountInput.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_DONE) {
+                createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
+            }
+            true
+        }
+
+        createBinding.onBoardingCreateSubmit.setOnClickListener {
+            createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
+        }
+
+        return createBinding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        createBinding.onBoardingCreateAccountInput.requestFocus()
+
+        // open the virtual keyboard
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(createBinding.onBoardingCreateAccountInput, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun createAccount(username: String) {
+        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
+
+        uiScope.launch {
+            try {
+                Lb.createAccount(username, null, true)
+
+                withContext(Dispatchers.Main) {
+                    parentFragmentManager.beginTransaction()
+                        .replace(R.id.on_boarding_fragment_container, CopyKeyFragment())
+                        .commit()
+                }
+
+            } catch (err: LbError) {
+                withContext(Dispatchers.Main) {
+                    createBinding.onBoardingCreateAccountInputHolder.error = err.msg
+                }
+            }
+            catch (err: Error) {
+                withContext(Dispatchers.Main) {
+                    createBinding.onBoardingCreateAccountInputHolder.error = err.message
+                }
+            }
+        }
+    }
+}
+
 class CopyKeyFragment : Fragment() {
     private var _copyKeyBinding: FragmentOnBoardingCopyKeyBinding? = null
 
@@ -144,7 +180,7 @@ class CopyKeyFragment : Fragment() {
             phrase = Lb.exportAccountPhrase()
         }
 
-        copyKeyBinding.pledgeCheckbox.setOnCheckedChangeListener { buttonView, isChecked ->
+        copyKeyBinding.pledgeCheckbox.setOnCheckedChangeListener { _, isChecked ->
             copyKeyBinding.nextButton.isEnabled = isChecked
         }
 
@@ -163,6 +199,10 @@ class CopyKeyFragment : Fragment() {
 
         copyKeyBinding.keyFirstHalf.text = createColoredNumberedList(words.take(12), 1)
         copyKeyBinding.keySecondHalf.text = createColoredNumberedList(words.drop(12), 13)
+
+        // prevent back button, you don't want to go back to the create
+        // screen after creating an account
+        requireActivity().onBackPressedDispatcher.addCallback{}
 
         return copyKeyBinding.root
     }
@@ -226,10 +266,15 @@ class ImportFragment : Fragment() {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
                 forceAutoFillCheckSave()
 
-                importAccount(importBinding.onBoardingImportAccountInput.text.toString())
+                importAccount(importBinding.onBoardingImportAccountInput.text.toString(), true)
             }
 
             true
+        }
+
+        importBinding.onBoardingImportAccountInput.doOnTextChanged{ text, _, _, _  ->
+            importAccount(text.toString(), false)
+            importBinding.onBoardingImportAccountHolder.error = ""
         }
 
         importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
@@ -255,10 +300,19 @@ class ImportFragment : Fragment() {
 
         importBinding.onBoardingImportSubmit.setOnClickListener {
             forceAutoFillCheckSave()
-            importAccount(importBinding.onBoardingImportAccountInput.text.toString())
+            importAccount(importBinding.onBoardingImportAccountInput.text.toString(), true)
         }
 
         return importBinding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        importBinding.onBoardingImportAccountInput.requestFocus()
+
+        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        imm.showSoftInput(importBinding.onBoardingImportAccountInput, InputMethodManager.SHOW_IMPLICIT)
     }
 
     private fun forceAutoFillCheckSave() {
@@ -269,10 +323,9 @@ class ImportFragment : Fragment() {
         }
     }
 
-    private fun importAccount(account: String) {
+    private fun importAccount(account: String, surfaceError: Boolean) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
-//        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
 
         uiScope.launch {
             try {
@@ -280,83 +333,20 @@ class ImportFragment : Fragment() {
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
-                withContext(Dispatchers.Main) {
-//                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                    importBinding.onBoardingImportAccountHolder.error = err.msg
+                if (surfaceError){
+                    withContext(Dispatchers.Main) {
+                        importBinding.onBoardingImportAccountHolder.error = err.msg
+                    }
+                }
+            }
+            catch (err: Error){
+                if (surfaceError){
+                    withContext(Dispatchers.Main) {
+                        importBinding.onBoardingImportAccountHolder.error = err.message
+                    }
                 }
             }
         }
     }
 }
-
-class CreateFragment : Fragment() {
-    private var _createBinding: FragmentOnBoardingCreateAccountBinding? = null
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
-    private val createBinding get() = _createBinding!!
-
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
-
-
-
-        createBinding.onBoardingCreateAccountInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_DONE) {
-                createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
-            }
-
-            true
-        }
-
-        createBinding.onBoardingCreateSubmit.setOnClickListener {
-            createAccount(createBinding.onBoardingCreateAccountInput.text.toString())
-        }
-
-        return createBinding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        createBinding.onBoardingCreateAccountInput.requestFocus()
-
-
-        val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.showSoftInput(createBinding.onBoardingCreateAccountInput, InputMethodManager.SHOW_IMPLICIT)
-    }
-
-    private fun createAccount(username: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
-
-//        onBoardingActivity.binding.onBoardingProgressBar.visibility = View.VISIBLE
-
-        uiScope.launch {
-            try {
-                Lb.createAccount(username, "http://192.168.1.72:8000", true)
-                getApp().isNewAccount = true
-
-                withContext(Dispatchers.Main) {
-                    parentFragmentManager.beginTransaction()
-                        .replace(R.id.on_boarding_fragment_container, CopyKeyFragment())
-                        .commit()
-                }
-                //                onBoardingActivity.startActivity(Intent(context, MainScreenActivity::class.java))
-                                onBoardingActivity.finishAffinity()
-            } catch (err: LbError) {
-                withContext(Dispatchers.Main) {
-//                    onBoardingActivity.binding.onBoardingProgressBar.visibility = View.GONE
-                    createBinding.onBoardingCreateAccountInputHolder.error = err.msg
-                }
-            }
-        }
-    }
-}
-
 class CaptureActivityAutoRotate : CaptureActivity()
