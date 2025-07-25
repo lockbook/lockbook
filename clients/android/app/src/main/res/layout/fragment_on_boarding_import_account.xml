@@ -1,48 +1,84 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:gravity="center_horizontal"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
     android:orientation="vertical"
-    android:paddingHorizontal="25dp">
+    android:paddingHorizontal="16dp">
 
-    <com.google.android.material.textfield.TextInputLayout
-        android:id="@+id/on_boarding_import_account_holder"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/linearLayout5"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minWidth="500dp"
-        android:layout_marginTop="20dp"
-        android:layout_marginBottom="20dp"
-        app:endIconMode="password_toggle"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense">
+        android:orientation="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:layout_editor_absoluteX="16dp">
 
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/on_boarding_import_account_input"
-            android:layout_width="match_parent"
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:hint="@string/import_description"
-            android:imeOptions="actionDone"
-            android:inputType="textPassword"
-            android:autofillHints="password"
-            android:importantForAutofill="yes" />
+            android:paddingTop="40dp"
+            android:text="@string/import_header"
+            android:textAppearance="@style/TextAppearance.Material3.DisplaySmall"
+            android:textStyle="bold" />
 
-    </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingTop="40dp"
+            android:paddingBottom="10dp"
+            android:text="@string/import_copy"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
 
-    <ImageView
-        android:id="@+id/on_boarding_qr_code_import"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:background="?android:selectableItemBackgroundBorderless"
-        android:contentDescription="@string/qr_code_content_description"
-        app:srcCompat="@drawable/ic_baseline_qr_code_scanner_24"  />
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/on_boarding_import_account_holder"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.Dense"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_marginBottom="20dp"
+            android:minWidth="500dp"
+            app:endIconMode="password_toggle">
 
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/on_boarding_import_submit"
-        android:layout_width="wrap_content"
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/on_boarding_import_account_input"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:autofillHints="password"
+                android:hint="@string/import_description"
+                android:imeOptions="actionDone"
+                android:importantForAutofill="yes"
+                android:inputType="textPassword" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+    </LinearLayout>
+
+
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:text="@string/lockbook_import" />
+        android:orientation="horizontal"
+        app:layout_constraintBottom_toBottomOf="parent"
+        android:layout_marginBottom="20dp">
 
-</LinearLayout>
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/on_boarding_import_submit"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="0dp"
+            android:layout_height="60dp"
+            android:layout_weight="1"
+            android:text="@string/lockbook_import"
+            app:shapeAppearanceOverlay="@style/MyShapeAppearance" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/on_boarding_qr_code_import"
+            style="@style/Widget.Material3.Button.IconButton.Filled"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            app:icon="@drawable/ic_baseline_qr_code_scanner_24"
+            app:iconGravity="textStart"
+            app:shapeAppearanceOverlay="@style/MyQRShapeAppearance" />
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
