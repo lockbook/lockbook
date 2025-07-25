@@ -3,15 +3,16 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{
-    BlockNode, InlineNode, InlineNodeType, ListItem, MarkdownNode,
+    BlockNode, BlockNodeType, InlineNode, InlineNodeType, ListItem, MarkdownNode,
 };
 use crate::tab::markdown_editor::widget::ROW_SPACING;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, ToRangeExt as _,
+    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, RelCharOffset,
+    ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 use pulldown_cmark::HeadingLevel;
@@ -75,12 +76,90 @@ impl<'ast> Editor {
 
                         for node in root.descendants() {
                             if self.selected_block(node) {
-                                if !unapply {
+                                // apply heading to ATX heading: replace existing heading
+                                if let BlockNodeType::Heading(style_level) = block_style.node_type()
+                                {
+                                    if let NodeValue::Heading(NodeHeading {
+                                        level: node_level,
+                                        setext: false,
+                                    }) = node.data.borrow().value
+                                    {
+                                        for line_idx in self.node_lines(node).iter() {
+                                            let line = self.bounds.source_lines[line_idx];
+                                            let node_line = self.node_line(node, line);
+
+                                            let style_level = match style_level {
+                                                HeadingLevel::H1 => 1,
+                                                HeadingLevel::H2 => 2,
+                                                HeadingLevel::H3 => 3,
+                                                HeadingLevel::H4 => 4,
+                                                HeadingLevel::H5 => 5,
+                                                HeadingLevel::H6 => 6,
+                                            };
+                                            if style_level > node_level {
+                                                let add_levels = style_level - node_level;
+                                                operations.push(Operation::Replace(Replace {
+                                                    range: node_line.start().into_range(),
+                                                    text: "#".repeat(add_levels as _),
+                                                }));
+                                            } else if style_level == node_level {
+                                                // remove heading
+                                                let mut range = (
+                                                    node_line.start(),
+                                                    node_line.start()
+                                                        + RelCharOffset(node_level as _),
+                                                );
+                                                if self.buffer.current.segs.last_cursor_position()
+                                                    > range.end()
+                                                    && &self.buffer[(range.end(), range.end() + 1)]
+                                                        == " "
+                                                {
+                                                    range.1 += 1;
+                                                }
+
+                                                operations.push(Operation::Replace(Replace {
+                                                    range,
+                                                    text: "".into(),
+                                                }));
+                                            } else {
+                                                let remove_levels = node_level - style_level;
+                                                operations.push(Operation::Replace(Replace {
+                                                    range: (
+                                                        node_line.start(),
+                                                        node_line.start()
+                                                            + RelCharOffset(remove_levels as _),
+                                                    ),
+                                                    text: "".into(),
+                                                }));
+                                            }
+                                        }
+                                    } else if NodeValue::Paragraph == node.data.borrow().value {
+                                        for line_idx in self.node_lines(node).iter() {
+                                            let line = self.bounds.source_lines[line_idx];
+                                            let node_line = self.node_line(node, line);
+
+                                            // count paragraph soft breaks as node breaks
+                                            if node.data.borrow().value == NodeValue::Paragraph
+                                                && !line.intersects(
+                                                    &self.buffer.current.selection,
+                                                    true,
+                                                )
+                                            {
+                                                continue;
+                                            }
+
+                                            operations.push(Operation::Replace(Replace {
+                                                range: node_line.start().into_range(),
+                                                text: "#".repeat(style_level as _) + " ",
+                                            }));
+                                        }
+                                    }
+                                } else if !unapply {
                                     let mut first_line = true;
                                     for line_idx in self.node_lines(node).iter() {
                                         let line = self.bounds.source_lines[line_idx];
 
-                                        // count paragraph soft breaks as node breaks pt 1
+                                        // count paragraph soft breaks as node breaks
                                         if node.data.borrow().value == NodeValue::Paragraph
                                             && !line
                                                 .intersects(&self.buffer.current.selection, true)
@@ -140,7 +219,7 @@ impl<'ast> Editor {
                                         operations
                                             .push(Operation::Replace(Replace { range, text }));
 
-                                        // count paragraph soft breaks as node breaks pt 2
+                                        // count paragraph soft breaks as node breaks
                                         if node.data.borrow().value != NodeValue::Paragraph {
                                             first_line = false;
                                         }
