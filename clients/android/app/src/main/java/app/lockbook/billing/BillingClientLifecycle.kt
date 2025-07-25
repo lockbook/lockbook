@@ -164,8 +164,8 @@ class BillingClientLifecycle private constructor(
             billingResponse.isUnrecoverableError -> {
                 _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
             }
-            billingResponse.isCancelable || billingResponse.isOk-> {}
-            else  -> {
+            billingResponse.isCancelable || billingResponse.isOk -> {}
+            else -> {
                 _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
             }
         }
