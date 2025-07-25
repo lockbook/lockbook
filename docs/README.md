@@ -1,5 +1,5 @@
-<img align="center" src="combo-logo-dark.png#gh-dark-mode-only" alt="Nuclia" height="35" width="auto" />
-<img align="center" src="combo-logo.png#gh-light-mode-only" alt="Nuclia" height="35" width="auto" />
+<img align="center" src="combo-logo-dark.png#gh-dark-mode-only" alt="Lockbook" />
+<img align="center" src="combo-logo.png#gh-light-mode-only" alt="Lockbook" />
 ---
 
 Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can’t see them, but don’t take our word for it: Lockbook is 100% open-source.
