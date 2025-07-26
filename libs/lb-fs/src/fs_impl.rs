@@ -7,7 +7,7 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::nfs3_types::nfs3::{
     fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_gid3, set_mode3,
-    set_mtime, set_size3, set_uid3,
+    set_mtime, set_size3, set_uid3, Nfs3Option,
 };
 use nfs3_server::vfs::{
     FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem, ReadDirPlusIterator,
@@ -164,104 +164,7 @@ impl NfsReadFileSystem for Drive {
 
 
 
-
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
-    // async fn create_exclusive(
-    //     &self, dirid: fileid3, filename: &filename3,
-    // ) -> Result<fileid3, nfsstat3> {
-    //     let filename = get_string(filename);
-    //     let dirid = self.data.lock().await.get(&dirid).unwrap().file.id;
-    //     let children = self.lb.get_children(&dirid).await.unwrap();
-    //     for child in children {
-    //         if child.name == filename {
-    //             warn!("exists already");
-    //             return Err(nfsstat3::NFS3ERR_EXIST);
-    //         }
-    //     }
-
-    //     let file = self
-    //         .lb
-    //         .create_file(&filename, &dirid, FileType::Document)
-    //         .await
-    //         .unwrap();
-
-    //     let entry = FileEntry::from_file(file, 0);
-    //     let id = entry.fattr.fileid;
-    //     info!("({}, size={})", fmt(id), entry.fattr.size);
-    //     self.data.lock().await.insert(entry.fattr.fileid, entry);
-
-    //     return Ok(id);
-    // }
-
-    // #[instrument(skip(self), fields(id = fmt(id)))]
-    // async fn setattr(&self, id: fileid3, setattr: sattr3) -> Result<fattr3, nfsstat3> {
-    //     let mut data = self.data.lock().await;
-    //     let now = FileEntry::now();
-    //     let entry = data.get_mut(&id).unwrap();
-
-    //     match setattr.size {
-    //         set_size3::Void => {}
-    //         set_size3::size(new) => {
-    //             if entry.fattr.size != new {
-    //                 let mut doc = self.lb.read_document(entry.file.id, false).await.unwrap();
-    //                 doc.resize(new as usize, 0);
-    //                 self.lb.write_document(entry.file.id, &doc).await.unwrap();
-    //                 entry.fattr.mtime = FileEntry::ts_from_u64(now);
-    //                 entry.fattr.ctime = FileEntry::ts_from_u64(now);
-    //             }
-    //         }
-    //     }
-
-    //     match setattr.atime {
-    //         set_atime::DONT_CHANGE => {}
-    //         set_atime::SET_TO_SERVER_TIME => {
-    //             entry.fattr.atime = FileEntry::ts_from_u64(now);
-    //         }
-    //         set_atime::SET_TO_CLIENT_TIME(ts) => {
-    //             entry.fattr.atime = ts;
-    //         }
-    //     }
-
-    //     match setattr.mtime {
-    //         set_mtime::DONT_CHANGE => {}
-    //         set_mtime::SET_TO_SERVER_TIME => {
-    //             entry.fattr.mtime = FileEntry::ts_from_u64(now);
-    //             entry.fattr.ctime = FileEntry::ts_from_u64(now);
-    //         }
-    //         set_mtime::SET_TO_CLIENT_TIME(ts) => {
-    //             entry.fattr.mtime = ts;
-    //             entry.fattr.ctime = ts;
-    //         }
-    //     }
-
-    //     match setattr.uid {
-    //         set_uid3::Void => {}
-    //         set_uid3::uid(uid) => {
-    //             entry.fattr.uid = uid;
-    //             entry.fattr.ctime = FileEntry::ts_from_u64(now);
-    //         }
-    //     }
-
-    //     match setattr.gid {
-    //         set_gid3::Void => {}
-    //         set_gid3::gid(gid) => {
-    //             entry.fattr.gid = gid;
-    //             entry.fattr.ctime = FileEntry::ts_from_u64(now);
-    //         }
-    //     }
-
-    //     match setattr.mode {
-    //         set_mode3::Void => {}
-    //         set_mode3::mode(mode) => {
-    //             entry.fattr.mode = mode;
-    //             entry.fattr.ctime = FileEntry::ts_from_u64(now);
-    //         }
-    //     }
-
-    //     info!("fattr = {:?}", entry.fattr);
-
-    //     return Ok(entry.fattr);
-    // }
+    
 
     // #[instrument(skip(self), fields(id = fmt(id), offset, count))]
     // async fn read(
@@ -288,7 +191,7 @@ impl NfsReadFileSystem for Drive {
     // }
 
     // /// they will provide a start_after of 0 for no id
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), start_after, max_entries))]
+    // #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after, max_entries))]
     // async fn readdir(
     //     &self, dirid: fileid3, start_after: fileid3, max_entries: usize,
     // ) -> Result<ReadDirResult, nfsstat3> {
@@ -339,7 +242,7 @@ impl NfsReadFileSystem for Drive {
     // /// Removes a file.
     // /// If not supported dur to readonly file system
     // /// this should return Err(nfsstat3::NFS3ERR_ROFS)
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
+    // #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
     // #[allow(unused)]
     // async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
     //     let mut data = self.data.lock().await;
@@ -441,7 +344,7 @@ impl NfsReadFileSystem for Drive {
     //     return Ok(());
     // }
 
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), dirname = get_string(dirname)))]
+    // #[instrument(skip(self), fields(dirid = dirid.to_string(), dirname = get_string(dirname)))]
     // #[allow(unused)]
     // async fn mkdir(
     //     &self, dirid: fileid3, dirname: &filename3,
@@ -476,8 +379,61 @@ impl NfsReadFileSystem for Drive {
 }
 
 impl NfsFileSystem for Drive {
-    async fn setattr(&self, id: &Self::Handle, setattr: sattr3) -> Result<fattr3, nfsstat3> {
-        todo!()
+    #[instrument(skip(self), fields(id = id.to_string()))]
+    async fn setattr(&self, id: &Self::Handle, setattr: sattr3) -> Result<fattr3, nfsstat3> {        
+        let mut data = self.data.lock().await;
+        let now = FileEntry::now();
+        let entry = data.get_mut(&id).unwrap();
+
+        if let Nfs3Option::Some(new) = setattr.size {
+            if entry.fattr.size != new {
+                let mut doc = self.lb.read_document(entry.file.id, false).await.unwrap();
+                doc.resize(new as usize, 0);
+                self.lb.write_document(entry.file.id, &doc).await.unwrap();
+                entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+            }            
+        }
+
+        match setattr.atime {
+            set_atime::DONT_CHANGE => {}
+            set_atime::SET_TO_SERVER_TIME => {
+                entry.fattr.atime = FileEntry::ts_from_u64(now);
+            }
+            set_atime::SET_TO_CLIENT_TIME(ts) => {
+                entry.fattr.atime = ts;
+            }
+        }
+
+        match setattr.mtime {
+            set_mtime::DONT_CHANGE => {}
+            set_mtime::SET_TO_SERVER_TIME => {
+                entry.fattr.mtime = FileEntry::ts_from_u64(now);
+                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+            }
+            set_mtime::SET_TO_CLIENT_TIME(ts) => {
+                entry.fattr.mtime = ts.clone(); // FIXME: this should be copiable
+                entry.fattr.ctime = ts;
+            }
+        }
+
+        if let Nfs3Option::Some(uid) = setattr.uid {
+            entry.fattr.uid = uid;
+            entry.fattr.ctime = FileEntry::ts_from_u64(now);            
+        }
+
+        if let Nfs3Option::Some(gid) = setattr.gid {
+            entry.fattr.gid = gid;
+            entry.fattr.ctime = FileEntry::ts_from_u64(now);
+        }
+
+        if let Nfs3Option::Some(mode) = setattr.mode {
+            entry.fattr.mode = mode;
+            entry.fattr.ctime = FileEntry::ts_from_u64(now);            
+        }
+
+        info!("fattr = {:?}", entry.fattr);
+        Ok(entry.fattr.clone())
     }
 
     #[instrument(skip(self), fields(id = id.to_string(), buffer = buffer.len()))]
@@ -528,15 +484,37 @@ impl NfsFileSystem for Drive {
 
         let file = self.setattr(&id, attr).await.unwrap();
 
-        info!("({}, size={})", file.fileid, file.size);
+        info!("({id}, size={})", file.size);
         Ok((id, file))
     }
 
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
     async fn create_exclusive(
         &self, dirid: &Self::Handle, filename: &filename3<'_>,
         createverf: nfs3_server::nfs3_types::nfs3::createverf3,
     ) -> Result<Self::Handle, nfsstat3> {
-        todo!()
+        let filename = get_string(filename);
+        let dirid = self.data.lock().await.get(&dirid).unwrap().file.id;
+        let children = self.lb.get_children(&dirid).await.unwrap();
+        for child in children {
+            if child.name == filename {
+                warn!("exists already");
+                return Err(nfsstat3::NFS3ERR_EXIST);
+            }
+        }
+
+        let file = self
+            .lb
+            .create_file(&filename, &dirid, FileType::Document)
+            .await
+            .unwrap();
+
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.file.id.into();
+        info!("({id}, size={})", entry.fattr.size);
+        self.data.lock().await.insert(id, entry);
+
+        Ok(id)
     }
 
     async fn mkdir(
