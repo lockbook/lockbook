@@ -1,13 +1,13 @@
 #![expect(unused)] // FIXME: remove this once all unused code is removed
 
 use crate::cache::FileEntry;
-use crate::utils::{get_string};
+use crate::utils::get_string;
 use async_trait::async_trait;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::nfs3_types::nfs3::{
-    fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_gid3, set_mode3,
-    set_mtime, set_size3, set_uid3, Nfs3Option,
+    Nfs3Option, fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_gid3,
+    set_mode3, set_mtime, set_size3, set_uid3,
 };
 use nfs3_server::vfs::{
     FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem, ReadDirPlusIterator,
@@ -145,7 +145,7 @@ impl NfsReadFileSystem for Drive {
         return Ok((doc[offset..offset + count].to_vec(), false));
     }
 
-     #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
     async fn readdir(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl nfs3_server::vfs::ReadDirIterator, nfsstat3> {
@@ -159,12 +159,9 @@ impl NfsReadFileSystem for Drive {
     }
 
     async fn readlink(&self, id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
-        todo!()
+        info!("readlink NOTSUPP");
+        Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
-
-
-
-    
 
     // #[instrument(skip(self), fields(id = fmt(id), offset, count))]
     // async fn read(
@@ -365,22 +362,11 @@ impl NfsReadFileSystem for Drive {
     //     info!("({}, fattr={:?})", fmt(id), fattr);
     //     Ok((id, fattr))
     // }
-
-    // async fn symlink(
-    //     &self, _dirid: fileid3, _linkname: &filename3, _symlink: &nfspath3, _attr: &sattr3,
-    // ) -> Result<(fileid3, fattr3), nfsstat3> {
-    //     info!("symlink NOTSUPP");
-    //     return Err(nfsstat3::NFS3ERR_NOTSUPP);
-    // }
-    // async fn readlink(&self, _id: fileid3) -> Result<nfspath3, nfsstat3> {
-    //     info!("readklink NOTSUPP");
-    //     return Err(nfsstat3::NFS3ERR_NOTSUPP);
-    // }
 }
 
 impl NfsFileSystem for Drive {
     #[instrument(skip(self), fields(id = id.to_string()))]
-    async fn setattr(&self, id: &Self::Handle, setattr: sattr3) -> Result<fattr3, nfsstat3> {        
+    async fn setattr(&self, id: &Self::Handle, setattr: sattr3) -> Result<fattr3, nfsstat3> {
         let mut data = self.data.lock().await;
         let now = FileEntry::now();
         let entry = data.get_mut(&id).unwrap();
@@ -392,7 +378,7 @@ impl NfsFileSystem for Drive {
                 self.lb.write_document(entry.file.id, &doc).await.unwrap();
                 entry.fattr.mtime = FileEntry::ts_from_u64(now);
                 entry.fattr.ctime = FileEntry::ts_from_u64(now);
-            }            
+            }
         }
 
         match setattr.atime {
@@ -419,7 +405,7 @@ impl NfsFileSystem for Drive {
 
         if let Nfs3Option::Some(uid) = setattr.uid {
             entry.fattr.uid = uid;
-            entry.fattr.ctime = FileEntry::ts_from_u64(now);            
+            entry.fattr.ctime = FileEntry::ts_from_u64(now);
         }
 
         if let Nfs3Option::Some(gid) = setattr.gid {
@@ -429,7 +415,7 @@ impl NfsFileSystem for Drive {
 
         if let Nfs3Option::Some(mode) = setattr.mode {
             entry.fattr.mode = mode;
-            entry.fattr.ctime = FileEntry::ts_from_u64(now);            
+            entry.fattr.ctime = FileEntry::ts_from_u64(now);
         }
 
         info!("fattr = {:?}", entry.fattr);
@@ -437,7 +423,9 @@ impl NfsFileSystem for Drive {
     }
 
     #[instrument(skip(self), fields(id = id.to_string(), buffer = buffer.len()))]
-    async fn write(&self, id: &Self::Handle, offset: u64, buffer: &[u8]) -> Result<fattr3, nfsstat3> {
+    async fn write(
+        &self, id: &Self::Handle, offset: u64, buffer: &[u8],
+    ) -> Result<fattr3, nfsstat3> {
         let offset = offset as usize;
 
         let mut data = self.data.lock().await;
@@ -538,7 +526,8 @@ impl NfsFileSystem for Drive {
         &self, dirid: &Self::Handle, linkname: &filename3<'a>, symlink: &nfspath3<'a>,
         attr: &sattr3,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
-        todo!()
+        info!("symlink NOTSUPP");
+        Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
 }
 
