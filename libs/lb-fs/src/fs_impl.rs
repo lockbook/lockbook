@@ -11,14 +11,16 @@ use nfs3_server::nfs3_types::nfs3::{
     set_mode3, set_mtime, set_size3, set_uid3,
 };
 use nfs3_server::vfs::{
-    FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem, ReadDirIterator,
-    ReadDirPlusIterator, VFSCapabilities,
+    DirEntry, DirEntryPlus, FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem,
+    ReadDirIterator, ReadDirPlusIterator, VFSCapabilities,
 };
 use std::collections::HashMap;
 use std::fs::ReadDir;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
+
+type EntriesMap = Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct UuidFileHandle(pub Uuid);
@@ -73,7 +75,7 @@ pub struct Drive {
     /// 1. size computations are expensive in core
     /// 2. nfs needs to update timestamps to specified values
     /// 3. nfs models properties we don't, like file permission bits
-    pub data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>,
+    pub data: EntriesMap,
 }
 
 impl Drive {
@@ -189,7 +191,7 @@ impl NfsReadFileSystem for Drive {
     #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
     async fn readdirplus(
         &self, dirid: &Self::Handle, cookie: u64,
-    ) -> Result<impl nfs3_server::vfs::ReadDirPlusIterator, nfsstat3> {
+    ) -> Result<impl ReadDirPlusIterator<UuidFileHandle>, nfsstat3> {
         let iterator = self.create_iterator(dirid, cookie).await?;
         Ok(iterator)
     }
@@ -475,43 +477,52 @@ impl NfsFileSystem for Drive {
 }
 
 pub struct Iterator {
-    data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>,
+    data: EntriesMap,
     children: Vec<File>,
     pos: usize,
 }
 
 impl Iterator {
-    fn new(
-        data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>, children: Vec<File>, pos: usize,
-    ) -> Self {
+    fn new(data: EntriesMap, children: Vec<File>, pos: usize) -> Self {
         Self { data, children, pos }
     }
-}
 
-impl ReadDirPlusIterator for Iterator {
-    async fn next(
-        &mut self,
-    ) -> nfs3_server::vfs::NextResult<nfs3_server::vfs::entryplus3<'static>> {
+    fn next_value(&mut self) -> Option<(UuidFileHandle, filename3<'static>)> {
         if self.pos >= self.children.len() {
-            return nfs3_server::vfs::NextResult::Eof;
+            return None;
         }
 
         let child = &self.children[self.pos];
-        self.pos += 1;
-
         let id: UuidFileHandle = child.id.into();
+        let name = child.name.as_bytes().to_vec().into();
+
+        Some((id, name))
+    }
+}
+
+impl ReadDirIterator for Iterator {
+    async fn next(&mut self) -> nfs3_server::vfs::NextResult<DirEntry> {
+        let Some((id, name)) = self.next_value() else { return nfs3_server::vfs::NextResult::Eof };
+        let entry = DirEntry { fileid: id.fileid(), name, cookie: self.pos as u64 };
+        nfs3_server::vfs::NextResult::Ok(entry)
+    }
+}
+
+impl ReadDirPlusIterator<UuidFileHandle> for Iterator {
+    async fn next(&mut self) -> nfs3_server::vfs::NextResult<DirEntryPlus<UuidFileHandle>> {
+        let Some((id, name)) = self.next_value() else { return nfs3_server::vfs::NextResult::Eof };
 
         let fattr = {
             let data = self.data.lock().await;
-            data.get(&id).unwrap().fattr.clone()
+            data.get(&id).map(|entry| entry.fattr.clone())
         };
 
-        let entry = nfs3_server::vfs::entryplus3 {
+        let entry = DirEntryPlus::<UuidFileHandle> {
             fileid: id.fileid(),
-            name: child.name.as_bytes().to_vec().into(),
+            name,
             cookie: self.pos as u64,
-            name_attributes: Nfs3Option::Some(fattr),
-            name_handle: Nfs3Option::None, // FIXME: it should be Some(id)
+            name_attributes: fattr,
+            name_handle: Some(id),
         };
 
         nfs3_server::vfs::NextResult::Ok(entry)
