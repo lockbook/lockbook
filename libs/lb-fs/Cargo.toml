@@ -10,8 +10,7 @@ readme = "../../docs/README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-async-trait = "0.1.77"
-nfs3_server = "0.7"
+nfs3_server = "0.8"
 tokio = { version = "1.35.1", features = ["signal", "process", "rt-multi-thread"] } 
 cli-rs = "0.1.12"
 lb-rs = { version = "0.9", path = "../lb/lb-rs" }

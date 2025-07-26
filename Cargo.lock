@@ -4165,7 +4165,6 @@ source = "git+https://github.com/lockbook/lb-fonts#54b09038cbc3048f45e7d771a0118
 name = "lb-fs"
 version = "0.9.26"
 dependencies = [
- "async-trait",
  "cli-rs",
  "lb-rs",
  "nfs3_server",
@@ -5069,9 +5068,9 @@ dependencies = [
 
 [[package]]
 name = "nfs3_server"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93e2860c9cd589872b82eee33288658e20708fa011b5f6839f605a565cb03f1"
+checksum = "2a66ca2d2f16bbdd4d5b04ee9295d06f214860d8c52c12b3d4001eb97e0e954a"
 dependencies = [
  "anyhow",
  "filetime",
@@ -5082,9 +5081,9 @@ dependencies = [
 
 [[package]]
 name = "nfs3_types"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "099eabb8e460846ada8cd6e71d4e8f2fa857a6aec7d7b56c40a8b693a4a6a08b"
+checksum = "a1e8a6ffeaf0ce30c1cc73a65bb22bc6cd0dd6fab680850745ab64391a69c2cb"
 dependencies = [
  "nfs3_macros",
 ]
