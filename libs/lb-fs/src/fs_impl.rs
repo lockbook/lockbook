@@ -235,31 +235,6 @@ impl NfsReadFileSystem for Drive {
 
     //     Ok(ret)
     // }
-
-    // /// Removes a file.
-    // /// If not supported dur to readonly file system
-    // /// this should return Err(nfsstat3::NFS3ERR_ROFS)
-    // #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
-    // #[allow(unused)]
-    // async fn remove(&self, dirid: fileid3, filename: &filename3) -> Result<(), nfsstat3> {
-    //     let mut data = self.data.lock().await;
-    //     let dirid = data.get(&dirid).unwrap().file.id;
-
-    //     let children = self.lb.get_children(&dirid).await.unwrap();
-    //     let file_name = String::from_utf8(filename.0.clone()).unwrap();
-
-    //     for child in children {
-    //         if file_name == child.name {
-    //             info!("deleted");
-    //             self.lb.delete(&child.id).await;
-    //             data.remove(&child.id.as_u64_pair().0);
-    //             return Ok(());
-    //         }
-    //     }
-
-    //     info!("NOENT");
-    //     return Err(nfsstat3::NFS3ERR_NOENT);
-    // }
 }
 
 impl NfsFileSystem for Drive {
@@ -424,8 +399,28 @@ impl NfsFileSystem for Drive {
         Ok((id, fattr))
     }
 
+    /// Removes a file.
+    /// If not supported dur to readonly file system
+    /// this should return Err(nfsstat3::NFS3ERR_ROFS)
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
     async fn remove(&self, dirid: &Self::Handle, filename: &filename3<'_>) -> Result<(), nfsstat3> {
-        todo!()
+        let mut data = self.data.lock().await;
+        let dirid = data.get(&dirid).unwrap().file.id;
+
+        let children = self.lb.get_children(&dirid).await.unwrap();
+        let file_name = get_string(filename);
+
+        for child in children {
+            if file_name == child.name {
+                info!("deleted");
+                self.lb.delete(&child.id).await;
+                data.remove(&child.id.into());
+                return Ok(());
+            }
+        }
+
+        info!("NOENT");
+        Err(nfsstat3::NFS3ERR_NOENT)
     }
 
     /// either an overwrite rename or move
