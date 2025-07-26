@@ -340,28 +340,6 @@ impl NfsReadFileSystem for Drive {
 
     //     return Ok(());
     // }
-
-    // #[instrument(skip(self), fields(dirid = dirid.to_string(), dirname = get_string(dirname)))]
-    // #[allow(unused)]
-    // async fn mkdir(
-    //     &self, dirid: fileid3, dirname: &filename3,
-    // ) -> Result<(fileid3, fattr3), nfsstat3> {
-    //     let filename = get_string(dirname);
-    //     let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
-    //     let file = self
-    //         .lb
-    //         .create_file(&filename, &parent, FileType::Folder)
-    //         .await
-    //         .unwrap();
-
-    //     let entry = FileEntry::from_file(file, 0);
-    //     let id = entry.fattr.fileid;
-    //     let fattr = entry.fattr;
-    //     self.data.lock().await.insert(entry.fattr.fileid, entry);
-
-    //     info!("({}, fattr={:?})", fmt(id), fattr);
-    //     Ok((id, fattr))
-    // }
 }
 
 impl NfsFileSystem for Drive {
@@ -505,10 +483,25 @@ impl NfsFileSystem for Drive {
         Ok(id)
     }
 
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), dirname = get_string(dirname)))]
     async fn mkdir(
         &self, dirid: &Self::Handle, dirname: &filename3<'_>,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
-        todo!()
+        let filename = get_string(dirname);
+        let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
+        let file = self
+            .lb
+            .create_file(&filename, &parent, FileType::Folder)
+            .await
+            .unwrap();
+
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.file.id.into();
+        let fattr = entry.fattr.clone();
+        self.data.lock().await.insert(id, entry);
+
+        info!("({id}, fattr={fattr:?})");
+        Ok((id, fattr))
     }
 
     async fn remove(&self, dirid: &Self::Handle, filename: &filename3<'_>) -> Result<(), nfsstat3> {
