@@ -82,13 +82,13 @@ impl InlineNodeType {
     }
 
     pub fn matches(&self, value: &NodeValue) -> bool {
-        match (value, self) {
-            (NodeValue::Code(_), InlineNodeType::Code) => true,
-            (NodeValue::Emph, InlineNodeType::Italic) => true,
-            (NodeValue::Strikethrough, InlineNodeType::Strikethrough) => true,
-            (NodeValue::Strong, InlineNodeType::Bold) => true,
-            _ => false,
-        }
+        matches!(
+            (value, self),
+            (NodeValue::Code(_), InlineNodeType::Code)
+                | (NodeValue::Emph, InlineNodeType::Italic)
+                | (NodeValue::Strikethrough, InlineNodeType::Strikethrough)
+                | (NodeValue::Strong, InlineNodeType::Bold)
+        )
     }
 }
 
