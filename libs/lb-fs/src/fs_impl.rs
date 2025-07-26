@@ -260,86 +260,6 @@ impl NfsReadFileSystem for Drive {
     //     info!("NOENT");
     //     return Err(nfsstat3::NFS3ERR_NOENT);
     // }
-
-    // /// either an overwrite rename or move
-    // #[instrument(skip(self), fields(from_dirid = fmt(from_dirid), from_filename = get_string(from_filename), to_dirid = fmt(to_dirid), to_filename = get_string(to_filename)))]
-    // #[allow(unused)]
-    // async fn rename(
-    //     &self, from_dirid: fileid3, from_filename: &filename3, to_dirid: fileid3,
-    //     to_filename: &filename3,
-    // ) -> Result<(), nfsstat3> {
-    //     let mut data = self.data.lock().await;
-
-    //     let from_filename = String::from_utf8(from_filename.0.clone()).unwrap();
-    //     let to_filename = String::from_utf8(to_filename.0.clone()).unwrap();
-
-    //     let from_dirid = data.get(&from_dirid).unwrap().file.id;
-    //     let to_dirid = data.get(&to_dirid).unwrap().file.id;
-
-    //     let src_children = self.lb.get_children(&from_dirid).await.unwrap();
-
-    //     let mut from_id = None;
-    //     let mut to_id = None;
-    //     for child in src_children {
-    //         if child.name == from_filename {
-    //             from_id = Some(child.id);
-    //         }
-
-    //         if to_dirid == from_dirid && child.name == to_filename {
-    //             to_id = Some(child.id);
-    //         }
-    //     }
-
-    //     if to_dirid != from_dirid {
-    //         let dst_children = self.lb.get_children(&to_dirid).await.unwrap();
-    //         for child in dst_children {
-    //             if child.name == to_filename {
-    //                 to_id = Some(child.id);
-    //             }
-    //         }
-    //     }
-
-    //     let from_id = from_id.unwrap();
-
-    //     match to_id {
-    //         // we are overwriting a file
-    //         Some(id) => {
-    //             info!("overwrite {from_id} -> {id}");
-    //             let from_doc = self.lb.read_document(from_id, false).await.unwrap();
-    //             info!("|{}|", from_doc.len());
-    //             let doc_len = from_doc.len() as u64;
-    //             self.lb.write_document(id, &from_doc).await.unwrap();
-    //             self.lb.delete(&from_id).await.unwrap();
-
-    //             let mut entry = data.get_mut(&id.as_u64_pair().0).unwrap();
-    //             entry.fattr.size = doc_len;
-
-    //             data.remove(&from_id.as_u64_pair().0);
-    //         }
-
-    //         // we are doing a move and/or rename
-    //         None => {
-    //             if from_dirid != to_dirid {
-    //                 info!("move {} -> {}\t", from_id, to_dirid);
-    //                 self.lb.move_file(&from_id, &to_dirid).await.unwrap();
-    //             }
-
-    //             if from_filename != to_filename {
-    //                 info!("rename {} -> {}\t", from_id, to_filename);
-    //                 self.lb.rename_file(&from_id, &to_filename).await.unwrap();
-    //             }
-
-    //             let mut entry = data.get_mut(&from_id.as_u64_pair().0).unwrap();
-
-    //             let file = self.lb.get_file_by_id(from_id).await.unwrap();
-    //             entry.file = file;
-
-    //             info!("ok");
-    //         }
-    //     }
-
-    //     return Ok(());
-    // }
 }
 
 impl NfsFileSystem for Drive {
@@ -508,11 +428,83 @@ impl NfsFileSystem for Drive {
         todo!()
     }
 
+    /// either an overwrite rename or move
+    #[instrument(skip(self), fields(from_dirid = from_dirid.to_string(), from_filename = get_string(from_filename), to_dirid = to_dirid.to_string(), to_filename = get_string(to_filename)))]
     async fn rename<'a>(
         &self, from_dirid: &Self::Handle, from_filename: &filename3<'a>, to_dirid: &Self::Handle,
         to_filename: &filename3<'a>,
     ) -> Result<(), nfsstat3> {
-        todo!()
+        let mut data = self.data.lock().await;
+
+        let from_filename = get_string(from_filename);
+        let to_filename = get_string(to_filename);
+
+        let from_dirid = data.get(&from_dirid).unwrap().file.id;
+        let to_dirid = data.get(&to_dirid).unwrap().file.id;
+
+        let src_children = self.lb.get_children(&from_dirid).await.unwrap();
+
+        let mut from_id = None;
+        let mut to_id = None;
+        for child in src_children {
+            if child.name == from_filename {
+                from_id = Some(child.id);
+            }
+
+            if to_dirid == from_dirid && child.name == to_filename {
+                to_id = Some(child.id);
+            }
+        }
+
+        if to_dirid != from_dirid {
+            let dst_children = self.lb.get_children(&to_dirid).await.unwrap();
+            for child in dst_children {
+                if child.name == to_filename {
+                    to_id = Some(child.id);
+                }
+            }
+        }
+
+        let from_id = from_id.unwrap();
+
+        match to_id {
+            // we are overwriting a file
+            Some(id) => {
+                info!("overwrite {from_id} -> {id}");
+                let from_doc = self.lb.read_document(from_id, false).await.unwrap();
+                info!("|{}|", from_doc.len());
+                let doc_len = from_doc.len() as u64;
+                self.lb.write_document(id, &from_doc).await.unwrap();
+                self.lb.delete(&from_id).await.unwrap();
+
+                let mut entry = data.get_mut(&id.into()).unwrap();
+                entry.fattr.size = doc_len;
+
+                data.remove(&from_id.into());
+            }
+
+            // we are doing a move and/or rename
+            None => {
+                if from_dirid != to_dirid {
+                    info!("move {} -> {}\t", from_id, to_dirid);
+                    self.lb.move_file(&from_id, &to_dirid).await.unwrap();
+                }
+
+                if from_filename != to_filename {
+                    info!("rename {} -> {}\t", from_id, to_filename);
+                    self.lb.rename_file(&from_id, &to_filename).await.unwrap();
+                }
+
+                let mut entry = data.get_mut(&from_id.into()).unwrap();
+
+                let file = self.lb.get_file_by_id(from_id).await.unwrap();
+                entry.file = file;
+
+                info!("ok");
+            }
+        }
+
+        Ok(())
     }
 
     async fn symlink<'a>(
