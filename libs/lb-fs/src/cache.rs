@@ -1,7 +1,7 @@
 use crate::fs_impl::Drive;
 use lb_rs::model::file::File;
 use lb_rs::model::work_unit::WorkUnit;
-use nfsserve::nfs::{fattr3, ftype3, nfstime3};
+use nfs3_server::nfs3_types::nfs3::{fattr3, ftype3, nfstime3};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;
 
@@ -26,7 +26,7 @@ impl FileEntry {
         let ctime = Self::ts_from_u64(file.last_modified);
 
         let fattr = fattr3 {
-            ftype,
+            type_: ftype,
             mode,
             nlink: 1, // hard links to this file
             uid: 501, // todo: evaluate owner field? not resolved by this lib
@@ -70,7 +70,7 @@ impl Drive {
             let id = file.id;
             let entry =
                 FileEntry::from_file(file, sizes.get(&id).copied().unwrap_or_default() as u64);
-            data.insert(entry.fattr.fileid, entry);
+            data.insert(entry.file.id.into(), entry);
         }
         info!("cache ready");
     }
@@ -92,10 +92,10 @@ impl Drive {
 
                 let now = FileEntry::ts_from_u64(FileEntry::now());
 
-                entry.fattr.mtime = now;
+                entry.fattr.mtime = now.clone(); // FIXME: this should be copiable
                 entry.fattr.ctime = now;
 
-                data.insert(entry.fattr.fileid, entry);
+                data.insert(entry.file.id.into(), entry);
             }
         }
     }
