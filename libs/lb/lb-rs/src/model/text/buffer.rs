@@ -234,7 +234,7 @@ impl Buffer {
                     {
                         if last_op_range.end() == op_range.start() {
                             last_op_range.1 = op_range.1;
-                            last_op_text.push_str(&op_text);
+                            last_op_text.push_str(op_text);
                         } else {
                             combined_ops.push(op);
                         }
