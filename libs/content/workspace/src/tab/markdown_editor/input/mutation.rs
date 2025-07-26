@@ -74,8 +74,11 @@ impl<'ast> Editor {
                     MarkdownNode::Block(block_style) => {
                         let unapply = self.unapply_block(root, &block_style);
 
+                        let mut handled = false;
                         for node in root.descendants() {
                             if self.selected_block(node) {
+                                handled = true;
+
                                 // apply heading to ATX heading: replace existing heading
                                 if let BlockNodeType::Heading(style_level) = block_style.node_type()
                                 {
@@ -156,14 +159,15 @@ impl<'ast> Editor {
                                     }
                                 } else {
                                     // remove target prefix regardless (will often be empty / supports replacements)
+                                    // todo: space between selected nodes?
+                                    let target_node = if node.is_container_block() {
+                                        node
+                                    } else {
+                                        node.parent().unwrap()
+                                    };
                                     for line_idx in self.node_lines(node).iter() {
                                         let line = self.bounds.source_lines[line_idx];
 
-                                        let target_node = if node.is_container_block() {
-                                            node
-                                        } else {
-                                            node.parent().unwrap()
-                                        };
                                         let prefix = self.line_own_prefix(target_node, line);
 
                                         operations.push(Operation::Replace(Replace {
@@ -192,17 +196,7 @@ impl<'ast> Editor {
                                                 .end()
                                                 .into_range();
                                             let text = match block_style {
-                                                BlockNode::Heading(heading_level) => {
-                                                    // todo: technically this makes a bunch of separate headings
-                                                    match heading_level {
-                                                        HeadingLevel::H1 => "# ",
-                                                        HeadingLevel::H2 => "## ",
-                                                        HeadingLevel::H3 => "### ",
-                                                        HeadingLevel::H4 => "#### ",
-                                                        HeadingLevel::H5 => "##### ",
-                                                        HeadingLevel::H6 => "###### ",
-                                                    }
-                                                }
+                                                BlockNode::Heading(_) => unreachable!(),
                                                 BlockNode::Quote => "> ",
                                                 BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
                                                 BlockNode::ListItem(ListItem::Bulleted, _) => {
@@ -246,6 +240,59 @@ impl<'ast> Editor {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+
+                        if !handled {
+                            // selecting sequence of contiguous empty/whitespace-only lines:
+                            // insert or remove matching prefix
+                            if !unapply {
+                                let range = current_selection.start().into_range();
+                                let text = match block_style {
+                                    BlockNode::Heading(heading_level) => {
+                                        // todo: technically this makes a bunch of separate headings
+                                        match heading_level {
+                                            HeadingLevel::H1 => "# ",
+                                            HeadingLevel::H2 => "## ",
+                                            HeadingLevel::H3 => "### ",
+                                            HeadingLevel::H4 => "#### ",
+                                            HeadingLevel::H5 => "##### ",
+                                            HeadingLevel::H6 => "###### ",
+                                        }
+                                    }
+                                    BlockNode::Quote => "> ",
+                                    BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
+                                    BlockNode::ListItem(ListItem::Bulleted, _) => "* ",
+                                    BlockNode::ListItem(ListItem::Numbered(_), _) => "1. ",
+                                    BlockNode::ListItem(ListItem::Todo(true), _) => "* [x] ",
+                                    BlockNode::ListItem(ListItem::Todo(false), _) => "* [ ] ",
+                                    BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                                }
+                                .into();
+
+                                operations.push(Operation::Replace(Replace { range, text }));
+                                operations.push(Operation::Select(current_selection));
+                            } else {
+                                let target_node = self.deepest_container_block_at_offset(
+                                    root,
+                                    self.buffer.current.selection.start(),
+                                );
+                                if block_style
+                                    .node_type()
+                                    .matches(&target_node.data.borrow().value)
+                                {
+                                    let line_idx = self
+                                        .range_lines(current_selection.start().into_range())
+                                        .start();
+                                    let line = self.bounds.source_lines[line_idx];
+
+                                    let prefix = self.line_own_prefix(target_node, line);
+
+                                    operations.push(Operation::Replace(Replace {
+                                        range: prefix,
+                                        text: "".into(),
+                                    }));
                                 }
                             }
                         }
@@ -649,13 +696,29 @@ impl<'ast> Editor {
     /// Returns true if a block style would be unapplied instead of applied
     pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &BlockNode) -> bool {
         let mut unapply = false;
+        let mut any_selected_blocks = false;
         for node in root.descendants() {
             if self.selected_block(node) {
+                any_selected_blocks = true;
+
                 let target_node =
                     if node.is_container_block() { node } else { node.parent().unwrap() };
                 unapply |= style.node_type().matches(&target_node.data.borrow().value);
             }
         }
+
+        if !any_selected_blocks {
+            // selecting sequence of contiguous empty/whitespace-only lines:
+            // check for matching container block
+            return style.node_type().matches(
+                &self
+                    .deepest_container_block_at_offset(root, self.buffer.current.selection.start())
+                    .data
+                    .borrow()
+                    .value,
+            );
+        }
+
         unapply
     }
 
