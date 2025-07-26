@@ -1,21 +1,16 @@
-#![expect(unused)] // FIXME: remove this once all unused code is removed
-
 use crate::cache::FileEntry;
 use crate::utils::get_string;
-use async_trait::async_trait;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::nfs3_types::nfs3::{
-    Nfs3Option, fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_gid3,
-    set_mode3, set_mtime, set_size3, set_uid3,
+    Nfs3Option, fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_mtime,
 };
 use nfs3_server::vfs::{
-    DirEntry, DirEntryPlus, FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem,
-    ReadDirIterator, ReadDirPlusIterator, VFSCapabilities,
+    DirEntry, DirEntryPlus, FileHandle, NfsFileSystem, NfsReadFileSystem, ReadDirIterator,
+    ReadDirPlusIterator,
 };
 use std::collections::HashMap;
-use std::fs::ReadDir;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
@@ -196,7 +191,7 @@ impl NfsReadFileSystem for Drive {
         Ok(iterator)
     }
 
-    async fn readlink(&self, id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
+    async fn readlink(&self, _id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
         info!("readlink NOTSUPP");
         Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
@@ -236,7 +231,7 @@ impl NfsFileSystem for Drive {
                 entry.fattr.ctime = FileEntry::ts_from_u64(now);
             }
             set_mtime::SET_TO_CLIENT_TIME(ts) => {
-                entry.fattr.mtime = ts.clone(); // FIXME: this should be copiable
+                entry.fattr.mtime = ts;
                 entry.fattr.ctime = ts;
             }
         }
@@ -378,7 +373,7 @@ impl NfsFileSystem for Drive {
         for child in children {
             if file_name == child.name {
                 info!("deleted");
-                self.lb.delete(&child.id).await;
+                let _ = self.lb.delete(&child.id).await; // ignore errors
                 data.remove(&child.id.into());
                 return Ok(());
             }
@@ -437,7 +432,7 @@ impl NfsFileSystem for Drive {
                 self.lb.write_document(id, &from_doc).await.unwrap();
                 self.lb.delete(&from_id).await.unwrap();
 
-                let mut entry = data.get_mut(&id.into()).unwrap();
+                let entry = data.get_mut(&id.into()).unwrap();
                 entry.fattr.size = doc_len;
 
                 data.remove(&from_id.into());
@@ -455,7 +450,7 @@ impl NfsFileSystem for Drive {
                     self.lb.rename_file(&from_id, &to_filename).await.unwrap();
                 }
 
-                let mut entry = data.get_mut(&from_id.into()).unwrap();
+                let entry = data.get_mut(&from_id.into()).unwrap();
 
                 let file = self.lb.get_file_by_id(from_id).await.unwrap();
                 entry.file = file;
@@ -468,8 +463,8 @@ impl NfsFileSystem for Drive {
     }
 
     async fn symlink<'a>(
-        &self, dirid: &Self::Handle, linkname: &filename3<'a>, symlink: &nfspath3<'a>,
-        attr: &sattr3,
+        &self, _dirid: &Self::Handle, _linkname: &filename3<'a>, _symlink: &nfspath3<'a>,
+        _attr: &sattr3,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
         info!("symlink NOTSUPP");
         Err(nfsstat3::NFS3ERR_NOTSUPP)
