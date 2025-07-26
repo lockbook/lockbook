@@ -92,7 +92,7 @@ impl Drive {
 
                 let now = FileEntry::ts_from_u64(FileEntry::now());
 
-                entry.fattr.mtime = now.clone(); // FIXME: this should be copiable
+                entry.fattr.mtime = now;
                 entry.fattr.ctime = now;
 
                 data.insert(entry.file.id.into(), entry);
