@@ -114,12 +114,14 @@ impl NfsReadFileSystem for Drive {
         Err(nfsstat3::NFS3ERR_NOENT)
     }
 
+    #[instrument(skip(self), fields(id = id.to_string()))]
     async fn getattr(&self, id: &Self::Handle) -> Result<fattr3, nfsstat3> {
         let file = self.data.lock().await.get(id).unwrap().fattr.clone();
         info!("fattr = {:?}", file);
         Ok(file)
     }
 
+    #[instrument(skip(self), fields(id = id.to_string(), offset, count))]
     async fn read(
         &self, id: &Self::Handle, offset: u64, count: u32,
     ) -> Result<(Vec<u8>, bool), nfsstat3> {
@@ -143,6 +145,7 @@ impl NfsReadFileSystem for Drive {
         return Ok((doc[offset..offset + count].to_vec(), false));
     }
 
+     #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
     async fn readdir(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl nfs3_server::vfs::ReadDirIterator, nfsstat3> {
@@ -158,70 +161,9 @@ impl NfsReadFileSystem for Drive {
     async fn readlink(&self, id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
         todo!()
     }
-    // #[instrument(skip(self))]
-    // fn root_dir(&self) -> fileid3 {
-    //     let root = self.root;
-    //     let half = root.as_u64_pair().0;
 
-    //     info!("ret={root}");
-    //     half
-    // }
 
-    // fn capabilities(&self) -> VFSCapabilities {
-    //     VFSCapabilities::ReadWrite
-    // }
 
-    // #[instrument(skip(self), fields(id = fmt(id), buffer = buffer.len()))]
-    // async fn write(&self, id: fileid3, offset: u64, buffer: &[u8]) -> Result<fattr3, nfsstat3> {
-    //     let offset = offset as usize;
-
-    //     let mut data = self.data.lock().await;
-    //     let entry = data.get_mut(&id).unwrap();
-    //     let id = entry.file.id;
-
-    //     let mut doc = self.lb.read_document(id, false).await.unwrap();
-    //     let mut expanded = false;
-    //     if offset + buffer.len() > doc.len() {
-    //         doc.resize(offset + buffer.len(), 0);
-    //         doc[offset..].copy_from_slice(buffer);
-    //         expanded = true;
-    //     } else {
-    //         for (idx, datum) in buffer.iter().enumerate() {
-    //             doc[offset + idx] = *datum;
-    //         }
-    //     }
-    //     let doc_size = doc.len();
-    //     self.lb.write_document(id, &doc).await.unwrap();
-
-    //     entry.fattr.size = doc_size as u64;
-
-    //     info!("expanded={expanded}, fattr.size = {}", doc_size);
-
-    //     Ok(entry.fattr)
-    // }
-
-    // // todo this should create a file regardless of whether it exists
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
-    // async fn create(
-    //     &self, dirid: fileid3, filename: &filename3, attr: sattr3,
-    // ) -> Result<(fileid3, fattr3), nfsstat3> {
-    //     let filename = get_string(filename);
-    //     let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
-    //     let file = self
-    //         .lb
-    //         .create_file(&filename, &parent, FileType::Document)
-    //         .await
-    //         .unwrap();
-
-    //     let entry = FileEntry::from_file(file, 0);
-    //     let id = entry.fattr.fileid;
-    //     self.data.lock().await.insert(entry.fattr.fileid, entry);
-
-    //     let file = self.setattr(id, attr).await.unwrap();
-
-    //     info!("({}, size={})", fmt(file.fileid), file.size);
-    //     Ok((id, file))
-    // }
 
     // #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
     // async fn create_exclusive(
@@ -249,48 +191,6 @@ impl NfsReadFileSystem for Drive {
     //     self.data.lock().await.insert(entry.fattr.fileid, entry);
 
     //     return Ok(id);
-    // }
-
-    // #[instrument(skip(self), fields(dirid = fmt(dirid), filename = get_string(filename)))]
-    // async fn lookup(&self, dirid: fileid3, filename: &filename3) -> Result<fileid3, nfsstat3> {
-    //     let dir = self.data.lock().await.get(&dirid).unwrap().file.clone();
-
-    //     if dir.is_document() {
-    //         info!("NOTDIR");
-    //         return Err(nfsstat3::NFS3ERR_NOTDIR);
-    //     }
-
-    //     // if looking for dir/. its the current directory
-    //     if filename[..] == [b'.'] {
-    //         info!(". == {}", fmt(dirid));
-    //         return Ok(dirid);
-    //     }
-
-    //     // if looking for dir/.. its the parent directory
-    //     if filename[..] == [b'.', b'.'] {
-    //         info!(".. == {}", dir.parent);
-    //         return Ok(dir.parent.as_u64_pair().0);
-    //     }
-
-    //     let children = self.lb.get_children(&dir.id).await.unwrap();
-    //     let file_name = String::from_utf8(filename.0.clone()).unwrap();
-
-    //     for child in children {
-    //         if file_name == child.name {
-    //             info!("{}", child.id);
-    //             return Ok(child.id.as_u64_pair().0);
-    //         }
-    //     }
-
-    //     info!("NOENT");
-    //     Err(nfsstat3::NFS3ERR_NOENT)
-    // }
-
-    // #[instrument(skip(self), fields(id = fmt(id)))]
-    // async fn getattr(&self, id: fileid3) -> Result<fattr3, nfsstat3> {
-    //     let file = self.data.lock().await.get(&id).unwrap().fattr;
-    //     info!("fattr = {:?}", file);
-    //     Ok(file)
     // }
 
     // #[instrument(skip(self), fields(id = fmt(id)))]
@@ -580,14 +480,56 @@ impl NfsFileSystem for Drive {
         todo!()
     }
 
-    async fn write(&self, id: &Self::Handle, offset: u64, data: &[u8]) -> Result<fattr3, nfsstat3> {
-        todo!()
+    #[instrument(skip(self), fields(id = id.to_string(), buffer = buffer.len()))]
+    async fn write(&self, id: &Self::Handle, offset: u64, buffer: &[u8]) -> Result<fattr3, nfsstat3> {
+        let offset = offset as usize;
+
+        let mut data = self.data.lock().await;
+        let entry = data.get_mut(&id).unwrap();
+        let id = entry.file.id;
+
+        let mut doc = self.lb.read_document(id, false).await.unwrap();
+        let mut expanded = false;
+        if offset + buffer.len() > doc.len() {
+            doc.resize(offset + buffer.len(), 0);
+            doc[offset..].copy_from_slice(buffer);
+            expanded = true;
+        } else {
+            for (idx, datum) in buffer.iter().enumerate() {
+                doc[offset + idx] = *datum;
+            }
+        }
+        let doc_size = doc.len();
+        self.lb.write_document(id, &doc).await.unwrap();
+
+        entry.fattr.size = doc_size as u64;
+
+        info!("expanded={expanded}, fattr.size = {}", doc_size);
+
+        Ok(entry.fattr.clone())
     }
 
+    // todo this should create a file regardless of whether it exists
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
     async fn create(
         &self, dirid: &Self::Handle, filename: &filename3<'_>, attr: sattr3,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
-        todo!()
+        let filename = get_string(filename);
+        let parent = self.data.lock().await.get(&dirid).unwrap().file.id;
+        let file = self
+            .lb
+            .create_file(&filename, &parent, FileType::Document)
+            .await
+            .unwrap();
+
+        let entry = FileEntry::from_file(file, 0);
+        let id = entry.file.id.into();
+        self.data.lock().await.insert(id, entry);
+
+        let file = self.setattr(&id, attr).await.unwrap();
+
+        info!("({}, size={})", file.fileid, file.size);
+        Ok((id, file))
     }
 
     async fn create_exclusive(
