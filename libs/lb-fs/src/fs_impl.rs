@@ -3,6 +3,7 @@
 use crate::cache::FileEntry;
 use crate::utils::get_string;
 use async_trait::async_trait;
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::nfs3_types::nfs3::{
@@ -10,8 +11,8 @@ use nfs3_server::nfs3_types::nfs3::{
     set_mode3, set_mtime, set_size3, set_uid3,
 };
 use nfs3_server::vfs::{
-    FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem, ReadDirPlusIterator,
-    VFSCapabilities,
+    FileHandle, FileHandleU64, NfsFileSystem, NfsReadFileSystem, ReadDirIterator,
+    ReadDirPlusIterator, VFSCapabilities,
 };
 use std::collections::HashMap;
 use std::fs::ReadDir;
@@ -21,6 +22,12 @@ use tracing::{info, instrument, warn};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct UuidFileHandle(pub Uuid);
+
+impl UuidFileHandle {
+    fn fileid(&self) -> fileid3 {
+        self.0.as_u64_pair().0
+    }
+}
 
 impl std::fmt::Display for UuidFileHandle {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -67,6 +74,32 @@ pub struct Drive {
     /// 2. nfs needs to update timestamps to specified values
     /// 3. nfs models properties we don't, like file permission bits
     pub data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>,
+}
+
+impl Drive {
+    async fn create_iterator(
+        &self, dirid: &UuidFileHandle, cookie: u64,
+    ) -> Result<Iterator, nfsstat3> {
+        let data = self.data.lock().await;
+        let dirid = data.get(&dirid).unwrap().file.id;
+        let mut children = self.lb.get_children(&dirid).await.unwrap();
+
+        children.sort_by(|a, b| a.id.cmp(&b.id));
+
+        // this is how the example does it, we'd never return a fileid3 of 0
+        let mut start_index = 0;
+        if cookie > 0 {
+            start_index = children
+                .iter()
+                .position(|child| child.id.as_u64_pair().0 > cookie)
+                .unwrap_or_else(|| {
+                    warn!("cookie {cookie} not found");
+                    children.len()
+                });
+        }
+
+        Ok(Iterator::new(Arc::clone(&self.data), children, start_index))
+    }
 }
 
 impl NfsReadFileSystem for Drive {
@@ -149,92 +182,22 @@ impl NfsReadFileSystem for Drive {
     async fn readdir(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl nfs3_server::vfs::ReadDirIterator, nfsstat3> {
-        Err::<Iterator, _>(nfsstat3::NFS3ERR_IO)
+        let iterator = self.create_iterator(dirid, cookie).await?;
+        Ok(iterator)
     }
 
+    #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
     async fn readdirplus(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl nfs3_server::vfs::ReadDirPlusIterator, nfsstat3> {
-        Err::<Iterator, _>(nfsstat3::NFS3ERR_IO)
+        let iterator = self.create_iterator(dirid, cookie).await?;
+        Ok(iterator)
     }
 
     async fn readlink(&self, id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
         info!("readlink NOTSUPP");
         Err(nfsstat3::NFS3ERR_NOTSUPP)
     }
-
-    // #[instrument(skip(self), fields(id = fmt(id), offset, count))]
-    // async fn read(
-    //     &self, id: fileid3, offset: u64, count: u32,
-    // ) -> Result<(Vec<u8>, bool), nfsstat3> {
-    //     let offset = offset as usize;
-    //     let count = count as usize;
-    //     let id = self.data.lock().await.get(&id).unwrap().file.id;
-
-    //     let doc = self.lb.read_document(id, false).await.unwrap();
-
-    //     if offset >= doc.len() {
-    //         info!("[] EOF");
-    //         return Ok((vec![], true));
-    //     }
-
-    //     if offset + count >= doc.len() {
-    //         info!("|{}| EOF", doc[offset..].len());
-    //         return Ok((doc[offset..].to_vec(), true));
-    //     }
-
-    //     info!("|{}|", count);
-    //     return Ok((doc[offset..offset + count].to_vec(), false));
-    // }
-
-    // /// they will provide a start_after of 0 for no id
-    // #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after, max_entries))]
-    // async fn readdir(
-    //     &self, dirid: fileid3, start_after: fileid3, max_entries: usize,
-    // ) -> Result<ReadDirResult, nfsstat3> {
-    //     let data = self.data.lock().await;
-    //     let dirid = data.get(&dirid).unwrap().file.id;
-    //     let mut children = self.lb.get_children(&dirid).await.unwrap();
-
-    //     children.sort_by(|a, b| a.id.cmp(&b.id));
-
-    //     // this is how the example does it, we'd never return a fileid3 of 0
-    //     let mut start_index = 0;
-    //     if start_after > 0 {
-    //         for (idx, child) in children.iter().enumerate() {
-    //             if child.id.as_u64_pair().0 == start_after {
-    //                 start_index = idx + 1;
-    //             }
-    //         }
-    //     }
-
-    //     let mut ret = ReadDirResult::default();
-
-    //     if start_index >= children.len() {
-    //         ret.end = true;
-    //         info!("[] done");
-    //         return Ok(ret);
-    //     }
-
-    //     let end_index = if start_index + max_entries >= children.len() {
-    //         ret.end = true;
-    //         children.len()
-    //     } else {
-    //         start_index + max_entries
-    //     };
-
-    //     for child in &children[start_index..end_index] {
-    //         let fileid = child.id.as_u64_pair().0;
-    //         let name = nfsstring(child.name.clone().into_bytes());
-    //         let attr = data.get(&fileid).unwrap().fattr;
-
-    //         ret.entries.push(DirEntry { fileid, name, attr });
-    //     }
-
-    //     info!("|{}| done={}", ret.entries.len(), ret.end);
-
-    //     Ok(ret)
-    // }
 }
 
 impl NfsFileSystem for Drive {
@@ -511,12 +474,46 @@ impl NfsFileSystem for Drive {
     }
 }
 
-pub struct Iterator {}
+pub struct Iterator {
+    data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>,
+    children: Vec<File>,
+    pos: usize,
+}
+
+impl Iterator {
+    fn new(
+        data: Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>, children: Vec<File>, pos: usize,
+    ) -> Self {
+        Self { data, children, pos }
+    }
+}
 
 impl ReadDirPlusIterator for Iterator {
     async fn next(
         &mut self,
     ) -> nfs3_server::vfs::NextResult<nfs3_server::vfs::entryplus3<'static>> {
-        todo!()
+        if self.pos >= self.children.len() {
+            return nfs3_server::vfs::NextResult::Eof;
+        }
+
+        let child = &self.children[self.pos];
+        self.pos += 1;
+
+        let id: UuidFileHandle = child.id.into();
+
+        let fattr = {
+            let data = self.data.lock().await;
+            data.get(&id).unwrap().fattr.clone()
+        };
+
+        let entry = nfs3_server::vfs::entryplus3 {
+            fileid: id.fileid(),
+            name: child.name.as_bytes().to_vec().into(),
+            cookie: self.pos as u64,
+            name_attributes: Nfs3Option::Some(fattr),
+            name_handle: Nfs3Option::None, // FIXME: it should be Some(id)
+        };
+
+        nfs3_server::vfs::NextResult::Ok(entry)
     }
 }
