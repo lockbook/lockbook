@@ -154,77 +154,8 @@ impl<'ast> Editor {
                                             }));
                                         }
                                     }
-                                } else if !unapply {
-                                    let mut first_line = true;
-                                    for line_idx in self.node_lines(node).iter() {
-                                        let line = self.bounds.source_lines[line_idx];
-
-                                        // count paragraph soft breaks as node breaks
-                                        if node.data.borrow().value == NodeValue::Paragraph
-                                            && !line
-                                                .intersects(&self.buffer.current.selection, true)
-                                        {
-                                            continue;
-                                        }
-
-                                        let range = self
-                                            .line_ancestors_prefix(node, line)
-                                            .end()
-                                            .into_range();
-                                        let text = match block_style {
-                                            BlockNode::Heading(heading_level) => {
-                                                // todo: technically this makes a bunch of separate headings
-                                                match heading_level {
-                                                    HeadingLevel::H1 => "# ",
-                                                    HeadingLevel::H2 => "## ",
-                                                    HeadingLevel::H3 => "### ",
-                                                    HeadingLevel::H4 => "#### ",
-                                                    HeadingLevel::H5 => "##### ",
-                                                    HeadingLevel::H6 => "###### ",
-                                                }
-                                            }
-                                            BlockNode::Quote => "> ",
-                                            BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
-                                            BlockNode::ListItem(ListItem::Bulleted, _) => {
-                                                if first_line {
-                                                    "* "
-                                                } else {
-                                                    "  "
-                                                }
-                                            }
-                                            BlockNode::ListItem(ListItem::Numbered(_), _) => {
-                                                if first_line {
-                                                    "1. "
-                                                } else {
-                                                    "   "
-                                                }
-                                            }
-                                            BlockNode::ListItem(ListItem::Todo(true), _) => {
-                                                if first_line {
-                                                    "* [x] "
-                                                } else {
-                                                    "  "
-                                                }
-                                            }
-                                            BlockNode::ListItem(ListItem::Todo(false), _) => {
-                                                if first_line {
-                                                    "* [ ] "
-                                                } else {
-                                                    "  "
-                                                }
-                                            }
-                                            BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
-                                        }
-                                        .into();
-                                        operations
-                                            .push(Operation::Replace(Replace { range, text }));
-
-                                        // count paragraph soft breaks as node breaks
-                                        if node.data.borrow().value != NodeValue::Paragraph {
-                                            first_line = false;
-                                        }
-                                    }
                                 } else {
+                                    // remove target prefix regardless (will often be empty / supports replacements)
                                     for line_idx in self.node_lines(node).iter() {
                                         let line = self.bounds.source_lines[line_idx];
 
@@ -239,6 +170,81 @@ impl<'ast> Editor {
                                             range: prefix,
                                             text: "".into(),
                                         }));
+                                    }
+
+                                    if !unapply {
+                                        let mut first_line = true;
+                                        for line_idx in self.node_lines(node).iter() {
+                                            let line = self.bounds.source_lines[line_idx];
+
+                                            // count paragraph soft breaks as node breaks
+                                            if node.data.borrow().value == NodeValue::Paragraph
+                                                && !line.intersects(
+                                                    &self.buffer.current.selection,
+                                                    true,
+                                                )
+                                            {
+                                                continue;
+                                            }
+
+                                            let range = self
+                                                .line_ancestors_prefix(node, line)
+                                                .end()
+                                                .into_range();
+                                            let text = match block_style {
+                                                BlockNode::Heading(heading_level) => {
+                                                    // todo: technically this makes a bunch of separate headings
+                                                    match heading_level {
+                                                        HeadingLevel::H1 => "# ",
+                                                        HeadingLevel::H2 => "## ",
+                                                        HeadingLevel::H3 => "### ",
+                                                        HeadingLevel::H4 => "#### ",
+                                                        HeadingLevel::H5 => "##### ",
+                                                        HeadingLevel::H6 => "###### ",
+                                                    }
+                                                }
+                                                BlockNode::Quote => "> ",
+                                                BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
+                                                BlockNode::ListItem(ListItem::Bulleted, _) => {
+                                                    if first_line {
+                                                        "* "
+                                                    } else {
+                                                        "  "
+                                                    }
+                                                }
+                                                BlockNode::ListItem(ListItem::Numbered(_), _) => {
+                                                    if first_line {
+                                                        "1. "
+                                                    } else {
+                                                        "   "
+                                                    }
+                                                }
+                                                BlockNode::ListItem(ListItem::Todo(true), _) => {
+                                                    if first_line {
+                                                        "* [x] "
+                                                    } else {
+                                                        "  "
+                                                    }
+                                                }
+                                                BlockNode::ListItem(ListItem::Todo(false), _) => {
+                                                    if first_line {
+                                                        "* [ ] "
+                                                    } else {
+                                                        "  "
+                                                    }
+                                                }
+                                                BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                                            }
+                                            .into();
+
+                                            operations
+                                                .push(Operation::Replace(Replace { range, text }));
+
+                                            // count paragraph soft breaks as node breaks
+                                            if node.data.borrow().value != NodeValue::Paragraph {
+                                                first_line = false;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -476,8 +482,6 @@ impl<'ast> Editor {
                             }));
                         }
 
-                        // panic!("debug");
-
                         true
                     };
                     if !handled() {
@@ -587,7 +591,7 @@ impl<'ast> Editor {
                 ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
             }
             Event::ToggleDebug => {
-                // self.debug.draw_enabled = !self.debug.draw_enabled;
+                self.debug = !self.debug;
             }
             Event::IncrementBaseFontSize => {
                 // self.appearance.base_font_size =

@@ -98,7 +98,7 @@ impl<'ast> Editor {
             // add block
             let child_height = self.height(child);
 
-            {
+            if self.debug {
                 let child_width = self.width(child);
                 let child_rect =
                     Rect::from_min_size(top_left, Vec2 { x: child_width, y: child_height });
