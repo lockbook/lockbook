@@ -371,4 +371,9 @@ impl<'ast> Editor {
         self.node_range(node)
             .intersects(&self.buffer.current.selection, true)
     }
+
+    pub fn node_contains_selection(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.node_range(node)
+            .contains_range(&self.buffer.current.selection, true, true)
+    }
 }

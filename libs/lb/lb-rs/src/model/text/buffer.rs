@@ -215,14 +215,41 @@ struct OpMeta {
 impl Buffer {
     /// Push a series of operations onto the buffer's input queue; operations will be undone/redone atomically. Useful
     /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
-    pub fn queue(&mut self, ops: Vec<Operation>) {
+    pub fn queue(&mut self, mut ops: Vec<Operation>) {
         let timestamp = Instant::now();
         let base = self.current.seq;
 
+        // combine adjacent replacements
+        let mut combined_ops = Vec::new();
+        ops.sort_by_key(|op| match op {
+            Operation::Select(range) | Operation::Replace(Replace { range, .. }) => *range,
+        });
+        for op in ops.into_iter() {
+            match &op {
+                Operation::Replace(Replace { range: op_range, text: op_text }) => {
+                    if let Some(Operation::Replace(Replace {
+                        range: last_op_range,
+                        text: last_op_text,
+                    })) = combined_ops.last_mut()
+                    {
+                        if last_op_range.end() == op_range.start() {
+                            last_op_range.1 = op_range.1;
+                            last_op_text.push_str(op_text);
+                        } else {
+                            combined_ops.push(op);
+                        }
+                    } else {
+                        combined_ops.push(op);
+                    }
+                }
+                Operation::Select(_) => combined_ops.push(op),
+            }
+        }
+
         self.ops
             .meta
-            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.all.extend(ops);
+            .extend(combined_ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops.all.extend(combined_ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes

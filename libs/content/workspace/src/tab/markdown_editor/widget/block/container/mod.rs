@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -97,6 +97,22 @@ impl<'ast> Editor {
 
             // add block
             let child_height = self.height(child);
+
+            if self.debug {
+                let child_width = self.width(child);
+                let child_rect =
+                    Rect::from_min_size(top_left, Vec2 { x: child_width, y: child_height });
+
+                if self.selected_block(child) {
+                    ui.painter().rect(
+                        child_rect,
+                        2.,
+                        self.theme.bg().neutral_secondary,
+                        egui::Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                    );
+                }
+            }
+
             self.show_block(ui, child, top_left);
             top_left.y += child_height;
 
