@@ -13,7 +13,7 @@ import SwiftWorkspace
     #if os(macOS)
     @SceneBuilder
     var macOS: some Scene {
-        WindowGroup {
+        Window("Lockbook", id: "main") {
             ContentView()
         }
         .windowToolbarStyle(.unifiedCompact)
