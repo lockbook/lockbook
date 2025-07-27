@@ -18,9 +18,6 @@ import SwiftWorkspace
         }
         .windowToolbarStyle(.unifiedCompact)
         .commands {
-            // verify what shortcut its blocking
-            CommandGroup(replacing: .saveItem) {}
-            
             SidebarCommands()
         }
         
@@ -41,9 +38,6 @@ import SwiftWorkspace
             ContentView()
         }
         .commands {
-            // verify what shortcut its blocking
-            CommandGroup(replacing: .saveItem) {}
-            
             SidebarCommands()
         }
     }
