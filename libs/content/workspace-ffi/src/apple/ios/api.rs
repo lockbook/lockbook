@@ -18,6 +18,8 @@ use super::response::*;
 use crate::WgpuWorkspace;
 use crate::apple::keyboard::UIKeys;
 
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 #[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
