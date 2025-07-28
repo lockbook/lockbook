@@ -20,7 +20,15 @@ pub mod utils;
 
 impl Drive {
     pub async fn init() -> Self {
-        let lb = Lb::init(Config::cli_config("drive")).await.unwrap();
+        let lb = Lb::init(Config {
+            writeable_path: Config::writeable_path("drive"),
+            background_work: false,
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+        })
+        .await
+        .unwrap();
 
         let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
 
