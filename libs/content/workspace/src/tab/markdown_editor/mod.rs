@@ -82,6 +82,7 @@ pub struct Editor {
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
+    pub debug: bool,
 
     // widgets
     pub toolbar: Toolbar,
@@ -162,6 +163,7 @@ impl Editor {
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
+            debug: false,
 
             in_progress_selection: None,
 
