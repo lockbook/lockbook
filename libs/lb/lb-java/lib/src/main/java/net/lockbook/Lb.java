@@ -49,6 +49,10 @@ public class Lb {
     public static native SearchResult[] search(String input) throws LbError;
     public static native String[] suggestedDocs() throws LbError;
 
+
+    public static native void clearSuggestedId(String id) throws LbError;
+    public static native void clearSuggested() throws LbError;
+
     public static native void logout() throws LbError;
     public static native void deleteAccount() throws LbError;
 }
