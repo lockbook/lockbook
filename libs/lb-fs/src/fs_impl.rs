@@ -491,6 +491,8 @@ impl Iterator {
         let id: UuidFileHandle = child.id.into();
         let name = child.name.as_bytes().to_vec().into();
 
+        self.pos += 1;
+
         Some((id, name))
     }
 }
