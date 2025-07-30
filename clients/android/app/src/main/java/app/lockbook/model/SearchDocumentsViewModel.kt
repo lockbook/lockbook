@@ -18,6 +18,7 @@ import net.lockbook.LbError
 import net.lockbook.SearchResult
 import net.lockbook.SearchResult.DocumentMatch.ContentMatch
 import java.io.File
+import java.util.Arrays
 
 class SearchDocumentsViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -155,8 +156,12 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
             val paragraphSpan = contentMatch.paragraph.makeSpannableString()
 
             paragraphsSpan.add(Pair(paragraphSpan, contentMatch.score))
-
             for (index in contentMatch.matchedIndices) {
+                // avoid index out of bounds error
+                if (index >= contentMatch.paragraph.length){
+                    break
+                }
+
                 paragraphSpan.setSpan(
                     BackgroundColorSpan(highlightColor),
                     index,
