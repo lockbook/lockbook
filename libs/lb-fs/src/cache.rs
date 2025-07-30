@@ -50,7 +50,9 @@ impl FileEntry {
     }
 
     pub fn now() -> nfstime3 {
-        SystemTime::now().try_into().expect("failed to get current time")
+        SystemTime::now()
+            .try_into()
+            .expect("failed to get current time")
     }
 }
 
