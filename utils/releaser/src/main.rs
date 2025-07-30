@@ -73,7 +73,7 @@ fn main() {
         .subcommand(
             Command::name("publish-crate")
                 .input(Arg::name("package"))
-                .handler(|package: &Arg<'_, String>| crates_io::release_crate(package.get())),
+                .handler(|package| crates_io::release_crate(package.get())),
         )
         .with_completions()
         .parse();

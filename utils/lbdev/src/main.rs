@@ -4,10 +4,14 @@ mod server;
 mod setup;
 mod utils;
 mod workspace;
+mod ci;
 
-use clap::Parser;
 use std::fs;
+use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
+
+use cli_rs::command::{Command, ParserInfo};
+use cli_rs::parser::Cmd;
 
 #[derive(Debug, PartialEq, Parser)]
 enum Commands {
@@ -67,7 +71,7 @@ pub struct ToolEnvironment {
     target_dir: PathBuf,
 }
 
-fn main() {
+fn main2() {
     let root_dir = utils::root_dir();
     let target_dir = utils::target_dir(&root_dir);
 
@@ -94,4 +98,18 @@ fn main() {
         AssertGitClean => workspace::assert_git_clean(&tool_env),
         KillServer => server::kill_server(&tool_env),
     }
+}
+
+fn main() {
+    Command::name("lbdev")
+        .description("Tool for maintainers to dev, check and release Lockbook.")
+        .with_completions()
+        .version(env!("CARGO_PKG_VERSION"))
+        .subcommand(
+            Command::name("ci")
+                .description("The commands run by CI. Sourcing dependencies is out of scope for this program")
+                .subcommand(Command::name("fmt").handler(ci::clippy))
+                
+        )
+        .parse();
 }

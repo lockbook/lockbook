@@ -4321,6 +4321,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "lbdev"
+version = "0.9.26"
+dependencies = [
+ "cli-rs",
+ "dotenvy",
+ "reqwest",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "lebe"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4528,17 +4539,6 @@ dependencies = [
  "lb-fs",
  "lb-rs",
  "tokio",
-]
-
-[[package]]
-name = "lockbook-dev"
-version = "0.9.26"
-dependencies = [
- "clap",
- "dotenvy",
- "reqwest",
- "serde",
- "serde_json",
 ]
 
 [[package]]

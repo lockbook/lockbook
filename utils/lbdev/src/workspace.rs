@@ -9,13 +9,6 @@ pub fn fmt_workspace(tool_env: &ToolEnvironment) {
         .assert_success();
 }
 
-pub fn clippy_workspace(tool_env: &ToolEnvironment) {
-    Command::new("cargo")
-        .args(["clippy", "--all-targets", "--", "-D", "warnings"])
-        .current_dir(&tool_env.root_dir)
-        .assert_success();
-}
-
 pub fn udeps_workspace(tool_env: &ToolEnvironment) {
     Command::new("cargo")
         .args(["+nightly", "udeps", "--all-targets", "--all-features"])

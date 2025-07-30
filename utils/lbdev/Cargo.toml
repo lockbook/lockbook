@@ -1,10 +1,10 @@
 [package]
-name = "lockbook-dev"
+name = "lbdev"
 version = "0.9.26"
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.1.4", features = ["derive"] }
+cli-rs = "0.1.12"
 dotenvy = "0.15.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.83"
