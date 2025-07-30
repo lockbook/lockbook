@@ -48,7 +48,7 @@ parts:
       snapcraftctl pull
       curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
       source "$HOME/.cargo/env"
-      rustup default 1.66
+      rustup default 1.88
 
 apps:
   lockbook-desktop:
@@ -141,7 +141,7 @@ build() {{
 
 package() {{
   install -D -m755 "$srcdir/lockbook/target/release/lockbook-linux" "$pkgdir/usr/bin/lockbook-desktop"
-  install -D -m644 "$srcdir/aur-lockbook-desktop/light-1-transparent.png" "$pkgdir/usr/share/pixmaps/light-1-transparent.png"
+  install -D -m644 "$srcdir/aur-lockbook-desktop/logo.svg" "$pkgdir/usr/share/pixmaps/logo.svg"
   install -D -m644 "$srcdir/aur-lockbook-desktop/lockbook-desktop.desktop" "$pkgdir/usr/share/applications/lockbook-desktop.desktop"
 }}
 "#
