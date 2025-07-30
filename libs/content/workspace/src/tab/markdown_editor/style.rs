@@ -15,51 +15,6 @@ pub enum MarkdownNodeType {
 }
 
 impl MarkdownNodeType {
-    pub fn head(&self) -> &'static str {
-        match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "**",
-            Self::Inline(InlineNodeType::Italic) => "*",
-            Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => "[",
-            Self::Inline(InlineNodeType::Image) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H1)) => "# ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H2)) => "## ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H3)) => "### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H4)) => "#### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H5)) => "##### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H6)) => "###### ",
-            Self::Block(BlockNodeType::Quote) => "> ",
-            Self::Block(BlockNodeType::Code) => "```\n",
-            Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(),
-            Self::Block(BlockNodeType::Rule) => "***",
-        }
-    }
-
-    pub fn tail(&self) -> &'static str {
-        match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "**",
-            Self::Inline(InlineNodeType::Italic) => "*",
-            Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => "]()",
-            Self::Inline(InlineNodeType::Image) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Heading(..)) => "",
-            Self::Block(BlockNodeType::Quote) => "",
-            Self::Block(BlockNodeType::Code) => "\n```",
-            Self::Block(BlockNodeType::ListItem(..)) => "",
-            Self::Block(BlockNodeType::Rule) => "",
-        }
-    }
-
     /// Returns true if the markdown syntax for the node contains text which should be split into words for word bounds calculation
     pub fn syntax_includes_text(&self) -> bool {
         matches!(self, Self::Inline(InlineNodeType::Link) | Self::Inline(InlineNodeType::Image))
@@ -80,60 +35,11 @@ impl MarkdownNodeType {
     }
 
     pub fn matches(&self, value: &NodeValue) -> bool {
-        match (value, self) {
-            (NodeValue::FrontMatter(_), _) => false,
-            (NodeValue::Raw(_), _) => unreachable!("can only be created programmatically"),
-
-            // container_block
-            (NodeValue::Alert(_), _) => false,
-            (NodeValue::BlockQuote, _) => false,
-            (NodeValue::DescriptionItem(_), _) => unimplemented!("extension disabled"),
-            (NodeValue::DescriptionList, _) => unimplemented!("extension disabled"),
-            (NodeValue::Document, _) => false,
-            (NodeValue::FootnoteDefinition(_), _) => false,
-            (NodeValue::Item(_), _) => false,
-            (NodeValue::List(_), _) => false,
-            (NodeValue::MultilineBlockQuote(_), _) => unimplemented!("extension disabled"),
-            (NodeValue::Table(_), _) => false,
-            (NodeValue::TableRow(_), _) => false,
-            (NodeValue::TaskItem(_), _) => false,
-
-            // inline
-            (NodeValue::Image(_), _) => false,
-            (NodeValue::Code(_), MarkdownNodeType::Inline(InlineNodeType::Code)) => true,
-            (NodeValue::Code(_), _) => false,
-            (NodeValue::Emph, MarkdownNodeType::Inline(InlineNodeType::Italic)) => true,
-            (NodeValue::Emph, _) => false,
-            (NodeValue::Escaped, _) => false,
-            (NodeValue::EscapedTag(_), _) => false,
-            (NodeValue::FootnoteReference(_), _) => false,
-            (NodeValue::HtmlInline(_), _) => false,
-            (NodeValue::LineBreak, _) => false,
-            (NodeValue::Link(_), _) => false,
-            (NodeValue::Math(_), _) => false,
-            (NodeValue::SoftBreak, _) => false,
-            (NodeValue::SpoileredText, _) => false,
-            (NodeValue::Strikethrough, MarkdownNodeType::Inline(InlineNodeType::Strikethrough)) => {
-                true
-            }
-            (NodeValue::Strikethrough, _) => false,
-            (NodeValue::Strong, MarkdownNodeType::Inline(InlineNodeType::Bold)) => true,
-            (NodeValue::Strong, _) => false,
-            (NodeValue::Subscript, _) => false,
-            (NodeValue::Superscript, _) => false,
-            (NodeValue::Text(_), _) => false,
-            (NodeValue::Underline, _) => false,
-            (NodeValue::WikiLink(_), _) => false,
-
-            // leaf_block
-            (NodeValue::CodeBlock(_), _) => false,
-            (NodeValue::DescriptionDetails, _) => unimplemented!("extension disabled"),
-            (NodeValue::DescriptionTerm, _) => unimplemented!("extension disabled"),
-            (NodeValue::Heading(_), _) => false,
-            (NodeValue::HtmlBlock(_), _) => false,
-            (NodeValue::Paragraph, _) => false,
-            (NodeValue::TableCell, _) => false,
-            (NodeValue::ThematicBreak, _) => false,
+        match self {
+            Self::Document => matches!(value, NodeValue::Document),
+            Self::Paragraph => matches!(value, NodeValue::Paragraph),
+            Self::Inline(inline) => inline.matches(value),
+            Self::Block(block) => block.matches(value),
         }
     }
 }
@@ -148,6 +54,44 @@ pub enum InlineNodeType {
     Image,
 }
 
+impl InlineNodeType {
+    pub fn head(&self) -> &'static str {
+        match self {
+            InlineNodeType::Code => "`",
+            InlineNodeType::Bold => "**",
+            InlineNodeType::Italic => "*",
+            InlineNodeType::Strikethrough => "~~",
+            InlineNodeType::Link => "[",
+            InlineNodeType::Image => {
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn tail(&self) -> &'static str {
+        match self {
+            InlineNodeType::Code => "`",
+            InlineNodeType::Bold => "**",
+            InlineNodeType::Italic => "*",
+            InlineNodeType::Strikethrough => "~~",
+            InlineNodeType::Link => "]()",
+            InlineNodeType::Image => {
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        matches!(
+            (value, self),
+            (NodeValue::Code(_), InlineNodeType::Code)
+                | (NodeValue::Emph, InlineNodeType::Italic)
+                | (NodeValue::Strikethrough, InlineNodeType::Strikethrough)
+                | (NodeValue::Strong, InlineNodeType::Bold)
+        )
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum BlockNodeType {
     Heading(HeadingLevel),
@@ -155,6 +99,38 @@ pub enum BlockNodeType {
     Code,
     ListItem(ListItemType),
     Rule,
+}
+
+impl BlockNodeType {
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        match (value, self) {
+            // container_block
+            (NodeValue::Alert(_), BlockNodeType::Quote) => true,
+            (NodeValue::BlockQuote, BlockNodeType::Quote) => true,
+            (
+                NodeValue::Item(
+                    comrak::nodes::NodeList { list_type: comrak::nodes::ListType::Bullet, .. },
+                    ..,
+                ),
+                BlockNodeType::ListItem(ListItemType::Bulleted),
+            ) => true,
+            (
+                NodeValue::Item(
+                    comrak::nodes::NodeList { list_type: comrak::nodes::ListType::Ordered, .. },
+                    ..,
+                ),
+                BlockNodeType::ListItem(ListItemType::Numbered),
+            ) => true,
+            (NodeValue::MultilineBlockQuote(_), BlockNodeType::Quote) => true,
+            (NodeValue::TaskItem(_), BlockNodeType::ListItem(ListItemType::Todo)) => true,
+
+            // leaf_block
+            (NodeValue::CodeBlock(_), BlockNodeType::Code) => true,
+            (NodeValue::Heading(_), BlockNodeType::Heading(_)) => true,
+            (NodeValue::ThematicBreak, BlockNodeType::Rule) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -196,7 +172,7 @@ pub enum InlineNode {
 }
 
 impl InlineNode {
-    fn node_type(&self) -> InlineNodeType {
+    pub fn node_type(&self) -> InlineNodeType {
         match self {
             Self::Code => InlineNodeType::Code,
             Self::Bold => InlineNodeType::Bold,
@@ -259,7 +235,7 @@ pub enum BlockNode {
 }
 
 impl BlockNode {
-    fn node_type(&self) -> BlockNodeType {
+    pub fn node_type(&self) -> BlockNodeType {
         match self {
             Self::Heading(level) => BlockNodeType::Heading(*level),
             Self::Quote => BlockNodeType::Quote,
@@ -370,16 +346,6 @@ impl MarkdownNode {
             Self::Paragraph => MarkdownNodeType::Paragraph,
             Self::Inline(inline_node) => MarkdownNodeType::Inline(inline_node.node_type()),
             Self::Block(block_node) => MarkdownNodeType::Block(block_node.node_type()),
-        }
-    }
-
-    pub fn head(&self) -> String {
-        let type_head = self.node_type().head();
-        if let MarkdownNode::Block(BlockNode::ListItem(_, indent)) = self {
-            // todo: more intelligent indentation character selection
-            "\t".repeat(*indent as usize) + type_head
-        } else {
-            type_head.to_string()
         }
     }
 }

@@ -221,7 +221,6 @@ impl OnboardScreen {
                                                 .clicked()
                                             {
                                                 self.router.route = Route::Import;
-                                                self.router.needs_focus = true;
                                             };
                                         });
                                     });

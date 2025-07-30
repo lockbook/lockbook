@@ -191,10 +191,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let status = WsStatus {
-        syncing: obj.workspace.visibly_syncing(),
-        msg: obj.workspace.status.message.clone(),
-    };
+    let lb_status = obj.workspace.core.status();
+
+    let status = WsStatus { syncing: lb_status.syncing, msg: lb_status.msg().unwrap_or_default() };
 
     env.new_string(serde_json::to_string(&status).unwrap())
         .expect("Couldn't create JString from rust string!")
