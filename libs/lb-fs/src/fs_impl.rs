@@ -209,15 +209,15 @@ impl NfsFileSystem for Drive {
                 let mut doc = self.lb.read_document(entry.file.id, false).await.unwrap();
                 doc.resize(new as usize, 0);
                 self.lb.write_document(entry.file.id, &doc).await.unwrap();
-                entry.fattr.mtime = FileEntry::ts_from_u64(now);
-                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+                entry.fattr.mtime = now;
+                entry.fattr.ctime = now;
             }
         }
 
         match setattr.atime {
             set_atime::DONT_CHANGE => {}
             set_atime::SET_TO_SERVER_TIME => {
-                entry.fattr.atime = FileEntry::ts_from_u64(now);
+                entry.fattr.atime = now;
             }
             set_atime::SET_TO_CLIENT_TIME(ts) => {
                 entry.fattr.atime = ts;
@@ -227,8 +227,8 @@ impl NfsFileSystem for Drive {
         match setattr.mtime {
             set_mtime::DONT_CHANGE => {}
             set_mtime::SET_TO_SERVER_TIME => {
-                entry.fattr.mtime = FileEntry::ts_from_u64(now);
-                entry.fattr.ctime = FileEntry::ts_from_u64(now);
+                entry.fattr.mtime = now;
+                entry.fattr.ctime = now;
             }
             set_mtime::SET_TO_CLIENT_TIME(ts) => {
                 entry.fattr.mtime = ts;
@@ -238,17 +238,17 @@ impl NfsFileSystem for Drive {
 
         if let Nfs3Option::Some(uid) = setattr.uid {
             entry.fattr.uid = uid;
-            entry.fattr.ctime = FileEntry::ts_from_u64(now);
+            entry.fattr.ctime = now;
         }
 
         if let Nfs3Option::Some(gid) = setattr.gid {
             entry.fattr.gid = gid;
-            entry.fattr.ctime = FileEntry::ts_from_u64(now);
+            entry.fattr.ctime = now;
         }
 
         if let Nfs3Option::Some(mode) = setattr.mode {
             entry.fattr.mode = mode;
-            entry.fattr.ctime = FileEntry::ts_from_u64(now);
+            entry.fattr.ctime = now;
         }
 
         info!("fattr = {:?}", entry.fattr);
