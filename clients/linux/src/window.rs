@@ -135,7 +135,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         window_id,
         AtomEnum::WM_CLASS,
         AtomEnum::STRING,
-        "Lockbook\0Lockbook\0".as_bytes(),
+        "lockbook-desktop".as_bytes(),
     )?;
 
     // setup for keyboard layout support
