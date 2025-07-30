@@ -195,19 +195,20 @@ impl<'ast> Editor {
     fn inline(
         &self, icon: &'static Icon, style: InlineNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
-        self.button(icon, MarkdownNode::Inline(style), root, ui)
+        let applied = self.inline_styled(root, self.buffer.current.selection, &style);
+        self.button(icon, MarkdownNode::Inline(style), applied, ui)
     }
 
     fn block(
         &self, icon: &'static Icon, style: BlockNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
-        self.button(icon, MarkdownNode::Block(style), root, ui)
+        let applied = self.unapply_block(root, &style);
+        self.button(icon, MarkdownNode::Block(style), applied, ui)
     }
 
     fn button(
-        &self, icon: &'static Icon, style: MarkdownNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+        &self, icon: &'static Icon, style: MarkdownNode, applied: bool, ui: &mut Ui,
     ) -> Option<Event> {
-        let applied = self.styled(root, self.buffer.current.selection, &style);
         let resp = IconButton::new(icon)
             .colored(applied)
             .tooltip(format!("{style}"))

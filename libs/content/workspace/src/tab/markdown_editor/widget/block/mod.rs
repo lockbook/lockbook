@@ -258,6 +258,20 @@ impl<'ast> Editor {
         }
     }
 
+    /// Returns true if the given block node is selected for the purposes of
+    /// rich editing. All selected nodes are siblings at any given time.
+    pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
+        // the document is never selected
+        let Some(parent) = node.parent() else {
+            return false;
+        };
+
+        self.node_intersects_selection(node)
+            && self.node_contains_selection(parent)
+            && (node.is_container_block() && !self.node_contains_selection(node)
+                || node.is_leaf_block())
+    }
+
     /// Returns the children of the given node in sourcepos order.
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
         let mut children = Vec::new();

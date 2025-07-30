@@ -4,6 +4,9 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
+import java.sql.Timestamp
+import java.time.Instant
+import java.util.Date
 
 class WorkspaceViewModel : ViewModel() {
 
@@ -21,6 +24,9 @@ class WorkspaceViewModel : ViewModel() {
     val _sync = SingleMutableLiveData<Unit>()
     val sync: LiveData<Unit>
         get() = _sync
+
+    var lastSyncStatusUpdate = System.currentTimeMillis()
+
 
     val _showTabs = SingleMutableLiveData<Boolean>()
     val showTabs: LiveData<Boolean>
