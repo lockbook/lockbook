@@ -1,7 +1,7 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::Lb;
-use crate::{get_code_version, service::logging::LOG_FILE};
+use crate::service::logging::LOG_FILE;
+use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
 use serde::Serialize;
@@ -142,7 +142,7 @@ impl Lb {
             lb_version: get_code_version().into(),
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
-            integrity: format!("{:?}", integrity),
+            integrity: format!("{integrity:?}"),
             log_tail: log_tail?,
             lb_dir: self.config.writeable_path.clone(),
             last_synced,

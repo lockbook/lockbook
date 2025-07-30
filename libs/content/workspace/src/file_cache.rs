@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::Uuid;
 
 pub struct FileCache {
     pub files: Vec<File>,

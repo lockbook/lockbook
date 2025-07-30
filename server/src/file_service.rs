@@ -1,21 +1,23 @@
+use crate::ServerError;
+use crate::ServerError::ClientError;
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
-use crate::ServerError;
-use crate::ServerError::ClientError;
 
 use crate::{RequestContext, ServerState};
 use db_rs::Db;
-use lb_rs::model::api::UpsertError;
-use lb_rs::model::api::*;
+use lb_rs::model::api::{UpsertError, *};
 use lb_rs::model::clock::get_time;
+use lb_rs::model::crypto::Timestamped;
 use lb_rs::model::errors::{LbErrKind, LbResult};
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{Diff, Owner};
-use lb_rs::model::server_file::{IntoServerFile, ServerFile};
+use lb_rs::model::file_metadata::{Diff, FileDiff, FileMetadata, Owner};
+use lb_rs::model::meta::Meta;
+use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_file::SignedFile;
 use lb_rs::model::tree_like::TreeLike;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -56,7 +58,7 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -77,7 +79,7 @@ where
 
             tree.validate(req_owner)?;
 
-            let new_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let new_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
@@ -97,14 +99,13 @@ where
                     && !prior_deleted.contains(&id)
                 {
                     let meta = tree.find(&id)?;
-                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac {
-                        db.sizes.remove(meta.id())?;
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
                         new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
 
-            let all_files: Vec<ServerFile> = tree.all_files()?.into_iter().cloned().collect();
+            let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
             for meta in all_files {
                 let id = meta.id();
                 if current_deleted.contains(id) && !prior_deleted.contains(id) {
@@ -196,6 +197,13 @@ where
         use ChangeDocError::*;
 
         let request = context.request;
+        let mut request = ChangeDocRequestV2 {
+            diff: FileDiff {
+                old: request.diff.old.map(|f| f.into()),
+                new: request.diff.new.into(),
+            },
+            new_content: request.new_content,
+        };
         let owner = Owner(context.public_key);
         let id = *request.diff.id();
 
@@ -214,8 +222,8 @@ where
         {
             let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
-            let usage_cap =
-                Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
+            let usage_cap = Self::get_cap(db, &context.public_key)
+                .map_err(|err| internal!("{:?}", err))? as usize;
 
             let meta = db
                 .metas
@@ -233,15 +241,31 @@ where
             )?
             .to_lazy();
 
-            let old_usage = Self::get_usage_helper(&mut tree, db.sizes.get())
+            let old_usage = Self::get_usage_helper(&mut tree)
                 .map_err(|err| internal!("{:?}", err))?
                 .iter()
                 .map(|f| f.size_bytes)
-                .sum::<u64>();
-            let old_size = db.sizes.get().get(request.diff.id()).unwrap_or(&0);
-            let new_size = request.new_content.value.len() as u64;
+                .sum::<u64>() as usize;
+            let old_size = *meta.file.timestamped_value.value.doc_size();
 
-            let new_usage = old_usage - old_size + new_size;
+            // populate sizes in request
+            if let Some(old) = &mut request.diff.old {
+                match &mut old.timestamped_value.value {
+                    Meta::V1 { doc_size, .. } => {
+                        *doc_size = old_size;
+                    }
+                }
+            }
+
+            match &mut request.diff.new.timestamped_value.value {
+                Meta::V1 { doc_size, .. } => {
+                    *doc_size = Some(request.new_content.value.len());
+                }
+            }
+
+            let new_size = request.new_content.value.len();
+
+            let new_usage = old_usage - old_size.unwrap_or_default() + new_size;
 
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
@@ -325,7 +349,6 @@ where
                 &mut db.metas,
             )?
             .to_lazy();
-            let new_size = request.new_content.value.len() as u64;
 
             if tree.calculate_deleted(request.diff.new.id())? {
                 return Err(ClientError(DocumentDeleted));
@@ -342,7 +365,6 @@ where
                 }
             }
 
-            db.sizes.insert(*meta.id(), new_size)?;
             tree.stage(vec![new]).promote()?;
             db.last_seen.insert(owner, get_time().0 as u64)?;
 
@@ -491,7 +513,37 @@ where
                 .all_files()?
                 .iter()
                 .filter(|meta| result_ids.contains(meta.id()))
-                .map(|meta| meta.file.clone())
+                .map(|meta| match meta.file.timestamped_value.value.clone() {
+                    Meta::V1 {
+                        id,
+                        file_type,
+                        parent,
+                        name,
+                        owner,
+                        is_deleted,
+                        doc_size: _,
+                        doc_hmac,
+                        user_access_keys,
+                        folder_access_key,
+                    } => SignedFile {
+                        timestamped_value: Timestamped {
+                            timestamp: meta.file.timestamped_value.timestamp,
+                            value: FileMetadata {
+                                id,
+                                file_type,
+                                parent,
+                                name,
+                                owner,
+                                is_deleted,
+                                document_hmac: doc_hmac,
+                                user_access_keys,
+                                folder_access_key,
+                            },
+                        },
+                        signature: meta.file.signature.clone(),
+                        public_key: meta.file.public_key,
+                    },
+                })
                 .collect(),
         })
     }
@@ -545,7 +597,6 @@ where
                     if meta.is_document() && meta.owner() == owner {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
-                            db.sizes.remove(&id)?;
                         }
                     }
                 }
@@ -649,7 +700,7 @@ where
             if !tree.calculate_deleted(&id)? {
                 let file = tree.find(&id)?;
                 if file.is_document() && file.document_hmac().is_some() {
-                    if db.sizes.get().get(&id).is_none() {
+                    if file.file.timestamped_value.value.doc_size().is_none() {
                         result.documents_missing_size.push(id);
                     }
 
@@ -855,25 +906,6 @@ where
                 }
             } else {
                 result.files_unmapped_as_parent.insert(*meta.parent());
-            }
-        }
-
-        // validate index: sizes (todo: validate size values)
-        for (id, _) in db.sizes.get().clone() {
-            if let Some(meta) = db.metas.get().get(&id) {
-                if meta.document_hmac().is_none() {
-                    result.sizes_mapped_for_files_without_hmac.insert(id);
-                }
-            } else {
-                result.sizes_mapped_for_nonexistent_files.insert(id);
-            }
-        }
-        for (id, meta) in db.metas.get().clone() {
-            if !deleted_ids.contains(&id)
-                && meta.document_hmac().is_some()
-                && db.sizes.get().get(&id).is_none()
-            {
-                result.sizes_unmapped_for_files_with_hmac.insert(id);
             }
         }
 

@@ -1,5 +1,6 @@
 use egui::{Context, ViewportCommand};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
 use lb_rs::model::file::File;
@@ -8,7 +9,6 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
-use lb_rs::Uuid;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -22,7 +22,7 @@ use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
-use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
+use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -271,6 +271,17 @@ impl Workspace {
             Ok(evt) => match evt {
                 Event::MetadataChanged => {
                     self.files = FileCache::new(&self.core).log_and_ignore();
+                    if let Some(files) = &self.files {
+                        let mut tabs_to_delete = vec![];
+                        for (i, tab) in self.tabs.iter().enumerate() {
+                            if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
+                                tabs_to_delete.push(i);
+                            }
+                        }
+                        for i in tabs_to_delete {
+                            self.remove_tab(i);
+                        }
+                    }
                 }
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
                     for i in 0..self.tabs.len() {
@@ -317,7 +328,7 @@ impl Workspace {
                         let (maybe_hmac, bytes) = match content_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
                             Err(err) => {
-                                let msg = format!("failed to load file: {:?}", err);
+                                let msg = format!("failed to load file: {err:?}");
                                 error!(msg);
                                 tab.content =
                                     ContentState::Failed(TabFailure::Unexpected(msg.clone()));
@@ -336,7 +347,7 @@ impl Workspace {
                             Err(e) => {
                                 self.out
                                     .failure_messages
-                                    .push(format!("failed to get id for loaded file: {:?}", e));
+                                    .push(format!("failed to get id for loaded file: {e:?}"));
                                 continue;
                             }
                         };
@@ -383,6 +394,7 @@ impl Workspace {
                             if tab_created {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
+                                        self.ctx.clone(),
                                         core.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
@@ -392,7 +404,7 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.reload(String::from_utf8_lossy(&bytes).into());
+                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
                         } else if ext == "mp3" || ext == "m4a" || ext == "wav" || ext == "flac" {
@@ -410,8 +422,7 @@ impl Workspace {
                             };
                         } else {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
-                                "Unsupported file extension: {}",
-                                ext
+                                "Unsupported file extension: {ext}"
                             )));
                         };
 
@@ -457,11 +468,14 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    debug!("reloading file after save failed with re-read required: {}", id);
+                                    debug!(
+                                        "reloading file after save failed with re-read required: {}",
+                                        id
+                                    );
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
-                                        format!("{:?}", err),
+                                        format!("{err:?}"),
                                     ))
                                 }
                             }
@@ -581,13 +595,13 @@ impl Workspace {
         };
 
         let file_format = if is_drawing { "svg" } else { "md" };
-        let new_file = NameComponents::from(&format!("untitled.{}", file_format))
+        let new_file = NameComponents::from(&format!("untitled.{file_format}"))
             .next_in_children(self.core.get_children(&focused_parent).unwrap());
 
         let result = self
             .core
             .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
-            .map_err(|err| format!("{:?}", err));
+            .map_err(|err| format!("{err:?}"));
 
         self.out.file_created = Some(result);
         self.ctx.request_repaint();
@@ -626,7 +640,7 @@ impl Workspace {
                 if by_user {
                     self.out
                         .failure_messages
-                        .push(format!("Rename failed: {}", kind));
+                        .push(format!("Rename failed: {kind}"));
                 }
                 warn!(?id, "failed to rename file: {:?}", kind);
             }
@@ -664,7 +678,7 @@ impl Workspace {
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
-                    .push(format!("Move failed: {}", kind));
+                    .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
             }
         }

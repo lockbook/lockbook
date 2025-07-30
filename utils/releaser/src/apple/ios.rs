@@ -1,4 +1,5 @@
-use crate::{secrets::AppStore, utils::CommandRunner};
+use crate::secrets::AppStore;
+use crate::utils::CommandRunner;
 use std::process::Command;
 
 pub fn release() {

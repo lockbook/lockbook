@@ -1,6 +1,6 @@
 [package]
 name = "lb-rs"
-version = "0.9.25"
+version = "0.9.26"
 edition = "2021"
 description = "The rust library for interacting with your lockbook."
 repository = "https://github.com/lockbook/lockbook"
@@ -53,7 +53,7 @@ similar = { version = "2.6.0", features = ["unicode"] }
 unicode-segmentation = "1.10.0"
 usvg = "0.41.0"
 glam = "0.22.0"
-tantivy = "0.22.0"
+tantivy = { version = "0.24", package = "lb-tantivy" } 
 
 [target.'cfg(target_os = "android")'.dependencies]
 tracing-logcat = "=0.1.0"

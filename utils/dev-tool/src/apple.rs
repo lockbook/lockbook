@@ -1,5 +1,5 @@
-use crate::utils::{self, CommandRunner};
 use crate::ToolEnvironment;
+use crate::utils::{self, CommandRunner};
 use std::fs::{self, File};
 use std::io::Write;
 use std::process::{Command, Stdio};

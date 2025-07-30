@@ -29,7 +29,7 @@ async fn get_document() {
         .request(
             account,
             ChangeDocRequest {
-                diff: FileDiff::edit(&old, &new),
+                diff: FileDiff::edit(old, new.clone()),
                 new_content: AESEncrypted {
                     value: vec![69],
                     nonce: vec![69],

@@ -1,6 +1,7 @@
 use crate::Res;
 use clap::Subcommand;
-use lb::{blocking::Lb, model::api::ServerIndex};
+use lb::blocking::Lb;
+use lb::model::api::ServerIndex;
 
 #[derive(Debug, PartialEq, Eq, Subcommand)]
 pub enum CliIndex {

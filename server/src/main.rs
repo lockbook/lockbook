@@ -8,7 +8,7 @@ use lockbook_server_lib::router_service::{
     app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
-use lockbook_server_lib::schema::ServerV4;
+use lockbook_server_lib::schema::{ServerDb, ServerV5};
 use lockbook_server_lib::*;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -21,16 +21,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loggers::init(&cfg);
 
     let config = cfg.clone();
+
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
-    let index_db = ServerV4::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
-        .expect("Failed to load index_db");
     let app_store_client = reqwest::Client::new();
 
+    let index_db = ServerV5::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
+        .expect("Failed to load index_db");
     if index_db.incomplete_write().unwrap() {
         error!("dbrs indicated that the last write to the log was unsuccessful")
     }
-
     let index_db = Arc::new(Mutex::new(index_db));
     spawn_compacter(&cfg, &index_db);
 
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     Ok(())
 }
 
-fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerV4>>) {
+fn spawn_compacter(cfg: &Config, db: &Arc<Mutex<ServerDb>>) {
     let cfg = cfg.clone();
     let db = db.clone();
     tokio::spawn(async move {

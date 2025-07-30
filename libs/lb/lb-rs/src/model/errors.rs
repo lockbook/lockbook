@@ -1,6 +1,5 @@
 use std::backtrace::Backtrace;
-use std::fmt::Display;
-use std::fmt::{self, Formatter};
+use std::fmt::{self, Display, Formatter};
 use std::io;
 use std::panic::Location;
 use std::sync::PoisonError;
@@ -222,25 +221,25 @@ impl From<LbErr> for UnexpectedError {
 
 impl<T> From<PoisonError<T>> for UnexpectedError {
     fn from(err: PoisonError<T>) -> Self {
-        Self::new(format!("{:#?}", err))
+        Self::new(format!("{err:#?}"))
     }
 }
 
 impl From<crossbeam::channel::RecvError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvError) -> Self {
-        Self::new(format!("{:#?}", err))
+        Self::new(format!("{err:#?}"))
     }
 }
 
 impl From<crossbeam::channel::RecvTimeoutError> for UnexpectedError {
     fn from(err: crossbeam::channel::RecvTimeoutError) -> Self {
-        Self::new(format!("{:#?}", err))
+        Self::new(format!("{err:#?}"))
     }
 }
 
 impl<T> From<crossbeam::channel::SendError<T>> for UnexpectedError {
     fn from(err: crossbeam::channel::SendError<T>) -> Self {
-        Self::new(format!("{:#?}", err))
+        Self::new(format!("{err:#?}"))
     }
 }
 
@@ -367,12 +366,12 @@ impl From<bincode::Error> for LbErr {
 }
 
 pub fn core_err_unexpected<T: fmt::Debug>(err: T) -> LbErrKind {
-    LbErrKind::Unexpected(format!("{:?}", err))
+    LbErrKind::Unexpected(format!("{err:?}"))
 }
 
 // todo call location becomes useless here, and we want that
 pub fn unexpected<T: fmt::Debug>(err: T) -> LbErr {
-    LbErrKind::Unexpected(format!("{:?}", err)).into()
+    LbErrKind::Unexpected(format!("{err:?}")).into()
 }
 
 impl From<db_rs::DbError> for LbErr {
@@ -529,8 +528,8 @@ pub enum Warning {
 impl fmt::Display for Warning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::EmptyFile(id) => write!(f, "empty file: {}", id),
-            Self::InvalidUTF8(id) => write!(f, "invalid utf8 in file: {}", id),
+            Self::EmptyFile(id) => write!(f, "empty file: {id}"),
+            Self::InvalidUTF8(id) => write!(f, "invalid utf8 in file: {id}"),
         }
     }
 }

@@ -1,3 +1,4 @@
+use lb_rs::Lb;
 use lb_rs::io::docs::AsyncDocs;
 use lb_rs::model::api::{FREE_TIER_USAGE_SIZE, METADATA_FEE};
 use lb_rs::model::errors::LbErrKind;
@@ -5,7 +6,6 @@ use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::file_metadata::FileType::Folder;
-use lb_rs::Lb;
 use test_utils::*;
 
 #[tokio::test]
@@ -137,7 +137,7 @@ async fn usage_go_back_down_after_delete_folder() {
     let usage = core
         .get_usage()
         .await
-        .unwrap_or_else(|err| panic!("{:?}", err));
+        .unwrap_or_else(|err| panic!("{err:?}"));
 
     assert_eq!(usage.usages.len(), 5);
 }
@@ -235,7 +235,7 @@ async fn upsert_meta_over_data_cap() {
         (FREE_TIER_USAGE_SIZE - local_encrypted.len() as u64) as f64 / METADATA_FEE as f64;
 
     for i in 0..file_capacity as i64 - 2 {
-        core.create_at_path(format!("document{}.md", i).as_str())
+        core.create_at_path(format!("document{i}.md").as_str())
             .await
             .unwrap();
         core.sync(None).await.unwrap();

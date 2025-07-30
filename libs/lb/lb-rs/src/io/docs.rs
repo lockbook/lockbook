@@ -1,19 +1,14 @@
-use crate::model::{
-    core_config::Config,
-    crypto::EncryptedDocument,
-    errors::{LbErrKind, LbResult, Unexpected},
-    file_metadata::DocumentHmac,
-};
-use std::{
-    collections::HashSet,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    sync::{atomic::AtomicBool, Arc},
-};
-use tokio::{
-    fs::{self, File, OpenOptions},
-    io::{AsyncReadExt, AsyncWriteExt},
-};
+use crate::model::core_config::Config;
+use crate::model::crypto::EncryptedDocument;
+use crate::model::errors::{LbErrKind, LbResult, Unexpected};
+use crate::model::file_metadata::DocumentHmac;
+use std::collections::HashSet;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use tokio::fs::{self, File, OpenOptions};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
 #[derive(Clone)]

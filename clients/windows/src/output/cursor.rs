@@ -1,5 +1,7 @@
 use egui::CursorIcon;
-use windows::{core::*, Win32::Foundation::*, Win32::UI::WindowsAndMessaging::*};
+use windows::Win32::Foundation::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::core::*;
 
 static mut CURSOR_ICON: CursorIcon = CursorIcon::Default;
 

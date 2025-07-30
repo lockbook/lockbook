@@ -1,4 +1,4 @@
-use crate::utils::{lb_version, CommandRunner};
+use crate::utils::{CommandRunner, lb_version};
 use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
@@ -6,7 +6,7 @@ use std::fs;
 use std::process::Command;
 use std::str::FromStr;
 use time::OffsetDateTime;
-use toml_edit::{value, Document};
+use toml_edit::{Document, value};
 
 pub fn bump(bump_type: BumpType) -> CliResult<()> {
     let new_version = determine_new_version(bump_type);
@@ -47,7 +47,7 @@ impl FromStr for BumpType {
 
 impl Display for BumpType {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", format!("{:?}", self).to_ascii_lowercase())
+        write!(f, "{}", format!("{self:?}").to_ascii_lowercase())
     }
 }
 
@@ -58,7 +58,6 @@ fn handle_cargo_tomls(version: &str) {
         "libs/lb/test_utils",
         "libs/lb/lb-c",
         "libs/lb/lb-java",
-        "libs/content/editor/egui_editor",
         "libs/content/workspace",
         "libs/content/workspace-ffi",
         "libs/lb-fs",
@@ -98,8 +97,8 @@ fn handle_apple(version: &str) {
         let year = now.year();
 
         // add leading zeros where missing
-        let month = format!("{:0>2}", month);
-        let day = format!("{:0>2}", day);
+        let month = format!("{month:0>2}");
+        let day = format!("{day:0>2}");
 
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])

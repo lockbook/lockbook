@@ -1,9 +1,7 @@
-use crate::tab::markdown_editor::appearance::Appearance;
-use egui::{FontFamily, Stroke, TextFormat, Visuals};
+use comrak::nodes::NodeValue;
 use pulldown_cmark::{HeadingLevel, LinkType};
 use std::fmt::{Display, Formatter};
 use std::hash::Hash;
-use std::sync::Arc;
 
 /// Represents a type of markdown node e.g. link, not a particular node e.g. link to google.com (see MarkdownNode)
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
@@ -17,51 +15,6 @@ pub enum MarkdownNodeType {
 }
 
 impl MarkdownNodeType {
-    pub fn head(&self) -> &'static str {
-        match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "**",
-            Self::Inline(InlineNodeType::Italic) => "*",
-            Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => "[",
-            Self::Inline(InlineNodeType::Image) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H1)) => "# ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H2)) => "## ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H3)) => "### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H4)) => "#### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H5)) => "##### ",
-            Self::Block(BlockNodeType::Heading(HeadingLevel::H6)) => "###### ",
-            Self::Block(BlockNodeType::Quote) => "> ",
-            Self::Block(BlockNodeType::Code) => "```\n",
-            Self::Block(BlockNodeType::ListItem(item_type)) => item_type.head(),
-            Self::Block(BlockNodeType::Rule) => "***",
-        }
-    }
-
-    pub fn tail(&self) -> &'static str {
-        match self {
-            Self::Document => "",
-            Self::Paragraph => "",
-            Self::Inline(InlineNodeType::Code) => "`",
-            Self::Inline(InlineNodeType::Bold) => "**",
-            Self::Inline(InlineNodeType::Italic) => "*",
-            Self::Inline(InlineNodeType::Strikethrough) => "~~",
-            Self::Inline(InlineNodeType::Link) => "]()",
-            Self::Inline(InlineNodeType::Image) => {
-                unimplemented!()
-            }
-            Self::Block(BlockNodeType::Heading(..)) => "",
-            Self::Block(BlockNodeType::Quote) => "",
-            Self::Block(BlockNodeType::Code) => "\n```",
-            Self::Block(BlockNodeType::ListItem(..)) => "",
-            Self::Block(BlockNodeType::Rule) => "",
-        }
-    }
-
     /// Returns true if the markdown syntax for the node contains text which should be split into words for word bounds calculation
     pub fn syntax_includes_text(&self) -> bool {
         matches!(self, Self::Inline(InlineNodeType::Link) | Self::Inline(InlineNodeType::Image))
@@ -69,6 +22,25 @@ impl MarkdownNodeType {
 
     pub fn conflicts_with(&self, other: &MarkdownNodeType) -> bool {
         matches!((self, other), (Self::Block(..), Self::Block(..)))
+    }
+
+    pub fn matching(value: &NodeValue) -> Option<Self> {
+        match value {
+            NodeValue::Code(_) => Some(Self::Inline(InlineNodeType::Code)),
+            NodeValue::Emph => Some(Self::Inline(InlineNodeType::Italic)),
+            NodeValue::Strong => Some(Self::Inline(InlineNodeType::Bold)),
+            NodeValue::Strikethrough => Some(Self::Inline(InlineNodeType::Strikethrough)),
+            _ => None,
+        }
+    }
+
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        match self {
+            Self::Document => matches!(value, NodeValue::Document),
+            Self::Paragraph => matches!(value, NodeValue::Paragraph),
+            Self::Inline(inline) => inline.matches(value),
+            Self::Block(block) => block.matches(value),
+        }
     }
 }
 
@@ -82,6 +54,44 @@ pub enum InlineNodeType {
     Image,
 }
 
+impl InlineNodeType {
+    pub fn head(&self) -> &'static str {
+        match self {
+            InlineNodeType::Code => "`",
+            InlineNodeType::Bold => "**",
+            InlineNodeType::Italic => "*",
+            InlineNodeType::Strikethrough => "~~",
+            InlineNodeType::Link => "[",
+            InlineNodeType::Image => {
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn tail(&self) -> &'static str {
+        match self {
+            InlineNodeType::Code => "`",
+            InlineNodeType::Bold => "**",
+            InlineNodeType::Italic => "*",
+            InlineNodeType::Strikethrough => "~~",
+            InlineNodeType::Link => "]()",
+            InlineNodeType::Image => {
+                unimplemented!()
+            }
+        }
+    }
+
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        matches!(
+            (value, self),
+            (NodeValue::Code(_), InlineNodeType::Code)
+                | (NodeValue::Emph, InlineNodeType::Italic)
+                | (NodeValue::Strikethrough, InlineNodeType::Strikethrough)
+                | (NodeValue::Strong, InlineNodeType::Bold)
+        )
+    }
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum BlockNodeType {
     Heading(HeadingLevel),
@@ -89,6 +99,38 @@ pub enum BlockNodeType {
     Code,
     ListItem(ListItemType),
     Rule,
+}
+
+impl BlockNodeType {
+    pub fn matches(&self, value: &NodeValue) -> bool {
+        match (value, self) {
+            // container_block
+            (NodeValue::Alert(_), BlockNodeType::Quote) => true,
+            (NodeValue::BlockQuote, BlockNodeType::Quote) => true,
+            (
+                NodeValue::Item(
+                    comrak::nodes::NodeList { list_type: comrak::nodes::ListType::Bullet, .. },
+                    ..,
+                ),
+                BlockNodeType::ListItem(ListItemType::Bulleted),
+            ) => true,
+            (
+                NodeValue::Item(
+                    comrak::nodes::NodeList { list_type: comrak::nodes::ListType::Ordered, .. },
+                    ..,
+                ),
+                BlockNodeType::ListItem(ListItemType::Numbered),
+            ) => true,
+            (NodeValue::MultilineBlockQuote(_), BlockNodeType::Quote) => true,
+            (NodeValue::TaskItem(_), BlockNodeType::ListItem(ListItemType::Todo)) => true,
+
+            // leaf_block
+            (NodeValue::CodeBlock(_), BlockNodeType::Code) => true,
+            (NodeValue::Heading(_), BlockNodeType::Heading(_)) => true,
+            (NodeValue::ThematicBreak, BlockNodeType::Rule) => true,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -106,15 +148,6 @@ impl ListItemType {
             Self::Todo => "* [ ] ",
         }
     }
-}
-
-/// Represents a style that can be applied to rendered text
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub enum RenderStyle {
-    Selection,
-    PlaintextLink,
-    Syntax,
-    Markdown(MarkdownNode),
 }
 
 /// Represents a particular markdown node e.g. link to google.com, not a type of node e.g. link (see MarkdownNodeType)
@@ -139,7 +172,7 @@ pub enum InlineNode {
 }
 
 impl InlineNode {
-    fn node_type(&self) -> InlineNodeType {
+    pub fn node_type(&self) -> InlineNodeType {
         match self {
             Self::Code => InlineNodeType::Code,
             Self::Bold => InlineNodeType::Bold,
@@ -202,7 +235,7 @@ pub enum BlockNode {
 }
 
 impl BlockNode {
-    fn node_type(&self) -> BlockNodeType {
+    pub fn node_type(&self) -> BlockNodeType {
         match self {
             Self::Heading(level) => BlockNodeType::Heading(*level),
             Self::Quote => BlockNodeType::Quote,
@@ -306,89 +339,6 @@ pub type Url = String;
 pub type Title = String;
 pub type IndentLevel = u8;
 
-impl RenderStyle {
-    pub fn apply_style(&self, text_format: &mut TextFormat, vis: &Appearance, visuals: &Visuals) {
-        if vis.plaintext_mode {
-            match self {
-                RenderStyle::Selection => {
-                    text_format.background = vis.selection_bg();
-                }
-                RenderStyle::PlaintextLink => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Syntax => {}
-                RenderStyle::Markdown(MarkdownNode::Document) => {
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(_) => {}
-            }
-        } else {
-            match self {
-                RenderStyle::Selection => {
-                    text_format.background = vis.selection_bg();
-                }
-                RenderStyle::PlaintextLink => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Syntax => {
-                    text_format.color = vis.syntax();
-                }
-                RenderStyle::Markdown(MarkdownNode::Document) => {
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(MarkdownNode::Paragraph) => {
-                    text_format.font_id.size = vis.font_size();
-                    text_format.color = vis.text();
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Code)) => {
-                    text_format.background = visuals.code_bg_color;
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size *= 14.0 / 16.0;
-                    text_format.color = vis.code();
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Bold)) => {
-                    text_format.color = vis.bold();
-                    text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Italic)) => {
-                    text_format.color = vis.italics();
-                    text_format.italics = true;
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Strikethrough)) => {
-                    text_format.strikethrough = Stroke { width: 1.5, color: vis.strikethrough() };
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Link(..))) => {
-                    text_format.color = vis.link();
-                    text_format.underline = Stroke { width: 1.5, color: vis.link() };
-                }
-                RenderStyle::Markdown(MarkdownNode::Inline(InlineNode::Image(..))) => {
-                    text_format.italics = true;
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Heading(level))) => {
-                    if level == &HeadingLevel::H1 {
-                        text_format.font_id.family = FontFamily::Name(Arc::from("Bold"));
-                    }
-                    text_format.color = vis.heading();
-                    text_format.font_id.size = vis.heading_size(level);
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Quote)) => {}
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Code(..))) => {
-                    text_format.color = vis.code();
-                    text_format.font_id.family = FontFamily::Monospace;
-                    text_format.font_id.size *= 14.0 / 16.0;
-                }
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::ListItem(..))) => {}
-                RenderStyle::Markdown(MarkdownNode::Block(BlockNode::Rule)) => {}
-            }
-        }
-    }
-}
-
 impl MarkdownNode {
     pub fn node_type(&self) -> MarkdownNodeType {
         match self {
@@ -398,16 +348,6 @@ impl MarkdownNode {
             Self::Block(block_node) => MarkdownNodeType::Block(block_node.node_type()),
         }
     }
-
-    pub fn head(&self) -> String {
-        let type_head = self.node_type().head();
-        if let MarkdownNode::Block(BlockNode::ListItem(_, indent)) = self {
-            // todo: more intelligent indentation character selection
-            "\t".repeat(*indent as usize) + type_head
-        } else {
-            type_head.to_string()
-        }
-    }
 }
 
 impl Display for MarkdownNode {
@@ -415,8 +355,8 @@ impl Display for MarkdownNode {
         match self {
             Self::Document => write!(f, "Document"),
             Self::Paragraph => write!(f, "Paragraph"),
-            Self::Inline(inline_node) => write!(f, "{}", inline_node),
-            Self::Block(block_node) => write!(f, "{}", block_node),
+            Self::Inline(inline_node) => write!(f, "{inline_node}"),
+            Self::Block(block_node) => write!(f, "{block_node}"),
         }
     }
 }

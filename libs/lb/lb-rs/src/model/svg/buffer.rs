@@ -5,21 +5,16 @@ use bezier_rs::{Bezier, Subpath};
 use glam::{DAffine2, DMat2, DVec2};
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use usvg::{
-    fontdb::Database,
-    tiny_skia_path::{PathSegment, Point},
-    Options, Transform,
-};
-use usvg::{Color, Paint};
+use usvg::fontdb::Database;
+use usvg::tiny_skia_path::{PathSegment, Point};
+use usvg::{Color, Options, Paint, Transform};
 use uuid::Uuid;
 
-use super::{
-    diff::DiffState,
-    element::{Element, ManipulatorGroupId, Path},
-};
-use super::{
-    element::{DynamicColor, Stroke, WeakImage, WeakImages, WeakPathPressures},
-    WeakTransform,
+use super::WeakTransform;
+use super::diff::DiffState;
+use super::element::{
+    DynamicColor, Element, ManipulatorGroupId, Path, Stroke, WeakImage, WeakImages,
+    WeakPathPressures,
 };
 
 const ZOOM_G_ID: &str = "lb_master_transform";
@@ -66,7 +61,7 @@ impl Buffer {
         let maybe_tree = usvg::Tree::from_str(content, &Options::default(), &Database::default());
 
         if let Err(err) = maybe_tree {
-            println!("{:#?}", err);
+            println!("{err:#?}");
         } else {
             let utree = maybe_tree.unwrap();
 
@@ -195,11 +190,11 @@ impl Buffer {
     pub fn remove(&mut self, id: Uuid) {
         if let Some(el) = self.elements.get_mut(&id) {
             match el {
-                Element::Path(ref mut path) => {
+                Element::Path(path) => {
                     path.deleted = true;
                     path.diff_state.delete_changed = true;
                 }
-                Element::Image(ref mut image) => {
+                Element::Image(image) => {
                     image.deleted = true;
                     image.diff_state.delete_changed = true;
                 }
@@ -289,8 +284,7 @@ pub fn serialize_inner(
         let binary_data = bincode::serialize(&weak_images).expect("Failed to serialize");
         let base64_data = base64::encode(&binary_data);
 
-        let _ =
-            write!(&mut root, "<g id=\"{}\"> <g id=\"{}\"></g></g>", WEAK_IMAGE_G_ID, base64_data);
+        let _ = write!(&mut root, "<g id=\"{WEAK_IMAGE_G_ID}\"> <g id=\"{base64_data}\"></g></g>");
     }
 
     if !weak_pressures.is_empty() {
@@ -299,8 +293,7 @@ pub fn serialize_inner(
 
         let _ = write!(
             &mut root,
-            "<g id=\"{}\"> <g id=\"{}\"></g></g>",
-            WEAK_PATH_PRESSURES_G_ID, base64_data
+            "<g id=\"{WEAK_PATH_PRESSURES_G_ID}\"> <g id=\"{base64_data}\"></g></g>"
         );
     }
 
@@ -309,11 +302,10 @@ pub fn serialize_inner(
 
     let _ = write!(
         &mut root,
-        "<g id=\"{}\"> <g id=\"{}\"></g></g>",
-        WEAK_VIEWPORT_SETTINGS_G_ID, base64_data
+        "<g id=\"{WEAK_VIEWPORT_SETTINGS_G_ID}\"> <g id=\"{base64_data}\"></g></g>"
     );
 
-    let _ = write!(&mut root, "{} </svg>", zoom_level);
+    let _ = write!(&mut root, "{zoom_level} </svg>");
     root
 }
 

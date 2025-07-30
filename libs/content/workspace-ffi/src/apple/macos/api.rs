@@ -1,10 +1,10 @@
 use egui::PointerButton::{Primary, Secondary};
 use egui::{Event, Pos2};
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{CStr, c_char, c_void};
 
 use super::response::*;
-use crate::apple::keyboard::NSKeys;
 use crate::WgpuWorkspace;
+use crate::apple::keyboard::NSKeys;
 
 /// # Safety
 #[no_mangle]

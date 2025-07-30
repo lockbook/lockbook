@@ -24,7 +24,7 @@ impl From<stripe::StripeError> for SimplifiedStripeError {
             stripe::StripeError::Stripe(stripe_error) => {
                 simplify_stripe_error(stripe_error.code, stripe_error.decline_code)
             }
-            _ => SimplifiedStripeError::Other(format!("Unexpected stripe error: {:?}", error)),
+            _ => SimplifiedStripeError::Other(format!("Unexpected stripe error: {error:?}")),
         }
     }
 }
@@ -34,8 +34,7 @@ fn simplify_stripe_error(
 ) -> SimplifiedStripeError {
     match error_code {
         None => SimplifiedStripeError::Other(format!(
-            "Stripe error with no details: error_code: {:?}, decline_code: {:?}",
-            error_code, maybe_decline_code
+            "Stripe error with no details: error_code: {error_code:?}, decline_code: {maybe_decline_code:?}"
         )),
         Some(error_code) => match error_code {
             stripe::ErrorCode::BalanceInsufficient => SimplifiedStripeError::InsufficientFunds,
@@ -43,13 +42,11 @@ fn simplify_stripe_error(
                 None => SimplifiedStripeError::CardDecline,
                 Some(decline_code) => {
                     match serde_json::from_str::<StripeDeclineCodeCatcher>(&format!(
-                        "\"{}\"",
-                        decline_code
+                        "\"{decline_code}\""
                     ))
                     .map_err(|e| {
                         SimplifiedStripeError::Other(format!(
-                            "An error was encountered while serializing decline code: {:?}",
-                            e
+                            "An error was encountered while serializing decline code: {e:?}"
                         ))
                     }) {
                         Ok(StripeDeclineCodeCatcher::Unknown(code)) => {
@@ -144,7 +141,7 @@ fn simplify_stripe_error(
                 SimplifiedStripeError::InvalidCardNumber
             }
             stripe::ErrorCode::ProcessingError => SimplifiedStripeError::TryAgain,
-            _ => SimplifiedStripeError::Other(format!("Unexpected error code: {:?}", error_code)),
+            _ => SimplifiedStripeError::Other(format!("Unexpected error code: {error_code:?}")),
         },
     }
 }

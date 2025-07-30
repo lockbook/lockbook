@@ -16,14 +16,14 @@ use tracing_appender::rolling::RollingFileAppender;
 use tracing_gcp::GcpLayer;
 use tracing_subscriber::filter::FilterFn;
 use tracing_subscriber::layer::Context;
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 use pagerduty_rs::eventsv2async::EventsV2;
-use pagerduty_rs::types::Event as PagerEvent;
-use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Severity};
+use pagerduty_rs::types::{AlertTrigger, AlertTriggerPayload, Event as PagerEvent, Severity};
 
-use crate::config::Config;
 use crate::CARGO_PKG_VERSION;
+use crate::config::Config;
 
 static LOG_FILE: &str = "lockbook_server.log";
 
@@ -127,11 +127,11 @@ fn send_to_pagerduty(handle: &Handle, env: String, api_key: &str, alert: AlertDe
                         .event(event)
                         .await
                         .err()
-                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {}", err))
+                        .map(|err| eprintln!("Failed reporting event to PagerDuty! {err}"))
                 })
                 .await
                 .err()
-                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {}", err))
+                .map(|err| eprintln!("Failed spawning task in Tokio runtime! {err}"))
         })
     });
 }
@@ -166,7 +166,7 @@ impl AlertDetails {
 impl Visit for AlertDetails {
     fn record_debug(&mut self, field: &Field, value: &dyn Debug) {
         if field.name() == "message" {
-            write!(self.message, "{:?}", value).unwrap();
+            write!(self.message, "{value:?}").unwrap();
         }
     }
 }

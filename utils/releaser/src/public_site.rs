@@ -1,12 +1,10 @@
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use cli_rs::cli_error::CliResult;
-use fs_extra::dir::copy;
-use fs_extra::dir::CopyOptions;
+use fs_extra::dir::{CopyOptions, copy};
 
-use crate::utils::{root, CommandRunner};
+use crate::utils::{CommandRunner, root};
 
 pub fn release() -> CliResult<()> {
     let mut path = work_dir();
@@ -22,7 +20,7 @@ pub fn release() -> CliResult<()> {
 
 fn work_dir() -> PathBuf {
     let loc = tempfile::tempdir().unwrap().into_path();
-    println!("operating in {:?}", loc);
+    println!("operating in {loc:?}");
     loc
 }
 

@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use lb_rs::model::svg::element::Element;
 use lb_rs::Uuid;
+use lb_rs::model::svg::element::Element;
 
+use super::DeleteElement;
 use super::toolbar::ToolContext;
-use super::util::is_multi_touch;
-use super::{util::pointer_intersects_element, DeleteElement};
+use super::util::{is_multi_touch, pointer_intersects_element};
 
 pub struct Eraser {
     pub radius: f32,

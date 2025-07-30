@@ -1,7 +1,5 @@
-use crate::tab::markdown_editor::{
-    bounds::{BoundCase, BoundExt as _, Bounds},
-    input::Bound,
-};
+use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, Bounds};
+use crate::tab::markdown_editor::input::Bound;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 /// Swift protocol for tokenizing text input:
@@ -37,11 +35,11 @@ impl UITextInputTokenizer for Bounds {
                 return true;
             }
             Bound::Word => &self.words,
-            Bound::Line => &self.lines,
+            Bound::Line => &self.wrap_lines,
             Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
-                    || text_position == self.text.last().copied().unwrap_or_default().end();
+                    || text_position == self.paragraphs.last().copied().unwrap_or_default().end();
             }
         };
         match text_position.bound_case(ranges) {
@@ -83,7 +81,7 @@ impl UITextInputTokenizer for Bounds {
                 return true;
             }
             Bound::Word => &self.words,
-            Bound::Line => &self.lines,
+            Bound::Line => &self.wrap_lines,
             Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 return true;

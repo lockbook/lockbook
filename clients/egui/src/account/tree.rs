@@ -1,26 +1,25 @@
-use std::{
-    cmp::Ordering,
-    collections::HashSet,
-    mem,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    thread,
-    time::{Duration, Instant},
-};
+use std::cmp::Ordering;
+use std::collections::HashSet;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+use std::{mem, thread};
 
+use egui::text_edit::TextEditState;
 use egui::{
-    text_edit::TextEditState, Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId,
-    Modifiers, Order, Pos2, Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
+    Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId, Modifiers, Order, Pos2,
+    Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
 };
 use egui_notify::Toasts;
-use lb::{
-    blocking::Lb,
-    model::{file::File, file_metadata::FileType},
-    service::activity::RankingWeights,
-    Uuid,
-};
+use lb::Uuid;
+use lb::blocking::Lb;
+use lb::model::file::File;
+use lb::model::file_metadata::FileType;
+use lb::service::activity::RankingWeights;
 use rfd::FileDialog;
-use workspace_rs::{show::DocType, theme::icons::Icon, widgets::Button};
+use workspace_rs::show::DocType;
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::Button;
 
 #[derive(Debug)]
 pub struct FileTree {
@@ -109,7 +108,7 @@ impl FileTree {
                 }
                 Err(err) => {
                     // todo: better error surfacing
-                    println!("Failed to calculate suggested files: {:?}", err);
+                    println!("Failed to calculate suggested files: {err:?}");
                 }
             }
             ctx.request_repaint();
@@ -1556,10 +1555,9 @@ impl FilesExt for [File] {
 
 #[cfg(test)]
 mod test {
-    use lb::{
-        model::{file::File, file_metadata::FileType},
-        Uuid,
-    };
+    use lb::Uuid;
+    use lb::model::file::File;
+    use lb::model::file_metadata::FileType;
 
     use super::FileTree;
 
@@ -1911,7 +1909,7 @@ mod test {
         File {
             id: ids[idx],
             parent: ids[parent_idx],
-            name: format!("{}", idx),
+            name: format!("{idx}"),
             file_type,
             last_modified: Default::default(),
             last_modified_by: Default::default(),

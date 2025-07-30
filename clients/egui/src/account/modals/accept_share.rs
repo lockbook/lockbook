@@ -98,7 +98,7 @@ fn sharer_info(ui: &mut egui::Ui, req: &File, username: String) -> Option<Accept
                     ui.label(&req.name);
 
                     ui.label(
-                        egui::RichText::new(format!("shared by {}", sharer))
+                        egui::RichText::new(format!("shared by {sharer}"))
                             .size(15.0)
                             .color(egui::Color32::GRAY),
                     );

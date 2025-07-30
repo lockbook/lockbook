@@ -27,7 +27,7 @@
             android:theme="@style/AppTheme.QRCapture" />
         <activity
             android:name=".screen.OnBoardingActivity"
-            android:windowSoftInputMode="adjustPan" />
+            android:windowSoftInputMode="stateVisible|adjustResize" />
         <activity
             android:name=".screen.ImportAccountActivity"
             android:alwaysRetainTaskState="true" />

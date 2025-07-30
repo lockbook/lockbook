@@ -8,27 +8,25 @@ mod list;
 mod share;
 mod stream;
 
+use std::env;
 use std::path::PathBuf;
-use std::{env, time::Instant};
+use std::time::Instant;
 
 use account::ApiUrl;
-use cli_rs::{
-    arg::Arg,
-    cli_error::{CliError, CliResult, Exit},
-    command::Command,
-    flag::Flag,
-    parser::Cmd,
-};
+use cli_rs::arg::Arg;
+use cli_rs::cli_error::{CliError, CliResult, Exit};
+use cli_rs::command::Command;
+use cli_rs::flag::Flag;
+use cli_rs::parser::Cmd;
 
 use colored::Colorize;
 use input::FileInput;
+use lb_rs::model::core_config::Config;
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::path_ops::Filter;
+use lb_rs::service::sync::SyncProgress;
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
-use lb_rs::{
-    model::path_ops::Filter,
-    model::{core_config::Config, errors::LbErrKind},
-    service::sync::SyncProgress,
-    Lb, Uuid,
-};
+use lb_rs::{Lb, Uuid};
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -182,7 +180,8 @@ fn run() -> CliResult<()> {
                     Command::name("new").description("share a file with someone")
                         .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                        .input(Arg::str("username"))
+                        .input(Arg::str("username")
+                            .completor(input::username_completor))
                         .input(Flag::bool("read-only"))
                         .handler(|target, username, ro| share::new(target.get(), username.get(), ro.get()))
                 )
@@ -258,7 +257,7 @@ async fn search(query: &str) -> CliResult<()> {
                             result = format!("{result}{c}");
                         }
                     }
-                    println!("{}", result);
+                    println!("{result}");
                 }
                 println!();
             }

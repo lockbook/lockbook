@@ -43,7 +43,7 @@ impl Lb {
         logging::init(&config)?;
 
         let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
-            .map_err(|err| LbErrKind::Unexpected(format!("{:#?}", err)))?;
+            .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let docs = AsyncDocs::from(&config);
@@ -72,15 +72,15 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 use crate::io::CoreDb;
 use crate::service::logging;
 use db_rs::Db;
+use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
-use io::LbDb;
 use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use subscribers::search::SearchIndex;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;

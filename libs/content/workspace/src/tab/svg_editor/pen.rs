@@ -1,23 +1,22 @@
 use bezier_rs::Subpath;
 use egui::{PointerButton, TouchId, TouchPhase};
 use egui_animation::{animate_bool_eased, easing};
-use lb_rs::{
-    model::svg::{
-        buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors},
-        diff::DiffState,
-        element::{DynamicColor, Element, Path, Stroke},
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::{DynamicColor, Element, Path, Stroke};
 use resvg::usvg::{Color, Transform};
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{event, trace, Level};
+use tracing::{Level, event, trace};
 use tracing_test::traced_test;
 
-use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
+use crate::tab::ExtendedInput;
+use crate::theme::palette::ThemePalette;
 
-use super::{toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder};
+use super::toolbar::ToolContext;
+use super::util::is_multi_touch;
+use super::{InsertElement, PathBuilder};
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;

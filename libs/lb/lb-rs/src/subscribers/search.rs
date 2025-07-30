@@ -1,18 +1,17 @@
+use crate::Lb;
 use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::Lb;
 use serde::Serialize;
 use std::ops::Range;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{Schema, Value, STORED, TEXT};
-use tantivy::{
-    doc, Index, IndexReader, IndexWriter, ReloadPolicy, SnippetGenerator, TantivyDocument, Term,
-};
+use tantivy::schema::{STORED, Schema, TEXT, Value};
+use tantivy::snippet::SnippetGenerator;
+use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 

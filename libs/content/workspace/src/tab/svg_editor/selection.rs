@@ -1,25 +1,21 @@
 use bezier_rs::Subpath;
 use glam::DVec2;
 use indexmap::IndexMap;
-use lb_rs::{
-    model::svg::{
-        buffer::serialize_inner,
-        element::{Element, ManipulatorGroupId, WeakImages},
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::svg::buffer::serialize_inner;
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId, WeakImages};
 use resvg::usvg::Transform;
 
-use super::{element::BoundedElement, util::transform_rect};
+use super::element::BoundedElement;
+use super::util::transform_rect;
 
-use crate::{theme::icons::Icon, widgets::Button};
+use crate::theme::icons::Icon;
+use crate::widgets::Button;
 
-use super::{
-    history::TransformElement,
-    toolbar::ToolContext,
-    util::{is_multi_touch, pointer_intersects_element},
-    Buffer, DeleteElement, Event,
-};
+use super::history::TransformElement;
+use super::toolbar::ToolContext;
+use super::util::{is_multi_touch, pointer_intersects_element};
+use super::{Buffer, DeleteElement, Event};
 
 #[derive(Default)]
 pub struct Selection {
@@ -204,7 +200,7 @@ impl Selection {
                     return Some(SelectionEvent::LasoBuild(BuildPayload {
                         pos,
                         modifiers: egui::Modifiers::NONE,
-                    }))
+                    }));
                 }
                 egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
                     if button != egui::PointerButton::Primary {
@@ -860,7 +856,7 @@ impl Selection {
 
             let res = ui.interact(
                 rect.expand(5.0),
-                egui::Id::new(format!("{:#?}{}", scale_op, i)),
+                egui::Id::new(format!("{scale_op:#?}{i}")),
                 egui::Sense::drag(),
             );
 

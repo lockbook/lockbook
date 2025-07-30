@@ -5,4 +5,4 @@ Comment=The private, polished note-taking platform.
 Terminal=false
 Exec=lockbook-desktop
 Name=Lockbook
-Icon=${SNAP}/meta/gui/light-1.png
+Icon=${SNAP}/meta/gui/logo.svg

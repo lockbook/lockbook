@@ -1,14 +1,13 @@
 use std::collections::HashSet;
 
-use super::{element::BoundedElement, CanvasSettings, ViewportSettings};
+use super::element::BoundedElement;
+use super::{CanvasSettings, ViewportSettings};
 
 use bezier_rs::{Bezier, Subpath};
 use egui::TouchPhase;
 use glam::DVec2;
-use lb_rs::model::svg::{
-    element::{Element, ManipulatorGroupId},
-    WeakRect,
-};
+use lb_rs::model::svg::WeakRect;
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
 use lyon::math::Point;
 use resvg::usvg::Transform;
 
@@ -124,47 +123,6 @@ pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
     }
 }
 
-pub fn draw_dashed_line(
-    painter: &egui::Painter, edges: &[egui::Pos2], dash_length: f32, gap_length: f32,
-    stroke: egui::Stroke,
-) {
-    let start = edges[0];
-    let end = edges[1];
-
-    let vec = end - start;
-    let length = vec.length();
-    let dir = vec / length;
-
-    let dash_gap = dash_length + gap_length;
-    let dash_count = (length / dash_gap).floor() as usize;
-
-    for i in 0..dash_count {
-        let dash_start = start + dir * (i as f32 * dash_gap);
-        let dash_end = dash_start + dir * dash_length.min(length - i as f32 * dash_gap);
-        painter.line_segment([dash_start, dash_end], stroke);
-    }
-
-    // Draw the remaining part if there's space
-    let remaining = length - dash_count as f32 * dash_gap;
-    if remaining > 0.0 {
-        let last_dash_start = start + dir * (dash_count as f32 * dash_gap);
-        let last_dash_end = last_dash_start + dir * remaining.min(dash_length);
-        if (last_dash_end - last_dash_start).length() > 0.0 {
-            painter.line_segment([last_dash_start, last_dash_end], stroke);
-        }
-    }
-}
-
-pub fn expand_to_match_bigger(smaller_rect: egui::Rect, bigger_rect: egui::Rect) -> egui::Rect {
-    if smaller_rect.area() > bigger_rect.area() {
-        return smaller_rect;
-    }
-    smaller_rect.expand2(egui::vec2(
-        (bigger_rect.width() - smaller_rect.width()) / 2.0,
-        (bigger_rect.height() - smaller_rect.height()) / 2.0,
-    ))
-}
-
 pub fn promote_weak_rect(wk: WeakRect) -> egui::Rect {
     egui::Rect::from_min_max(egui::pos2(wk.min.0, wk.min.1), egui::pos2(wk.max.0, wk.max.1))
 }
@@ -178,5 +136,46 @@ impl CanvasSettings {
         self.left_locked = vs.left_locked;
         self.right_locked = vs.right_locked;
         self.top_locked = vs.top_locked;
+    }
+}
+
+pub fn draw_dashed_line(
+    painter: &egui::Painter, edges: &[egui::Pos2], dash_length: f32, gap_length: f32,
+    stroke: egui::Stroke,
+) {
+    let start = edges[0];
+
+    let end = edges[1];
+
+    let vec = end - start;
+
+    let length = vec.length();
+
+    let dir = vec / length;
+
+    let dash_gap = dash_length + gap_length;
+
+    let dash_count = (length / dash_gap).floor() as usize;
+
+    for i in 0..dash_count {
+        let dash_start = start + dir * (i as f32 * dash_gap);
+
+        let dash_end = dash_start + dir * dash_length.min(length - i as f32 * dash_gap);
+
+        painter.line_segment([dash_start, dash_end], stroke);
+    }
+
+    // Draw the remaining part if there's space
+
+    let remaining = length - dash_count as f32 * dash_gap;
+
+    if remaining > 0.0 {
+        let last_dash_start = start + dir * (dash_count as f32 * dash_gap);
+
+        let last_dash_end = last_dash_start + dir * remaining.min(dash_length);
+
+        if (last_dash_end - last_dash_start).length() > 0.0 {
+            painter.line_segment([last_dash_start, last_dash_end], stroke);
+        }
     }
 }

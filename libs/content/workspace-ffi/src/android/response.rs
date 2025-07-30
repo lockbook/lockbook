@@ -1,7 +1,5 @@
-use lb_c::{
-    model::text::offset_types::{DocCharOffset, RelCharOffset},
-    Uuid,
-};
+use lb_c::Uuid;
+use lb_c::model::text::offset_types::{DocCharOffset, RelCharOffset};
 use serde::Serialize;
 use workspace_rs::tab::markdown_editor::input::{Location, Region};
 

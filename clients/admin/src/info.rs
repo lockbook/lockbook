@@ -2,13 +2,13 @@ use std::iter;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use basic_human_duration::ChronoHumanDuration;
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::api::AccountIdentifier;
 use lb::model::file_like::FileLike;
 use lb::model::lazy::LazyTree;
-use lb::model::server_file::ServerFile;
+use lb::model::server_meta::ServerMeta;
 use lb::model::tree_like::TreeLike;
-use lb::Uuid;
 use time::Duration;
 
 use crate::Res;
@@ -50,9 +50,9 @@ pub fn file(core: &Lb, id: Uuid) -> Res<()> {
     Ok(())
 }
 
-fn pretty_print(tree: &mut LazyTree<Vec<ServerFile>>) {
+fn pretty_print(tree: &mut LazyTree<Vec<ServerMeta>>) {
     fn print_branch(
-        tree: &mut LazyTree<Vec<ServerFile>>, file_leaf: &ServerFile, children: &[ServerFile],
+        tree: &mut LazyTree<Vec<ServerMeta>>, file_leaf: &ServerMeta, children: &[ServerMeta],
         branch: &str, crotch: &str, twig: &str, depth: usize,
     ) -> String {
         let last_modified = {
@@ -145,7 +145,7 @@ fn pretty_print(tree: &mut LazyTree<Vec<ServerFile>>) {
     }
 }
 
-fn depth(tree: &mut LazyTree<Vec<ServerFile>>, root: Uuid) -> usize {
+fn depth(tree: &mut LazyTree<Vec<ServerMeta>>, root: Uuid) -> usize {
     let mut result = 0;
     for child in tree.children(&root).unwrap() {
         let child_depth = depth(tree, child);

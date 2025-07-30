@@ -5,11 +5,11 @@ cd ..
 mkdir -p include
 cbindgen -l c > include/workspace.h
 pwd
-cargo build --lib --release \
-  --target=aarch64-apple-darwin \
-  --target=x86_64-apple-darwin \
-  --target=aarch64-apple-ios \
-  --target=aarch64-apple-ios-sim
+
+cargo build --lib --release --target=aarch64-apple-darwin
+cargo build --lib --release --target=x86_64-apple-darwin
+cargo build --lib --release --target=aarch64-apple-ios
+cargo build --lib --release --target=aarch64-apple-ios-sim
 
 cd ../../../
 mkdir -p libs/content/workspace-ffi/SwiftWorkspace/Libs

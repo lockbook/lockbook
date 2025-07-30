@@ -1,8 +1,7 @@
+use crate::Lb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashMap;

@@ -1,14 +1,9 @@
-use crate::input;
-use crate::input::{
-    file_drop::FileDropHandler,
-    message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep},
-};
-use crate::output;
+use crate::input::file_drop::FileDropHandler;
+use crate::input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
+use crate::{input, output};
 use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
-use egui_wgpu_backend::{
-    wgpu::{self, CompositeAlphaMode},
-    ScreenDescriptor,
-};
+use egui_wgpu_backend::ScreenDescriptor;
+use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
 use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
@@ -17,11 +12,16 @@ use raw_window_handle::{
 use std::num::NonZeroIsize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
-use windows::{
-    core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::Graphics::Gdi::*, Win32::System::LibraryLoader::*, Win32::System::Ole::*,
-    Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct3D12::*;
+use windows::Win32::Graphics::Dxgi::*;
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::System::LibraryLoader::*;
+use windows::Win32::System::Ole::*;
+use windows::Win32::UI::HiDpi::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::core::*;
 
 #[derive(Default)]
 struct Window<'window> {
@@ -137,7 +137,7 @@ pub fn main() -> Result<()> {
         )
     };
     if let Err(error) = unsafe { GetLastError() } {
-        print!("error: {}", error);
+        print!("error: {error}");
     }
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
@@ -242,11 +242,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
         // retrieve the pointer to our Window struct from the window's "user data"
         let user_data = unsafe { GetWindowLongPtrA(hwnd, GWLP_USERDATA) };
         let window = std::ptr::NonNull::<Window>::new(user_data as _);
-        if let Some(mut window) = window {
-            Some(unsafe { window.as_mut() })
-        } else {
-            None
-        }
+        if let Some(mut window) = window { Some(unsafe { window.as_mut() }) } else { None }
     };
 
     // window doesn't receive key up messages when out of focus so we use GetKeyState instead
@@ -495,7 +491,7 @@ async fn request_device(
         .await;
     match res {
         Err(err) => {
-            panic!("request_device failed: {:?}", err);
+            panic!("request_device failed: {err:?}");
         }
         Ok((device, queue)) => (adapter, device, queue),
     }

@@ -3,17 +3,24 @@ import SwiftWorkspace
 
 @main struct LockbookApp: App {
     var body: some Scene {
-        WindowGroup {
+        #if os(macOS)
+        macOS
+        #else
+        iOS
+        #endif
+    }
+    
+    #if os(macOS)
+    @SceneBuilder
+    var macOS: some Scene {
+        Window("Lockbook", id: "main") {
             ContentView()
         }
+        .windowToolbarStyle(.unifiedCompact)
         .commands {
-            // verify what shortcut its blocking
-            CommandGroup(replacing: .saveItem) {}
-            
             SidebarCommands()
         }
         
-        #if os(macOS)
         Settings {
             SettingsView()
                 .environmentObject(AppState.billingState)
@@ -23,8 +30,18 @@ import SwiftWorkspace
             UpgradeAccountView(settingsModel: SettingsViewModel())
                 .environmentObject(AppState.billingState)
         }
-        #endif
     }
+    #else
+    @SceneBuilder
+    var iOS: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+        .commands {
+            SidebarCommands()
+        }
+    }
+    #endif
 }
 
 struct ContentView: View {

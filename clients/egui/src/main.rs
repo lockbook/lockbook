@@ -5,8 +5,7 @@ use std::io::Cursor;
 use egui::ViewportCommand;
 use egui_winit::egui;
 use image::ImageDecoder as _;
-use lockbook_egui::Lockbook;
-use lockbook_egui::Settings;
+use lockbook_egui::{Lockbook, Settings};
 
 fn main() {
     env_logger::init();

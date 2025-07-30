@@ -1,16 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
-use tokio::{
-    sync::{Mutex, RwLock},
-    time::Instant,
-};
+use tokio::sync::{Mutex, RwLock};
+use tokio::time::Instant;
 use uuid::Uuid;
 
-use crate::{
-    model::errors::{LbErrKind, LbResult, Unexpected},
-    service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
-    Lb,
-};
+use crate::Lb;
+use crate::model::errors::{LbErrKind, LbResult, Unexpected};
+use crate::service::events::Event;
+use crate::service::sync::SyncIncrement;
+use crate::service::usage::UsageMetrics;
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -90,7 +89,7 @@ impl Status {
             }
 
             if let Some(last_synced) = &self.sync_status {
-                return Some(format!("Offline, last synced: {}", last_synced));
+                return Some(format!("Offline, last synced: {last_synced}"));
             }
 
             return Some("Offline.".to_string());
@@ -114,7 +113,7 @@ impl Status {
         }
 
         if let Some(last_synced) = &self.sync_status {
-            return Some(format!("Last synced: {}", last_synced));
+            return Some(format!("Last synced: {last_synced}"));
         }
 
         None

@@ -1,14 +1,11 @@
 use crate::core;
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{
-    model::{
-        file::{File, ShareMode},
-        file_metadata::FileType,
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_metadata::FileType;
 
-use crate::{ensure_account_and_root, input::FileInput};
+use crate::ensure_account_and_root;
+use crate::input::FileInput;
 
 #[tokio::main]
 pub async fn new(target: FileInput, username: String, read_only: bool) -> CliResult<()> {
@@ -18,7 +15,7 @@ pub async fn new(target: FileInput, username: String, read_only: bool) -> CliRes
     let id = target.find(lb).await?.id;
     let mode = if read_only { ShareMode::Read } else { ShareMode::Write };
     lb.share_file(id, &username, mode).await?;
-    println!("done!\nfile '{}' will be shared next time you sync.", id);
+    println!("done!\nfile '{id}' will be shared next time you sync.");
     Ok(())
 }
 
@@ -51,7 +48,7 @@ pub async fn accept(target: &Uuid, dest: FileInput) -> CliResult<()> {
 
     lb.create_file(&share.name, &parent.id, FileType::Link { target: share.id })
         .await
-        .map_err(|err| CliError::from(format!("{:?}", err)))?;
+        .map_err(|err| CliError::from(format!("{err:?}")))?;
 
     Ok(())
 }

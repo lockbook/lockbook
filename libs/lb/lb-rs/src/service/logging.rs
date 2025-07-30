@@ -1,11 +1,12 @@
-use crate::model::errors::{core_err_unexpected, LbResult};
 use crate::Config;
+use crate::model::errors::{LbResult, core_err_unexpected};
 use chrono::Local;
 use std::backtrace::Backtrace;
 use std::{env, fs, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 pub static LOG_FILE: &str = "lockbook.log";
 
@@ -87,10 +88,10 @@ fn panic_capture(config: &Config) {
     panic::set_hook(Box::new(move |panic_info| {
         let bt = Backtrace::force_capture();
         tracing::error!("panic detected: {panic_info} {}", bt);
-        eprintln!("panic detected and logged: {panic_info} {}", bt);
+        eprintln!("panic detected and logged: {panic_info} {bt}");
         let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
-        let file_name = format!("{}/panic---{}.log", path, timestamp);
-        let file = format!("INFO: {}\nBT: {}", panic_info, bt);
+        let file_name = format!("{path}/panic---{timestamp}.log");
+        let file = format!("INFO: {panic_info}\nBT: {bt}");
         fs::write(file_name, file).unwrap();
     }));
 }

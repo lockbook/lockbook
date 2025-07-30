@@ -1,7 +1,7 @@
 use crate::WgpuWorkspace;
 use egui::{Context, FontDefinitions};
 use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
-use egui_wgpu_backend::{wgpu, ScreenDescriptor};
+use egui_wgpu_backend::{ScreenDescriptor, wgpu};
 use lb_c::Lb;
 use std::ffi::c_void;
 use std::time::Instant;
@@ -90,7 +90,7 @@ async fn request_device(
         .await;
     match res {
         Err(err) => {
-            panic!("request_device failed: {:?}", err);
+            panic!("request_device failed: {err:?}");
         }
         Ok((device, queue)) => (adapter, device, queue),
     }

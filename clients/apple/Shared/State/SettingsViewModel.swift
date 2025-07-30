@@ -28,7 +28,7 @@ class SettingsViewModel: ObservableObject {
             DispatchQueue.main.async {
                 switch res {
                 case .success(let info):
-                    self.isPremium = info != nil
+                    self.isPremium = info?.isPremium() ?? false
                 case .failure(let err):
                     AppState.shared.error = .lb(error: err)
                 }

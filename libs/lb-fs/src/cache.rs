@@ -1,5 +1,6 @@
 use crate::fs_impl::Drive;
-use lb_rs::model::{file::File, work_unit::WorkUnit};
+use lb_rs::model::file::File;
+use lb_rs::model::work_unit::WorkUnit;
 use nfsserve::nfs::{fattr3, ftype3, nfstime3};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tracing::info;

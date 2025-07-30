@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
+use crate::Lb;
 use crate::model::clock::get_time;
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -10,7 +11,6 @@ use crate::model::lazy::LazyTree;
 use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
-use crate::Lb;
 use uuid::Uuid;
 
 use super::activity;
@@ -120,7 +120,7 @@ impl Lb {
         let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac();
         let hmac = *hmac.ok_or_else(|| {
-            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
+            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {id}"))
         })?;
         self.docs
             .insert(id, Some(hmac), &encrypted_document)

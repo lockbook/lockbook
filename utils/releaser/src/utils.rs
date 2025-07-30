@@ -21,7 +21,7 @@ impl CommandRunner for Command {
         let out = self.output().unwrap();
 
         if !out.status.success() {
-            panic!("{:#?}", out)
+            panic!("{out:#?}")
         }
 
         out

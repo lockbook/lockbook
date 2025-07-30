@@ -29,7 +29,7 @@ struct PendingSharesIcon: View {
                 if pendingSharesCount > 0 {
                     Circle()
                         .foregroundColor(.red)
-                        .frame(width: 12, height: 12)
+                        .frame(width: 10, height: 10)
                         .offset(x: alertOffsetX, y: alertOffsetY)
                     
                     if pendingSharesCount < 10 {

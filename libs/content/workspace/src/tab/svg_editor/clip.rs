@@ -1,19 +1,17 @@
-use lb_rs::{
-    model::svg::{
-        buffer::{u_transform_to_bezier, Buffer},
-        diff::DiffState,
-        element::{Element, Image},
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::{Element, Image};
 use resvg::usvg::{NonZeroRect, Transform};
 
-use crate::tab::{svg_editor::element::BoundedElement, ClipContent, ExtendedInput as _};
+use crate::tab::svg_editor::element::BoundedElement;
+use crate::tab::{ClipContent, ExtendedInput as _};
 
-use super::{
-    element::PromoteBufferWeakImages, gesture_handler::get_rect_identity_transform,
-    selection::SelectedElement, util::transform_rect, InsertElement, SVGEditor, Tool,
-};
+use super::element::PromoteBufferWeakImages;
+use super::gesture_handler::get_rect_identity_transform;
+use super::selection::SelectedElement;
+use super::util::transform_rect;
+use super::{InsertElement, SVGEditor, Tool};
 
 impl SVGEditor {
     pub fn handle_clip_input(&mut self, ui: &mut egui::Ui) {
@@ -65,7 +63,7 @@ impl SVGEditor {
                                 let id = Uuid::new_v4();
                                 self.buffer.elements.insert(
                                     id,
-                                    Element::Image(Image {
+                                    Element::Image(Box::new(Image {
                                         data: resvg::usvg::ImageKind::PNG(data.into()),
                                         visibility: resvg::usvg::Visibility::Visible,
                                         transform,
@@ -80,7 +78,7 @@ impl SVGEditor {
                                         opacity: 1.0,
                                         diff_state: DiffState::new(),
                                         deleted: false,
-                                    }),
+                                    })),
                                 );
 
                                 self.toolbar.active_tool = Tool::Selection;

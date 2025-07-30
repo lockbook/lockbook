@@ -1,3 +1,4 @@
+use crate::ServerError::ClientError;
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::billing_model::BillingPlatform;
 use crate::billing::google_play_client::GooglePlayClient;
@@ -5,7 +6,6 @@ use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
 use crate::schema::{Account, ServerDb};
 use crate::utils::username_is_valid;
-use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use db_rs::Db;
 use lb_rs::model::account::Username;
@@ -16,23 +16,23 @@ use lb_rs::model::api::{
     AdminGetAccountInfoResponse, AdminListUsersError, AdminListUsersRequest,
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
-    GetUsernameError, GetUsernameRequest, GetUsernameResponse, NewAccountError, NewAccountRequest,
-    NewAccountResponse, PaymentPlatform, METADATA_FEE,
+    GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
+    NewAccountRequest, NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_file::IntoServerFile;
+use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 use tracing::warn;
-use uuid::Uuid;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -91,7 +91,8 @@ where
         db.owned_files.insert(owner, *root.id())?;
         db.shared_files.create_key(owner)?;
         db.file_children.create_key(*root.id())?;
-        db.metas.insert(*root.id(), root.clone())?;
+        db.metas
+            .insert(*root.id(), ServerMeta::from(root.clone()))?;
 
         handle.drop_safely()?;
 
@@ -153,15 +154,15 @@ where
             &mut db.metas,
         )?
         .to_lazy();
-        let usages = Self::get_usage_helper(&mut tree, db.sizes.get())?;
+        let usages = Self::get_usage_helper(&mut tree)?;
         Ok(GetUsageResponse { usages, cap })
     }
 
     pub fn get_usage_helper<T>(
-        tree: &mut LazyTree<T>, sizes: &HashMap<Uuid, u64>,
+        tree: &mut LazyTree<T>,
     ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
     where
-        T: TreeLike,
+        T: TreeLike<F = ServerMeta>,
     {
         let ids = tree.ids();
         let root_id = ids
@@ -180,23 +181,36 @@ where
         let result = ids
             .iter()
             .filter_map(|&file_id| {
-                if let Ok(file) = tree.find(&file_id) {
-                    if file.owner() != root_owner {
+                let file = match tree.find(&file_id) {
+                    Ok(file) => {
+                        if file.owner() != root_owner {
+                            return None;
+                        }
+                        file.clone()
+                    }
+                    _ => {
                         return None;
                     }
-                } else {
-                    return None;
-                }
+                };
 
                 let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
                     true => 0,
-                    false => *sizes.get(&file_id).unwrap_or(&0),
-                };
+                    false => file.file.timestamped_value.value.doc_size().unwrap_or(0),
+                } as u64;
 
                 Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
             })
             .collect();
         Ok(result)
+    }
+
+    pub fn get_usage_helper_v2<T>(
+        _owner: &Owner, _tree: &mut LazyTree<T>,
+    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
+    where
+        T: TreeLike<F = ServerMeta>,
+    {
+        todo!()
     }
 
     pub fn get_cap(
@@ -385,7 +399,7 @@ where
         )?
         .to_lazy();
 
-        let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())
+        let usage: u64 = Self::get_usage_helper(&mut tree)
             .map_err(|err| {
                 internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err)
             })?
@@ -431,7 +445,6 @@ where
                     if meta.is_document() && &(meta.owner().0) == public_key {
                         if let Some(hmac) = meta.document_hmac() {
                             docs_to_delete.push((*meta.id(), *hmac));
-                            db.sizes.remove(&id)?;
                         }
                     }
                 }

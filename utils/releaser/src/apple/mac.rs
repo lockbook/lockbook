@@ -1,5 +1,5 @@
 use crate::secrets::{AppStore, Github};
-use crate::utils::{lb_repo, lb_version, CommandRunner};
+use crate::utils::{CommandRunner, lb_repo, lb_version};
 use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
