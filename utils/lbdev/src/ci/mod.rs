@@ -1,8 +1,15 @@
-use std::process::Command;
+use std::{
+    env,
+    fs::{self, File},
+    process::{Command, Stdio},
+};
 
 use cli_rs::cli_error::CliResult;
 
-use crate::utils::{self, CommandRunner, root_dir};
+use crate::{
+    places::{android_dir, local_env_path, root_dir, server_log},
+    utils::CommandRunner,
+};
 
 pub fn fmt() -> CliResult<()> {
     Command::new("cargo")
@@ -18,17 +25,17 @@ pub fn clippy() -> CliResult<()> {
         .assert_success()
 }
 
-pub fn run_server_detached() {
-    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+pub fn run_server_detached() -> CliResult<()> {
+    dotenvy::from_path(local_env_path()).unwrap();
 
-    let server_log = File::create(utils::server_log(&tool_env.root_dir)).unwrap();
+    let server_log = File::create(server_log()).unwrap();
     let out = Stdio::from(server_log);
     let port = env::var("SERVER_PORT").unwrap();
-    let build_info_address = &utils::build_info_address(&port);
+    let build_info_address = &build_info_address(&port);
 
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
-        .current_dir(&tool_env.root_dir)
+        .current_dir(root_dir())
         .stderr(Stdio::null())
         .stdout(out)
         .spawn()
@@ -40,34 +47,72 @@ pub fn run_server_detached() {
         }
 
         if reqwest::blocking::get(build_info_address).is_ok() {
-            println!("Server running on '{}'", utils::api_url(&port));
+            println!("Server running on '{}'", api_url(&port));
             break;
         }
     }
+
+    Ok(())
 }
 
-pub fn run_rust_tests(tool_env: &ToolEnvironment) {
-    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+pub fn run_rust_tests() -> CliResult<()> {
+    dotenvy::from_path(local_env_path()).unwrap();
 
     Command::new("cargo")
         .args(["test", "--workspace"])
-        .current_dir(&tool_env.root_dir)
-        .assert_success();
+        .current_dir(root_dir())
+        .assert_success()
 }
 
-pub fn kill_server(tool_env: &ToolEnvironment) {
-    dotenvy::from_path(utils::local_env_path(&tool_env.root_dir)).unwrap();
+pub fn kill_server() -> CliResult<()> {
+    dotenvy::from_path(local_env_path()).unwrap();
 
     Command::new("fuser")
         .args(["-k", &format!("{}/tcp", env::var("SERVER_PORT").unwrap())])
-        .assert_success();
+        .assert_success()?;
 
     fs::remove_dir_all("/tmp/lbdev").unwrap();
-    fs::remove_file(utils::server_log(&tool_env.root_dir)).unwrap();
+    fs::remove_file(server_log()).unwrap();
+
+    Ok(())
 }
 
-pub fn print_server_logs(tool_env: &ToolEnvironment) {
-    let logs = utils::server_log(&tool_env.root_dir);
+pub fn print_server_logs() -> CliResult<()> {
+    let logs = server_log();
 
-    println!("{}", fs::read_to_string(logs).unwrap())
+    println!("{}", fs::read_to_string(logs).unwrap());
+    Ok(())
+}
+
+pub fn fmt_android() -> CliResult<()> {
+    let android_dir = android_dir();
+
+    Command::new(android_dir.join("gradlew"))
+        .arg("lintKotlin")
+        .current_dir(android_dir)
+        .assert_success()
+}
+
+pub fn lint_android() -> CliResult<()> {
+    let android_dir = android_dir();
+
+    Command::new(android_dir.join("gradlew"))
+        .arg("lint")
+        .current_dir(android_dir)
+        .assert_success()
+}
+
+pub fn assert_git_clean() -> CliResult<()> {
+    Command::new("git")
+        .args(["diff", "--exit-code"])
+        .current_dir(root_dir())
+        .assert_success()
+}
+
+fn api_url(port: &str) -> String {
+    format!("http://localhost:{port}")
+}
+
+fn build_info_address(port: &str) -> String {
+    format!("{}/get-build-info", api_url(port))
 }
