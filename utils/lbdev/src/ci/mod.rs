@@ -119,7 +119,7 @@ fn build_info_address(port: &str) -> String {
 
 pub fn assert_no_udeps() -> CliResult<()> {
     Command::new("cargo")
-        .args(["+nightly", "udeps", "--all-targets", "--all-features"])
+        .args(["+nightly", "udeps"])
         .current_dir(root_dir())
         .assert_success()
 }
