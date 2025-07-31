@@ -222,7 +222,7 @@ impl Buffer {
         // combine adjacent replacements
         let mut combined_ops = Vec::new();
         ops.sort_by_key(|op| match op {
-            Operation::Select(range) | Operation::Replace(Replace { range, .. }) => *range,
+            Operation::Select(range) | Operation::Replace(Replace { range, .. }) => range.start(),
         });
         for op in ops.into_iter() {
             match &op {
