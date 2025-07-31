@@ -20,7 +20,7 @@ jobs:
     - name: Install Nightly
       run: rustup toolchain install nightly
     - name: Install udeps
-      run: cargo install cargo-udeps --locked
+      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
     - name: Check Workspace Fmt
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci fmt"
     - name: Check Workspace Clippy
