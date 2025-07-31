@@ -1,16 +1,28 @@
 use std::env;
+use std::panic::Location;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
+use cli_rs::cli_error::{CliError, CliResult};
+
 pub trait CommandRunner {
-    fn assert_success(&mut self);
+    fn assert_success(&mut self) -> CliResult<()>;
     fn assert_success_with_output(&mut self) -> Output;
 }
 
 impl CommandRunner for Command {
-    fn assert_success(&mut self) {
+    #[track_caller]
+    fn assert_success(&mut self) -> CliResult<()> {
         if !self.status().unwrap().success() {
-            panic!()
+            Err(CliError {
+                msg: format!(
+                    "{self:?} did not exist successfully\ninvokded at: {}",
+                    Location::caller()
+                ),
+                status: self.status().unwrap().code().unwrap(),
+            })
+        } else {
+            Ok(())
         }
     }
 
@@ -51,8 +63,8 @@ pub fn lb_external_interface_dir<P: AsRef<Path>>(root: P) -> PathBuf {
     root.as_ref().join("libs/lb/lb_external_interface")
 }
 
-pub fn local_env_path<P: AsRef<Path>>(root: P) -> PathBuf {
-    root.as_ref().join("containers/local.env")
+pub fn local_env_path() -> PathBuf {
+    root_dir().join("lbdev/local.env")
 }
 
 pub fn server_log<P: AsRef<Path>>(root_dir: P) -> PathBuf {

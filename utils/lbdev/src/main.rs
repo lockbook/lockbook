@@ -108,7 +108,8 @@ fn main() {
         .subcommand(
             Command::name("ci")
                 .description("The commands run by CI. Sourcing dependencies is out of scope for this program")
-                .subcommand(Command::name("fmt").handler(ci::clippy))
+                .subcommand(Command::name("fmt").handler(ci::fmt))
+                .subcommand(Command::name("clippy").handler(ci::clippy))
                 
         )
         .parse();
