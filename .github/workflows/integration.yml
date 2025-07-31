@@ -17,16 +17,10 @@ jobs:
       CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
     steps:
     - uses: actions/checkout@v2
-    - name: Install Nightly
-      run: rustup toolchain install nightly
-    - name: Install udeps
-      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
     - name: Check Workspace Fmt
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci fmt"
     - name: Check Workspace Clippy
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci clippy"
-    - name: Check Unused Dependencies
-      run: cargo run -p lbdev -- assert-no-udeps
     - name: Run Server
       run: cargo run -p lbdev -- ci start-server
     - name: Run Rust Tests
@@ -44,6 +38,12 @@ jobs:
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci server-logs"
     - name: Check Lock File
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci assert-git-clean"
+    - name: Install Nightly
+      run: rustup toolchain install nightly
+    - name: Install udeps
+      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
+    - name: Check Unused Dependencies
+      run: cargo run -p lbdev -- assert-no-udeps
     - name: Cleanup
       if: always()
       run: cargo run -p lbdev -- ci kill-server
