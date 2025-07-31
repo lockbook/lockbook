@@ -22,7 +22,7 @@ fn main() {
                 .subcommand(Command::name("server-logs").handler(ci::print_server_logs))
                 .subcommand(Command::name("android-fmt").handler(ci::fmt_android))
                 .subcommand(Command::name("server-logs").handler(ci::lint_android))
-                .subcommand(Command::name("server-logs").handler(ci::assert_git_clean))
+                .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 
         )
         .parse();
