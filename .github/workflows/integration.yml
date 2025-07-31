@@ -30,7 +30,7 @@ jobs:
     - name: Run Server
       run: cargo run -p lockbook-dev -- ci start-server
     - name: Run Rust Tests
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- ci run-tests"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci run-tests"
       # - name: Run Swift Tests
       #   run: cargo run -p lockbook-dev -- run-swift-tests
       # - name: Run Android Fmt
@@ -41,9 +41,9 @@ jobs:
       #   run: cargo run -p lockbook-dev -- run-kotlin-tests
     - name: Server Logs
       if: always()
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- ci server-logs"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci server-logs"
     - name: Check Lock File
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lockbook-dev -- ci assert-git-clean"
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci assert-git-clean"
     - name: Cleanup
       if: always()
       run: cargo run -p lockbook-dev -- kill-server
