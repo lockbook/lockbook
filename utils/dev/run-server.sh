@@ -9,4 +9,4 @@ cd $projRoot
 
 echo "Compiling and running lockbook server..."
 cd server
-RUST_MIN_STACK=104857600 cargo run $@
+cargo run $@

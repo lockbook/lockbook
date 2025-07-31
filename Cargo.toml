@@ -14,7 +14,7 @@ members = [
     "clients/linux",
     "clients/windows",
     "clients/admin",
-    "utils/dev-tool",
+    "utils/lbdev",
     "utils/releaser",
     "utils/winstaller",
     "libs/lb/lb-c",
