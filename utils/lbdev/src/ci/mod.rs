@@ -116,3 +116,10 @@ fn api_url(port: &str) -> String {
 fn build_info_address(port: &str) -> String {
     format!("{}/get-build-info", api_url(port))
 }
+
+pub fn assert_no_udeps() -> CliResult<()> {
+    Command::new("cargo")
+        .args(["+nightly", "udeps", "--all-targets", "--all-features"])
+        .current_dir(root_dir())
+        .assert_success()
+}
