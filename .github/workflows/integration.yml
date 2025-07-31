@@ -43,7 +43,7 @@ jobs:
     - name: Install udeps
       run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
     - name: Check Unused Dependencies
-      run: cargo run -p lbdev -- assert-no-udeps
+      run: cargo run -p lbdev -- ci assert-no-udeps
     - name: Cleanup
       if: always()
       run: cargo run -p lbdev -- ci kill-server
