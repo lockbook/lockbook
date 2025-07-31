@@ -1,9 +1,9 @@
+mod ci;
+mod places;
 mod utils;
 mod workspace;
-mod places;
-mod ci;
 
-use cli_rs::command::{Command};
+use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 
 fn main() {
@@ -23,7 +23,6 @@ fn main() {
                 .subcommand(Command::name("android-fmt").handler(ci::fmt_android))
                 .subcommand(Command::name("server-logs").handler(ci::lint_android))
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
-                
         )
         .parse();
 }
