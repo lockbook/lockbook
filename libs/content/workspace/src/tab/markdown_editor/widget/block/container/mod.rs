@@ -329,7 +329,14 @@ impl<'ast> Editor {
             NodeValue::TableRow(_) => {
                 return None;
             }
-            NodeValue::TaskItem(_) => " ".repeat(own_prefix.len().0),
+            NodeValue::TaskItem(_) => {
+                if line == self.node_first_line(node) {
+                    // ' [ ]' is not part of the list marker for indentation purposes
+                    " ".repeat(own_prefix.len().0.saturating_sub(4))
+                } else {
+                    " ".repeat(own_prefix.len().0)
+                }
+            }
 
             // inline
             NodeValue::Image(_)
