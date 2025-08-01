@@ -3,7 +3,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-pub fn root_dir() -> PathBuf {
+pub fn root() -> PathBuf {
     let root_bytes = Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .stdout(Stdio::piped())
@@ -19,13 +19,49 @@ pub fn root_dir() -> PathBuf {
 }
 
 pub fn local_env_path() -> PathBuf {
-    root_dir().join("server/local.env")
+    let mut path = root();
+    path.push("server");
+    path.push("local.env");
+    path
 }
 
 pub fn server_log() -> PathBuf {
-    root_dir().join("server/server_log.txt")
+    let mut path = root();
+    path.push("server");
+    path.push("server_log.txt");
+    path
 }
 
 pub fn android_dir() -> PathBuf {
-    root_dir().join("clients/android")
+    let mut path = root();
+    path.push("clients");
+    path.push("android");
+    path
+}
+
+pub fn workspace_ffi() -> PathBuf {
+    let mut path = root();
+
+    path.push("libs");
+    path.push("content");
+    path.push("workspace-ffi");
+
+    path
+}
+
+pub fn workspace_swift_libs() -> PathBuf {
+    let mut path = workspace_ffi();
+
+    path.push("SwiftWorkspace");
+    path.push("Libs");
+
+    path
+}
+
+pub fn target() -> PathBuf {
+    let mut path = root();
+
+    path.push("target");
+
+    path
 }

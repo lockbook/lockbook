@@ -7,21 +7,21 @@ use std::{
 use cli_rs::cli_error::CliResult;
 
 use crate::{
-    places::{android_dir, local_env_path, root_dir, server_log},
+    places::{android_dir, local_env_path, root, server_log},
     utils::CommandRunner,
 };
 
 pub fn fmt() -> CliResult<()> {
     Command::new("cargo")
         .args(["fmt", "--", "--check", "-l"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .assert_success()
 }
 
 pub fn clippy() -> CliResult<()> {
     Command::new("cargo")
         .args(["clippy", "--all-targets", "--", "-D", "warnings"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .assert_success()
 }
 
@@ -35,7 +35,7 @@ pub fn run_server_detached() -> CliResult<()> {
 
     let mut run_result = Command::new("cargo")
         .args(["run", "-p", "lockbook-server", "--release"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .stderr(Stdio::null())
         .stdout(out)
         .spawn()
@@ -60,7 +60,7 @@ pub fn run_rust_tests() -> CliResult<()> {
 
     Command::new("cargo")
         .args(["test", "--workspace"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .assert_success()
 }
 
@@ -105,7 +105,7 @@ pub fn lint_android() -> CliResult<()> {
 pub fn assert_git_clean() -> CliResult<()> {
     Command::new("git")
         .args(["diff", "--exit-code"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .assert_success()
 }
 
@@ -120,6 +120,6 @@ fn build_info_address(port: &str) -> String {
 pub fn assert_no_udeps() -> CliResult<()> {
     Command::new("cargo")
         .args(["+nightly", "udeps"])
-        .current_dir(root_dir())
+        .current_dir(root())
         .assert_success()
 }
