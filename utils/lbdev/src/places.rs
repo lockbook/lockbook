@@ -19,13 +19,32 @@ pub fn root_dir() -> PathBuf {
 }
 
 pub fn local_env_path() -> PathBuf {
-    root_dir().join("server/local.env")
+    let mut path = root_dir();
+    path.push("server");
+    path.push("local.env");
+    path
 }
 
 pub fn server_log() -> PathBuf {
-    root_dir().join("server/server_log.txt")
+    let mut path = root_dir();
+    path.push("server");
+    path.push("server_log.txt");
+    path
 }
 
 pub fn android_dir() -> PathBuf {
-    root_dir().join("clients/android")
+    let mut path = root_dir();
+    path.push("clients");
+    path.push("android");
+    path
+}
+
+pub fn workspace_ffi() -> PathBuf {
+    let mut path = root_dir();
+
+    path.push("libs");
+    path.push("content");
+    path.push("workspace-ffi");
+
+    path
 }

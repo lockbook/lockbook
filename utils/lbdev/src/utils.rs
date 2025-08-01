@@ -3,6 +3,8 @@ use std::process::Command;
 
 use cli_rs::cli_error::{CliError, CliResult};
 
+use crate::places::root_dir;
+
 pub trait CommandRunner {
     fn assert_success(&mut self) -> CliResult<()>;
 }
@@ -22,4 +24,11 @@ impl CommandRunner for Command {
             Ok(())
         }
     }
+}
+
+pub fn update_self() -> CliResult<()> {
+    Command::new("cargo")
+        .args(["install", "--path", "utils/lbdev"])
+        .current_dir(root_dir())
+        .assert_success()
 }
