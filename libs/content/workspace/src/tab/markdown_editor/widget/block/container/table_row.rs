@@ -152,6 +152,7 @@ impl<'ast> Editor {
 
                 let between_range = (range_start, cell_range.start());
                 self.bounds.paragraphs.push(between_range);
+                self.bounds.inline_paragraphs.push(between_range);
 
                 range_start = cell_range.end();
             }
@@ -160,6 +161,7 @@ impl<'ast> Editor {
 
                 let between_range = (cell_range.end(), row_range.end());
                 self.bounds.paragraphs.push(between_range);
+                self.bounds.inline_paragraphs.push(between_range);
             }
 
             // Compute bounds for cell contents

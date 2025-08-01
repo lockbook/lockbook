@@ -160,6 +160,7 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
             self.bounds.paragraphs.push(line_content);
+            self.bounds.inline_paragraphs.push(line_content);
         }
     }
 

@@ -97,6 +97,7 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line_idx];
                 let line_content = self.line_content(node, line);
                 self.bounds.paragraphs.push(line_content);
+                self.bounds.inline_paragraphs.push(line_content);
             }
         }
     }

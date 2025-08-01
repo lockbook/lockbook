@@ -138,6 +138,8 @@ impl<'ast> Editor {
     pub fn compute_bounds_paragraph_line(
         &mut self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) {
+        self.bounds.inline_paragraphs.push(node_line);
+
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
         let Some((pre_node, pre_children, children, post_children, post_node)) =
@@ -153,7 +155,6 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(pre_children);
         }
         self.bounds.paragraphs.push(children);
-        self.bounds.inline_paragraphs.push(children);
         if !post_children.is_empty() {
             self.bounds.paragraphs.push(post_children);
         }

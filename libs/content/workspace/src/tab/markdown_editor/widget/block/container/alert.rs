@@ -249,6 +249,7 @@ impl<'ast> Editor {
 
                 if line != first_line {
                     self.bounds.paragraphs.push(line_content);
+                    self.bounds.inline_paragraphs.push(line_content);
                 }
             }
         }

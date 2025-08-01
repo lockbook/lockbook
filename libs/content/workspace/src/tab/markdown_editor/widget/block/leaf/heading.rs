@@ -367,6 +367,7 @@ impl<'ast> Editor {
                 self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
+                self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
@@ -377,15 +378,20 @@ impl<'ast> Editor {
                 self.bounds.paragraphs.push(prefix);
             }
             self.bounds.paragraphs.push(children);
-            self.bounds.inline_paragraphs.push(children);
             if !postfix_whitespace.is_empty() {
                 self.bounds.paragraphs.push(postfix_whitespace);
+                self.bounds
+                    .inline_paragraphs
+                    .push((children.start(), postfix_whitespace.end()));
+            } else {
+                self.bounds.inline_paragraphs.push(children);
             }
         } else {
             let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
                 self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
+                self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
@@ -408,18 +414,23 @@ impl<'ast> Editor {
 
             if let Some(infix_range) = self.infix_range(node) {
                 self.bounds.paragraphs.push(infix_range);
-                self.bounds.inline_paragraphs.push(infix_range);
-                for child in node.children() {
-                    self.compute_bounds(child);
-                }
-            }
 
-            if !postfix_range.is_empty() {
+                if !postfix_range.is_empty() {
+                    self.bounds.paragraphs.push(postfix_range);
+                    self.bounds
+                        .inline_paragraphs
+                        .push((infix_range.start(), postfix_range.end()));
+                } else {
+                    self.bounds.inline_paragraphs.push(infix_range);
+                }
+            } else if !postfix_range.is_empty() {
                 self.bounds.paragraphs.push(postfix_range);
+                self.bounds.inline_paragraphs.push(postfix_range);
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
             self.bounds.paragraphs.push(node_line);
+            self.bounds.inline_paragraphs.push(node_line);
         }
     }
 }
