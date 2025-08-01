@@ -21,7 +21,7 @@ pub struct WsBuildTargets {
 
 fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     println!("cbindgen");
-    fs::remove_dir_all(workspace_swift_libs())?;
+    let _ = fs::remove_dir_all(workspace_swift_libs());
     fs::create_dir_all(workspace_ffi().join("include"))?;
     Command::new("cbindgen")
         .args(["-l", "c", "-o", "include/workspace.h"])
