@@ -206,7 +206,7 @@ class MainScreenActivity : AppCompatActivity() {
             if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
                 slidingPaneLayout.openPane()
             }
-            if (binding.slidingPaneLayout.isSlideable && workspaceModel.currentTab.value == WorkspaceTab.Welcome){
+            if (binding.slidingPaneLayout.isSlideable && binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
             }
         }

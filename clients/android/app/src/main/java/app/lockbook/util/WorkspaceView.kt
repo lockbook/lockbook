@@ -251,7 +251,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         val elapsed = System.currentTimeMillis() - model.lastSyncStatusUpdate
         // refresh every second
-        if (elapsed >  1_000) {
+        if (elapsed > 1_000) {
             val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
 
             if (model.isSyncing && !status.syncing) {
