@@ -34,7 +34,10 @@ fn main() {
             Command::name("apple")
                 .description("utilties for building for apple development or launching lockbook on apple devices.")
                 .subcommand(
-                    Command::name("ws").subcommand(Command::name("all").handler(local::apple_ws_all))
+                    Command::name("ws")
+                        .subcommand(Command::name("all").handler(local::apple_ws_all))
+                        .subcommand(Command::name("macos").handler(local::apple_ws_macos))
+                        .subcommand(Command::name("ios").handler(local::apple_ws_ios))
                 )
         )
         .parse();

@@ -11,6 +11,14 @@ pub fn apple_ws_all() -> CliResult<()> {
     apple_ws(WsBuildTargets { ios: true, ios_sim: true, arm_macos: true, x86_macos: true })
 }
 
+pub fn apple_ws_macos() -> CliResult<()> {
+    apple_ws(WsBuildTargets { ios: false, ios_sim: false, arm_macos: true, x86_macos: false })
+}
+
+pub fn apple_ws_ios() -> CliResult<()> {
+    apple_ws(WsBuildTargets { ios: true, ios_sim: false, arm_macos: false, x86_macos: false })
+}
+
 #[derive(Copy, Clone)]
 pub struct WsBuildTargets {
     ios: bool,
@@ -28,7 +36,6 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
         .current_dir(workspace_ffi())
         .assert_success()?;
 
-    // create whatever desired libs
     let mut ios_build = Command::new("cargo");
     let mut args = vec!["build", "--release"];
     let mut execute_ios = false;
@@ -73,7 +80,6 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
             .assert_success()?;
     }
 
-    // create universal macOS if desired
     fs::create_dir_all(workspace_swift_libs())?;
     if targets.arm_macos && targets.x86_macos {
         println!("lipoing");
@@ -103,11 +109,6 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     }
 
     println!("building xcframework");
-    // -library libworkspace.a -headers ../../include \
-    // -library ../../../../../target/aarch64-apple-ios/release/libworkspace.a -headers ../../include \
-    // -library ../../../../../target/aarch64-apple-ios-sim/release/libworkspace.a -headers ../../include \
-    // -output workspace.xcframework
-
     let mut xcframework = Command::new("xcodebuild");
 
     let mut args = vec!["-create-xcframework"];
