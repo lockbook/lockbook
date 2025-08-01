@@ -176,7 +176,7 @@ impl Editor {
         let galley = &self.galleys[galley_idx];
         let x = cursor_to_pos_abs(galley, cursor).x;
         let y_range = galley.rect.y_range();
-        return [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }];
+        [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }]
     }
 }
 
