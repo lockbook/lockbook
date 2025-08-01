@@ -18,6 +18,5 @@ cd libs/content/workspace-ffi/SwiftWorkspace/Libs
 xcodebuild -create-xcframework \
   -library libworkspace.a -headers ../../include \
   -library ../../../../../target/aarch64-apple-ios/release/libworkspace.a -headers ../../include \
-  i
   -library ../../../../../target/aarch64-apple-ios-sim/release/libworkspace.a -headers ../../include \
   -output workspace.xcframework

@@ -114,8 +114,31 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 
     if targets.arm_macos || targets.x86_macos {
         args.push("-library");
-        args.push("lib");
+        args.push("libworkspace.a");
+        args.push("-headers");
+        args.push("../../include");
     }
+
+    if targets.ios {
+        args.push("-library");
+        args.push("../../../../../target/aarch64-apple-ios/release/libworkspace.a");
+        args.push("-headers");
+        args.push("../../include");
+    }
+
+    if targets.ios_sim {
+        args.push("-library");
+        args.push("../../../../../target/aarch64-apple-ios-sim/release/libworkspace.a");
+        args.push("-headers");
+        args.push("../../include");
+    }
+
+    args.push("-output");
+    args.push("workspace.xcframework");
+
+    xcframework
+        .current_dir(workspace_swift_libs())
+        .assert_success()?;
 
     Ok(())
 }
