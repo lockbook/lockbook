@@ -323,7 +323,11 @@ impl Editor {
                 style.spacing.scroll = egui::style::ScrollStyle::solid();
             });
         }
-        let scroll_area_id = ui.id().with("child").with(egui::Id::new(self.file_id));
+        let scroll_area_id = ui
+            .id()
+            .with("child")
+            .with("child")
+            .with(egui::Id::new(self.file_id));
         let prev_scroll_area_offset = ui.data_mut(|d| {
             d.get_persisted(scroll_area_id)
                 .map(|s: scroll_area::State| s.offset)
