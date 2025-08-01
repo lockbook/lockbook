@@ -8,7 +8,7 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::ScrollAreaOutput;
+use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
     ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
@@ -318,11 +318,6 @@ impl Editor {
         self.galleys.galleys.clear();
         self.bounds.wrap_lines.clear();
 
-        if self.touch_mode {
-            ui.ctx().style_mut(|style| {
-                style.spacing.scroll = egui::style::ScrollStyle::solid();
-            });
-        }
         let scroll_area_id = ui
             .id()
             .with("child")
@@ -333,6 +328,7 @@ impl Editor {
                 .map(|s: scroll_area::State| s.offset)
                 .unwrap_or_default()
         });
+
         ui.vertical(|ui| {
             if self.touch_mode {
                 // touch devices: show find...
@@ -344,9 +340,15 @@ impl Editor {
                 }
 
                 // ...then show editor content...
+                let available_width = ui.available_width();
                 ui.allocate_ui(
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
+                        ui.ctx().style_mut(|style| {
+                            style.spacing.scroll = egui::style::ScrollStyle::solid();
+                            style.spacing.scroll.bar_width = 10.;
+                        });
+
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
                         self.next_resp.scroll_updated =
                             scroll_area_output.state.offset != prev_scroll_area_offset;
@@ -354,7 +356,11 @@ impl Editor {
                 );
 
                 // ...then show toolbar at the bottom
-                self.show_toolbar(root, ui);
+                let (_, rect) =
+                    ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                ui.allocate_ui_at_rect(rect, |ui| {
+                    self.show_toolbar(root, ui);
+                });
             } else {
                 // non-touch devices: show toolbar...
                 self.show_toolbar(root, ui);
@@ -453,6 +459,11 @@ impl Editor {
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
+            .scroll_bar_visibility(if self.touch_mode {
+                ScrollBarVisibility::AlwaysVisible
+            } else {
+                ScrollBarVisibility::VisibleWhenNeeded
+            })
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
