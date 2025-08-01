@@ -1,8 +1,8 @@
 use crate::fs_impl::Drive;
 use lb_rs::model::file::File;
 use lb_rs::model::work_unit::WorkUnit;
-use nfsserve::nfs::{fattr3, ftype3, nfstime3};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use nfs3_server::nfs3_types::nfs3::{fattr3, ftype3, nfstime3};
+use std::time::{Duration, SystemTime};
 use tracing::info;
 
 pub struct FileEntry {
@@ -26,7 +26,7 @@ impl FileEntry {
         let ctime = Self::ts_from_u64(file.last_modified);
 
         let fattr = fattr3 {
-            ftype,
+            type_: ftype,
             mode,
             nlink: 1, // hard links to this file
             uid: 501, // todo: evaluate owner field? not resolved by this lib
@@ -49,9 +49,10 @@ impl FileEntry {
         nfstime3 { seconds: time.as_secs() as u32, nseconds: time.subsec_nanos() }
     }
 
-    pub fn now() -> u64 {
-        let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-        time.as_millis() as u64
+    pub fn now() -> nfstime3 {
+        SystemTime::now()
+            .try_into()
+            .expect("failed to get current time")
     }
 }
 
@@ -70,7 +71,7 @@ impl Drive {
             let id = file.id;
             let entry =
                 FileEntry::from_file(file, sizes.get(&id).copied().unwrap_or_default() as u64);
-            data.insert(entry.fattr.fileid, entry);
+            data.insert(entry.file.id.into(), entry);
         }
         info!("cache ready");
     }
@@ -90,12 +91,12 @@ impl Drive {
 
                 let mut entry = FileEntry::from_file(file, size as u64);
 
-                let now = FileEntry::ts_from_u64(FileEntry::now());
+                let now = FileEntry::now();
 
                 entry.fattr.mtime = now;
                 entry.fattr.ctime = now;
 
-                data.insert(entry.fattr.fileid, entry);
+                data.insert(entry.file.id.into(), entry);
             }
         }
     }
