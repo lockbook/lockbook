@@ -1,7 +1,8 @@
 use std::time::{Duration, Instant};
 
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Frame, Margin, Separator, Stroke, Ui};
+use egui::scroll_area::ScrollBarVisibility;
+use egui::{Frame, Margin, ScrollArea, Separator, Stroke, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use pulldown_cmark::{HeadingLevel, LinkType};
 
@@ -37,121 +38,123 @@ impl<'ast> Editor {
 
     #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
     pub fn show_toolbar_inner(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
-        egui::ScrollArea::horizontal().show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+        ScrollArea::horizontal()
+            .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
 
-                let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
+                    let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
 
-                ui.spacing_mut().button_padding = egui::vec2(5., 5.);
+                    ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
-                let mut events = Vec::new();
+                    let mut events = Vec::new();
 
-                if is_mobile && self.virtual_keyboard_shown {
-                    let resp = IconButton::new(&Icon::KEYBOARD_HIDE).show(ui);
-                    if resp.clicked() {
-                        ui.ctx().set_virtual_keyboard_shown(false);
+                    if is_mobile && self.virtual_keyboard_shown {
+                        let resp = IconButton::new(&Icon::KEYBOARD_HIDE).show(ui);
+                        if resp.clicked() {
+                            ui.ctx().set_virtual_keyboard_shown(false);
+                        }
+                        add_seperator(ui);
                     }
+
+                    if IconButton::new(&Icon::UNDO)
+                        .tooltip("Undo")
+                        .show(ui)
+                        .clicked()
+                    {
+                        events.push(Event::Undo);
+                    }
+                    ui.add_space(5.);
+                    if IconButton::new(&Icon::REDO)
+                        .tooltip("Redo")
+                        .show(ui)
+                        .clicked()
+                    {
+                        events.push(Event::Redo);
+                    }
+
                     add_seperator(ui);
-                }
 
-                if IconButton::new(&Icon::UNDO)
-                    .tooltip("Undo")
-                    .show(ui)
-                    .clicked()
-                {
-                    events.push(Event::Undo);
-                }
-                ui.add_space(5.);
-                if IconButton::new(&Icon::REDO)
-                    .tooltip("Redo")
-                    .show(ui)
-                    .clicked()
-                {
-                    events.push(Event::Redo);
-                }
+                    self.heading_button(root, ui).map(|e| events.push(e));
+                    ui.add_space(5.);
+                    self.inline(&Icon::BOLD, InlineNode::Bold, root, ui)
+                        .map(|e| events.push(e));
+                    ui.add_space(5.);
+                    self.inline(&Icon::ITALIC, InlineNode::Italic, root, ui)
+                        .map(|e| events.push(e));
+                    ui.add_space(5.);
+                    self.inline(&Icon::CODE, InlineNode::Code, root, ui)
+                        .map(|e| events.push(e));
+                    ui.add_space(5.);
+                    self.inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, root, ui)
+                        .map(|e| events.push(e));
 
-                add_seperator(ui);
+                    add_seperator(ui);
 
-                self.heading_button(root, ui).map(|e| events.push(e));
-                ui.add_space(5.);
-                self.inline(&Icon::BOLD, InlineNode::Bold, root, ui)
+                    self.block(
+                        &Icon::NUMBER_LIST,
+                        BlockNode::ListItem(ListItem::Numbered(1), 0),
+                        root,
+                        ui,
+                    )
                     .map(|e| events.push(e));
-                ui.add_space(5.);
-                self.inline(&Icon::ITALIC, InlineNode::Italic, root, ui)
+                    ui.add_space(5.);
+                    self.block(
+                        &Icon::BULLET_LIST,
+                        BlockNode::ListItem(ListItem::Bulleted, 0),
+                        root,
+                        ui,
+                    )
                     .map(|e| events.push(e));
-                ui.add_space(5.);
-                self.inline(&Icon::CODE, InlineNode::Code, root, ui)
+                    ui.add_space(5.);
+                    self.block(
+                        &Icon::TODO_LIST,
+                        BlockNode::ListItem(ListItem::Todo(false), 0),
+                        root,
+                        ui,
+                    )
                     .map(|e| events.push(e));
-                ui.add_space(5.);
-                self.inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, root, ui)
+
+                    add_seperator(ui);
+
+                    self.inline(
+                        &Icon::LINK,
+                        InlineNode::Link(LinkType::Inline, "".into(), "".into()),
+                        root,
+                        ui,
+                    )
                     .map(|e| events.push(e));
 
-                add_seperator(ui);
+                    add_seperator(ui);
 
-                self.block(
-                    &Icon::NUMBER_LIST,
-                    BlockNode::ListItem(ListItem::Numbered(1), 0),
-                    root,
-                    ui,
-                )
-                .map(|e| events.push(e));
-                ui.add_space(5.);
-                self.block(
-                    &Icon::BULLET_LIST,
-                    BlockNode::ListItem(ListItem::Bulleted, 0),
-                    root,
-                    ui,
-                )
-                .map(|e| events.push(e));
-                ui.add_space(5.);
-                self.block(
-                    &Icon::TODO_LIST,
-                    BlockNode::ListItem(ListItem::Todo(false), 0),
-                    root,
-                    ui,
-                )
-                .map(|e| events.push(e));
-
-                add_seperator(ui);
-
-                self.inline(
-                    &Icon::LINK,
-                    InlineNode::Link(LinkType::Inline, "".into(), "".into()),
-                    root,
-                    ui,
-                )
-                .map(|e| events.push(e));
-
-                add_seperator(ui);
-
-                if IconButton::new(&Icon::INDENT)
-                    .tooltip("Indent")
-                    .show(ui)
-                    .clicked()
-                {
-                    events.push(Event::Indent { deindent: false });
-                }
-                ui.add_space(5.);
-                if IconButton::new(&Icon::DEINDENT)
-                    .tooltip("De-indent")
-                    .show(ui)
-                    .clicked()
-                {
-                    events.push(Event::Indent { deindent: true });
-                }
-
-                ui.add_space(ui.available_width());
-
-                for event in events {
-                    ui.ctx().push_markdown_event(event);
-                    if is_mobile {
-                        // mobile toolbar painted after editor events processed
-                        ui.ctx().request_repaint();
+                    if IconButton::new(&Icon::INDENT)
+                        .tooltip("Indent")
+                        .show(ui)
+                        .clicked()
+                    {
+                        events.push(Event::Indent { deindent: false });
                     }
-                }
-            })
-        });
+                    ui.add_space(5.);
+                    if IconButton::new(&Icon::DEINDENT)
+                        .tooltip("De-indent")
+                        .show(ui)
+                        .clicked()
+                    {
+                        events.push(Event::Indent { deindent: true });
+                    }
+
+                    ui.add_space(ui.available_width());
+
+                    for event in events {
+                        ui.ctx().push_markdown_event(event);
+                        if is_mobile {
+                            // mobile toolbar painted after editor events processed
+                            ui.ctx().request_repaint();
+                        }
+                    }
+                })
+            });
     }
 
     fn heading_button(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) -> Option<Event> {
