@@ -12,11 +12,19 @@ pub fn apple_ws_all() -> CliResult<()> {
 }
 
 pub fn apple_ws_macos() -> CliResult<()> {
-    apple_ws(WsBuildTargets { ios: false, ios_sim: false, arm_macos: true, x86_macos: true })
+    apple_ws(WsBuildTargets { ios: false, ios_sim: false, arm_macos: true, x86_macos: true })?;
+    println!(
+        "warning: xcode may need to be restarted if you swap between iOS & macOS and experience build failures"
+    );
+    Ok(())
 }
 
 pub fn apple_ws_ios() -> CliResult<()> {
-    apple_ws(WsBuildTargets { ios: true, ios_sim: false, arm_macos: false, x86_macos: false })
+    apple_ws(WsBuildTargets { ios: true, ios_sim: false, arm_macos: false, x86_macos: false })?;
+    println!(
+        "warning: xcode may need to be restarted if you swap between iOS & macOS and experience build failures"
+    );
+    Ok(())
 }
 
 #[derive(Copy, Clone)]
