@@ -12,7 +12,7 @@ pub fn apple_ws_all() -> CliResult<()> {
 }
 
 pub fn apple_ws_macos() -> CliResult<()> {
-    apple_ws(WsBuildTargets { ios: false, ios_sim: false, arm_macos: true, x86_macos: false })
+    apple_ws(WsBuildTargets { ios: false, ios_sim: false, arm_macos: true, x86_macos: true })
 }
 
 pub fn apple_ws_ios() -> CliResult<()> {
