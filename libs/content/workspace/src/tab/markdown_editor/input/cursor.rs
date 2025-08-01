@@ -172,21 +172,11 @@ impl Editor {
     }
 
     pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
-        for galley_info in self.galleys.galleys.iter().rev() {
-            let GalleyInfo { range, galley, rect, .. } = galley_info;
-            if range.contains_inclusive(offset) {
-                let cursor = galley.from_ccursor(CCursor {
-                    index: (offset - range.start()).0,
-                    prefer_next_row: true,
-                });
-                let x = cursor_to_pos_abs(galley_info, cursor).x;
-                let y_range = rect.y_range();
-                return [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }];
-            }
-        }
-
-        // todo: better error handling
-        Default::default()
+        let (galley_idx, cursor) = self.galleys.galley_and_cursor_by_offset(offset);
+        let galley = &self.galleys[galley_idx];
+        let x = cursor_to_pos_abs(galley, cursor).x;
+        let y_range = galley.rect.y_range();
+        return [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }];
     }
 }
 
