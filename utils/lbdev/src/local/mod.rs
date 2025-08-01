@@ -99,12 +99,12 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     } else if targets.arm_macos {
         fs::rename(
             target().join("aarch64-apple-darwin/release/libworkspace.a"),
-            workspace_swift_libs(),
+            workspace_swift_libs().join("libworkspace.a"),
         )?;
     } else if targets.x86_macos {
         fs::rename(
             target().join("x86_64-apple-darwin/release/libworkspace.a"),
-            workspace_swift_libs(),
+            workspace_swift_libs().join("libworkspace.a"),
         )?;
     }
 
