@@ -102,6 +102,14 @@ pub struct Editor {
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
     height: f32,
+
+    // response: indicates text, selection, and scroll update. Some of these are
+    // stored here for one frame because sometimes it takes a frame for all
+    // changes to be processed. This is because we process events after
+    // rendering, so that rendering can produce events, but events can also
+    // affect rendering. The cursor may disappear or be misplaced in the
+    // intervening frame.
+    next_resp: Response,
 }
 
 impl Drop for Editor {
@@ -171,6 +179,8 @@ impl Editor {
             scroll_to_cursor: Default::default(),
             width: Default::default(),
             height: Default::default(),
+
+            next_resp: Default::default(),
         }
     }
 
@@ -229,7 +239,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let mut resp = Response::default();
+        let mut resp = mem::take(&mut self.next_resp);
 
         self.height = ui.available_size().y;
         self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -388,7 +398,7 @@ impl Editor {
         }
         let prior_selection = self.buffer.current.selection;
         if !self.initialized || self.process_events(ui.ctx(), root) {
-            resp.text_updated = true;
+            self.next_resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
             let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
@@ -406,7 +416,7 @@ impl Editor {
 
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection != self.buffer.current.selection;
+        self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
         if resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
