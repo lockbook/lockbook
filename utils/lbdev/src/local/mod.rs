@@ -2,7 +2,10 @@ use std::{fs, process::Command};
 
 use cli_rs::cli_error::CliResult;
 
-use crate::{places::workspace_ffi, utils::CommandRunner};
+use crate::{
+    places::{root, target, workspace_ffi, workspace_swift_libs},
+    utils::CommandRunner,
+};
 
 pub fn apple_ws_all() -> CliResult<()> {
     apple_ws(WsBuildTargets { ios: true, ios_sim: true, arm_macos: true, x86_macos: true })
@@ -17,8 +20,8 @@ pub struct WsBuildTargets {
 }
 
 fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
-    // cbindgen
-    fs::remove_dir_all(workspace_ffi().join("SwiftWorkspace/Libs"))?;
+    println!("cbindgen");
+    fs::remove_dir_all(workspace_swift_libs())?;
     fs::create_dir_all(workspace_ffi().join("include"))?;
     Command::new("cbindgen")
         .args(["-l", "c", "-o", "include/workspace.h"])
@@ -71,7 +74,48 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     }
 
     // create universal macOS if desired
-    if targets.arm_macos && targets.x86_macos {}
+    fs::create_dir_all(workspace_swift_libs())?;
+    if targets.arm_macos && targets.x86_macos {
+        println!("lipoing");
+        Command::new("lipo")
+            .args([
+                "-create",
+                "target/aarch64-apple-darwin/release/libworkspace.a",
+                "target/x86_64-apple-darwin/release/libworkspace.a",
+                "-output",
+                workspace_swift_libs()
+                    .join("libworkspace.a")
+                    .to_str()
+                    .unwrap(),
+            ])
+            .current_dir(root())
+            .assert_success()?;
+    } else if targets.arm_macos {
+        fs::rename(
+            target().join("aarch64-apple-darwin/release/libworkspace.a"),
+            workspace_swift_libs(),
+        )?;
+    } else if targets.x86_macos {
+        fs::rename(
+            target().join("x86_64-apple-darwin/release/libworkspace.a"),
+            workspace_swift_libs(),
+        )?;
+    }
+
+    println!("building xcframework");
+    // -library libworkspace.a -headers ../../include \
+    // -library ../../../../../target/aarch64-apple-ios/release/libworkspace.a -headers ../../include \
+    // -library ../../../../../target/aarch64-apple-ios-sim/release/libworkspace.a -headers ../../include \
+    // -output workspace.xcframework
+
+    let mut xcframework = Command::new("xcodebuild");
+
+    let mut args = vec!["-create-xcframework"];
+
+    if targets.arm_macos || targets.x86_macos {
+        args.push("-library");
+        args.push("lib");
+    }
 
     Ok(())
 }
