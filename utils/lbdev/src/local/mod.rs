@@ -138,6 +138,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 
     xcframework
         .current_dir(workspace_swift_libs())
+        .args(args)
         .assert_success()?;
 
     Ok(())
