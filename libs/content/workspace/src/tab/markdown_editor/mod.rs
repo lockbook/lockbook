@@ -239,7 +239,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let mut resp = mem::take(&mut self.next_resp);
+        let resp = mem::take(&mut self.next_resp);
 
         self.height = ui.available_size().y;
         self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -348,7 +348,7 @@ impl Editor {
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
-                        resp.scroll_updated =
+                        self.next_resp.scroll_updated =
                             scroll_area_output.state.offset != prev_scroll_area_offset;
                     },
                 );
@@ -369,7 +369,8 @@ impl Editor {
 
                 // ...then show editor content
                 let scroll_area_output = self.show_scrollable_editor(ui, root);
-                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+                self.next_resp.scroll_updated =
+                    scroll_area_output.state.offset != prev_scroll_area_offset;
             }
         });
 
@@ -422,8 +423,11 @@ impl Editor {
         }
         self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if resp.selection_updated && !all_selected {
+        if self.next_resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
+            ui.ctx().request_repaint();
+        }
+        if self.next_resp.scroll_updated {
             ui.ctx().request_repaint();
         }
         if self.images.any_loading() {
