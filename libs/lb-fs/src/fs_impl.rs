@@ -165,9 +165,9 @@ impl NfsFileSystem for Drive {
 
         if let Nfs3Option::Some(new) = setattr.size {
             if entry.fattr.size != new {
-                let mut doc = self.lb.read_document(entry.file.id, false).await.unwrap();
+                let mut doc = self.lb.read_document(*id.as_uuid(), false).await.unwrap();
                 doc.resize(new as usize, 0);
-                self.lb.write_document(entry.file.id, &doc).await.unwrap();
+                self.lb.write_document(*id.as_uuid(), &doc).await.unwrap();
                 entry.fattr.mtime = now;
                 entry.fattr.ctime = now;
             }
@@ -222,9 +222,8 @@ impl NfsFileSystem for Drive {
 
         let mut data = self.data.lock().await;
         let entry = data.get_mut(id).unwrap();
-        let id = entry.file.id;
 
-        let mut doc = self.lb.read_document(id, false).await.unwrap();
+        let mut doc = self.lb.read_document(*id.as_uuid(), false).await.unwrap();
         let mut expanded = false;
         if offset + buffer.len() > doc.len() {
             doc.resize(offset + buffer.len(), 0);
@@ -236,7 +235,7 @@ impl NfsFileSystem for Drive {
             }
         }
         let doc_size = doc.len();
-        self.lb.write_document(id, &doc).await.unwrap();
+        self.lb.write_document(*id.as_uuid(), &doc).await.unwrap();
 
         entry.fattr.size = doc_size as u64;
 
@@ -257,8 +256,8 @@ impl NfsFileSystem for Drive {
             .await
             .unwrap();
 
+        let id = file.id.into();
         let entry = FileEntry::from_file(file, 0);
-        let id = entry.file.id.into();
         self.data.lock().await.insert(id, entry);
 
         let file = self.setattr(&id, attr).await.unwrap();
@@ -287,8 +286,8 @@ impl NfsFileSystem for Drive {
             .await
             .unwrap();
 
+        let id = file.id.into();
         let entry = FileEntry::from_file(file, 0);
-        let id = entry.file.id.into();
         info!("({id}, size={})", entry.fattr.size);
         self.data.lock().await.insert(id, entry);
 
@@ -306,8 +305,8 @@ impl NfsFileSystem for Drive {
             .await
             .unwrap();
 
+        let id = file.id.into();
         let entry = FileEntry::from_file(file, 0);
-        let id = entry.file.id.into();
         let fattr = entry.fattr.clone();
         self.data.lock().await.insert(id, entry);
 
