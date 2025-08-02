@@ -3,7 +3,7 @@ use nfs3_server::{nfs3_types::nfs3::fileid3, vfs::FileHandle};
 
 /// Represents a file handle based on a UUID.
 ///
-/// It's the same value as [lb_rs::model::file::File::id()]
+/// It's the same value as [lb_rs::model::file::File::id]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct UuidFileHandle(Uuid);
 
