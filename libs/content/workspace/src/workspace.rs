@@ -162,6 +162,18 @@ impl Workspace {
         self.tabs.get_mut_by_id(id)
     }
 
+    pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
+        for (idx, tab) in self.tabs.iter().enumerate() {
+            if let Some(tab_id) = tab.id() {
+                if tab_id == id {
+                    return Some(idx);
+                }
+            }
+        }
+
+        None
+    }
+
     pub fn is_empty(&self) -> bool {
         self.tabs.is_empty()
     }
@@ -272,13 +284,18 @@ impl Workspace {
                     self.files = FileCache::new(&self.core).log_and_ignore();
                     if let Some(files) = &self.files {
                         let mut tabs_to_delete = vec![];
-                        for (i, tab) in self.tabs.iter().enumerate() {
-                            if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
-                                tabs_to_delete.push(i);
+                        for tab in &self.tabs {
+                            if let Some(id) = tab.id() {
+                                if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
+                                    tabs_to_delete.push(id);
+                                }
                             }
                         }
-                        for i in tabs_to_delete {
-                            self.remove_tab(i);
+
+                        for id in tabs_to_delete {
+                            if let Some(idx) = self.get_idx_by_id(id) {
+                                self.remove_tab(idx);
+                            }
                         }
                     }
                 }
