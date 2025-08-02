@@ -1,14 +1,14 @@
 use crate::cache::FileEntry;
+use crate::file_handle::UuidFileHandle;
 use crate::utils::get_string;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::nfs3_types::nfs3::{
-    Nfs3Option, fattr3, fileid3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_mtime,
+    Nfs3Option, fattr3, filename3, nfspath3, nfsstat3, sattr3, set_atime, set_mtime,
 };
 use nfs3_server::vfs::{
-    DirEntry, DirEntryPlus, FileHandle, NfsFileSystem, NfsReadFileSystem, ReadDirIterator,
-    ReadDirPlusIterator,
+    DirEntry, DirEntryPlus, NfsFileSystem, NfsReadFileSystem, ReadDirIterator, ReadDirPlusIterator,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,44 +16,6 @@ use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
 
 type EntriesMap = Arc<Mutex<HashMap<UuidFileHandle, FileEntry>>>;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct UuidFileHandle(pub Uuid);
-
-impl UuidFileHandle {
-    fn fileid(&self) -> fileid3 {
-        self.0.as_u64_pair().0
-    }
-}
-
-impl std::fmt::Display for UuidFileHandle {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        self.0.fmt(f)
-    }
-}
-
-impl FileHandle for UuidFileHandle {
-    fn len(&self) -> usize {
-        16
-    }
-
-    fn as_bytes(&self) -> &[u8] {
-        self.0.as_bytes()
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Option<Self>
-    where
-        Self: Sized,
-    {
-        Uuid::from_slice(bytes).ok().map(Self)
-    }
-}
-
-impl From<Uuid> for UuidFileHandle {
-    fn from(id: Uuid) -> Self {
-        Self(id)
-    }
-}
 
 #[derive(Clone)]
 pub struct Drive {

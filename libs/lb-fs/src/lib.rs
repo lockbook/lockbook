@@ -13,6 +13,7 @@ use std::time::Duration;
 use tracing::info;
 
 pub mod cache;
+pub(crate) mod file_handle;
 pub mod fs_impl;
 pub mod logger;
 pub mod mount;
