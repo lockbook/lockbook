@@ -171,7 +171,7 @@ impl Workspace {
             }
         }
 
-        return None;
+        None
     }
 
     pub fn is_empty(&self) -> bool {
