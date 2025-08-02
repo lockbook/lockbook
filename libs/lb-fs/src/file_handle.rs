@@ -45,9 +45,9 @@ impl From<Uuid> for UuidFileHandle {
     }
 }
 
-impl Into<Uuid> for UuidFileHandle {
-    fn into(self) -> Uuid {
-        self.0
+impl From<UuidFileHandle> for Uuid {
+    fn from(val: UuidFileHandle) -> Self {
+        val.0
     }
 }
 

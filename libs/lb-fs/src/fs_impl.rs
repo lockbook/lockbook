@@ -393,7 +393,10 @@ impl NfsFileSystem for Drive {
             None => {
                 if from_dirid != to_dirid {
                     info!("move {} -> {}\t", from_id, to_dirid);
-                    self.lb.move_file(&from_id, to_dirid.as_uuid()).await.unwrap();
+                    self.lb
+                        .move_file(&from_id, to_dirid.as_uuid())
+                        .await
+                        .unwrap();
                 }
 
                 if from_filename != to_filename {
