@@ -39,9 +39,7 @@ impl Drive {
     async fn create_iterator(
         &self, dirid: &UuidFileHandle, cookie: u64,
     ) -> Result<Iterator, nfsstat3> {
-        let data = self.data.lock().await;
-        let dirid = data.get(dirid).unwrap().file.id;
-        let mut children = self.lb.get_children(&dirid).await.unwrap();
+        let mut children = self.lb.get_children(dirid.as_uuid()).await.unwrap();
 
         children.sort_by(|a, b| a.id.cmp(&b.id));
 
@@ -119,9 +117,8 @@ impl NfsReadFileSystem for Drive {
     ) -> Result<(Vec<u8>, bool), nfsstat3> {
         let offset = offset as usize;
         let count = count as usize;
-        let id = self.data.lock().await.get(id).unwrap().file.id;
 
-        let doc = self.lb.read_document(id, false).await.unwrap();
+        let doc = self.lb.read_document(*id.as_uuid(), false).await.unwrap();
 
         if offset >= doc.len() {
             info!("[] EOF");
@@ -254,10 +251,9 @@ impl NfsFileSystem for Drive {
         &self, dirid: &Self::Handle, filename: &filename3<'_>, attr: sattr3,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
         let filename = get_string(filename);
-        let parent = self.data.lock().await.get(dirid).unwrap().file.id;
         let file = self
             .lb
-            .create_file(&filename, &parent, FileType::Document)
+            .create_file(&filename, dirid.as_uuid(), FileType::Document)
             .await
             .unwrap();
 
@@ -277,8 +273,7 @@ impl NfsFileSystem for Drive {
         createverf: nfs3_server::nfs3_types::nfs3::createverf3,
     ) -> Result<Self::Handle, nfsstat3> {
         let filename = get_string(filename);
-        let dirid = self.data.lock().await.get(dirid).unwrap().file.id;
-        let children = self.lb.get_children(&dirid).await.unwrap();
+        let children = self.lb.get_children(dirid.as_uuid()).await.unwrap();
         for child in children {
             if child.name == filename {
                 warn!("exists already");
@@ -288,7 +283,7 @@ impl NfsFileSystem for Drive {
 
         let file = self
             .lb
-            .create_file(&filename, &dirid, FileType::Document)
+            .create_file(&filename, dirid.as_uuid(), FileType::Document)
             .await
             .unwrap();
 
@@ -305,10 +300,9 @@ impl NfsFileSystem for Drive {
         &self, dirid: &Self::Handle, dirname: &filename3<'_>,
     ) -> Result<(Self::Handle, fattr3), nfsstat3> {
         let filename = get_string(dirname);
-        let parent = self.data.lock().await.get(dirid).unwrap().file.id;
         let file = self
             .lb
-            .create_file(&filename, &parent, FileType::Folder)
+            .create_file(&filename, dirid.as_uuid(), FileType::Folder)
             .await
             .unwrap();
 
@@ -327,9 +321,8 @@ impl NfsFileSystem for Drive {
     #[instrument(skip(self), fields(dirid = dirid.to_string(), filename = get_string(filename)))]
     async fn remove(&self, dirid: &Self::Handle, filename: &filename3<'_>) -> Result<(), nfsstat3> {
         let mut data = self.data.lock().await;
-        let dirid = data.get(dirid).unwrap().file.id;
 
-        let children = self.lb.get_children(&dirid).await.unwrap();
+        let children = self.lb.get_children(dirid.as_uuid()).await.unwrap();
         let file_name = get_string(filename);
 
         for child in children {
@@ -356,10 +349,7 @@ impl NfsFileSystem for Drive {
         let from_filename = get_string(from_filename);
         let to_filename = get_string(to_filename);
 
-        let from_dirid = data.get(from_dirid).unwrap().file.id;
-        let to_dirid = data.get(to_dirid).unwrap().file.id;
-
-        let src_children = self.lb.get_children(&from_dirid).await.unwrap();
+        let src_children = self.lb.get_children(from_dirid.as_uuid()).await.unwrap();
 
         let mut from_id = None;
         let mut to_id = None;
@@ -374,7 +364,7 @@ impl NfsFileSystem for Drive {
         }
 
         if to_dirid != from_dirid {
-            let dst_children = self.lb.get_children(&to_dirid).await.unwrap();
+            let dst_children = self.lb.get_children(to_dirid.as_uuid()).await.unwrap();
             for child in dst_children {
                 if child.name == to_filename {
                     to_id = Some(child.id);
@@ -404,7 +394,7 @@ impl NfsFileSystem for Drive {
             None => {
                 if from_dirid != to_dirid {
                     info!("move {} -> {}\t", from_id, to_dirid);
-                    self.lb.move_file(&from_id, &to_dirid).await.unwrap();
+                    self.lb.move_file(&from_id, to_dirid.as_uuid()).await.unwrap();
                 }
 
                 if from_filename != to_filename {
