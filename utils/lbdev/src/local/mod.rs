@@ -159,15 +159,15 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
             "-workspace",
-            "./lockbook.xcworkspace",
+            "clients/apple/Lockbook.xcworkspace",
             "-scheme",
             "Lockbook (iOS)",
             "-sdk",
-            "iphoneos18.5",
+            "iphoneos",
             "-configuration",
             "Debug",
             "-archivePath",
-            "./build/Lockbook-iOS.xcarchive",
+            "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
         ])
         .current_dir(apple_dir())
