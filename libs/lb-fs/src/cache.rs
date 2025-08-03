@@ -18,7 +18,7 @@ impl FileEntry {
         let mode = if file.is_folder() { 0o755 } else { 0o644 };
 
         let fileid = file_id(&file);
-        // intereREADDIR3resstingly a number of key read operations rely on this being correct
+        // interestingly a number of key read operations rely on this being correct
         let size = if file.is_folder() { 0 } else { size };
 
         let atime = Self::ts_from_u64(0);
