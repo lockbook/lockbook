@@ -165,7 +165,7 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
             "-sdk",
             "iphoneos",
             "-configuration",
-            "Debug",
+            "Release",
             "-archivePath",
             "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
