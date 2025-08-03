@@ -154,6 +154,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 }
 
 pub fn apple_run_ios(name: String) -> CliResult<()> {
+    println!("{name}");
     Ok(())
 }
 pub fn apple_run_macos() -> CliResult<()> {
