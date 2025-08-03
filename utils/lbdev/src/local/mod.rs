@@ -3,7 +3,7 @@ use std::{fs, process::Command};
 use cli_rs::cli_error::CliResult;
 
 use crate::{
-    places::{root, target, workspace_ffi, workspace_swift_libs},
+    places::{apple_dir, root, target, workspace_ffi, workspace_swift_libs},
     utils::CommandRunner,
 };
 
@@ -170,6 +170,7 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
             "./build/Lockbook-iOS.xcarchive",
             "archive",
         ])
+        .current_dir(apple_dir())
         .assert_success()?;
 
     Ok(())

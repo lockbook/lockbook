@@ -15,7 +15,7 @@ impl CommandRunner for Command {
         if !self.status().unwrap().success() {
             Err(CliError {
                 msg: format!(
-                    "{self:?} did not exist successfully\ninvokded at: {}",
+                    "{self:?} did not exit successfully\ninvoked at: {}",
                     Location::caller()
                 ),
                 status: self.status().unwrap().code().unwrap(),
