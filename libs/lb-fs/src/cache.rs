@@ -1,4 +1,4 @@
-use crate::fs_impl::Drive;
+use crate::{fs_impl::Drive, utils::file_id};
 use lb_rs::model::file::File;
 use lb_rs::model::work_unit::WorkUnit;
 use nfs3_server::nfs3_types::nfs3::{fattr3, ftype3, nfstime3};
@@ -17,8 +17,8 @@ impl FileEntry {
         // todo this deserves some scrutiny and cross platform testing
         let mode = if file.is_folder() { 0o755 } else { 0o644 };
 
-        let fileid = file.id.as_u64_pair().0;
-        // intereREADDIR3resstingly a number of key read operations rely on this being correct
+        let fileid = file_id(&file);
+        // interestingly a number of key read operations rely on this being correct
         let size = if file.is_folder() { 0 } else { size };
 
         let atime = Self::ts_from_u64(0);
