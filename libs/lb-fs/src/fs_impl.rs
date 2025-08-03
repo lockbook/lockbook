@@ -1,6 +1,6 @@
 use crate::cache::FileEntry;
 use crate::file_handle::UuidFileHandle;
-use crate::utils::get_string;
+use crate::utils::{file_id, get_string};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::{Lb, Uuid};
@@ -40,9 +40,8 @@ impl Drive {
     /// Loads the child entries of a directory, beginning after the specified cookie.
     ///
     /// The cookie corresponds to the file ID of the last entry returned by a previous `readdir` or
-    /// `readdirplus` call.
-    /// A cookie value of `0` indicates that iteration should begin from the start of the
-    /// directory.
+    /// `readdirplus` call. A cookie value of `0` indicates that iteration should begin from the
+    /// start of the directory.
     ///
     /// Note: The file ID used as a cookie represents half of the file’s UUID.
     /// While rare, collisions between file IDs can occur, meaning two distinct files may share
@@ -60,7 +59,7 @@ impl Drive {
         if cookie > 0 {
             start_index = children
                 .iter()
-                .position(|child| child.id.as_u64_pair().0 > cookie)
+                .position(|child| file_id(child) > cookie)
                 .unwrap_or_else(|| {
                     warn!("cookie {cookie} not found");
                     children.len()
@@ -468,7 +467,7 @@ where
     async fn next(&mut self) -> nfs3_server::vfs::NextResult<DirEntry> {
         match self.inner.next() {
             Some(entry) => nfs3_server::vfs::NextResult::Ok(DirEntry {
-                fileid: entry.id.as_u64_pair().0,
+                fileid: file_id(&entry),
                 name: entry.name.as_bytes().to_vec().into(),
                 cookie: 0,
             }),
