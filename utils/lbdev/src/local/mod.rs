@@ -170,7 +170,6 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
             "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
         ])
-        .current_dir(root())
         .assert_success()?;
 
     Ok(())
