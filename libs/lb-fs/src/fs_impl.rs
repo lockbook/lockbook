@@ -11,6 +11,7 @@ use nfs3_server::vfs::{
     DirEntry, DirEntryPlus, NfsFileSystem, NfsReadFileSystem, ReadDirIterator, ReadDirPlusIterator,
 };
 use std::collections::HashMap;
+use std::iter::Iterator as StdIterator;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{info, instrument, warn};
@@ -36,14 +37,25 @@ pub struct Drive {
 }
 
 impl Drive {
-    async fn create_iterator(
+    /// Loads the child entries of a directory, beginning after the specified cookie.
+    ///
+    /// The cookie corresponds to the file ID of the last entry returned by a previous `readdir` or
+    /// `readdirplus` call.
+    /// A cookie value of `0` indicates that iteration should begin from the start of the 
+    /// directory.
+    ///
+    /// Note: The file ID used as a cookie represents half of the file’s UUID.
+    /// While rare, collisions between file IDs can occur, meaning two distinct files may share
+    /// the same ID. In such cases, some entries might be skipped. This issue affects only large
+    /// datasets when `readdir` or `readdirplus` is invoked multiple times. The possible solution
+    /// might be to use an index as the cookie instead of the file ID.
+    async fn load_children(
         &self, dirid: &UuidFileHandle, cookie: u64,
-    ) -> Result<Iterator, nfsstat3> {
+    ) -> impl StdIterator<Item = File> + 'static {
         let mut children = self.lb.get_children(dirid.as_uuid()).await.unwrap();
 
         children.sort_by(|a, b| a.id.cmp(&b.id));
 
-        // this is how the example does it, we'd never return a fileid3 of 0
         let mut start_index = 0;
         if cookie > 0 {
             start_index = children
@@ -55,7 +67,7 @@ impl Drive {
                 });
         }
 
-        Ok(Iterator::new(Arc::clone(&self.data), children, start_index))
+        children.into_iter().skip(start_index)
     }
 }
 
@@ -138,16 +150,33 @@ impl NfsReadFileSystem for Drive {
     async fn readdir(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl nfs3_server::vfs::ReadDirIterator, nfsstat3> {
-        let iterator = self.create_iterator(dirid, cookie).await?;
-        Ok(iterator)
+        let iter = self.load_children(dirid, cookie).await;
+        Ok(Iterator { inner: iter })
     }
 
     #[instrument(skip(self), fields(dirid = dirid.to_string(), start_after = cookie))]
     async fn readdirplus(
         &self, dirid: &Self::Handle, cookie: u64,
     ) -> Result<impl ReadDirPlusIterator<UuidFileHandle>, nfsstat3> {
-        let iterator = self.create_iterator(dirid, cookie).await?;
-        Ok(iterator)
+        let iter = self.load_children(dirid, cookie).await;
+        let data = self.data.lock().await;
+
+        let iter = iter
+            .map(move |file| {
+                let id: UuidFileHandle = file.id.into();
+                let name = file.name.as_bytes().to_vec().into();
+                let fattr = data.get(&id).map(|entry| entry.fattr.clone());
+                DirEntryPlus {
+                    fileid: id.fileid(),
+                    name,
+                    cookie: id.fileid(),
+                    name_attributes: fattr,
+                    name_handle: Some(id),
+                }
+            })
+            .collect::<Vec<_>>()
+            .into_iter();
+        Ok(IteratorPlus { inner: iter })
     }
 
     async fn readlink(&self, _id: &Self::Handle) -> Result<nfspath3<'_>, nfsstat3> {
@@ -425,57 +454,44 @@ impl NfsFileSystem for Drive {
     }
 }
 
-pub struct Iterator {
-    data: EntriesMap,
-    children: Vec<File>,
-    pos: usize,
+pub struct Iterator<I>
+where
+    I: StdIterator<Item = File> + Send + Sync + 'static,
+{
+    inner: I,
 }
 
-impl Iterator {
-    fn new(data: EntriesMap, children: Vec<File>, pos: usize) -> Self {
-        Self { data, children, pos }
-    }
-
-    fn next_value(&mut self) -> Option<(UuidFileHandle, filename3<'static>)> {
-        if self.pos >= self.children.len() {
-            return None;
-        }
-
-        let child = &self.children[self.pos];
-        let id: UuidFileHandle = child.id.into();
-        let name = child.name.as_bytes().to_vec().into();
-
-        self.pos += 1;
-
-        Some((id, name))
-    }
-}
-
-impl ReadDirIterator for Iterator {
+impl<I> ReadDirIterator for Iterator<I>
+where
+    I: StdIterator<Item = File> + Send + Sync + 'static,
+{
     async fn next(&mut self) -> nfs3_server::vfs::NextResult<DirEntry> {
-        let Some((id, name)) = self.next_value() else { return nfs3_server::vfs::NextResult::Eof };
-        let entry = DirEntry { fileid: id.fileid(), name, cookie: self.pos as u64 };
-        nfs3_server::vfs::NextResult::Ok(entry)
+        match self.inner.next() {
+            Some(entry) => nfs3_server::vfs::NextResult::Ok(DirEntry {
+                fileid: entry.id.as_u64_pair().0,
+                name: entry.name.as_bytes().to_vec().into(),
+                cookie: 0,
+            }),
+            None => nfs3_server::vfs::NextResult::Eof,
+        }
     }
 }
 
-impl ReadDirPlusIterator<UuidFileHandle> for Iterator {
+pub struct IteratorPlus<I>
+where
+    I: StdIterator<Item = DirEntryPlus<UuidFileHandle>> + Send + Sync + 'static,
+{
+    inner: I,
+}
+
+impl<I> ReadDirPlusIterator<UuidFileHandle> for IteratorPlus<I>
+where
+    I: StdIterator<Item = DirEntryPlus<UuidFileHandle>> + Send + Sync + 'static,
+{
     async fn next(&mut self) -> nfs3_server::vfs::NextResult<DirEntryPlus<UuidFileHandle>> {
-        let Some((id, name)) = self.next_value() else { return nfs3_server::vfs::NextResult::Eof };
-
-        let fattr = {
-            let data = self.data.lock().await;
-            data.get(&id).map(|entry| entry.fattr.clone())
-        };
-
-        let entry = DirEntryPlus::<UuidFileHandle> {
-            fileid: id.fileid(),
-            name,
-            cookie: self.pos as u64,
-            name_attributes: fattr,
-            name_handle: Some(id),
-        };
-
-        nfs3_server::vfs::NextResult::Ok(entry)
+        match self.inner.next() {
+            Some(entry) => nfs3_server::vfs::NextResult::Ok(entry),
+            None => nfs3_server::vfs::NextResult::Eof,
+        }
     }
 }
