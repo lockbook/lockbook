@@ -155,6 +155,23 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 
 pub fn apple_run_ios(name: String) -> CliResult<()> {
     println!("{name}");
+
+    Command::new("xcodebuild")
+        .args([
+            "-workspace",
+            "./lockbook.xcworkspace",
+            "-scheme",
+            "Lockbook (iOS)",
+            "-sdk",
+            "iphoneos18.2",
+            "-configuration",
+            "Debug",
+            "-archivePath",
+            "./build/Lockbook-iOS.xcarchive",
+            "archive",
+        ])
+        .assert_success()?;
+
     Ok(())
 }
 pub fn apple_run_macos() -> CliResult<()> {
