@@ -152,3 +152,38 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 
     Ok(())
 }
+
+pub fn apple_run_ios(name: String) -> CliResult<()> {
+    Ok(())
+}
+pub fn apple_run_macos() -> CliResult<()> {
+    Ok(())
+}
+
+pub fn apple_device_name_completor(name: &str) -> CliResult<Vec<String>> {
+    Ok(devices())
+}
+
+fn devices() -> Vec<String> {
+    let output = Command::new("xcrun")
+        .args([
+            "devicectl",
+            "list",
+            "devices",
+            "--hide-default-columns",
+            "--columns",
+            "name",
+            "--hide-headers",
+        ])
+        .output()
+        .expect("Failed to execute command");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let names: Vec<String> = stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(String::from)
+        .collect();
+    names
+}
