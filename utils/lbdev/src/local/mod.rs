@@ -163,7 +163,7 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
             "-scheme",
             "Lockbook (iOS)",
             "-sdk",
-            "iphoneos18.2",
+            "iphoneos18.5",
             "-configuration",
             "Debug",
             "-archivePath",
