@@ -146,7 +146,9 @@ impl Toolbar {
                 for color in self.pen.colors_history {
                     let res = show_color_btn(
                         ui,
-                        ThemePalette::resolve_dynamic_color(color, ui.visuals().dark_mode),
+                        color.map(|c| {
+                            ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode)
+                        }),
                         ThemePalette::resolve_dynamic_color(
                             self.pen.active_color,
                             ui.visuals().dark_mode,
@@ -154,7 +156,9 @@ impl Toolbar {
                         Some(8.0),
                     );
                     if res.clicked() || res.drag_started() {
-                        change_pen_color(&mut self.pen, color);
+                        if let Some(c) = color {
+                            change_pen_color(&mut self.pen, c);
+                        }
                     }
                 }
             }
@@ -427,7 +431,7 @@ fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut P
         let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
         let active_color =
             ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
-        let color_btn = show_color_btn(ui, color, active_color, None);
+        let color_btn = show_color_btn(ui, Some(color), active_color, None);
         if color_btn.clicked() || color_btn.drag_started() {
             change_pen_color(pen, c);
         }
@@ -440,17 +444,28 @@ fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
     }
 
     pen.colors_history[1] = pen.colors_history[0];
-    pen.colors_history[0] = pen.active_color;
+    pen.colors_history[0] = Some(pen.active_color);
     pen.active_color = new_color;
 }
 
 fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
+    ui: &mut egui::Ui, maybe_color: Option<egui::Color32>, active_color: egui::Color32,
+    maybe_radius: Option<f32>,
 ) -> egui::Response {
     let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
     let margin = 6.0;
     let (id, rect) =
         ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
+
+    let color = maybe_color.unwrap_or(egui::Color32::TRANSPARENT);
+
+    if maybe_color.is_none() {
+        ui.painter().circle_stroke(
+            rect.center(),
+            circle_diameter / 2.0,
+            egui::Stroke { width: 1.0, color: ui.visuals().code_bg_color },
+        );
+    }
 
     ui.painter()
         .circle_filled(rect.center(), circle_diameter / 2.0, color);
