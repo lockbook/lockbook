@@ -41,7 +41,7 @@ impl Drive {
     ///
     /// The cookie corresponds to the file ID of the last entry returned by a previous `readdir` or
     /// `readdirplus` call.
-    /// A cookie value of `0` indicates that iteration should begin from the start of the 
+    /// A cookie value of `0` indicates that iteration should begin from the start of the
     /// directory.
     ///
     /// Note: The file ID used as a cookie represents half of the file’s UUID.
