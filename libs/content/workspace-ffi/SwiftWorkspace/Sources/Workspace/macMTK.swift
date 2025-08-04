@@ -171,12 +171,10 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public override func keyDown(with event: NSEvent) {
         sendKeyEvent(event, true)
-        setNeedsDisplay(self.frame)
     }
     
     public override func keyUp(with event: NSEvent) {
         sendKeyEvent(event, false)
-        setNeedsDisplay(self.frame)
     }
     
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -187,7 +185,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
             return true
         } else if event.modifierFlags.contains(.command) && event.keyCode == 13 {
             sendKeyEvent(event, true)
-            setNeedsDisplay(self.frame)
             
             return true
         }
@@ -199,6 +196,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
         let text = event.characters ?? ""
         
         key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), isDownPress, text)
+        
+        setNeedsDisplay(self.frame)
     }
 
     public override func viewDidChangeEffectiveAppearance() {
