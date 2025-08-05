@@ -437,6 +437,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         popup.setOnMenuItemClickListener { menuItem ->
                             Lb.clearSuggestedId(item.fileMetadata.id)
                             model.suggestedDocs.removeAt(i)
+                            model.reloadFiles()
                             true
                         }
 
