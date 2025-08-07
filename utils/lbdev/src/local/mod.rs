@@ -197,11 +197,7 @@ fn devices_and_ids() -> CliResult<Vec<(String, String)>> {
             "--hide-default-columns",
             "--filter",
             "State BEGINSWITH 'available'",
-            "--columns",
-            "name",
-            "--columns",
-            "identifier",
-            "--hide-headers",
+            "-q",
             "-j",
             json_path_str,
         ])
