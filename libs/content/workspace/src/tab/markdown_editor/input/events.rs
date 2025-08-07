@@ -54,6 +54,7 @@ impl<'ast> Editor {
                                 result.push(Event::Replace {
                                     region: Region::Selection, // todo: more thoughtful location
                                     text: markdown_image_link,
+                                    advance_cursor: true,
                                 });
                             }
                             ClipContent::Files(..) => {

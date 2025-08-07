@@ -92,7 +92,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
     let region: Option<Region> = range.into();
     if let Some(region) = region {
         obj.context
-            .push_markdown_event(Event::Replace { region, text });
+            .push_markdown_event(Event::Replace { region, text, advance_cursor: true });
     }
 }
 

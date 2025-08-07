@@ -33,6 +33,7 @@ impl<'ast> Editor {
                 self.event.internal_events.push(Event::Replace {
                     region: (check_offset, check_offset + 1).into(),
                     text: check.into(),
+                    advance_cursor: false,
                 });
             }
         });

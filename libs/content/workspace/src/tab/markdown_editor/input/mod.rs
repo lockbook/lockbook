@@ -95,7 +95,7 @@ pub enum Region {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
     Select { region: Region },
-    Replace { region: Region, text: String },
+    Replace { region: Region, text: String, advance_cursor: bool }, // replace region with text and optionally advance cursor to end of new text
     ToggleStyle { region: Region, style: MarkdownNode }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
