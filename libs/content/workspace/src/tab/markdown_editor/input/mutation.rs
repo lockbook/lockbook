@@ -39,10 +39,12 @@ impl<'ast> Editor {
             Event::Select { region } => {
                 operations.push(Operation::Select(self.region_to_range(region)));
             }
-            Event::Replace { region, text } => {
+            Event::Replace { region, text, advance_cursor } => {
                 let range = self.region_to_range(region);
                 operations.push(Operation::Replace(Replace { range, text }));
-                operations.push(Operation::Select(range.start().to_range()));
+                if advance_cursor {
+                    operations.push(Operation::Select(range.start().to_range()));
+                }
             }
             Event::ToggleStyle { region, style } => {
                 let range = self.region_to_range(region);
