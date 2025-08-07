@@ -170,6 +170,7 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
             "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
         ])
+        .current_dir(root())
         .assert_success()?;
 
     Ok(())
@@ -197,6 +198,8 @@ fn devices() -> Vec<String> {
         .expect("Failed to execute command");
 
     let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // todo this likely needs to filter for prompt
     let names: Vec<String> = stdout
         .lines()
         .map(str::trim)
