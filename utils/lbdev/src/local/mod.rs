@@ -201,6 +201,29 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
     Ok(())
 }
 pub fn apple_run_macos() -> CliResult<()> {
+    apple_ws_macos()?;
+
+    Command::new("xcodebuild")
+        .args([
+            "-workspace",
+            "clients/apple/Lockbook.xcworkspace",
+            "-scheme",
+            "Lockbook (macOS)",
+            "-sdk",
+            "macosx",
+            "-configuration",
+            "Release",
+            "-archivePath",
+            "clients/apple/build/Lockbook-macOS.xcarchive",
+            "archive",
+        ])
+        .current_dir(root())
+        .assert_success()?;
+
+    Command::new("./build/Lockbook-macOS.xcarchive/Products/Applications/Lockbook.app/Contents/MacOS/Lockbook")
+        .current_dir(apple_dir())
+        .assert_success()?;
+
     Ok(())
 }
 
