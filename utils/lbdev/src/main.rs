@@ -18,6 +18,12 @@ fn main() {
                 .handler(utils::update_self)
         )
         .subcommand(
+            Command::name("fish-completions")
+                .description("install completions for the fish shell")
+                .handler(utils::fish_completions)
+
+        )
+        .subcommand(
             Command::name("ci")
                 .description("The commands run by CI. Sourcing dependencies is out of scope for this program")
                 .subcommand(Command::name("fmt").handler(ci::fmt))
