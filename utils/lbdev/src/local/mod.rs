@@ -155,7 +155,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 
 pub fn apple_run_ios(name: String) -> CliResult<()> {
     let device_id = get_device_id(&name)?;
-
+    apple_ws_ios()?;
     Command::new("xcodebuild")
         .args([
             "-workspace",
@@ -204,8 +204,11 @@ pub fn apple_run_macos() -> CliResult<()> {
     Ok(())
 }
 
-pub fn apple_device_name_completor(name: &str) -> CliResult<Vec<String>> {
-    devices()
+pub fn apple_device_name_completor(prompt: &str) -> CliResult<Vec<String>> {
+    Ok(devices()?
+        .into_iter()
+        .filter(|entry| entry.starts_with(prompt))
+        .collect())
 }
 
 pub fn get_device_id(name: &str) -> CliResult<String> {
