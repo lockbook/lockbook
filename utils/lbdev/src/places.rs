@@ -39,6 +39,13 @@ pub fn android_dir() -> PathBuf {
     path
 }
 
+pub fn apple_dir() -> PathBuf {
+    let mut path = root();
+    path.push("clients");
+    path.push("apple");
+    path
+}
+
 pub fn workspace_ffi() -> PathBuf {
     let mut path = root();
 

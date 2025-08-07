@@ -3,6 +3,7 @@ mod local;
 mod places;
 mod utils;
 
+use cli_rs::arg::Arg;
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 
@@ -15,6 +16,12 @@ fn main() {
             Command::name("update")
                 .description("update the lbdev binary to the latest from your current source tree.")
                 .handler(utils::update_self)
+        )
+        .subcommand(
+            Command::name("fish-completions")
+                .description("install completions for the fish shell")
+                .handler(utils::fish_completions)
+
         )
         .subcommand(
             Command::name("ci")
@@ -38,6 +45,11 @@ fn main() {
                         .subcommand(Command::name("all").handler(local::apple_ws_all))
                         .subcommand(Command::name("macos").handler(local::apple_ws_macos))
                         .subcommand(Command::name("ios").handler(local::apple_ws_ios))
+                )
+                .subcommand(
+                    Command::name("run")
+                        .subcommand(Command::name("macos").handler(local::apple_run_macos))
+                        .subcommand(Command::name("ios").input(Arg::str("device-name").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
                 )
         )
         .parse();

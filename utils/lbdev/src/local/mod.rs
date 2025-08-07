@@ -1,9 +1,9 @@
-use std::{fs, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
 use cli_rs::cli_error::CliResult;
 
 use crate::{
-    places::{root, target, workspace_ffi, workspace_swift_libs},
+    places::{apple_dir, root, target, workspace_ffi, workspace_swift_libs},
     utils::CommandRunner,
 };
 
@@ -151,4 +151,153 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
         .assert_success()?;
 
     Ok(())
+}
+
+pub fn apple_run_ios(name: String) -> CliResult<()> {
+    let device_id = get_device_id(&name)?;
+    apple_ws_ios()?;
+    Command::new("xcodebuild")
+        .args([
+            "-workspace",
+            "clients/apple/Lockbook.xcworkspace",
+            "-scheme",
+            "Lockbook (iOS)",
+            "-sdk",
+            "iphoneos",
+            "-configuration",
+            "Release",
+            "-archivePath",
+            "clients/apple/build/Lockbook-iOS.xcarchive",
+            "archive",
+        ])
+        .current_dir(root())
+        .assert_success()?;
+
+    Command::new("xcrun")
+        .args([
+            "devicectl",
+            "device",
+            "install",
+            "app",
+            "--device",
+            &device_id,
+            "build/Lockbook-iOS.xcarchive/Products/Applications/Lockbook.app/",
+        ])
+        .current_dir(apple_dir())
+        .assert_success()?;
+
+    Command::new("xcrun")
+        .args([
+            "devicectl",
+            "device",
+            "process",
+            "launch",
+            "--console",
+            "--device",
+            &device_id,
+            "app.lockbook",
+        ])
+        .assert_success()?;
+    Ok(())
+}
+pub fn apple_run_macos() -> CliResult<()> {
+    apple_ws_macos()?;
+
+    Command::new("xcodebuild")
+        .args([
+            "-workspace",
+            "clients/apple/Lockbook.xcworkspace",
+            "-scheme",
+            "Lockbook (macOS)",
+            "-sdk",
+            "macosx",
+            "-configuration",
+            "Release",
+            "-archivePath",
+            "clients/apple/build/Lockbook-macOS.xcarchive",
+            "archive",
+        ])
+        .current_dir(root())
+        .assert_success()?;
+
+    Command::new("./build/Lockbook-macOS.xcarchive/Products/Applications/Lockbook.app/Contents/MacOS/Lockbook")
+        .current_dir(apple_dir())
+        .assert_success()?;
+
+    Ok(())
+}
+
+pub fn apple_device_name_completor(prompt: &str) -> CliResult<Vec<String>> {
+    Ok(devices()?
+        .into_iter()
+        .filter(|entry| entry.starts_with(prompt))
+        .collect())
+}
+
+pub fn get_device_id(name: &str) -> CliResult<String> {
+    Ok(devices_and_ids()?
+        .into_iter()
+        .find(|row| row.0 == name)
+        .unwrap()
+        .1)
+}
+
+fn devices() -> CliResult<Vec<String>> {
+    Ok(devices_and_ids()?.into_iter().map(|a| a.0).collect())
+}
+
+fn devices_and_ids() -> CliResult<Vec<(String, String)>> {
+    let json_path_str = "/tmp/devicectl_devices.json";
+    let json_path = PathBuf::from(json_path_str);
+
+    Command::new("xcrun")
+        .args([
+            "devicectl",
+            "list",
+            "devices",
+            "--hide-default-columns",
+            "--filter",
+            "State BEGINSWITH 'available'",
+            "-q",
+            "-j",
+            json_path_str,
+        ])
+        .assert_success()?;
+
+    // Read and parse JSON
+    let json_str = fs::read_to_string(&json_path)?;
+    let root: Root = serde_json::from_str(&json_str)?;
+
+    // Map to Vec<(name, identifier)>
+    Ok(root
+        .result
+        .devices
+        .into_iter()
+        .map(|d| (d.device_properties.name, d.identifier))
+        .collect())
+}
+
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Root {
+    result: ResultField,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResultField {
+    devices: Vec<Device>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Device {
+    identifier: String,
+
+    #[serde(rename = "deviceProperties")]
+    device_properties: DeviceProperties,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceProperties {
+    name: String,
 }
