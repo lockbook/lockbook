@@ -1,7 +1,7 @@
-use std::fs::File;
+use std::fs::{self};
+use std::panic::Location;
 use std::path::PathBuf;
 use std::process::Command;
-use std::{panic::Location, process::Stdio};
 
 use cli_rs::cli_error::{CliError, CliResult};
 
@@ -38,11 +38,14 @@ pub fn update_self() -> CliResult<()> {
 pub fn fish_completions() -> CliResult<()> {
     let home = std::env::var("HOME").unwrap();
     let home = PathBuf::from(home);
-    let completions_dir = home.join(".config/fish/completions");
+    let completions = home.join(".config/fish/completions/lbdev.fish");
 
-    Command::new("lbdev")
-        .args(&["completions", "fish"])
-        .current_dir(completions_dir)
-        .stdout(Stdio::from(File::create("lbdev.fish").unwrap()))
-        .assert_success()
+    let output = Command::new("lbdev")
+        .args(["completions", "fish"])
+        .output()
+        .unwrap();
+
+    fs::write(completions, output.stdout).unwrap();
+
+    Ok(())
 }
