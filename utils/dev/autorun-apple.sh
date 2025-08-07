@@ -60,9 +60,9 @@ case "$1" in
 		xcodebuild -workspace ./lockbook.xcworkspace -scheme "Lockbook (iOS)" -sdk iphoneos -configuration Debug -archivePath ./build/Lockbook-iOS.xcarchive archive
 		echo $deviceName
 		appBundlePath=$(xcrun devicectl device install app --device "$deviceName" ./build/Lockbook-iOS.xcarchive/Products/Applications/Lockbook.app/ | grep "installationURL:" | sed 's/.*installationURL: //')
-		              xcrun devicectl device process launch --console --device "$deviceName" $appBundlePath
+    xcrun devicectl device process launch --console --device "$deviceName" $appBundlePath
+    ;;
 
-		              ;;
 		"macOS")
 		xcodebuild -workspace ./lockbook.xcworkspace -scheme "Lockbook (macOS)" -sdk macosx -configuration Debug -archivePath ./build/Lockbook-macOS.xcarchive archive
 		./build/Lockbook-macOS.xcarchive/Products/Applications/Lockbook.app/Contents/MacOS/Lockbook

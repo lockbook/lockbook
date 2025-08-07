@@ -154,8 +154,6 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 }
 
 pub fn apple_run_ios(name: String) -> CliResult<()> {
-    println!("{name}");
-
     Command::new("xcodebuild")
         .args([
             "-workspace",
@@ -184,14 +182,22 @@ pub fn apple_device_name_completor(name: &str) -> CliResult<Vec<String>> {
 }
 
 fn devices() -> Vec<String> {
+    devices_and_ids().into_iter().map(|a| a.0).collect()
+}
+
+fn devices_and_ids() -> Vec<(String, String)> {
     let output = Command::new("xcrun")
         .args([
             "devicectl",
             "list",
             "devices",
             "--hide-default-columns",
+            "--filter",
+            "State BEGINSWITH 'available'",
             "--columns",
             "name",
+            "--columns",
+            "identifier",
             "--hide-headers",
         ])
         .output()
@@ -199,12 +205,22 @@ fn devices() -> Vec<String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // todo this likely needs to filter for prompt
-    let names: Vec<String> = stdout
+    // Parse each line into (name, identifier)
+    stdout
         .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .map(String::from)
-        .collect();
-    names
+        .filter_map(|line| {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+
+            // split on runs of whitespace
+            let mut parts = trimmed.split_whitespace();
+
+            let name = parts.next()?.to_string();
+            let identifier = parts.next_back()?.to_string(); // supports names with spaces
+
+            Some((name, identifier))
+        })
+        .collect()
 }
