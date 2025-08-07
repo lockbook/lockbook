@@ -1,4 +1,4 @@
-use std::{fs, process::Command};
+use std::{fs, path::PathBuf, process::Command};
 
 use cli_rs::cli_error::CliResult;
 
@@ -178,15 +178,18 @@ pub fn apple_run_macos() -> CliResult<()> {
 }
 
 pub fn apple_device_name_completor(name: &str) -> CliResult<Vec<String>> {
-    Ok(devices())
+    devices()
 }
 
-fn devices() -> Vec<String> {
-    devices_and_ids().into_iter().map(|a| a.0).collect()
+fn devices() -> CliResult<Vec<String>> {
+    Ok(devices_and_ids()?.into_iter().map(|a| a.0).collect())
 }
 
-fn devices_and_ids() -> Vec<(String, String)> {
-    let output = Command::new("xcrun")
+fn devices_and_ids() -> CliResult<Vec<(String, String)>> {
+    let json_path_str = "/tmp/devicectl_devices.json";
+    let json_path = PathBuf::from(json_path_str);
+
+    Command::new("xcrun")
         .args([
             "devicectl",
             "list",
@@ -199,28 +202,45 @@ fn devices_and_ids() -> Vec<(String, String)> {
             "--columns",
             "identifier",
             "--hide-headers",
+            "-j",
+            json_path_str,
         ])
-        .output()
-        .expect("Failed to execute command");
+        .assert_success()?;
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    // Read and parse JSON
+    let json_str = fs::read_to_string(&json_path)?;
+    let root: Root = serde_json::from_str(&json_str)?;
 
-    // Parse each line into (name, identifier)
-    stdout
-        .lines()
-        .filter_map(|line| {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                return None;
-            }
+    // Map to Vec<(name, identifier)>
+    Ok(root
+        .result
+        .devices
+        .into_iter()
+        .map(|d| (d.device_properties.name, d.identifier))
+        .collect())
+}
 
-            // split on runs of whitespace
-            let mut parts = trimmed.split_whitespace();
+use serde::Deserialize;
 
-            let name = parts.next()?.to_string();
-            let identifier = parts.next_back()?.to_string(); // supports names with spaces
+#[derive(Debug, Deserialize)]
+struct Root {
+    result: ResultField,
+}
 
-            Some((name, identifier))
-        })
-        .collect()
+#[derive(Debug, Deserialize)]
+struct ResultField {
+    devices: Vec<Device>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Device {
+    identifier: String,
+
+    #[serde(rename = "deviceProperties")]
+    device_properties: DeviceProperties,
+}
+
+#[derive(Debug, Deserialize)]
+struct DeviceProperties {
+    name: String,
 }
