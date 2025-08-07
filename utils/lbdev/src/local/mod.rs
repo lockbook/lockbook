@@ -154,6 +154,8 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
 }
 
 pub fn apple_run_ios(name: String) -> CliResult<()> {
+    let device_id = get_device_id(&name)?;
+
     Command::new("xcodebuild")
         .args([
             "-workspace",
@@ -171,6 +173,31 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
         .current_dir(root())
         .assert_success()?;
 
+    Command::new("xcrun")
+        .args([
+            "devicectl",
+            "device",
+            "install",
+            "app",
+            "--device",
+            &device_id,
+            "build/Lockbook-iOS.xcarchive/Products/Applications/Lockbook.app/",
+        ])
+        .current_dir(apple_dir())
+        .assert_success()?;
+
+    Command::new("xcrun")
+        .args([
+            "devicectl",
+            "device",
+            "process",
+            "launch",
+            "--console",
+            "--device",
+            &device_id,
+            "app.lockbook",
+        ])
+        .assert_success()?;
     Ok(())
 }
 pub fn apple_run_macos() -> CliResult<()> {
@@ -179,6 +206,14 @@ pub fn apple_run_macos() -> CliResult<()> {
 
 pub fn apple_device_name_completor(name: &str) -> CliResult<Vec<String>> {
     devices()
+}
+
+pub fn get_device_id(name: &str) -> CliResult<String> {
+    Ok(devices_and_ids()?
+        .into_iter()
+        .find(|row| row.0 == name)
+        .unwrap()
+        .1)
 }
 
 fn devices() -> CliResult<Vec<String>> {
