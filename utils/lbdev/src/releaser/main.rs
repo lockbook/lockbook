@@ -1,15 +1,3 @@
-mod android;
-mod apple;
-mod crates_io;
-mod github;
-mod linux;
-mod public_site;
-mod secrets;
-mod server;
-mod utils;
-mod version;
-mod windows;
-
 use cli_rs::arg::Arg;
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;

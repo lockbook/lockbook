@@ -1,4 +1,3 @@
-use crate::utils::{CommandRunner, lb_version};
 use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
@@ -7,6 +6,10 @@ use std::process::Command;
 use std::str::FromStr;
 use time::OffsetDateTime;
 use toml_edit::{Document, value};
+
+use crate::utils::CommandRunner;
+
+use super::utils::lb_version;
 
 pub fn bump(bump_type: BumpType) -> CliResult<()> {
     let new_version = determine_new_version(bump_type);
@@ -161,6 +164,7 @@ fn ensure_clean_start_state() {
     Command::new("git")
         .args(["diff", "--exit-code"])
         .assert_success()
+        .unwrap()
 }
 
 fn push_to_git(version: &str) {
@@ -170,6 +174,7 @@ fn push_to_git(version: &str) {
             &format!("git add -A && git commit -m 'bump-{version}' && git push origin master"),
         ])
         .assert_success()
+        .unwrap()
 }
 
 fn perform_checks() {

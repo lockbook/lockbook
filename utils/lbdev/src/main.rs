@@ -1,11 +1,13 @@
 mod ci;
 mod local;
 mod places;
+mod releaser;
 mod utils;
 
 use cli_rs::arg::Arg;
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
+use releaser::version::BumpType;
 
 fn main() {
     Command::name("lbdev")
@@ -50,6 +52,44 @@ fn main() {
                     Command::name("run")
                         .subcommand(Command::name("macos").handler(local::apple_run_macos))
                         .subcommand(Command::name("ios").input(Arg::str("device-name").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
+                )
+        )
+        .subcommand(
+             Command::name("releaser")
+                .description("Lockbook's release automation")
+                .subcommand(
+                    Command::name("bump-versions")
+                        .input(Arg::name("bump-type").default(BumpType::Patch))
+                        .handler(|bump| releaser::version::bump(bump.get())),
+                    )
+                .subcommand(Command::name("github-release").handler(releaser::github::create_release))
+                .subcommand(Command::name("server").handler(releaser::server::deploy))
+                .subcommand(Command::name("apple").handler(releaser::apple::release))
+                .subcommand(Command::name("android").handler(releaser::android::release))
+                .subcommand(
+                    Command::name("windows")
+                        .subcommand(Command::name("all").handler(releaser::windows::release))
+                        .subcommand(Command::name("cli").handler(releaser::windows::cli::release))
+                        .subcommand(Command::name("desktop").handler(releaser::windows::desktop::release)),
+                )
+                .subcommand(Command::name("public-site").handler(releaser::public_site::release))
+                .subcommand(
+                    Command::name("linux")
+                        .subcommand(Command::name("all").handler(releaser::linux::release))
+                        .subcommand(
+                            Command::name("cli")
+                                .subcommand(Command::name("all").handler(releaser::linux::cli::release))
+                                .subcommand(Command::name("gh").handler(releaser::linux::cli::bin_gh))
+                                .subcommand(Command::name("deb").handler(releaser::linux::cli::upload_deb))
+                                .subcommand(Command::name("snap").handler(releaser::linux::cli::update_snap))
+                                .subcommand(Command::name("aur").handler(releaser::linux::cli::update_aur)),
+                        )
+                        .subcommand(Command::name("desktop").handler(releaser::linux::desktop::release)),
+                )
+                .subcommand(
+                    Command::name("publish-crate")
+                        .input(Arg::name("package"))
+                        .handler(|package| releaser::crates_io::release_crate(package.get())),
                 )
         )
         .parse();

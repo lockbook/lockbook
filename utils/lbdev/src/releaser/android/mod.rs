@@ -1,5 +1,5 @@
-use crate::secrets::*;
-use crate::utils::{CommandRunner, android_version_code, lb_repo, lb_version};
+use super::secrets::*;
+use super::utils::{CommandRunner, android_version_code, lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};

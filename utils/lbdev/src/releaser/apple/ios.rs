@@ -1,4 +1,4 @@
-use crate::secrets::AppStore;
+use crate::releaser::secrets::AppStore;
 use crate::utils::CommandRunner;
 use std::process::Command;
 

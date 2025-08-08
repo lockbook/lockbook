@@ -1,5 +1,5 @@
-use crate::secrets::Github;
-use crate::utils::{CommandRunner, lb_repo, lb_version};
+use crate::releaser::secrets::Github;
+use crate::releaser::utils::{CommandRunner, lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::{File, OpenOptions};

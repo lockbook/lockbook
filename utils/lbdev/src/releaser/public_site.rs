@@ -4,7 +4,7 @@ use std::process::Command;
 use cli_rs::cli_error::CliResult;
 use fs_extra::dir::{CopyOptions, copy};
 
-use crate::utils::{CommandRunner, root};
+use crate::releaser::utils::{CommandRunner, root};
 
 pub fn release() -> CliResult<()> {
     let mut path = work_dir();

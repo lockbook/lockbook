@@ -1,4 +1,4 @@
-use crate::secrets::CratesIO;
+use crate::releaser::secrets::CratesIO;
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use std::process::Command;
