@@ -86,7 +86,6 @@ fn release_play_store() -> CliResult<()> {
             hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
                 .https_or_http()
                 .enable_http1()
-                .enable_http2()
                 .build(),
         );
 
