@@ -7,7 +7,7 @@ pub fn release_crate(package: String) -> CliResult<()> {
     let api_token = CratesIO::env();
     Command::new("cargo")
         .args(["publish", &format!("--token={}", api_token.0), "-p", &package])
-        .assert_success();
+        .assert_success()?;
 
     Ok(())
 }

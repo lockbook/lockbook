@@ -1,9 +1,11 @@
+use cli_rs::cli_error::CliResult;
+
 use crate::utils::CommandRunner;
 use std::process::Command;
 
-pub fn build() {
+pub fn build() -> CliResult<()> {
     Command::new("bash")
         .args(["create_libs.sh"])
         .current_dir("libs/content/workspace-ffi/SwiftWorkspace/")
-        .assert_success();
+        .assert_success()
 }

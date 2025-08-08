@@ -9,9 +9,9 @@ use std::process::Command;
 
 pub fn release() -> CliResult<()> {
     upload_deb()?;
-    update_aur();
+    update_aur()?;
     update_snap()?;
-    build_x86();
+    build_x86()?;
     upload();
     Ok(())
 }
@@ -80,10 +80,10 @@ apps:
     Ok(())
 }
 
-pub fn build_x86() {
+pub fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-linux", "--release", "--target=x86_64-unknown-linux-gnu"])
-        .assert_success();
+        .assert_success()
 }
 
 pub fn upload_deb() -> CliResult<()> {
@@ -170,9 +170,10 @@ pub fn upload() {
         .unwrap();
 }
 
-pub fn update_aur() {
+pub fn update_aur() -> CliResult<()> {
     overwrite_lockbook_pkg();
-    push_aur();
+    push_aur()?;
+    Ok(())
 }
 
 pub fn overwrite_lockbook_pkg() {

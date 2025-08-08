@@ -142,7 +142,7 @@ Description: The private, polished note-taking platform.
 }
 
 pub fn bin_gh() -> CliResult<()> {
-    build_x86();
+    build_x86()?;
     let gh = Github::env();
 
     let client = ReleaseClient::new(gh.0).unwrap();

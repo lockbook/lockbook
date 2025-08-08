@@ -9,11 +9,11 @@ use std::fs;
 use std::path::Path;
 
 pub fn release() -> CliResult<()> {
-    cli::release();
-    ws::build();
+    cli::release()?;
+    ws::build()?;
     clean_build_dir();
-    ios::release();
-    mac::release();
+    ios::release()?;
+    mac::release()?;
     Ok(())
 }
 
