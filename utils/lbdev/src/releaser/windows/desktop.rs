@@ -6,7 +6,8 @@ use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 
 use crate::releaser::secrets::Github;
-use crate::releaser::utils::{CommandRunner, lb_repo, lb_version};
+use crate::releaser::utils::{lb_repo, lb_version};
+use crate::utils::CommandRunner;
 
 pub fn release() -> CliResult<()> {
     let gh = Github::env();
@@ -23,7 +24,7 @@ pub fn release() -> CliResult<()> {
 fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-windows", "--release", "--target=x86_64-pc-windows-msvc"])
-        .assert_success();
+        .assert_success()?;
 
     Command::new("cargo")
         .env("LB_TARGET", "x86_64-pc-windows-msvc")
@@ -36,7 +37,7 @@ fn build_x86() -> CliResult<()> {
             "--features",
             "build-winstaller",
         ])
-        .assert_success();
+        .assert_success()?;
 
     Ok(())
 }

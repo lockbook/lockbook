@@ -1,5 +1,7 @@
 use crate::releaser::secrets::Github;
-use crate::releaser::utils::{CommandRunner, lb_repo, lb_version, sha_file};
+use crate::releaser::utils::{lb_repo, lb_version, sha_file};
+use crate::utils::CommandRunner;
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
@@ -8,25 +10,27 @@ use std::process::Command;
 
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
 
-pub fn release() {
-    build_x86();
-    build_arm();
+pub fn release() -> CliResult<()> {
+    build_x86()?;
+    build_arm()?;
     lipo_binaries();
     tar_binary();
     upload();
     update_brew();
+
+    Ok(())
 }
 
-fn build_x86() {
+fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release", "--target=x86_64-apple-darwin"])
-        .assert_success();
+        .assert_success()
 }
 
-fn build_arm() {
+fn build_arm() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release", "--target=aarch64-apple-darwin"])
-        .assert_success();
+        .assert_success()
 }
 
 fn lipo_binaries() {

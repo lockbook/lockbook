@@ -72,7 +72,6 @@ fn main() {
                         .subcommand(Command::name("cli").handler(releaser::windows::cli::release))
                         .subcommand(Command::name("desktop").handler(releaser::windows::desktop::release)),
                 )
-                .subcommand(Command::name("public-site").handler(releaser::public_site::release))
                 .subcommand(
                     Command::name("linux")
                         .subcommand(Command::name("all").handler(releaser::linux::release))

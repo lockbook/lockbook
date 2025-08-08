@@ -6,7 +6,8 @@ use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 
 use crate::releaser::secrets::Github;
-use crate::releaser::utils::{CommandRunner, lb_repo, lb_version};
+use crate::releaser::utils::{lb_repo, lb_version};
+use crate::utils::CommandRunner;
 
 pub fn release() -> CliResult<()> {
     build()?;
@@ -18,8 +19,7 @@ pub fn release() -> CliResult<()> {
 fn build() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release"])
-        .assert_success();
-    Ok(())
+        .assert_success()
 }
 
 fn zip_binary() -> CliResult<()> {
