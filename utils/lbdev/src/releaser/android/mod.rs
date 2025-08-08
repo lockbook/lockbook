@@ -23,11 +23,15 @@ const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release() -> CliResult<()> {
+pub fn release(play_store: bool, gh: bool) -> CliResult<()> {
     ws::build()?;
     build_android()?;
-    release_gh();
-    release_play_store()?;
+    if gh {
+        release_gh();
+    }
+    if play_store {
+        release_play_store()?;
+    }
     Ok(())
 }
 

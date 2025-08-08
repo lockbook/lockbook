@@ -17,7 +17,5 @@ hex = "0.4.3"
 zip = "0.6.4"
 google-androidpublisher3 = "5.0.2"
 tokio = { version = "1.20.1", features = ["rt-multi-thread"] }
-tempfile = { version = "3.1.0" }
-fs_extra = "1.2.0"
 regex = "1.7.1"
 time = "0.3.20"

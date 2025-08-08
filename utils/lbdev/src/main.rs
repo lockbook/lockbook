@@ -64,8 +64,18 @@ fn main() {
                     )
                 .subcommand(Command::name("github-release").handler(releaser::github::create_release))
                 .subcommand(Command::name("server").handler(releaser::server::deploy))
-                .subcommand(Command::name("apple").handler(releaser::apple::release))
-                .subcommand(Command::name("android").handler(releaser::android::release))
+                .subcommand(Command::name("apple")
+                    .subcommand(Command::name("all").handler(releaser::apple::release))
+                    .subcommand(Command::name("cli").handler(releaser::apple::cli::release))
+                    .subcommand(Command::name("ios").handler(|| releaser::apple::ios::release(true)))
+                    .subcommand(Command::name("mac-app-store").handler(|| releaser::apple::mac::release(true, false, true)))
+                    .subcommand(Command::name("mac-gh").handler(|| releaser::apple::mac::release(true, true, false)))
+                )
+                .subcommand(Command::name("android")
+                    .subcommand(Command::name("all").handler(|| releaser::android::release(true, true)))
+                    .subcommand(Command::name("play-store").handler(|| releaser::android::release(true, false)))
+                    .subcommand(Command::name("gh").handler(|| releaser::android::release(false, true)))
+                )
                 .subcommand(
                     Command::name("windows")
                         .subcommand(Command::name("all").handler(releaser::windows::release))
@@ -83,7 +93,14 @@ fn main() {
                                 .subcommand(Command::name("snap").handler(releaser::linux::cli::update_snap))
                                 .subcommand(Command::name("aur").handler(releaser::linux::cli::update_aur)),
                         )
-                        .subcommand(Command::name("desktop").handler(releaser::linux::desktop::release)),
+                        .subcommand(
+                            Command::name("desktop")
+                                .subcommand(Command::name("all").handler(releaser::linux::desktop::release))
+                                .subcommand(Command::name("gh").handler(releaser::linux::desktop::upload_gh))
+                                .subcommand(Command::name("deb").handler(releaser::linux::desktop::upload_deb_gh))
+                                .subcommand(Command::name("snap").handler(releaser::linux::desktop::update_snap))
+                                .subcommand(Command::name("aur").handler(releaser::linux::desktop::update_aur)),
+                        )
                 )
                 .subcommand(
                     Command::name("publish-crate")

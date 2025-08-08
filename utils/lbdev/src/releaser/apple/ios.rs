@@ -1,10 +1,17 @@
 use cli_rs::cli_error::CliResult;
 
+use crate::local::apple_ws_ios;
 use crate::releaser::secrets::AppStore;
 use crate::utils::CommandRunner;
 use std::process::Command;
 
-pub fn release() -> CliResult<()> {
+use super::clean_build_dir;
+
+pub fn release(clean_and_build: bool) -> CliResult<()> {
+    if clean_and_build {
+        apple_ws_ios()?;
+        clean_build_dir();
+    }
     archive()?;
     upload()?;
     Ok(())

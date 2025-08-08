@@ -1,3 +1,4 @@
+use crate::local::apple_ws_macos;
 use crate::releaser::secrets::{AppStore, Github};
 use crate::releaser::utils::{lb_repo, lb_version};
 use crate::utils::CommandRunner;
@@ -6,10 +7,18 @@ use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
 
-pub fn release() -> CliResult<()> {
+use super::clean_build_dir;
+
+pub fn release(clean_and_build: bool, gh: bool, app_store: bool) -> CliResult<()> {
+    if clean_and_build {
+        apple_ws_macos()?;
+        clean_build_dir();
+    }
     archive()?;
     notarize()?;
-    upload_gh()?;
+    if gh {
+        upload_gh()?;
+    }
     upload_app_store()?;
     Ok(())
 }

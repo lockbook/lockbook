@@ -8,11 +8,10 @@ use std::io::Write;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
-    upload_deb()?;
+    upload_deb_gh()?;
     update_aur()?;
     update_snap()?;
-    build_x86()?;
-    upload();
+    upload_gh()?;
     Ok(())
 }
 
@@ -86,7 +85,7 @@ pub fn build_x86() -> CliResult<()> {
         .assert_success()
 }
 
-pub fn upload_deb() -> CliResult<()> {
+pub fn upload_deb_gh() -> CliResult<()> {
     let lb_version = &lb_version();
     let gh = Github::env();
 
@@ -151,7 +150,8 @@ Description: The private, polished note-taking platform.
         .unwrap();
     Ok(())
 }
-pub fn upload() {
+pub fn upload_gh() -> CliResult<()> {
+    build_x86()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client

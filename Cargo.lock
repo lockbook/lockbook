@@ -4316,7 +4316,6 @@ version = "0.9.26"
 dependencies = [
  "cli-rs",
  "dotenvy",
- "fs_extra",
  "gh_release",
  "google-androidpublisher3",
  "hex",
@@ -4325,7 +4324,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "tempfile",
  "time",
  "tokio",
  "toml 0.7.8",
