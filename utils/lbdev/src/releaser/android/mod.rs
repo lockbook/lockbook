@@ -1,5 +1,7 @@
-use crate::secrets::*;
-use crate::utils::{CommandRunner, android_version_code, lb_repo, lb_version};
+use crate::utils::CommandRunner;
+
+use super::secrets::*;
+use crate::releaser::utils::{android_version_code, lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
@@ -21,25 +23,30 @@ const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release() -> CliResult<()> {
-    // core::build_libs();
-    ws::build();
-    build_android();
-    release_gh();
-    release_play_store();
+pub fn release(play_store: bool, gh: bool) -> CliResult<()> {
+    ws::build()?;
+    build_android()?;
+    if gh {
+        release_gh();
+    }
+    if play_store {
+        release_play_store()?;
+    }
     Ok(())
 }
 
-fn build_android() {
+fn build_android() -> CliResult<()> {
     Command::new("./gradlew")
         .args(["assembleRelease"])
         .current_dir("clients/android")
-        .assert_success();
+        .assert_success()?;
 
     Command::new("./gradlew")
         .args(["bundleRelease"])
         .current_dir("clients/android")
-        .assert_success();
+        .assert_success()?;
+
+    Ok(())
 }
 
 fn release_gh() {
@@ -62,7 +69,7 @@ fn release_gh() {
         .unwrap();
 }
 
-fn release_play_store() {
+fn release_play_store() -> CliResult<()> {
     let ps = PlayStore::env();
     let service_account_key: oauth2::ServiceAccountKey =
         oauth2::parse_service_account_key(ps.service_account_key).unwrap();
@@ -79,7 +86,6 @@ fn release_play_store() {
             hyper_rustls::HttpsConnectorBuilder::with_native_roots(Default::default())
                 .https_or_http()
                 .enable_http1()
-                .enable_http2()
                 .build(),
         );
 
@@ -119,7 +125,7 @@ fn release_play_store() {
                         }]),
                         status: Some(STATUS.to_string()),
                         user_fraction: None,
-                        version_codes: Some(vec![android_version_code()]),
+                        version_codes: Some(vec![android_version_code().unwrap()]),
                     }]),
                     track: Some(TRACK.to_string()),
                 },
@@ -133,4 +139,6 @@ fn release_play_store() {
 
         publisher.edits().commit(PACKAGE, &id).doit().await.unwrap();
     });
+
+    Ok(())
 }

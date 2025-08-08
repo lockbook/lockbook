@@ -1,5 +1,6 @@
-use crate::secrets::Github;
-use crate::utils::{CommandRunner, lb_repo, lb_version};
+use crate::releaser::secrets::Github;
+use crate::releaser::utils::{lb_repo, lb_version};
+use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs;
@@ -15,10 +16,10 @@ pub fn release() -> CliResult<()> {
     Ok(())
 }
 
-pub fn build_x86() {
+pub fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release", "--target=x86_64-unknown-linux-gnu"])
-        .assert_success();
+        .assert_success()
 }
 
 pub fn update_snap() -> CliResult<()> {
@@ -66,11 +67,11 @@ apps:
 
     Command::new("snapcraft")
         .current_dir("utils/dev/snap-packages/lockbook/")
-        .assert_success();
+        .assert_success()?;
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
         .current_dir("utils/dev/snap-packages/lockbook/")
-        .assert_success();
+        .assert_success()?;
 
     Ok(())
 }
@@ -79,7 +80,7 @@ pub fn upload_deb() -> CliResult<()> {
     let lb_version = &lb_version();
     let gh = Github::env();
 
-    let deb_scripts_location = "utils/releaser/debian-build-scripts/ppa-lockbook/";
+    let deb_scripts_location = "utils/lbdev/src/releaser/debian-build-scripts/ppa-lockbook/";
     Command::new("dch")
         .args([
             "--newversion",
@@ -88,7 +89,7 @@ pub fn upload_deb() -> CliResult<()> {
         ])
         .current_dir(deb_scripts_location)
         .env("DEBEMAIL", "Parth<parth@mehrotra.me>")
-        .assert_success();
+        .assert_success()?;
 
     let new_control = format!(
         r#"
@@ -116,7 +117,7 @@ Description: The private, polished note-taking platform.
 
     Command::new("debuild")
         .current_dir(deb_scripts_location)
-        .assert_success();
+        .assert_success()?;
 
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -141,7 +142,7 @@ Description: The private, polished note-taking platform.
 }
 
 pub fn bin_gh() -> CliResult<()> {
-    build_x86();
+    build_x86()?;
     let gh = Github::env();
 
     let client = ReleaseClient::new(gh.0).unwrap();
@@ -164,7 +165,7 @@ pub fn bin_gh() -> CliResult<()> {
 
 pub fn update_aur() -> CliResult<()> {
     overwrite_lockbook_pkg();
-    push_aur();
+    push_aur()?;
     Ok(())
 }
 
@@ -251,21 +252,23 @@ pkgname = lockbook
     file.write_all(new_src_info_content.as_bytes()).unwrap();
 }
 
-pub fn push_aur() {
+pub fn push_aur() -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
         .current_dir("../aur-lockbook")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
         .current_dir("../aur-lockbook")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["push", "aur", "master"])
         .current_dir("../aur-lockbook")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["push", "github", "master"])
         .current_dir("../aur-lockbook")
-        .assert_success();
+        .assert_success()?;
+
+    Ok(())
 }

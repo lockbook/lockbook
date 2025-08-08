@@ -1,19 +1,20 @@
-mod cli;
-mod ios;
-mod mac;
-mod ws;
+pub mod cli;
+pub mod ios;
+pub mod mac;
 
 use cli_rs::cli_error::CliResult;
 
 use std::fs;
 use std::path::Path;
 
+use crate::local::apple_ws_all;
+
 pub fn release() -> CliResult<()> {
-    cli::release();
-    ws::build();
+    cli::release()?;
+    apple_ws_all()?;
     clean_build_dir();
-    ios::release();
-    mac::release();
+    ios::release(false)?;
+    mac::release(false, true, true)?;
     Ok(())
 }
 

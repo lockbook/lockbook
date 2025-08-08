@@ -1,5 +1,6 @@
-use crate::secrets::Github;
-use crate::utils::{CommandRunner, lb_repo, lb_version};
+use crate::releaser::secrets::Github;
+use crate::releaser::utils::{lb_repo, lb_version};
+use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::{File, OpenOptions};
@@ -7,14 +8,14 @@ use std::io::Write;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
-    update_aur();
-    update_snap();
-    build_x86();
-    upload();
+    upload_deb_gh()?;
+    update_aur()?;
+    update_snap()?;
+    upload_gh()?;
     Ok(())
 }
 
-pub fn update_snap() {
+pub fn update_snap() -> CliResult<()> {
     let version = lb_version();
     let snap_name = format!("lockbook-desktop_{version}_amd64.snap");
 
@@ -70,20 +71,87 @@ apps:
 
     Command::new("snapcraft")
         .current_dir("utils/dev/snap-packages/lockbook-desktop/")
-        .assert_success();
+        .assert_success()?;
     Command::new("snapcraft")
         .args(["upload", "--release=stable", &snap_name])
         .current_dir("utils/dev/snap-packages/lockbook-desktop/")
-        .assert_success();
+        .assert_success()?;
+    Ok(())
 }
 
-pub fn build_x86() {
+pub fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-linux", "--release", "--target=x86_64-unknown-linux-gnu"])
-        .assert_success();
+        .assert_success()
 }
 
-pub fn upload() {
+pub fn upload_deb_gh() -> CliResult<()> {
+    let lb_version = &lb_version();
+    let gh = Github::env();
+
+    let deb_scripts_location =
+        "utils/lbdev/src/releaser/debian-build-scripts/ppa-lockbook-desktop/";
+    Command::new("dch")
+        .args([
+            "--newversion",
+            lb_version,
+            "see changelog at https://github.com/lockbook/lockbook/releases/latest",
+        ])
+        .current_dir(deb_scripts_location)
+        .env("DEBEMAIL", "Parth<parth@mehrotra.me>")
+        .assert_success()?;
+
+    let new_control = format!(
+        r#"
+Source: lockbook-desktop
+Section: utils
+Priority: extra
+Maintainer: Parth Mehrotra <parth@mehrotra.me>
+Standards-Version: {lb_version}
+Build-Depends: debhelper (>=10), git, ca-certificates, libxkbcommon
+
+Package: lockbook-desktop
+Architecture: any
+Depends: ${{shlibs:Depends}}, ${{misc:Depends}}
+Description: The private, polished note-taking platform.
+"#
+    );
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("utils/releaser/debian-build-scripts/ppa-lockbook/debian/control")
+        .unwrap();
+    file.write_all(new_control.as_bytes()).unwrap();
+
+    Command::new("debuild")
+        .current_dir(deb_scripts_location)
+        .assert_success()?;
+
+    let client = ReleaseClient::new(gh.0).unwrap();
+    let release = client
+        .get_release_by_tag_name(&lb_repo(), lb_version)
+        .unwrap();
+
+    let deb_file = format!("lockbook_{lb_version}_amd64.deb");
+
+    let output = File::open(format!("utils/releaser/debian-build-scripts/{deb_file}")).unwrap();
+
+    client
+        .upload_release_asset(
+            &lb_repo(),
+            release.id,
+            &deb_file,
+            "application/octet-stream",
+            output,
+            None,
+        )
+        .unwrap();
+    Ok(())
+}
+pub fn upload_gh() -> CliResult<()> {
+    build_x86()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -100,11 +168,13 @@ pub fn upload() {
             None,
         )
         .unwrap();
+    Ok(())
 }
 
-pub fn update_aur() {
+pub fn update_aur() -> CliResult<()> {
     overwrite_lockbook_pkg();
-    push_aur();
+    push_aur()?;
+    Ok(())
 }
 
 pub fn overwrite_lockbook_pkg() {
@@ -189,21 +259,22 @@ pkgname = lockbook-desktop
     file.write_all(new_src_info_content.as_bytes()).unwrap();
 }
 
-pub fn push_aur() {
+pub fn push_aur() -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
         .current_dir("../aur-lockbook-desktop")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
         .current_dir("../aur-lockbook-desktop")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["push", "aur", "master"])
         .current_dir("../aur-lockbook-desktop")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["push", "github", "master"])
         .current_dir("../aur-lockbook-desktop")
-        .assert_success();
+        .assert_success()?;
+    Ok(())
 }
