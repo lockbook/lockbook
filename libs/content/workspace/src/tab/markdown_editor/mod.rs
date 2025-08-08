@@ -597,12 +597,14 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, icons) = (
-        lb_fonts::PT_SANS_REGULAR,
-        lb_fonts::JETBRAINS_MONO,
-        lb_fonts::PT_SANS_BOLD,
-        lb_fonts::MATERIAL_SYMBOLS_OUTLINED,
-    );
+    let (sans, bold, mono) = if cfg!(target_vendor = "apple") {
+        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, lb_fonts::JETBRAINS_MONO)
+    } else if cfg!(target_os = "android") {
+        (lb_fonts::ROBOTO_REGULAR, lb_fonts::ROBOTO_BOLD, lb_fonts::JETBRAINS_MONO)
+    } else {
+        (lb_fonts::PT_SANS_REGULAR, lb_fonts::PT_SANS_BOLD, lb_fonts::JETBRAINS_MONO)
+    };
+    let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
 
     fonts
         .font_data
