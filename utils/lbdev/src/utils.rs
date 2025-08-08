@@ -1,7 +1,7 @@
 use std::fs::{self};
 use std::panic::Location;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Output};
 
 use cli_rs::cli_error::{CliError, CliResult};
 
@@ -9,6 +9,7 @@ use crate::places::root;
 
 pub trait CommandRunner {
     fn assert_success(&mut self) -> CliResult<()>;
+    fn success_output(&mut self) -> CliResult<Output>;
 }
 
 impl CommandRunner for Command {
@@ -25,6 +26,23 @@ impl CommandRunner for Command {
         } else {
             Ok(())
         }
+    }
+
+    #[track_caller]
+    fn success_output(&mut self) -> CliResult<Output> {
+        let out = self.output().unwrap();
+
+        if !out.status.success() {
+            return Err(CliError {
+                msg: format!(
+                    "{self:?} did not exit successfully\ninvoked at: {}",
+                    Location::caller()
+                ),
+                status: self.status().unwrap().code().unwrap(),
+            });
+        }
+
+        Ok(out)
     }
 }
 

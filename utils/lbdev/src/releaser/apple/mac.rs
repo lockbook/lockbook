@@ -1,17 +1,32 @@
-use crate::secrets::{AppStore, Github};
-use crate::utils::{CommandRunner, lb_repo, lb_version};
+use crate::local::apple_ws_macos;
+use crate::releaser::secrets::{AppStore, Github};
+use crate::releaser::utils::{lb_repo, lb_version};
+use crate::utils::CommandRunner;
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
 
-pub fn release() {
-    archive();
-    notarize();
-    upload_gh();
-    upload_app_store();
+use super::clean_build_dir;
+
+pub fn release(clean_and_build: bool, gh: bool, app_store: bool) -> CliResult<()> {
+    if clean_and_build {
+        apple_ws_macos()?;
+        clean_build_dir();
+    }
+    archive()?;
+    notarize()?;
+    if gh {
+        upload_gh()?;
+    }
+
+    if app_store {
+        upload_app_store()?;
+    }
+    Ok(())
 }
 
-fn archive() {
+fn archive() -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
             "-workspace",
@@ -26,7 +41,7 @@ fn archive() {
             "clients/apple/build/Lockbook-macOS.xcarchive",
             "archive",
         ])
-        .assert_success();
+        .assert_success()?;
 
     // creates .app to upload to github
     Command::new("xcodebuild")
@@ -40,7 +55,7 @@ fn archive() {
             "clients/apple/exportOptionsGHApp.plist",
             "-exportArchive",
         ])
-        .assert_success();
+        .assert_success()?;
 
     // creates .pkg to upload to the app store
     Command::new("xcodebuild")
@@ -54,10 +69,12 @@ fn archive() {
             "clients/apple/exportOptions.plist",
             "-exportArchive",
         ])
-        .assert_success();
+        .assert_success()?;
+
+    Ok(())
 }
 
-fn notarize() {
+fn notarize() -> CliResult<()> {
     let asc = AppStore::env();
     Command::new("ditto")
         .arg("-c")
@@ -66,7 +83,7 @@ fn notarize() {
         .arg("Lockbook.app")
         .arg("lockbook-macos.app.zip")
         .current_dir("clients/apple/build")
-        .assert_success();
+        .assert_success()?;
 
     Command::new("xcrun")
         .args([
@@ -81,11 +98,11 @@ fn notarize() {
             "39ZS78S25U",
             "--wait",
         ])
-        .assert_success();
+        .assert_success()?;
 
     Command::new("xcrun")
         .args(["stapler", "staple", "-v", "clients/apple/build/Lockbook.app"])
-        .assert_success();
+        .assert_success()?;
 
     Command::new("ditto")
         .arg("-c")
@@ -94,10 +111,12 @@ fn notarize() {
         .arg("Lockbook.app")
         .arg("lockbook-macos.app.zip")
         .current_dir("clients/apple/build")
-        .assert_success();
+        .assert_success()?;
+
+    Ok(())
 }
 
-fn upload_gh() {
+fn upload_gh() -> CliResult<()> {
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -114,9 +133,11 @@ fn upload_gh() {
             None,
         )
         .unwrap();
+
+    Ok(())
 }
 
-fn upload_app_store() {
+fn upload_app_store() -> CliResult<()> {
     let asc = AppStore::env();
 
     Command::new("xcrun")
@@ -132,5 +153,7 @@ fn upload_app_store() {
             "-p",
             &asc.0,
         ])
-        .assert_success();
+        .assert_success()?;
+
+    Ok(())
 }

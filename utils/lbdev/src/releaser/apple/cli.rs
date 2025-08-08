@@ -1,5 +1,7 @@
-use crate::secrets::Github;
-use crate::utils::{CommandRunner, lb_repo, lb_version, sha_file};
+use crate::releaser::secrets::Github;
+use crate::releaser::utils::{lb_repo, lb_version, sha_file};
+use crate::utils::CommandRunner;
+use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use std::fs;
 use std::fs::{File, OpenOptions};
@@ -8,28 +10,30 @@ use std::process::Command;
 
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
 
-pub fn release() {
-    build_x86();
-    build_arm();
-    lipo_binaries();
-    tar_binary();
+pub fn release() -> CliResult<()> {
+    build_x86()?;
+    build_arm()?;
+    lipo_binaries()?;
+    tar_binary()?;
     upload();
-    update_brew();
+    update_brew()?;
+
+    Ok(())
 }
 
-fn build_x86() {
+fn build_x86() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release", "--target=x86_64-apple-darwin"])
-        .assert_success();
+        .assert_success()
 }
 
-fn build_arm() {
+fn build_arm() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook", "--release", "--target=aarch64-apple-darwin"])
-        .assert_success();
+        .assert_success()
 }
 
-fn lipo_binaries() {
+fn lipo_binaries() -> CliResult<()> {
     fs::create_dir_all("target/universal-cli/").unwrap();
     Command::new("lipo")
         .args([
@@ -39,14 +43,14 @@ fn lipo_binaries() {
             "target/x86_64-apple-darwin/release/lockbook",
             "target/aarch64-apple-darwin/release/lockbook",
         ])
-        .assert_success();
+        .assert_success()
 }
 
-fn tar_binary() {
+fn tar_binary() -> CliResult<()> {
     Command::new("tar")
         .args(["-czf", CLI_NAME, "lockbook"])
         .current_dir("target/universal-cli")
-        .assert_success();
+        .assert_success()
 }
 
 fn tarred_binary() -> String {
@@ -72,9 +76,10 @@ fn upload() {
         .unwrap();
 }
 
-fn update_brew() {
+fn update_brew() -> CliResult<()> {
     overwrite_lockbook_rb();
-    push_brew();
+    push_brew()?;
+    Ok(())
 }
 
 fn overwrite_lockbook_rb() {
@@ -112,17 +117,18 @@ end
     file.write_all(new_content.as_bytes()).unwrap();
 }
 
-fn push_brew() {
+fn push_brew() -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
         .current_dir("../homebrew-lockbook")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
         .current_dir("../homebrew-lockbook")
-        .assert_success();
+        .assert_success()?;
     Command::new("git")
         .args(["push", "origin", "master"])
         .current_dir("../homebrew-lockbook")
-        .assert_success();
+        .assert_success()?;
+    Ok(())
 }

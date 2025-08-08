@@ -1,13 +1,23 @@
-use crate::secrets::AppStore;
+use cli_rs::cli_error::CliResult;
+
+use crate::local::apple_ws_ios;
+use crate::releaser::secrets::AppStore;
 use crate::utils::CommandRunner;
 use std::process::Command;
 
-pub fn release() {
-    archive();
-    upload();
+use super::clean_build_dir;
+
+pub fn release(clean_and_build: bool) -> CliResult<()> {
+    if clean_and_build {
+        apple_ws_ios()?;
+        clean_build_dir();
+    }
+    archive()?;
+    upload()?;
+    Ok(())
 }
 
-fn archive() {
+fn archive() -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
             "-workspace",
@@ -22,7 +32,7 @@ fn archive() {
             "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
         ])
-        .assert_success();
+        .assert_success()?;
 
     Command::new("xcodebuild")
         .args([
@@ -35,10 +45,11 @@ fn archive() {
             "clients/apple/exportOptions.plist",
             "-exportArchive",
         ])
-        .assert_success();
+        .assert_success()?;
+    Ok(())
 }
 
-fn upload() {
+fn upload() -> CliResult<()> {
     let asc = AppStore::env();
     Command::new("xcrun")
         .args([
@@ -53,5 +64,5 @@ fn upload() {
             "-p",
             &asc.0,
         ])
-        .assert_success();
+        .assert_success()
 }

@@ -1,32 +1,11 @@
+use cli_rs::cli_error::CliResult;
 use gh_release::RepoInfo;
 use sha2::{Digest, Sha256};
-use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
-use std::{env, fs};
+use std::fs;
+use std::process::{Command, Stdio};
 use toml::Value;
 
-pub trait CommandRunner {
-    fn assert_success(&mut self);
-    fn success_output(&mut self) -> Output;
-}
-
-impl CommandRunner for Command {
-    fn assert_success(&mut self) {
-        if !self.status().unwrap().success() {
-            panic!()
-        }
-    }
-
-    fn success_output(&mut self) -> Output {
-        let out = self.output().unwrap();
-
-        if !out.status.success() {
-            panic!("{out:#?}")
-        }
-
-        out
-    }
-}
+use crate::utils::CommandRunner;
 
 pub fn lb_repo() -> RepoInfo<'static> {
     RepoInfo { owner: "lockbook", repo_name: "lockbook" }
@@ -40,19 +19,19 @@ pub fn lb_version() -> String {
         .to_string()
 }
 
-pub fn android_version_code() -> i64 {
+pub fn android_version_code() -> CliResult<i64> {
     let version_bytes = Command::new("./gradlew")
         .args(["-q", "printVersionCode"])
         .current_dir("clients/android")
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .success_output()
+        .success_output()?
         .stdout;
 
-    String::from_utf8_lossy(version_bytes.as_slice())
+    Ok(String::from_utf8_lossy(version_bytes.as_slice())
         .trim()
         .parse()
-        .unwrap()
+        .unwrap())
 }
 
 pub fn sha_file(file: &str) -> String {
@@ -61,14 +40,6 @@ pub fn sha_file(file: &str) -> String {
     hasher.update(bytes);
     let result = hasher.finalize();
     hex::encode(result)
-}
-
-pub fn root() -> PathBuf {
-    let project_root = env::current_dir().unwrap();
-    if project_root.file_name().unwrap() != "lockbook" {
-        panic!("releaser not called from project root");
-    }
-    project_root
 }
 
 pub fn commit_hash() -> String {

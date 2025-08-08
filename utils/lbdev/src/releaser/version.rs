@@ -1,4 +1,3 @@
-use crate::utils::{CommandRunner, lb_version};
 use cli_rs::cli_error::CliResult;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
@@ -8,16 +7,20 @@ use std::str::FromStr;
 use time::OffsetDateTime;
 use toml_edit::{Document, value};
 
+use crate::utils::CommandRunner;
+
+use super::utils::lb_version;
+
 pub fn bump(bump_type: BumpType) -> CliResult<()> {
     let new_version = determine_new_version(bump_type);
 
     ensure_clean_start_state();
 
     handle_cargo_tomls(&new_version);
-    handle_apple(&new_version);
+    handle_apple(&new_version)?;
     handle_android(&new_version);
-    generate_lockfile();
-    perform_checks();
+    generate_lockfile()?;
+    perform_checks()?;
     push_to_git(&new_version);
 
     Ok(())
@@ -84,12 +87,12 @@ fn handle_cargo_tomls(version: &str) {
     }
 }
 
-fn handle_apple(version: &str) {
+fn handle_apple(version: &str) -> CliResult<()> {
     let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
     for plist in plists {
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleShortVersionString {version}"), plist])
-            .assert_success();
+            .assert_success()?;
         let now = OffsetDateTime::now_utc();
 
         let month = now.month() as u8;
@@ -102,8 +105,10 @@ fn handle_apple(version: &str) {
 
         Command::new("/usr/libexec/Plistbuddy")
             .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
-            .assert_success();
+            .assert_success()?;
     }
+
+    Ok(())
 }
 
 fn handle_android(version: &str) {
@@ -153,14 +158,15 @@ fn determine_new_version(bump_type: BumpType) -> String {
         .join(".")
 }
 
-fn generate_lockfile() {
-    Command::new("cargo").arg("check").assert_success();
+fn generate_lockfile() -> CliResult<()> {
+    Command::new("cargo").arg("check").assert_success()
 }
 
 fn ensure_clean_start_state() {
     Command::new("git")
         .args(["diff", "--exit-code"])
         .assert_success()
+        .unwrap()
 }
 
 fn push_to_git(version: &str) {
@@ -170,10 +176,11 @@ fn push_to_git(version: &str) {
             &format!("git add -A && git commit -m 'bump-{version}' && git push origin master"),
         ])
         .assert_success()
+        .unwrap()
 }
 
-fn perform_checks() {
+fn perform_checks() -> CliResult<()> {
     Command::new("bash")
         .args(["-c", "cargo check"])
-        .assert_success();
+        .assert_success()
 }

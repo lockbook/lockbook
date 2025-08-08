@@ -1,6 +1,6 @@
-use crate::secrets::Github;
-use crate::utils;
-use crate::utils::{lb_repo, lb_version};
+use super::secrets::Github;
+use super::utils;
+use super::utils::{lb_repo, lb_version};
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use gh_release::release::{CreateReleaseInfo, TagInfo};
