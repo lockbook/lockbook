@@ -28,7 +28,7 @@ fn main() {
                     Command::name("run")
                         .description("build workspace and run on a given macOS or iOS device")
                         .subcommand(Command::name("macos").description("runs lockbook macOS on this device").handler(local::apple_run_macos))
-                        .subcommand(Command::name("ios").input(Arg::str("device-name").description("looks up a device udid by the given friendly name, builds lb and deploys it on that device.").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
+                        .subcommand(Command::name("ios").description("deploys lockbook to a connected iOS device").input(Arg::str("device-name").description("looks up a device udid by the given friendly name, builds lb and deploys it on that device.").completor(local::apple_device_name_completor)).handler(|device| local::apple_run_ios(device.get())))
                 )
         )
         .subcommand(
