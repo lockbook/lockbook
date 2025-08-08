@@ -168,6 +168,7 @@ pub fn upload_gh() -> CliResult<()> {
             None,
         )
         .unwrap();
+    Ok(())
 }
 
 pub fn update_aur() -> CliResult<()> {

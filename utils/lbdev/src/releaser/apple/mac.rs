@@ -19,7 +19,10 @@ pub fn release(clean_and_build: bool, gh: bool, app_store: bool) -> CliResult<()
     if gh {
         upload_gh()?;
     }
-    upload_app_store()?;
+
+    if app_store {
+        upload_app_store()?;
+    }
     Ok(())
 }
 
