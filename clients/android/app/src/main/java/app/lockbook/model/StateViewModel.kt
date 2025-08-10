@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 import java.io.File
@@ -78,7 +77,7 @@ sealed class ActivityScreen {
 sealed class TransientScreen {
     data class Move(val files: List<net.lockbook.File>) : TransientScreen()
     data class Rename(val file: net.lockbook.File) : TransientScreen()
-    data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
+    data class Create(val parentId: String) : TransientScreen()
     data class Info(val file: net.lockbook.File) : TransientScreen()
     data class ShareExport(val files: List<File>) : TransientScreen()
     data class ShareFile(val file: net.lockbook.File) : TransientScreen()
@@ -95,15 +94,4 @@ sealed class UpdateMainScreenUI {
     object ShowFiles : UpdateMainScreenUI()
     object PopBackstackToWorkspace : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
-}
-
-sealed class ExtendedFileType {
-    object Document : ExtendedFileType()
-    object Drawing : ExtendedFileType()
-    object Folder : ExtendedFileType()
-
-    fun toFileType(): FileType = when (this) {
-        Drawing, Document -> FileType.Document
-        Folder -> FileType.Folder
-    }
 }
