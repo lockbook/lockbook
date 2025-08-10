@@ -33,7 +33,9 @@ import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -170,23 +172,16 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
-            val extendedFileType = when (it.id) {
-                R.id.fab_create_drawing -> ExtendedFileType.Drawing
-                R.id.fab_create_document -> ExtendedFileType.Document
-                R.id.fab_create_folder -> ExtendedFileType.Folder
+            when (it.id) {
+                R.id.fab_create_drawing -> createFile("svg")
+                R.id.fab_create_document -> createFile("md")
+                R.id.fab_create_folder -> activityModel.launchTransientScreen(
+                    TransientScreen.Create(model.fileModel.parent.id)
+                )
                 else -> return@setOnActionSelectedListener false
             }
 
-            activityModel.launchTransientScreen(
-                TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
-            )
-
             binding.fabSpeedDial.close()
-            true
-        }
-        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            model.generateQuickNote(workspaceModel)
             true
         }
 
@@ -242,6 +237,31 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
+    }
+
+    private fun createFile(ext: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var attempt = 0
+            var created: File? = null
+
+            while (created == null) {
+                val name = "untitled${if (attempt != 0) "-$attempt" else ""}.$ext"
+
+                try {
+                    created = Lb.createFile(name, model.fileModel.parent.id, true)
+                    withContext(Dispatchers.Main) {
+                        workspaceModel._openFile.postValue(Pair(created.id, true))
+                    }
+                    refreshFiles()
+                } catch (err: LbError) {
+                    if (err.kind == LbError.LbEC.PathTaken) {
+                        attempt++
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
     }
 
     private fun setUpToolbar() {

@@ -186,7 +186,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id, ExtendedFileType.Folder))
+            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {

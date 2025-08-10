@@ -10,15 +10,12 @@ import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
-import app.lockbook.model.ExtendedFileType
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
-import app.lockbook.util.exhaustive
 import app.lockbook.util.requestKeyboardFocus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
 import net.lockbook.File
-import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 
@@ -42,37 +39,13 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         .apply {
             binding = DialogCreateFileBinding.inflate(layoutInflater)
 
-            val title = when (info.extendedFileType) {
-                ExtendedFileType.Drawing -> {
-                    setUpDocumentTextInput()
+            setUpFolderTextInput()
 
-                    binding.createDocument.setText("")
-                    binding.createDocumentExtension.setText(".svg")
-
-                    binding.createDocumentHolder.setStartIconDrawable(R.drawable.ic_outline_draw_24)
-
-                    getString(R.string.create_file_title_drawing)
-                }
-                ExtendedFileType.Folder -> {
-                    setUpFolderTextInput()
-
-                    binding.createDocumentHolder.visibility = View.GONE
-                    binding.createDocumentExtensionHolder.visibility = View.GONE
-                    binding.createFolderHolder.visibility = View.VISIBLE
-
-                    binding.createFolder.setText("")
-
-                    getString(R.string.create_file_title_folder)
-                }
-                ExtendedFileType.Document -> {
-                    setUpDocumentTextInput()
-
-                    binding.createDocument.setText("")
-                    binding.createDocumentExtension.setText(".md")
-
-                    getString(R.string.create_file_title_document)
-                }
-            }.exhaustive
+            binding.createDocumentHolder.visibility = View.GONE
+            binding.createDocumentExtensionHolder.visibility = View.GONE
+            binding.createFolderHolder.visibility = View.VISIBLE
+            
+            val title = getString(R.string.create_file_title_folder)
 
             setTitle(title)
             setView(binding.root)
@@ -81,11 +54,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
         .setNegativeButton(R.string.cancel, null)
         .create()
         .apply {
-            when (info.extendedFileType.toFileType()) {
-                FileType.Document -> window.requestKeyboardFocus(binding.createDocument)
-                FileType.Folder -> window.requestKeyboardFocus(binding.createFolder)
-                FileType.Link -> {}
-            }
+            window.requestKeyboardFocus(binding.createFolder)
             setOnShowListener {
                 getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
             }
@@ -123,16 +92,11 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
     }
 
     private fun onButtonPositive() {
-        val fileType = info.extendedFileType.toFileType()
-        val fileName = when (fileType) {
-            FileType.Document -> "${binding.createDocument.text}${binding.createDocumentExtension.text}"
-            FileType.Folder -> binding.createFolder.text.toString()
-            FileType.Link -> "" // not gonna happen
-        }
+        val fileName = binding.createFolder.text.toString()
 
         uiScope.launch(Dispatchers.IO) {
             try {
-                newFile = Lb.createFile(fileName, info.parentId, fileType == FileType.Document)
+                newFile = Lb.createFile(fileName, info.parentId, false)
                 withContext(Dispatchers.Main) {
                     dismiss()
                 }
