@@ -168,6 +168,8 @@ struct FileRowView: View {
     }
     
     func openOrSelectFile() {
+        homeState.closeWorkspaceBlockingScreens()
+        
         if isSelectable {
             if isSelected {
                 filesModel.removeFileFromSelection(file: file)
