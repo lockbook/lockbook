@@ -287,11 +287,14 @@ class FileTreeOutlineView: NSOutlineView {
         guard let file = item(atRow: clickedRow) as? File else {
             return
         }
+        let delegate = (delegate as! FileTreeDelegate)
+        
+        delegate.homeState.closeWorkspaceBlockingScreens()
         
         if(file.type == .document) {
-            (delegate as! FileTreeDelegate).supressNextOpenDoc = true
+            delegate.supressNextOpenDoc = true
         } else {
-            (delegate as! FileTreeDelegate).supressnextOpenFolder = true
+            delegate.supressnextOpenFolder = true
         }
         
         guard let event = outlineView.window?.currentEvent else {

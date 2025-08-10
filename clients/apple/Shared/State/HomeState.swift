@@ -62,6 +62,12 @@ class HomeState: ObservableObject {
             }
         }
     }
+    
+    func closeWorkspaceBlockingScreens() {
+        showSettings = false
+        showPendingShares = false
+        showUpgradeAccount = false
+    }
 }
 
 public enum ConstrainedSidebarState {
