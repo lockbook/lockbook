@@ -597,7 +597,7 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, scale) = if cfg!(target_vendor = "apple") {
+    let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
         (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
     } else {
         (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
@@ -605,45 +605,55 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
 
-    fonts
-        .font_data
-        .insert("sans".to_string(), FontData {
-            tweak: FontTweak { scale, ..FontTweak::default() },
+    fonts.font_data.insert(
+        "sans".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(sans)
-        });
+        },
+    );
     fonts.font_data.insert("mono".into(), {
         FontData {
             tweak: FontTweak {
                 y_offset_factor: 0.1,
-                scale: 0.9 * scale,
+                scale: 0.9 * base_scale,
                 baseline_offset_factor: -0.1,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
         }
     });
-    fonts
-        .font_data
-        .insert("bold".to_string(), FontData {
-            tweak: FontTweak { scale, ..FontTweak::default() },
+    fonts.font_data.insert(
+        "bold".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
-        });
+        },
+    );
     fonts.font_data.insert("super".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: -1. / 4., scale: (3. / 4.) * scale, ..Default::default() },
+            tweak: FontTweak {
+                y_offset_factor: -1. / 4.,
+                scale: (3. / 4.) * base_scale,
+                ..Default::default()
+            },
             ..FontData::from_static(sans)
         }
     });
     fonts.font_data.insert("sub".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: 1. / 4., scale: (3. / 4.) * scale, ..Default::default() },
+            tweak: FontTweak {
+                y_offset_factor: 1. / 4.,
+                scale: (3. / 4.) * base_scale,
+                ..Default::default()
+            },
             ..FontData::from_static(sans)
         }
     });
     fonts.font_data.insert("material_icons".into(), {
         let mut font = FontData::from_static(icons);
         font.tweak.y_offset_factor = -0.1;
-        font.tweak.scale = scale;
+        font.tweak.scale = base_scale;
         font
     });
 
