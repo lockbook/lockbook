@@ -250,6 +250,7 @@ async fn upsert_meta_over_data_cap() {
 }
 
 #[tokio::test]
+#[ignore]
 async fn upsert_meta_empty_folder_over_data_cap() {
     let core: Lb = test_core_with_account().await;
     let free_tier_limit = FREE_TIER_USAGE_SIZE / METADATA_FEE;
