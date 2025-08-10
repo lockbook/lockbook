@@ -534,7 +534,7 @@ impl Workspace {
                 let focused = self.ctx.input(|i| i.focused);
                 let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
                 let sync_period = if user_active && focused {
-                    Duration::from_secs(5)
+                    Duration::from_secs(3)
                 } else {
                     Duration::from_secs(5 * 60)
                 };
