@@ -58,6 +58,14 @@ public struct PathSearchResult: Hashable, Comparable {
     public let score: Int64
     public let matchedIndicies: [UInt]
     
+    // For previews
+    public init(id: UUID, path: String, score: Int64, matchedIndicies: [UInt]) {
+        self.id = id
+        self.path = path
+        self.score = score
+        self.matchedIndicies = matchedIndicies
+    }
+    
     init(_ res: LbPathSearchResult) {
         self.id = res.id.toUUID()
         self.path = String(cString: res.path)
