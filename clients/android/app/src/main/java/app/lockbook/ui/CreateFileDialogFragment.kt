@@ -44,9 +44,7 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
             binding.createDocumentHolder.visibility = View.GONE
             binding.createDocumentExtensionHolder.visibility = View.GONE
             binding.createFolderHolder.visibility = View.VISIBLE
-
-            binding.createFolder.setText("")
-
+            
             val title = getString(R.string.create_file_title_folder)
 
             setTitle(title)
