@@ -300,6 +300,7 @@ impl Workspace {
                     }
                 }
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                    self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
                             self.open_file(id, false, false);
@@ -531,7 +532,7 @@ impl Workspace {
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(60);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
                 let sync_period = if user_active && focused {
                     Duration::from_secs(5)
                 } else {
