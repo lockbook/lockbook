@@ -28,6 +28,7 @@ fn build_server() -> CliResult<()> {
         .assert_success()
 }
 
+// todo: rework for x86-musl or something more portable
 fn backup_old_server() -> CliResult<()> {
     println!("Backing up currently running server");
     Command::new("gcloud")
@@ -40,6 +41,7 @@ fn backup_old_server() -> CliResult<()> {
             "--project",
             "lockbook-net",
             "--command",
+            // todo add date
             "cp /usr/bin/lockbook-server ~/lockbook-server.bak",
         ])
         .assert_success()
@@ -72,7 +74,7 @@ fn replace_old_server() -> CliResult<()> {
             "lockbook-net",
             "lb-prod",
             "--command",
-            "sudo mv ~/lockbook-server.tmp /root/new-server",
+            "sudo mv ~/lockbook-server.tmp /usr/bin/lockbook-server",
         ])
         .assert_success()?;
 
