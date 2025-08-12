@@ -318,17 +318,6 @@ impl Editor {
         self.galleys.galleys.clear();
         self.bounds.wrap_lines.clear();
 
-        let scroll_area_id = ui
-            .id()
-            .with("child")
-            .with("child")
-            .with(egui::Id::new(self.file_id));
-        let prev_scroll_area_offset = ui.data_mut(|d| {
-            d.get_persisted(scroll_area_id)
-                .map(|s: scroll_area::State| s.offset)
-                .unwrap_or_default()
-        });
-
         ui.vertical(|ui| {
             if self.touch_mode {
                 // touch devices: show find...
@@ -344,6 +333,13 @@ impl Editor {
                 ui.allocate_ui(
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
+                        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                        let prev_scroll_area_offset = ui.data_mut(|d| {
+                            d.get_persisted(scroll_area_id)
+                                .map(|s: scroll_area::State| s.offset)
+                                .unwrap_or_default()
+                        });
+
                         ui.ctx().style_mut(|style| {
                             style.spacing.scroll = egui::style::ScrollStyle::solid();
                             style.spacing.scroll.bar_width = 10.;
@@ -362,6 +358,13 @@ impl Editor {
                     self.show_toolbar(root, ui);
                 });
             } else {
+                let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                let prev_scroll_area_offset = ui.data_mut(|d| {
+                    d.get_persisted(scroll_area_id)
+                        .map(|s: scroll_area::State| s.offset)
+                        .unwrap_or_default()
+                });
+
                 // non-touch devices: show toolbar...
                 self.show_toolbar(root, ui);
 
