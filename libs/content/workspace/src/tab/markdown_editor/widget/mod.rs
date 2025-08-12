@@ -54,6 +54,17 @@ impl<'ast> Editor {
             }
         }
 
+        // hack: thematic breaks are emitted to contain all subsequent lines if
+        // they are the last block in the document; we trim them to their first
+        // line.
+        if matches!(node.data.borrow().value, NodeValue::ThematicBreak) {
+            for line_idx in self.range_lines(range).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                range = range.trim(&line);
+                break;
+            }
+        }
+
         // hack: list items are emitted to contain all lines until the next
         // block which would cause the cursor to be shown indented; we trim
         // trailing blank lines.
