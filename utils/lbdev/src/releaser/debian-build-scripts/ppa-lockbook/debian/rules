@@ -5,7 +5,7 @@ clean:
 
 build:
 	dh build
-	(export PATH="/home/parth/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../clients/cli/Cargo.toml)
+	(export PATH="/home/parth/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../../clients/cli/Cargo.toml)
 
 build-arch:
 
