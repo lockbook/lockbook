@@ -58,10 +58,9 @@ impl<'ast> Editor {
         // they are the last block in the document; we trim them to their first
         // line.
         if matches!(node.data.borrow().value, NodeValue::ThematicBreak) {
-            for line_idx in self.range_lines(range).iter() {
+            if let Some(line_idx) = self.range_lines(range).iter().next() {
                 let line = self.bounds.source_lines[line_idx];
                 range = range.trim(&line);
-                break;
             }
         }
 
