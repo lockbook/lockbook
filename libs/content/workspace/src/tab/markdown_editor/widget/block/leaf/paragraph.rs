@@ -19,8 +19,9 @@ impl<'ast> Editor {
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
 
-            result += self.height_paragraph_line(node, line);
+            result += self.height_paragraph_line(node, node_line);
 
             if line_idx != last_line_idx {
                 result += BLOCK_SPACING;
@@ -44,15 +45,18 @@ impl<'ast> Editor {
             unreachable!("Paragraphs always have children")
         };
 
-        let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if reveal {
-            wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format_syntax(node));
-            wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
+        if !pre_node.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format(node));
+        }
+        if !pre_children.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format(node));
         }
         wrap.offset += self.inline_children_span(node, &wrap, node_line);
-        if reveal {
-            wrap.offset += self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
-            wrap.offset += self.span_text_line(&wrap, post_node, self.text_format_syntax(node));
+        if !post_children.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, post_children, self.text_format(node));
+        }
+        if !post_node.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, post_node, self.text_format(node));
         }
 
         wrap.height()
