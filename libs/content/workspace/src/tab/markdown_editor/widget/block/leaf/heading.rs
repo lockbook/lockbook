@@ -28,7 +28,7 @@ impl<'ast> Editor {
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level == 1 { BLOCK_SPACING } else { 0. }
+        text_height + if level <= 2 { BLOCK_SPACING } else { 0. }
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -196,7 +196,7 @@ impl<'ast> Editor {
         }
 
         top_left.y -= ROW_SPACING;
-        if level == 1 {
+        if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
     }
@@ -316,7 +316,7 @@ impl<'ast> Editor {
 
         top_left.y += height;
         self.bounds.wrap_lines.extend(wrap.row_ranges);
-        if level == 1 {
+        if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
     }
