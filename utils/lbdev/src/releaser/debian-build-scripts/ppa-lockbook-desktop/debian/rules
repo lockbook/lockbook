@@ -6,7 +6,7 @@ clean:
 build:
 	dh build
 	curl https://sh.rustup.rs -sSf | bash -s -- -y
-	(export PATH="/root/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../clients/linux/Cargo.toml)
+	(export PATH="/root/.cargo/bin:$$PATH" && cargo build --release --manifest-path ../../../../../../clients/linux/Cargo.toml)
 
 build-arch:
 
@@ -17,9 +17,9 @@ binary:
 	mkdir -p debian/lockbook-desktop/usr/share/applications
 	mkdir -p debian/lockbook-desktop/usr/share/pixmaps
 
-	cp ../../../../target/release/lockbook-desktop debian/lockbook-desktop/usr/bin/lockbook-desktop
+	cp ../../../../../../target/release/lockbook-desktop debian/lockbook-desktop/usr/bin/lockbook-desktop
 	cp lockbook-desktop.desktop debian/lockbook-desktop/usr/share/applications
-	cp ../../../../graphics/SVGs/dark-1.svg debian/lockbook-desktop/usr/share/pixmaps
+	cp ../../../../../../graphics/SVGs/dark-1.svg debian/lockbook-desktop/usr/share/pixmaps
 
 	strip --strip-all debian/lockbook-desktop/usr/bin/lockbook-desktop
 	dh_gencontrol
