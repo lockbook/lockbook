@@ -70,8 +70,7 @@ fn handle_cargo_tomls(version: &str) {
         "clients/linux",
         "clients/windows",
         "clients/admin",
-        "utils/dev-tool",
-        "utils/releaser",
+        "utils/lbdev",
         "utils/winstaller",
     ];
 
