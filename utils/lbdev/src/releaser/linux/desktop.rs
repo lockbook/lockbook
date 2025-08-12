@@ -69,6 +69,7 @@ apps:
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 
+    // todo move these into lbdev
     Command::new("snapcraft")
         .current_dir("utils/dev/snap-packages/lockbook-desktop/")
         .assert_success()?;
@@ -121,7 +122,7 @@ Description: The private, polished note-taking platform.
         .write(true)
         .create(true)
         .truncate(true)
-        .open("utils/releaser/debian-build-scripts/ppa-lockbook/debian/control")
+        .open("utils/lbdev/src/releaser/debian-build-scripts/ppa-lockbook/debian/control")
         .unwrap();
     file.write_all(new_control.as_bytes()).unwrap();
 
@@ -136,7 +137,8 @@ Description: The private, polished note-taking platform.
 
     let deb_file = format!("lockbook_{lb_version}_amd64.deb");
 
-    let output = File::open(format!("utils/releaser/debian-build-scripts/{deb_file}")).unwrap();
+    let output =
+        File::open(format!("utils/lbdev/src/releaser/debian-build-scripts/{deb_file}")).unwrap();
 
     client
         .upload_release_asset(
