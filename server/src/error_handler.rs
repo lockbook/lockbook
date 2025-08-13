@@ -330,6 +330,7 @@ impl From<LbErr> for ServerError<UpsertError> {
                 DiffError::OldVersionRequired => ClientError(OldVersionRequired),
                 DiffError::DiffMalformed => ClientError(DiffMalformed),
                 DiffError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+                DiffError::SizeModificationInvalid => ClientError(SizeModificationInvalid),
             },
             LbErrKind::InsufficientPermission => ClientError(NotPermissioned),
             LbErrKind::Validation(fail) => ClientError(Validation(fail)),

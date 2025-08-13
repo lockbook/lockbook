@@ -341,6 +341,7 @@ pub enum DiffError {
     OldVersionRequired,
     DiffMalformed,
     HmacModificationInvalid,
+    SizeModificationInvalid,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

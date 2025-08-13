@@ -44,8 +44,13 @@ impl<'a> LazyTree<ServerTree<'a>> {
 
             changes_meta.push(FileDiff { old: old_meta, new: new_meta });
         }
-        let mut changes = changes_meta;
 
+        self.stage_diff_v2(changes_meta)
+    }
+
+    pub fn stage_diff_v2(
+        self, mut changes: Vec<FileDiff<SignedMeta>>,
+    ) -> LbResult<LazyServerStaged1<'a>> {
         // Check new.id == old.id
         for change in &changes {
             if let Some(old) = &change.old {
@@ -64,10 +69,16 @@ impl<'a> LazyTree<ServerTree<'a>> {
                     {
                         return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
                     }
+
+                    if old.timestamped_value.value.doc_size()
+                        != change.new.timestamped_value.value.doc_size()
+                    {
+                        return Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
+                    }
                 }
                 None => {
                     if change.new.timestamped_value.value.doc_size().is_some() {
-                        return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
+                        return Err(LbErrKind::Diff(DiffError::SizeModificationInvalid))?;
                     }
                     if change.new.timestamped_value.value.document_hmac().is_some() {
                         return Err(LbErrKind::Diff(DiffError::HmacModificationInvalid))?;
