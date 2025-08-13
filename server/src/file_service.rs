@@ -194,17 +194,26 @@ where
     pub async fn change_doc(
         &self, context: RequestContext<ChangeDocRequest>,
     ) -> Result<(), ServerError<ChangeDocError>> {
-        use ChangeDocError::*;
-
         let request = context.request;
-        let mut request = ChangeDocRequestV2 {
+        let public_key = context.public_key;
+        let request = ChangeDocRequestV2 {
             diff: FileDiff {
                 old: request.diff.old.map(|f| f.into()),
                 new: request.diff.new.into(),
             },
             new_content: request.new_content,
         };
+
+        self.change_doc_v2(RequestContext { request, public_key })
+            .await
+    }
+
+    pub async fn change_doc_v2(
+        &self, context: RequestContext<ChangeDocRequestV2>,
+    ) -> Result<(), ServerError<ChangeDocError>> {
+        use ChangeDocError::*;
         let owner = Owner(context.public_key);
+        let mut request = context.request;
         let id = *request.diff.id();
 
         // Validate Diff
