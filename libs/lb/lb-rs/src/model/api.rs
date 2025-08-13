@@ -55,6 +55,19 @@ impl Request for UpsertRequest {
     const ROUTE: &'static str = "/upsert-file-metadata";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct UpsertRequestV2 {
+    pub updates: Vec<FileDiff<SignedMeta>>,
+}
+
+impl Request for UpsertRequestV2 {
+    type Response = ();
+
+    type Error = UpsertError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upsert-file-metadata-v2";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpsertError {
     /// Arises during a call to upsert, when the caller does not have the correct old version of the
@@ -78,6 +91,9 @@ pub enum UpsertError {
     /// Metas in upsert cannot contain changes to digest
     HmacModificationInvalid,
 
+    /// Metas in upsert cannot contain changes to doc size
+    SizeModificationInvalid,
+
     RootModificationInvalid,
 
     /// Found update to a deleted file
@@ -96,6 +112,7 @@ pub struct ChangeDocRequest {
     pub new_content: EncryptedDocument,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocRequestV2 {
     pub diff: FileDiff<SignedMeta>,
     pub new_content: EncryptedDocument,
@@ -117,6 +134,13 @@ impl Request for ChangeDocRequest {
     type Error = ChangeDocError;
     const METHOD: Method = Method::PUT;
     const ROUTE: &'static str = "/change-document-content";
+}
+
+impl Request for ChangeDocRequestV2 {
+    type Response = ();
+    type Error = ChangeDocError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/change-document-content-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -246,10 +270,21 @@ pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUpdatesRequestV2 {
+    pub since_metadata_version: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesResponse {
     pub as_of_metadata_version: u64,
     pub file_metadata: Vec<SignedFile>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUpdatesResponseV2 {
+    pub as_of_metadata_version: u64,
+    pub file_metadata: Vec<ServerMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -264,11 +299,25 @@ impl Request for GetUpdatesRequest {
     const ROUTE: &'static str = "/get-updates";
 }
 
+impl Request for GetUpdatesRequestV2 {
+    type Response = GetUpdatesResponseV2;
+    type Error = GetUpdatesError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-updates-v2";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
     pub public_key: PublicKey,
     pub root_folder: SignedFile,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct NewAccountRequestV2 {
+    pub username: Username,
+    pub public_key: PublicKey,
+    pub root_folder: SignedMeta,
 }
 
 impl NewAccountRequest {
@@ -280,6 +329,13 @@ impl NewAccountRequest {
             root_folder,
         }
     }
+}
+
+impl Request for NewAccountRequestV2 {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/new-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
