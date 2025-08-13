@@ -91,6 +91,9 @@ pub enum UpsertError {
     /// Metas in upsert cannot contain changes to digest
     HmacModificationInvalid,
 
+    /// Metas in upsert cannot contain changes to doc size
+    SizeModificationInvalid,
+
     RootModificationInvalid,
 
     /// Found update to a deleted file
