@@ -121,66 +121,102 @@ where
             tx.drop_safely()?;
         }
 
-        for update in request.updates {
-            let new = update.new;
-            let id = *new.id();
-            match update.old {
-                None => {
-                    debug!(?id, "Created file");
+        for (id, hmac) in new_deleted {
+            self.document_service.delete(&id, &hmac).await?;
+            let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+            debug!(?id, ?hmac, "Deleted document contents");
+        }
+        Ok(())
+    }
+
+    pub async fn upsert_file_metadata_v2(
+        &self, context: RequestContext<UpsertRequestV2>,
+    ) -> Result<(), ServerError<UpsertError>> {
+        let request = context.request;
+        let req_owner = Owner(context.public_key);
+
+        let mut new_deleted = vec![];
+        {
+            let mut prior_deleted = HashSet::new();
+            let mut current_deleted = HashSet::new();
+
+            let mut lock = self.index_db.lock().await;
+            let db = lock.deref_mut();
+            let tx = db.begin_transaction()?;
+
+            let usage_cap =
+                Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
+
+            let mut tree = ServerTree::new(
+                req_owner,
+                &mut db.owned_files,
+                &mut db.shared_files,
+                &mut db.file_children,
+                &mut db.metas,
+            )?
+            .to_lazy();
+
+            let old_usage = Self::get_usage_helper(&mut tree)
+                .map_err(|err| internal!("{:?}", err))?
+                .iter()
+                .map(|f| f.size_bytes)
+                .sum::<u64>();
+
+            for id in tree.ids() {
+                if tree.calculate_deleted(&id)? {
+                    prior_deleted.insert(id);
                 }
-                Some(old) => {
-                    let old_parent = *old.parent();
-                    let new_parent = *new.parent();
-                    if old.parent() != new.parent() {
-                        debug!(?id, ?old_parent, ?new_parent, "Moved file");
-                    }
-                    if old.secret_name() != new.secret_name() {
-                        debug!(?id, "Renamed file");
-                    }
-                    if old.owner() != new.owner() {
-                        debug!(?id, ?old_parent, ?new_parent, "Changed owner for file");
-                    }
-                    if old.explicitly_deleted() != new.explicitly_deleted() {
-                        debug!(?id, "Deleted file");
-                    }
-                    if old.user_access_keys() != new.user_access_keys() {
-                        let all_sharees: Vec<_> = old
-                            .user_access_keys()
-                            .iter()
-                            .chain(new.user_access_keys().iter())
-                            .map(|k| Owner(k.encrypted_for))
-                            .collect();
-                        for sharee in all_sharees {
-                            let new = if let Some(k) = new
-                                .user_access_keys()
-                                .iter()
-                                .find(|k| k.encrypted_for == sharee.0)
-                            {
-                                k
-                            } else {
-                                debug!(?id, ?sharee, "Disappeared user access key");
-                                continue;
-                            };
-                            let old = if let Some(k) = old
-                                .user_access_keys()
-                                .iter()
-                                .find(|k| k.encrypted_for == sharee.0)
-                            {
-                                k
-                            } else {
-                                debug!(?id, ?sharee, ?new.mode, "Added user access key");
-                                continue;
-                            };
-                            if old.mode != new.mode {
-                                debug!(?id, ?sharee, ?old.mode, ?new.mode, "Modified user access mode");
-                            }
-                            if old.deleted != new.deleted {
-                                debug!(?id, ?sharee, ?old.deleted, ?new.deleted, "Deleted user access key");
-                            }
-                        }
+            }
+
+            let mut tree = tree.stage_diff_v2(request.updates.clone())?;
+            for id in tree.ids() {
+                if tree.calculate_deleted(&id)? {
+                    current_deleted.insert(id);
+                }
+            }
+
+            tree.validate(req_owner)?;
+
+            let new_usage = Self::get_usage_helper(&mut tree)
+                .map_err(|err| internal!("{:?}", err))?
+                .iter()
+                .map(|f| f.size_bytes)
+                .sum::<u64>();
+
+            debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+
+            if new_usage > usage_cap && new_usage >= old_usage {
+                return Err(ClientError(UpsertError::UsageIsOverDataCap));
+            }
+
+            let tree = tree.promote()?;
+
+            for id in tree.ids() {
+                if tree.find(&id)?.is_document()
+                    && current_deleted.contains(&id)
+                    && !prior_deleted.contains(&id)
+                {
+                    let meta = tree.find(&id)?;
+                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
+                        new_deleted.push((*meta.id(), hmac));
                     }
                 }
             }
+
+            let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
+            for meta in all_files {
+                let id = meta.id();
+                if current_deleted.contains(id) && !prior_deleted.contains(id) {
+                    for user_access_info in meta.user_access_keys() {
+                        db.shared_files
+                            .remove(&Owner(user_access_info.encrypted_for), id)?;
+                    }
+                }
+            }
+
+            db.last_seen.insert(req_owner, get_time().0 as u64)?;
+
+            tx.drop_safely()?;
         }
 
         for (id, hmac) in new_deleted {
@@ -553,6 +589,51 @@ where
                         public_key: meta.file.public_key,
                     },
                 })
+                .collect(),
+        })
+    }
+
+    pub async fn get_updates_v2(
+        &self, context: RequestContext<GetUpdatesRequestV2>,
+    ) -> Result<GetUpdatesResponseV2, ServerError<GetUpdatesError>> {
+        let request = &context.request;
+        let owner = Owner(context.public_key);
+
+        let mut db = self.index_db.lock().await;
+        let db = db.deref_mut();
+        let mut tree = ServerTree::new(
+            owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let mut result_ids = HashSet::new();
+        for id in tree.ids() {
+            let file = tree.find(&id)?;
+            if file.version >= request.since_metadata_version {
+                result_ids.insert(id);
+                if file.owner() != owner
+                    && file
+                        .user_access_keys()
+                        .iter()
+                        .any(|k| !k.deleted && k.encrypted_for == context.public_key)
+                {
+                    result_ids.insert(id);
+                    result_ids.extend(tree.descendants(&id)?);
+                }
+            }
+        }
+
+        Ok(GetUpdatesResponseV2 {
+            as_of_metadata_version: get_time().0 as u64,
+            file_metadata: tree
+                .all_files()?
+                .into_iter()
+                .filter(|meta| result_ids.contains(meta.id()))
+                .cloned()
                 .collect(),
         })
     }

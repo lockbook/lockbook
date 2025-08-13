@@ -281,7 +281,7 @@ pub struct GetUpdatesResponse {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesResponseV2 {
     pub as_of_metadata_version: u64,
-    pub file_metadata: Vec<SignedMeta>,
+    pub file_metadata: Vec<ServerMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
