@@ -65,9 +65,10 @@
                     android:layout_marginVertical="10dp"  >
 
                     <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/free_tier_size"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="@string/one_mb"
+                        android:text="@string/twenty_five_mb"
                         android:textStyle="bold"
                         android:paddingEnd="30dp"
                         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"

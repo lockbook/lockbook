@@ -3,7 +3,7 @@ use std::{fs, path::PathBuf, process::Command};
 use cli_rs::cli_error::CliResult;
 
 use crate::{
-    places::{apple_dir, root, target, workspace_ffi, workspace_swift_libs},
+    places::{apple_dir, local_env_path, root, target, workspace_ffi, workspace_swift_libs},
     utils::CommandRunner,
 };
 
@@ -300,4 +300,14 @@ struct Device {
 #[derive(Debug, Deserialize)]
 struct DeviceProperties {
     name: String,
+}
+
+pub fn server() -> CliResult<()> {
+    dotenvy::from_path(local_env_path()).unwrap();
+    Command::new("cargo")
+        .args(["run", "-p", "lockbook-server", "--release"])
+        .current_dir(root())
+        .assert_success()?;
+
+    Ok(())
 }

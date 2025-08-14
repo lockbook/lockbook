@@ -210,7 +210,7 @@
     <string name="premium_gb">30 GB</string>
     <string name="out_of_premium_gb">%s / 30 GB</string>
     <string name="per_month">/ month</string>
-    <string name="one_mb">1 MB</string>
+    <string name="twenty_five_mb">25 MB</string>
     <string name="premium_price">$2.99</string>
     <string name="success_subscription_benefit">Your data cap has been extended to 30 GB.</string>
     <string name="successful_purchase">Thank you for purchasing premium.</string>
