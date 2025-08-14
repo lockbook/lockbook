@@ -8,7 +8,7 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::lazy::LazyTree;
-use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
 use uuid::Uuid;
@@ -176,7 +176,7 @@ impl Lb {
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>
     where
-        T: TreeLike<F = SignedFile>,
+        T: TreeLike<F = SignedMeta>,
     {
         let file = tree.find(&id)?;
         validate::is_document(file)?;

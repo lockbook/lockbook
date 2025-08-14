@@ -2,16 +2,14 @@ use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
-    ChangeDocRequest, ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest,
-    GetUpdatesResponse, GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequest,
-    UpsertRequestV2,
+    ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
+    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use crate::model::filename::{DocumentType, NameComponents};
-use crate::model::signed_file::SignedFile;
 use crate::model::signed_meta::SignedMeta;
 use crate::model::staged::StagedTreeLikeMut;
 use crate::model::svg::buffer::u_transform_to_bezier;
@@ -63,7 +61,10 @@ impl Lb {
 
         let remote_changes = self
             .client
-            .request(self.get_account()?, GetUpdatesRequest { since_metadata_version: last_synced })
+            .request(
+                self.get_account()?,
+                GetUpdatesRequestV2 { since_metadata_version: last_synced },
+            )
             .await?;
         let (deduped, latest_server_ts, _) = self.dedup(remote_changes).await?;
         let remote_dirty = deduped
@@ -220,7 +221,7 @@ impl Lb {
             .client
             .request(
                 self.get_account()?,
-                GetUpdatesRequest { since_metadata_version: ctx.last_synced },
+                GetUpdatesRequestV2 { since_metadata_version: ctx.last_synced },
             )
             .await?;
 

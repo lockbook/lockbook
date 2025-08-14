@@ -3,7 +3,6 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::lazy::{LazyStaged1, LazyTree};
-use crate::model::signed_file::SignedFile;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{symkey, validate};
 use crate::service::keychain::Keychain;
@@ -11,10 +10,11 @@ use std::collections::HashSet;
 use uuid::Uuid;
 
 use super::ValidationFailure;
+use super::signed_meta::SignedMeta;
 
 impl<T> LazyTree<T>
 where
-    T: TreeLike<F = SignedFile>,
+    T: TreeLike<F = SignedMeta>,
 {
     pub fn path_to_id(&mut self, path: &str, root: &Uuid, keychain: &Keychain) -> LbResult<Uuid> {
         let mut current = *root;
@@ -129,7 +129,7 @@ where
 
 impl<Base, Local> LazyStaged1<Base, Local>
 where
-    Base: TreeLike<F = SignedFile>,
+    Base: TreeLike<F = SignedMeta>,
     Local: TreeLikeMut<F = Base::F>,
 {
     pub fn create_link_at_path(
