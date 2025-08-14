@@ -2,8 +2,9 @@ use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    GetUsernameError, GetUsernameRequest, UpsertRequest,
+    ChangeDocRequest, ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest,
+    GetUpdatesResponse, GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequest,
+    UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
@@ -11,6 +12,7 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use crate::model::filename::{DocumentType, NameComponents};
 use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::model::staged::StagedTreeLikeMut;
 use crate::model::svg::buffer::u_transform_to_bezier;
 use crate::model::svg::element::Element;
@@ -43,11 +45,11 @@ pub struct SyncContext {
 
     pk_cache: HashMap<Owner, String>,
     last_synced: u64,
-    remote_changes: Vec<SignedFile>,
+    remote_changes: Vec<SignedMeta>,
     update_as_of: u64,
     root: Option<Uuid>,
-    pushed_metas: Vec<FileDiff<SignedFile>>,
-    pushed_docs: Vec<FileDiff<SignedFile>>,
+    pushed_metas: Vec<FileDiff<SignedMeta>>,
+    pushed_docs: Vec<FileDiff<SignedMeta>>,
     pulled_docs: Vec<Uuid>,
 }
 
@@ -952,8 +954,7 @@ impl Lb {
             let maybe_base_file = local.tree.base.maybe_find(&id);
 
             // change everything but document hmac and re-sign
-            local_change.document_hmac =
-                maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
+            local_change.set_hmac(maybe_base_file.and_then(|f| f.document_hmac().copied()));
             let local_change = local_change.sign(&self.keychain)?;
 
             local_changes_no_digests.push(local_change.clone());
@@ -965,7 +966,7 @@ impl Lb {
 
         if !updates.is_empty() {
             self.client
-                .request(self.get_account()?, UpsertRequest { updates: updates.clone() })
+                .request(self.get_account()?, UpsertRequestV2 { updates: updates.clone() })
                 .await?;
             ctx.pushed_metas = updates;
         }
@@ -1002,10 +1003,10 @@ impl Lb {
 
             // change only document hmac and re-sign
             let mut local_change = base_file.timestamped_value.value.clone();
-            local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
+            local_change.set_hmac(local.find(&id)?.document_hmac().copied());
 
             if base_file.document_hmac() == local_change.document_hmac()
-                || local_change.document_hmac.is_none()
+                || local_change.document_hmac().is_none()
             {
                 continue;
             }
@@ -1056,14 +1057,14 @@ impl Lb {
         Ok(())
     }
 
-    async fn push_doc(&self, diff: FileDiff<SignedFile>) -> LbResult<Uuid> {
+    async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
         let id = *diff.new.id();
         let hmac = diff.new.document_hmac();
         let local_document_change = self.docs.get(id, hmac.copied()).await?;
         self.client
             .request(
                 self.get_account()?,
-                ChangeDocRequest { diff, new_content: local_document_change },
+                ChangeDocRequestV2 { diff, new_content: local_document_change },
             )
             .await?;
 
@@ -1071,8 +1072,8 @@ impl Lb {
     }
 
     async fn dedup(
-        &self, updates: GetUpdatesResponse,
-    ) -> LbResult<(Vec<SignedFile>, u64, Option<Uuid>)> {
+        &self, updates: GetUpdatesResponseV2,
+    ) -> LbResult<(Vec<SignedMeta>, u64, Option<Uuid>)> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -1103,8 +1104,8 @@ impl Lb {
     }
 
     async fn prune_remote_orphans(
-        &self, remote_changes: Vec<SignedFile>,
-    ) -> LbResult<Vec<SignedFile>> {
+        &self, remote_changes: Vec<SignedMeta>,
+    ) -> LbResult<Vec<SignedMeta>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
