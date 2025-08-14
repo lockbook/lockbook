@@ -633,7 +633,7 @@ where
                 .all_files()?
                 .into_iter()
                 .filter(|meta| result_ids.contains(meta.id()))
-                .cloned()
+                .map(|meta| meta.file.clone())
                 .collect(),
         })
     }
