@@ -15,7 +15,7 @@ use uuid::Uuid;
 use super::server_meta::ServerMeta;
 use super::signed_meta::SignedMeta;
 
-pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
+pub const FREE_TIER_USAGE_SIZE: u64 = 25000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
 /// a fee of 1000 bytes allows 1000 file creations under the free tier.
 pub const METADATA_FEE: u64 = 1000;
