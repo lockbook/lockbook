@@ -105,9 +105,9 @@ pub async fn send_rpc_request<T: Serialize>(
 ) -> LbResult<()> {
     let method_id = method as u16;
     let body = bincode::serialize(args).map_err(core_err_unexpected)?;
-    let len = body.len() as u32;
+    let len = body.len();
 
-    let mut buf = Vec::with_capacity(6 + body.len());
+    let mut buf = Vec::with_capacity(2 + std::mem::size_of::<usize>() + len);
     buf.extend_from_slice(&method_id.to_le_bytes());
     buf.extend_from_slice(&len.to_le_bytes());
     buf.extend_from_slice(&body);
@@ -119,11 +119,11 @@ pub async fn send_rpc_request<T: Serialize>(
 pub async fn recv_rpc_response<R: for<'de> Deserialize<'de>>(
     stream: &mut TcpStream,
 ) -> LbResult<R> {
-    let mut len_buf = [0u8; 4];
+    let mut len_buf = [0u8; std::mem::size_of::<usize>()];
     stream.read_exact(&mut len_buf).await.map_err(core_err_unexpected)?;
-    let resp_len = u32::from_be_bytes(len_buf);
+    let resp_len = usize::from_be_bytes(len_buf);
 
-    let mut resp_buf = vec![0u8; resp_len as usize];
+    let mut resp_buf = vec![0u8; resp_len];
     stream.read_exact(&mut resp_buf).await.map_err(core_err_unexpected)?;
 
     let result = bincode::deserialize::<R>(&resp_buf).map_err(core_err_unexpected)?;
@@ -153,9 +153,9 @@ impl LbServer {
             stream.read_exact(&mut id_buf).await?;
             let method_id = u16::from_le_bytes(id_buf);
 
-            let mut len_buf = [0u8; 4];
+            let mut len_buf = [0u8; std::mem::size_of::<usize>()];
             stream.read_exact(&mut len_buf).await?;
-            let msg_len = u32::from_le_bytes(len_buf);
+            let msg_len = usize::from_le_bytes(len_buf);
 
             let mut msg = vec![0u8; msg_len as usize];
             stream.read_exact(&mut msg).await?;
@@ -167,8 +167,8 @@ impl LbServer {
                 }
                 _ => {
                     let response = dispatch(lb, method, &msg).await?;
-                    let mut out = Vec::with_capacity(4 + response.len());
-                    out.extend_from_slice(&(response.len() as u32).to_be_bytes());
+                    let mut out = Vec::with_capacity(std::mem::size_of::<usize>() + response.len());
+                    out.extend_from_slice(&(response.len()).to_be_bytes());
                     out.extend_from_slice(&response);
                     stream.write_all(&out).await?;
                 }
@@ -182,7 +182,7 @@ impl LbServer {
                 match rx.recv().await {
                     Ok(event) => {
                         let serialized = bincode::serialize(&event).map_err(core_err_unexpected)?;
-                        let len = serialized.len() as u32;
+                        let len = serialized.len();
 
                         stream.write_all(&len.to_be_bytes()).await?;
                         stream.write_all(&serialized).await?;

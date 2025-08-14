@@ -190,7 +190,7 @@ impl LbClient {
     }
 
     pub async fn subscribe(&self) -> Receiver<Event> {
-        let (local_tx, local_rx) = broadcast::channel(1000);
+        let (local_tx, local_rx) = broadcast::channel(16);
         let addr = self.addr;
 
         tokio::spawn(async move {

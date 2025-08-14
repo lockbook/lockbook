@@ -29,7 +29,7 @@ pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
         ImportStatus::FinishedItem(_meta) => println!("done."),
     };
 
-    lb.import_files(&[disk], parent, &update_status).await?;
+    lb.import_files(&[disk], parent, &None::<fn(ImportStatus)>).await?;
 
     Ok(())
 }
