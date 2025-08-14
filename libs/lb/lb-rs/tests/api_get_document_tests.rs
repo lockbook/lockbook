@@ -22,13 +22,13 @@ async fn get_document() {
         .unwrap()
         .clone();
     let mut new = old.clone();
-    new.timestamped_value.value.document_hmac = Some([0; 32]);
+    new.timestamped_value.value.set_hmac(Some([0; 32]));
 
     // update document content
     core.client
         .request(
             account,
-            ChangeDocRequest {
+            ChangeDocRequestV2 {
                 diff: FileDiff::edit(old, new.clone()),
                 new_content: AESEncrypted {
                     value: vec![69],
@@ -67,9 +67,9 @@ async fn get_document_not_found() {
         .get(&id)
         .unwrap()
         .clone();
-    old.timestamped_value.value.id = Uuid::new_v4();
+    old.timestamped_value.value.set_id(Uuid::new_v4());
     let mut new = old;
-    new.timestamped_value.value.document_hmac = Some([0; 32]);
+    new.timestamped_value.value.set_hmac(Some([0; 32]));
 
     // get document we never created
     let result = core

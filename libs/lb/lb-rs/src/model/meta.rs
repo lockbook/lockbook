@@ -116,6 +116,18 @@ impl Meta {
         }
     }
 
+    pub fn set_type(&mut self, new_type: FileType) {
+        match self {
+            Meta::V1 { file_type, .. } => *file_type = new_type,
+        }
+    }
+
+    pub fn set_id(&mut self, new_id: Uuid) {
+        match self {
+            Meta::V1 { id, .. } => *id = new_id,
+        }
+    }
+
     pub fn doc_size(&self) -> &Option<usize> {
         match self {
             Meta::V1 { doc_size, .. } => doc_size,
