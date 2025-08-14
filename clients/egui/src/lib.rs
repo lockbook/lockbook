@@ -19,6 +19,7 @@ use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
 use std::sync::{Arc, RwLock};
 
+#[allow(clippy::large_enum_variant)]
 pub enum Lockbook {
     /// The first screen a user sees everytime while the application is initializing. If there's a
     /// major error, it's shown here. If all goes well, we move on to either the Onboard screen or
@@ -109,7 +110,8 @@ impl Lockbook {
 
 #[cfg(feature = "egui_wgpu_backend")]
 mod lb_wgpu {
-    use std::{iter, time::Instant};
+    use std::iter;
+    use std::time::Instant;
 
     use egui::{PlatformOutput, Pos2, Rect, ViewportIdMap, ViewportOutput};
     use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
@@ -164,7 +166,7 @@ mod lb_wgpu {
                     return Default::default();
                 }
                 Err(e) => {
-                    eprintln!("Dropped frame with error: {}", e);
+                    eprintln!("Dropped frame with error: {e}");
                     return Default::default();
                 }
             };

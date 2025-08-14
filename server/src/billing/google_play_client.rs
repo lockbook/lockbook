@@ -3,10 +3,10 @@ use async_trait::async_trait;
 use google_androidpublisher3::api::{
     SubscriptionPurchase, SubscriptionPurchasesAcknowledgeRequest,
 };
-use google_androidpublisher3::hyper::client::HttpConnector;
 use google_androidpublisher3::hyper::StatusCode;
+use google_androidpublisher3::hyper::client::HttpConnector;
 use google_androidpublisher3::hyper_rustls::HttpsConnector;
-use google_androidpublisher3::{hyper, hyper_rustls, oauth2, AndroidPublisher, Error};
+use google_androidpublisher3::{AndroidPublisher, Error, hyper, hyper_rustls, oauth2};
 
 const PACKAGE_NAME: &str = "app.lockbook";
 
@@ -59,10 +59,10 @@ impl From<Error> for SimpleGCPError {
                 if err.status() == StatusCode::NOT_FOUND {
                     Self::PurchaseTokenNotFound
                 } else {
-                    Self::Unexpected(format!("{:#?}", err))
+                    Self::Unexpected(format!("{err:#?}"))
                 }
             }
-            _ => Self::Unexpected(format!("{:#?}", err)),
+            _ => Self::Unexpected(format!("{err:#?}")),
         }
     }
 }

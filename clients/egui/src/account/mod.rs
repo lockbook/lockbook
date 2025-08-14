@@ -5,12 +5,13 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
@@ -18,8 +19,7 @@ use lb::service::events::broadcast::error::TryRecvError;
 use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
 use lb::subscribers::status::Status;
-use lb::Uuid;
-use tree::FilesExt;
+use workspace_rs::file_cache::FilesExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
@@ -155,8 +155,18 @@ impl AccountScreen {
 
                     ui.vertical(|ui| {
                         let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
-                        if let Some(file) = full_doc_search_resp.file_to_open {
-                            self.workspace.open_file(file, false, true);
+                        if let Some(id) = full_doc_search_resp.file_to_open {
+                            if let Some(file) = self.tree.files.get_by_id(id) {
+                                if file.is_folder() {
+                                    self.tree.cursor = Some(file.id);
+                                    self.tree.selected.clear();
+                                    self.tree.selected.insert(file.id);
+                                    self.tree.reveal_selection();
+                                    self.tree.scroll_to_cursor = true;
+                                } else {
+                                    self.workspace.open_file(file.id, false, true);
+                                }
+                            }
                         }
                         if full_doc_search_resp.advance_focus {
                             ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
@@ -209,26 +219,6 @@ impl AccountScreen {
                     });
                 }
 
-                if let Some((id, new_name)) = wso.file_renamed {
-                    for file in self.tree.files.iter_mut() {
-                        if file.id == id {
-                            file.name = new_name;
-                            break;
-                        }
-                    }
-                    self.tree.recalc_suggested_files(&self.core, ctx);
-                    ctx.request_repaint();
-                }
-                if let Some((id, new_parent)) = wso.file_moved {
-                    for file in self.tree.files.iter_mut() {
-                        if file.id == id {
-                            file.parent = new_parent;
-                            break;
-                        }
-                    }
-                    ctx.request_repaint();
-                }
-
                 if let Some(result) = wso.file_created {
                     self.file_created(ctx, result);
                 }
@@ -238,6 +228,8 @@ impl AccountScreen {
                         self.tree.cursor = Some(file);
                         self.tree.selected.clear();
                         self.tree.selected.insert(file);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
                     }
                 }
 
@@ -460,6 +452,16 @@ impl AccountScreen {
             self.workspace.create_file(true);
         }
 
+        if resp.clear_suggested {
+            self.core.clear_suggested().unwrap();
+            self.tree.recalc_suggested_files(&self.core, ui.ctx());
+        }
+
+        if let Some(id) = resp.clear_suggested_id {
+            self.core.clear_suggested_id(id).unwrap();
+            self.tree.recalc_suggested_files(&self.core, ui.ctx());
+        }
+
         if resp.space_inspector_root.is_some() {
             self.workspace
                 .start_space_inspector(self.core.clone(), resp.space_inspector_root);
@@ -495,7 +497,7 @@ impl AccountScreen {
             let files = resp
                 .delete_requests
                 .iter()
-                .map(|&id| self.tree.files.get_by_id(id))
+                .map(|&id| self.tree.files.get_by_id(id).unwrap())
                 .cloned()
                 .collect();
             self.update_tx
@@ -605,7 +607,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&params.name, &parent.id, params.ftype)
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
@@ -615,7 +617,7 @@ impl AccountScreen {
             if cursor != self.tree.suggested_docs_folder_id
                 && self.tree.files.iter().any(|f| f.id == cursor)
             {
-                let cursor = self.tree.files.get_by_id(cursor);
+                let cursor = self.tree.files.get_by_id(cursor).unwrap();
                 return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
             }
         }
@@ -654,7 +656,7 @@ impl AccountScreen {
         // pre-check name conflicts for atomicity
         let target_children = self.tree.files.children(target);
         for &file in &self.tree.selected {
-            let name = self.tree.files.get_by_id(file).name.clone();
+            let name = self.tree.files.get_by_id(file).unwrap().name.clone();
             if target_children.iter().any(|f| f.name == name) {
                 // todo: show error
                 println!("cannot move file into folder containing file with same name");
@@ -664,15 +666,18 @@ impl AccountScreen {
 
         // move files
         for &f in &self.tree.selected {
-            if self.tree.files.get_by_id(f).parent == target {
+            if self.tree.files.get_by_id(f).unwrap().parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(&f, &target) {
-                // todo: show error
-                println!("error moving file: {:?}", err);
-                return;
-            } else {
-                ctx.request_repaint();
+            match self.core.move_file(&f, &target) {
+                Err(err) => {
+                    // todo: show error
+                    println!("error moving file: {err:?}");
+                    return;
+                }
+                _ => {
+                    ctx.request_repaint();
+                }
             }
         }
 
@@ -685,7 +690,7 @@ impl AccountScreen {
             f.id,
             dest.clone(),
             true,
-            &Some(Box::new(|info| println!("{:?}", info))),
+            &Some(Box::new(|info| println!("{info:?}"))),
         );
         match res {
             Ok(()) => self.toasts.success(format!(
@@ -714,7 +719,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&target.name, &parent.id, FileType::Link { target: target.id })
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
 
             update_tx
                 .send(AccountUpdate::ShareAccepted(result))
@@ -729,7 +734,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             core.delete_pending_share(&target.id)
-                .map_err(|err| format!("{:?}", err))
+                .map_err(|err| format!("{err:?}"))
                 .unwrap();
         });
     }
@@ -746,17 +751,17 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core.import_files(&paths, parent.id, &Some(|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
-                    println!("importing {} files", count);
+                    println!("importing {count} files");
                 }
                 ImportStatus::StartingItem(item) => {
-                    println!("starting import: {}", item);
+                    println!("starting import: {item}");
                 }
                 ImportStatus::FinishedItem(item) => {
                     println!("finished import of {} as lb://{}", item.name, item.id);
                 }
             }));
 
-            let result = result.map_err(|err| format!("{:?}", err));
+            let result = result.map_err(|err| format!("{err:?}"));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
@@ -767,16 +772,6 @@ impl AccountScreen {
         let core = self.core.clone();
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
-
-        let mut tabs_to_delete = vec![];
-        for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().any(|f| Some(f.id) == tab.id()) {
-                tabs_to_delete.push(i);
-            }
-        }
-        for i in tabs_to_delete {
-            self.workspace.close_tab(i);
-        }
 
         thread::spawn(move || {
             for f in &files {

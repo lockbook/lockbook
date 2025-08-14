@@ -170,14 +170,33 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
+        sendKeyEvent(event, true)
+    }
+    
+    public override func keyUp(with event: NSEvent) {
+        sendKeyEvent(event, false)
+    }
+    
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command) && event.keyCode == 9 {
             let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
-        } else {
-            let text = event.characters ?? ""
+            setNeedsDisplay(self.frame)
+
+            return true
+        } else if event.modifierFlags.contains(.command) && event.keyCode == 13 {
+            sendKeyEvent(event, true)
             
-            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, text)
+            return true
         }
 
+        return super.performKeyEquivalent(with: event)
+    }
+    
+    func sendKeyEvent(_ event: NSEvent, _ isDownPress: Bool) {
+        let text = event.characters ?? ""
+        
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), isDownPress, text)
+        
         setNeedsDisplay(self.frame)
     }
 
@@ -189,14 +208,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
     // https://stackoverflow.com/a/53218688/1060955
     func isDarkMode() -> Bool {
         self.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-    }
-
-    public override func keyUp(with event: NSEvent) {
-        let text = event.characters ?? ""
-        
-        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, text)
-        
-        setNeedsDisplay(self.frame)
     }
 
     func setClipboard(){
@@ -335,7 +346,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
             let url = textFromPtr(s: openedUrl)
 
             if let url = URL(string: url) {
-                NSWorkspace.shared.open(url)
+                self.workspaceState?.urlOpened = url
             }
         }
 

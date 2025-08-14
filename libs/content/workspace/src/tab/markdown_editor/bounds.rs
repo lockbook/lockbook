@@ -1,308 +1,149 @@
-use crate::tab::markdown_editor::appearance::{Appearance, CaptureCondition};
-use crate::tab::markdown_editor::ast::{Ast, AstTextRange, AstTextRangeType};
-use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::capture::CaptureState;
-use crate::tab::markdown_editor::input::Bound;
-use crate::tab::markdown_editor::style::{BlockNodeType, InlineNodeType, MarkdownNodeType};
 use crate::tab::markdown_editor::Editor;
-use egui::epaint::text::cursor::RCursor;
-use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelByteOffset};
-use lb_rs::model::text::unicode_segs::UnicodeSegs;
-use linkify::LinkFinder;
+use comrak::nodes::{LineColumn, Sourcepos};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
 use std::cmp::Ordering;
-use std::collections::HashSet;
 use std::ops::Sub;
-use tldextract::{TldExtractor, TldOption};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-pub type AstTextRanges = Vec<AstTextRange>;
+use super::input::Bound;
+
+pub type SourceLines = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
 pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Text = Vec<(DocCharOffset, DocCharOffset)>;
-pub type PlainTextLinks = Vec<(DocCharOffset, DocCharOffset)>;
 
-/// Represents bounds of various text regions in the buffer. Region bounds are inclusive on both sides. Regions do not
-/// overlap, have region.0 <= region.1, and are sorted. Character and doc regions are not stored explicitly but can be
-/// inferred from the other regions.
+/// Represents bounds of various text regions in the buffer. Region bounds are (inclusive, exclusive). Regions do not
+/// overlap, have region.0 <= region.1, and are sorted ascending.
 #[derive(Debug, Default)]
 pub struct Bounds {
-    /// AST text ranges are separated according to markdown syntax and annotated with a type (head/tail/text) and a list of
-    /// ancestor AST nodes so that text can be associated with its position in the AST. An AST node will always have a head
-    /// or tail range containing the syntax characters that define the node. Text ranges are between the head and tail.
-    /// * Documents may have no AST text ranges.
-    /// * AST text ranges cannot be empty.
-    /// * AST text ranges can touch.
-    pub ast: AstTextRanges,
+    /// Source lines are separated by newline characters and include all characters in the document except the newline
+    /// characters. These accelerate translating AST source positions to character offsets and back and are computed
+    /// early in the frame using few dependencies.
+    /// * Documents have at least one source line.
+    /// * Source lines can be empty.
+    /// * Source lines cannot touch.
+    pub source_lines: SourceLines,
 
     /// Words are separated by UAX#29 (Unicode Standard Annex #29) word boundaries and do not contain whitespace. Some
-    /// punctuation marks count as words. Markdown syntax sequences count as single words.
+    /// punctuation marks count as words. These are used for word-based cursor movement and selection e.g. double click
+    /// and alt+left/right.
     /// * Documents may have no words.
     /// * Words cannot be empty.
     /// * Words can touch.
     pub words: Words,
 
-    /// Lines are separated by newline characters or by line wrap.
-    /// * Documents have at least one line.
-    /// * Lines can be empty.
-    /// * Lines can touch.
-    pub lines: Lines,
+    /// Wrap lines are separated by newline characters or by line wrap. These are used for line-based cursor movement
+    /// e.g. cmd+left/right and home/end.
+    /// * Documents have at least one wrap line.
+    /// * Wrap lines can be empty.
+    /// * Wrap lines cannot touch - they exclude the newline or last character (usually whitespace) that separates them.
+    pub wrap_lines: Lines,
 
-    /// Paragraphs are separated by newline characters.
+    /// Paragraphs are separated by newline characters. All inlines are contained within a paragraph. This definition
+    /// includes table cells, code block info strings, and everywhere else that shows editable text. Paragraphs also
+    /// contain hidden characters like captured syntax and whitespace that should be copied with selected text.
     /// * Documents have at least one paragraph.
     /// * Paragraphs can be empty.
     /// * Paragraphs cannot touch.
+    // todo: terrible name
     pub paragraphs: Paragraphs,
 
-    /// Text consists of all rendered text separated by captured syntax ranges. Every valid cursor position is in some text
-    /// range.
-    /// * Documents have at least one text range.
-    /// * Text ranges can be empty.
-    /// * Text ranges can touch.
-    pub text: Text,
-
-    /// Plain text links are styled and clickable but aren't markdown links.
-    /// * Documents may have no links.
-    /// * Links cannot be empty.
-    /// * Links cannot touch.
-    pub links: PlainTextLinks,
+    /// Inline paragraphs are the subset of paragraphs that can contain typical markdown inline
+    /// formatting like emphasis, strong, links, code spans, etc. This includes content within
+    /// paragraphs, headings, table cells, and spacing areas between nodes where inline formatting
+    /// would be expected to work.
+    /// * Documents may have no inline paragraphs.
+    /// * Inline paragraphs can be empty.
+    /// * Inline paragraphs cannot touch.
+    pub inline_paragraphs: Paragraphs,
 }
 
-pub fn calc_ast(ast: &Ast) -> AstTextRanges {
-    ast.iter_text_ranges().collect()
-}
+impl Editor {
+    pub fn calc_source_lines(&mut self) {
+        self.bounds.source_lines.clear();
 
-pub fn calc_words(
-    buffer: &Buffer, ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance,
-) -> Words {
-    let mut result = vec![];
+        let doc = (0.into(), self.last_cursor_position());
+        self.bounds.source_lines = self.range_split_newlines(doc);
+    }
 
-    for text_range in ast_ranges {
-        if text_range.range_type != AstTextRangeType::Text
-            && appearance.markdown_capture(text_range.node(ast).node_type())
-                == CaptureCondition::Always
+    pub fn calc_words(&mut self) {
+        self.bounds.words.clear();
+
+        let mut prev_char_offset = DocCharOffset(0);
+        let mut prev_word = "";
+        for (byte_offset, word) in
+            (self.buffer.current.text.clone() + " ").split_word_bound_indices()
         {
-            // skip always-captured syntax sequences
-            continue;
-        } else if text_range.range_type != AstTextRangeType::Text
-            && !text_range.node(ast).node_type().syntax_includes_text()
-        {
-            // syntax sequences for node types without text count as single words
-            result.push(text_range.range);
-        } else {
-            // remaining text and syntax sequences (including link URLs etc) are split into words
-            let mut prev_char_offset = text_range.range.0;
-            let mut prev_word = "";
-            for (byte_offset, word) in
-                (buffer[text_range.range].to_string() + " ").split_word_bound_indices()
-            {
-                let char_offset = buffer.current.segs.offset_to_char(
-                    buffer.current.segs.offset_to_byte(text_range.range.0)
-                        + RelByteOffset(byte_offset),
-                );
+            let char_offset = self.offset_to_char(DocByteOffset(byte_offset));
 
-                if !prev_word.trim().is_empty() {
-                    // whitespace-only sequences don't count as words
-                    result.push((prev_char_offset, char_offset));
-                }
-
-                prev_char_offset = char_offset;
-                prev_word = word;
+            if !prev_word.trim().is_empty() {
+                // whitespace-only sequences don't count as words
+                self.bounds.words.push((prev_char_offset, char_offset));
             }
+
+            prev_char_offset = char_offset;
+            prev_word = word;
         }
     }
 
-    result
-}
+    /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using
+    /// comrak::Sourcepos, are inclusive/inclusive so just translating the start and end using this function is
+    /// incorrect - use [`sourcepos_to_range`] instead.
+    pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
+        // convert cardinal to ordinal
+        let line_column =
+            LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 };
 
-pub fn calc_lines(galleys: &Galleys, ast: &AstTextRanges, text: &Text) -> Lines {
-    let mut result = vec![];
-    let mut text_range_iter = ast.iter();
-    for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        for (row_idx, _) in galley.galley.rows.iter().enumerate() {
-            let start_cursor = galley
-                .galley
-                .from_rcursor(RCursor { row: row_idx, column: 0 });
-            let row_start =
-                galleys.char_offset_by_galley_and_cursor(galley_idx, &start_cursor, text);
-            let end_cursor = galley.galley.cursor_end_of_row(&start_cursor);
-            let row_end = galleys.char_offset_by_galley_and_cursor(galley_idx, &end_cursor, text);
-
-            let mut range = (row_start, row_end);
-
-            // rows in galley head/tail are excluded
-            if row_end < galley.text_range().start() {
-                continue;
-            }
-            if row_start > galley.text_range().end() {
-                break;
-            }
-
-            // if the range bounds are in the middle of a syntax sequence, expand the range to include the whole sequence
-            // this supports selecting a line that starts or ends with a syntax sequence that's captured until the selection happens
-            for text_range in text_range_iter.by_ref() {
-                if text_range.range.start() > range.end() {
-                    break;
-                }
-                if text_range.range_type == AstTextRangeType::Text {
-                    continue;
-                }
-                if text_range.range.contains_inclusive(range.0) {
-                    range.0 = text_range.range.0;
-                }
-                if text_range.range.contains_inclusive(range.1) {
-                    range.1 = text_range.range.1;
-                    break;
-                }
-            }
-
-            // bound row start and row end by the galley bounds
-            let (min, max) = galley.text_range();
-            range.0 = range.0.max(min).min(max);
-            range.1 = range.1.max(min).min(max);
-
-            result.push(range)
-        }
+        let line: (DocCharOffset, DocCharOffset) = *self
+            .bounds
+            .source_lines
+            .get(line_column.line)
+            .expect("source line should be in bounds");
+        let line_start_byte = self.offset_to_byte(line.start());
+        let line_column_byte = line_start_byte + line_column.column;
+        self.offset_to_char(line_column_byte)
     }
 
-    result
-}
+    pub fn offset_to_line_column(&self, offset: DocCharOffset) -> LineColumn {
+        let line_idx = self
+            .bounds
+            .source_lines
+            .find_containing(offset, true, true)
+            .start();
+        let line = self.bounds.source_lines[line_idx];
+        let line_start_byte = self.offset_to_byte(line.start());
+        let line_column_byte = self.offset_to_byte(offset) - line_start_byte;
 
-pub fn calc_paragraphs(buffer: &Buffer) -> Paragraphs {
-    let mut result = vec![];
-
-    let carriage_return_matches = buffer
-        .current
-        .text
-        .match_indices('\r')
-        .map(|(idx, _)| DocByteOffset(idx))
-        .collect::<HashSet<_>>();
-    let line_feed_matches = buffer
-        .current
-        .text
-        .match_indices('\n')
-        .map(|(idx, _)| DocByteOffset(idx))
-        .filter(|&byte_offset| !carriage_return_matches.contains(&(byte_offset - 1)));
-
-    let mut newline_matches = Vec::new();
-    newline_matches.extend(line_feed_matches);
-    newline_matches.extend(carriage_return_matches);
-    newline_matches.sort();
-
-    let mut prev_char_offset = DocCharOffset(0);
-    for byte_offset in newline_matches {
-        let char_offset = buffer.current.segs.offset_to_char(byte_offset);
-
-        // note: paragraphs can be empty
-        result.push((prev_char_offset, char_offset));
-
-        prev_char_offset = char_offset + 1 // skip the matched newline;
-    }
-    result.push((prev_char_offset, buffer.current.segs.last_cursor_position()));
-
-    result
-}
-
-pub fn calc_text(
-    ast: &Ast, ast_ranges: &AstTextRanges, appearance: &Appearance, segs: &UnicodeSegs,
-    selection: (DocCharOffset, DocCharOffset), selecting: bool, capture: &CaptureState,
-) -> Text {
-    let mut result = vec![];
-    let mut last_range_pushed = false;
-    for (i, text_range) in ast_ranges.iter().enumerate() {
-        let captured = capture.captured(selection, ast, ast_ranges, i, selecting, appearance);
-
-        let this_range_pushed = if !captured {
-            // text range or uncaptured syntax range
-            result.push(text_range.range);
-            true
-        } else {
-            false
-        };
-
-        if !this_range_pushed && !last_range_pushed {
-            // empty range between captured ranges
-            result.push((text_range.range.0, text_range.range.0));
-        }
-        last_range_pushed = this_range_pushed;
+        // convert ordinal to cardinal
+        LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 }
     }
 
-    if !last_range_pushed {
-        // empty range at end of doc
-        result.push((segs.last_cursor_position(), segs.last_cursor_position()));
-    }
-    if result.is_empty() {
-        result = vec![(0.into(), 0.into())];
-    }
+    pub fn sourcepos_to_range(&self, mut sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
+        // convert (inc, inc) pair to (inc, exc) pair; this must be done before
+        // line-column conversion because end columns can be 0 and the
+        // line-column conversion subtracts by 1 to convert cardinal to ordinal,
+        // which would otherwise underflow
+        sourcepos.end.column += 1;
 
-    result
-}
+        let start = self.line_column_to_offset(sourcepos.start);
+        let end = self.line_column_to_offset(sourcepos.end);
 
-pub fn calc_links(buffer: &Buffer, text: &Text, ast: &Ast) -> PlainTextLinks {
-    let finder = {
-        let mut this = LinkFinder::new();
-        this.kinds(&[linkify::LinkKind::Url])
-            .url_must_have_scheme(false)
-            .url_can_be_iri(false); // ignore links with international characters for phishing prevention
-        this
-    };
-
-    let mut result = vec![];
-    for &text_range in text {
-        'spans: for span in finder.spans(&buffer[text_range]) {
-            let text_range_bytes = buffer.current.segs.range_to_byte(text_range);
-            let link_range_bytes =
-                (text_range_bytes.0 + span.start(), text_range_bytes.0 + span.end());
-            let link_range = buffer.current.segs.range_to_char(link_range_bytes);
-
-            if span.kind().is_none() {
-                continue;
-            }
-
-            let link_text = if buffer[link_range].contains("://") {
-                buffer[link_range].to_string()
-            } else {
-                format!("http://{}", &buffer[link_range])
-            };
-
-            match TldExtractor::new(TldOption::default()).extract(&link_text) {
-                Ok(tld) => {
-                    // the last one of these must be a top level domain
-                    if let Some(ref d) = tld.suffix {
-                        if !tld::exist(d) {
-                            continue;
-                        }
-                    } else if let Some(ref d) = tld.domain {
-                        if !tld::exist(d) {
-                            continue;
-                        }
-                    } else if let Some(ref d) = tld.subdomain {
-                        if !tld::exist(d) {
-                            continue;
-                        }
-                    }
-                }
-                Err(_) => {
-                    continue;
-                }
-            }
-
-            // ignore links in code blocks because field references or method invocations can look like URLs
-            for node in &ast.nodes {
-                let node_type_ignores_links = node.node_type.node_type()
-                    == MarkdownNodeType::Block(BlockNodeType::Code)
-                    || node.node_type.node_type() == MarkdownNodeType::Inline(InlineNodeType::Code);
-                if node_type_ignores_links && node.range.intersects(&link_range, false) {
-                    continue 'spans;
-                }
-            }
-
-            result.push(link_range);
-        }
+        (start, end)
     }
 
-    result
+    pub fn range_to_sourcepos(&self, range: (DocCharOffset, DocCharOffset)) -> Sourcepos {
+        let start = self.offset_to_line_column(range.0);
+        let mut end = self.offset_to_line_column(range.1);
+
+        // convert (inc, exc) pair to (inc, inc) pair; this must be done after
+        // offset conversion because the sourcepos representation demands that
+        // the end column be at a zero position of a following line instead of
+        // an end position of a prior line when the offset is at the end of a
+        // line
+        end.column -= 1;
+
+        Sourcepos { start, end }
+    }
 }
 
 impl Bounds {
@@ -331,11 +172,12 @@ impl Bounds {
             .map(|(idx, _)| idx)
     }
 
-    pub fn ast_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
-        self.ast.iter().map(|text_range| text_range.range).collect()
-    }
+    // pub fn ast_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
+    //     self.ast.iter().map(|text_range| text_range.range).collect()
+    // }
 }
 
+#[derive(Debug)]
 pub enum BoundCase {
     /// There are no ranges to contextualize the position.
     ///
@@ -409,7 +251,9 @@ pub trait BoundExt {
     ) -> Option<(Self, Self)>
     where
         Self: Sized;
-    fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)>
+    fn char_bound(
+        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
+    ) -> Option<(Self, Self)>
     where
         Self: Sized;
     fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
@@ -433,20 +277,20 @@ impl BoundExt for DocCharOffset {
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
             Bound::Char => {
-                return self.char_bound(backwards, jump, &bounds.text);
+                return self.char_bound(backwards, jump, &bounds.paragraphs);
             }
             Bound::Word => &bounds.words,
-            Bound::Line => &bounds.lines,
+            Bound::Line => &bounds.wrap_lines,
             Bound::Paragraph => &bounds.paragraphs,
             Bound::Doc => {
                 return Some((
                     bounds
-                        .text
+                        .paragraphs
                         .first()
                         .map(|(start, _)| *start)
                         .unwrap_or(DocCharOffset(0)),
                     bounds
-                        .text
+                        .paragraphs
                         .last()
                         .map(|(_, end)| *end)
                         .unwrap_or(DocCharOffset(0)),
@@ -506,8 +350,10 @@ impl BoundExt for DocCharOffset {
     /// If a range is returned, it's either a single unicode character or a nonempty range between rendered text. If
     /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
     /// return the first or last character in the doc.
-    fn char_bound(self, backwards: bool, jump: bool, text: &Text) -> Option<(Self, Self)> {
-        match self.bound_case(text) {
+    fn char_bound(
+        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
+    ) -> Option<(Self, Self)> {
+        match self.bound_case(paragraphs) {
             BoundCase::NoRanges => None, // never happens because we always have at least one text range
             BoundCase::AtFirstRangeStart { first_range, range_after } => {
                 if backwards && jump {
@@ -546,9 +392,22 @@ impl BoundExt for DocCharOffset {
             }
             BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
                 if backwards ^ !jump {
-                    Some((range_before.end(), self))
+                    if self == range_before.end() {
+                        // assumes we don't have multiple empty ranges on top of
+                        // each other, which falls under the broader assumption
+                        // that we have no duplicate ranges...
+                        Some((range_before.end() - 1, range_before.end()))
+                    } else {
+                        Some((range_before.end(), self))
+                    }
                 } else {
-                    Some((self, range_after.start()))
+                    #[allow(clippy::collapsible_else_if)]
+                    if self == range_after.start() {
+                        // ...same assumption here
+                        Some((range_after.start(), range_after.start() + 1))
+                    } else {
+                        Some((self, range_after.start()))
+                    }
                 }
             }
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => {
@@ -631,16 +490,12 @@ impl BoundExt for DocCharOffset {
 
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self {
         if let Some(range) = self.range_bound(bound, backwards, jump, bounds) {
+            if backwards { range.start() } else { range.end() }
+        } else if !bounds.paragraphs.is_empty() {
             if backwards {
-                range.start()
+                bounds.paragraphs[0].start()
             } else {
-                range.end()
-            }
-        } else if !bounds.text.is_empty() {
-            if backwards {
-                bounds.text[0].start()
-            } else {
-                bounds.text[bounds.text.len() - 1].end()
+                bounds.paragraphs[bounds.paragraphs.len() - 1].end()
             }
         } else {
             self
@@ -706,11 +561,7 @@ where
             } else if offset > range.start() && offset < range.end() {
                 Ordering::Equal
             } else if offset == range.end() {
-                if end_inclusive {
-                    Ordering::Equal
-                } else {
-                    Ordering::Less
-                }
+                if end_inclusive { Ordering::Equal } else { Ordering::Less }
             } else if offset > range.end() {
                 Ordering::Less
             } else {
@@ -770,21 +621,6 @@ where
     }
 }
 
-pub fn join<const N: usize>(ranges: [&[(DocCharOffset, DocCharOffset)]; N]) -> RangeJoinIter<N> {
-    let mut result = RangeJoinIter {
-        ranges,
-        in_range: [false; N],
-        current: [None; N],
-        current_end: Some(0.into()),
-    };
-    for (idx, range) in ranges.iter().enumerate() {
-        if !range.is_empty() {
-            result.current[idx] = Some(0);
-        }
-    }
-    result
-}
-
 pub struct RangeJoinIter<'r, const N: usize> {
     ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
     in_range: [bool; N],
@@ -792,7 +628,7 @@ pub struct RangeJoinIter<'r, const N: usize> {
     current_end: Option<DocCharOffset>,
 }
 
-impl<const N: usize> Iterator for RangeJoinIter<'_, N> {
+impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
     type Item = ([Option<usize>; N], (DocCharOffset, DocCharOffset));
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -878,69 +714,41 @@ impl<const N: usize> Iterator for RangeJoinIter<'_, N> {
     }
 }
 
-/// splits a range into pieces, each of which is contained in one of the ranges in `into_ranges`
-pub fn split<const N: usize>(
-    range_to_split: (DocCharOffset, DocCharOffset),
-    into_ranges: [&[(DocCharOffset, DocCharOffset)]; N],
-) -> Vec<(DocCharOffset, DocCharOffset)> {
-    let mut result = Vec::new();
-    for (indexes, into_range) in join(into_ranges) {
-        if indexes.iter().any(|&idx| idx.is_none()) {
-            // must be in a range for each splitting range
-            continue;
-        }
-
-        // must have a nonzero intersection
-        let intersection = (
-            into_range.start().max(range_to_split.start()),
-            into_range.end().min(range_to_split.end()),
-        );
-        if intersection.0 < intersection.1 {
-            // return the intersection
-            result.push(intersection);
-        }
-    }
-    result
-}
-
 impl Editor {
     pub fn print_bounds(&self) {
-        self.print_ast_bounds();
         self.print_words_bounds();
-        self.print_lines_bounds();
+        self.print_wrap_lines_bounds();
+        self.print_source_lines_bounds();
         self.print_paragraphs_bounds();
-        self.print_text_bounds();
-        self.print_links_bounds();
-    }
-
-    pub fn print_ast_bounds(&self) {
-        println!(
-            "ast: {:?}",
-            self.ranges_text(&self.bounds.ast.iter().map(|r| r.range).collect::<Vec<_>>())
-        );
+        self.print_inline_paragraphs_bounds();
     }
 
     pub fn print_words_bounds(&self) {
+        println!("words: {:?}", self.bounds.words);
         println!("words: {:?}", self.ranges_text(&self.bounds.words));
     }
 
-    pub fn print_lines_bounds(&self) {
-        println!("lines: {:?}", self.ranges_text(&self.bounds.lines));
+    pub fn print_wrap_lines_bounds(&self) {
+        println!("wrap lines: {:?}", self.bounds.wrap_lines);
+        println!("wrap lines: {:?}", self.ranges_text(&self.bounds.wrap_lines));
+    }
+
+    pub fn print_source_lines_bounds(&self) {
+        println!("source lines: {:?}", self.bounds.source_lines);
+        println!("source lines: {:?}", self.ranges_text(&self.bounds.source_lines));
     }
 
     pub fn print_paragraphs_bounds(&self) {
+        println!("paragraphs: {:?}", self.bounds.paragraphs);
         println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
     }
 
-    pub fn print_text_bounds(&self) {
-        println!("text: {:?}", self.ranges_text(&self.bounds.text));
+    pub fn print_inline_paragraphs_bounds(&self) {
+        println!("inline paragraphs: {:?}", self.bounds.inline_paragraphs);
+        println!("inline paragraphs: {:?}", self.ranges_text(&self.bounds.inline_paragraphs));
     }
 
-    pub fn print_links_bounds(&self) {
-        println!("links: {:?}", self.ranges_text(&self.bounds.links));
-    }
-
-    fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
+    pub fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
         ranges
             .iter()
             .map(|&range| self.buffer[range].to_string())
@@ -950,10 +758,13 @@ impl Editor {
 
 #[cfg(test)]
 mod test {
+    use comrak::nodes::{LineColumn, Sourcepos};
     use lb_rs::model::text::offset_types::DocCharOffset;
 
-    use super::{join, Bounds, RangesExt};
-    use crate::tab::markdown_editor::{bounds::BoundExt as _, input::Bound};
+    use super::Bounds;
+    use crate::tab::markdown_editor::Editor;
+    use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
+    use crate::tab::markdown_editor::input::Bound;
 
     #[test]
     fn range_before_after_no_ranges() {
@@ -1835,429 +1646,6 @@ mod test {
     }
 
     #[test]
-    fn char_bound_no_ranges() {
-        let bounds = Bounds::default();
-
-        assert_eq!(DocCharOffset(0).char_bound(false, false, &bounds.text), None);
-        assert_eq!(DocCharOffset(0).char_bound(true, false, &bounds.text), None);
-        assert_eq!(DocCharOffset(0).char_bound(false, true, &bounds.text), None);
-        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds.text), None);
-    }
-
-    #[test]
-    fn char_bound_disjoint() {
-        let bounds = Bounds {
-            text: vec![(1, 3), (5, 7), (9, 11)]
-                .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
-                .collect(),
-            ..Default::default()
-        };
-
-        assert_eq!(
-            DocCharOffset(0).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(1).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(2).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(3).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(4).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(5).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(6).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(5), DocCharOffset(6)))
-        );
-        assert_eq!(
-            DocCharOffset(7).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(6), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(8).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(9).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(10).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
-        );
-        assert_eq!(
-            DocCharOffset(11).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(12).char_bound(false, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-
-        assert_eq!(
-            DocCharOffset(0).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(1).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(2).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(3).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(4).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(5).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(5), DocCharOffset(6)))
-        );
-        assert_eq!(
-            DocCharOffset(6).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(6), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(7).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(8).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(9).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
-        );
-        assert_eq!(
-            DocCharOffset(10).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(11).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(12).char_bound(true, false, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-
-        assert_eq!(
-            DocCharOffset(0).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(1).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(2).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(3).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(4).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(5).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(5), DocCharOffset(6)))
-        );
-        assert_eq!(
-            DocCharOffset(6).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(6), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(7).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(8).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(9).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
-        );
-        assert_eq!(
-            DocCharOffset(10).char_bound(false, true, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-        assert_eq!(DocCharOffset(11).char_bound(false, true, &bounds.text), None);
-        assert_eq!(DocCharOffset(12).char_bound(false, true, &bounds.text), None);
-
-        assert_eq!(DocCharOffset(0).char_bound(true, true, &bounds.text), None);
-        assert_eq!(DocCharOffset(1).char_bound(true, true, &bounds.text), None);
-        assert_eq!(
-            DocCharOffset(2).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(1), DocCharOffset(2)))
-        );
-        assert_eq!(
-            DocCharOffset(3).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(2), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(4).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(5).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(6).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(5), DocCharOffset(6)))
-        );
-        assert_eq!(
-            DocCharOffset(7).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(6), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(8).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(9).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(7), DocCharOffset(9)))
-        );
-        assert_eq!(
-            DocCharOffset(10).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(9), DocCharOffset(10)))
-        );
-        assert_eq!(
-            DocCharOffset(11).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(12).char_bound(true, true, &bounds.text),
-            Some((DocCharOffset(10), DocCharOffset(11)))
-        );
-    }
-
-    #[test]
-    fn advance_to_next_bound_disjoint_char() {
-        let bounds = Bounds {
-            text: vec![(1, 3), (5, 7), (9, 11)]
-                .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
-                .collect(),
-            ..Default::default()
-        };
-
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(6)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(10)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(11)
-        );
-
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(6)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(10)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(10)
-        );
-    }
-
-    #[test]
-    fn advance_to_next_bound_contiguous_char() {
-        let bounds = Bounds {
-            text: vec![(1, 3), (3, 5), (5, 7)]
-                .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
-                .collect(),
-            ..Default::default()
-        };
-
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(4)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(6)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Char, false, &bounds),
-            DocCharOffset(7)
-        );
-
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(2)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(4)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(6)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Char, true, &bounds),
-            DocCharOffset(6)
-        );
-    }
-
-    #[test]
     fn find_containing() {
         let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
             (1.into(), 3.into()),
@@ -2338,33 +1726,34 @@ mod test {
     }
 
     #[test]
-    fn range_join_iter_empty() {
-        let a: Vec<(DocCharOffset, DocCharOffset)> = vec![];
-        let b: Vec<(DocCharOffset, DocCharOffset)> = vec![];
-        let c: Vec<(DocCharOffset, DocCharOffset)> = vec![];
+    fn sourcepos_to_range_fenced_code_block() {
+        let text = "```\nfn main() {}\n```";
+        let mut md = Editor::test(text);
+        md.calc_source_lines();
 
-        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+        let sourcepos = Sourcepos {
+            start: LineColumn { line: 1, column: 1 },
+            end: LineColumn { line: 3, column: 3 },
+        };
+        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
 
-        assert_eq!(result, &[]);
+        assert_eq!(md.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.range_to_sourcepos(range), sourcepos);
     }
 
     #[test]
-    fn range_join_iter() {
-        let a = vec![(0.into(), 10.into())];
-        let b = vec![(0.into(), 5.into()), (5.into(), 5.into()), (5.into(), 10.into())];
-        let c = vec![(3.into(), 7.into())];
+    fn sourcepos_to_range_unclosed_fenced_code_block() {
+        let text = "```\n";
+        let mut md = Editor::test(text);
+        md.calc_source_lines();
 
-        let result = join([&a, &b, &c]).collect::<Vec<_>>();
+        let sourcepos = Sourcepos {
+            start: LineColumn { line: 1, column: 1 },
+            end: LineColumn { line: 2, column: 0 },
+        };
+        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
 
-        assert_eq!(
-            result,
-            &[
-                ([Some(0), Some(0), None], (0.into(), 3.into())),
-                ([Some(0), Some(0), Some(0)], (3.into(), 5.into())),
-                ([Some(0), Some(1), Some(0)], (5.into(), 5.into())),
-                ([Some(0), Some(2), Some(0)], (5.into(), 7.into())),
-                ([Some(0), Some(2), None], (7.into(), 10.into())),
-            ]
-        )
+        assert_eq!(md.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.range_to_sourcepos(range), sourcepos);
     }
 }

@@ -2,7 +2,7 @@ use super::offset_types::DocCharOffset;
 
 /// Buffer operation optimized for simplicity. Used in buffer's interface and internals to represent a building block
 /// of text manipulation with support for undo/redo and collaborative editing.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Operation {
     Select((DocCharOffset, DocCharOffset)),
     Replace(Replace),
@@ -16,7 +16,7 @@ pub struct InverseOperation {
     pub replace: Option<Replace>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Replace {
     pub range: (DocCharOffset, DocCharOffset),
     pub text: String,

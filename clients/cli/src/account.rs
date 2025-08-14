@@ -1,12 +1,11 @@
-use std::{io, str::FromStr};
+use std::io;
+use std::str::FromStr;
 
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
-use lb_rs::model::{
-    api::{PaymentMethod, PaymentPlatform, StripeAccountTier},
-    work_unit::WorkUnit,
-};
+use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
+use lb_rs::model::work_unit::WorkUnit;
 
 use crate::{core, ensure_account, input};
 
@@ -84,7 +83,7 @@ pub async fn subscribe() -> Result<(), CliError> {
 
     let mut use_old_card = false;
     if let Some(card) = existing_card {
-        let answer: String = input::std_in(format!("do you want use *{}? [y/n]: ", card))?;
+        let answer: String = input::std_in(format!("do you want use *{card}? [y/n]: "))?;
         if answer == "y" || answer == "Y" {
             use_old_card = true;
         }
@@ -157,15 +156,15 @@ pub async fn status() -> Result<(), CliError> {
     if let Some(info) = lb.get_subscription_info().await? {
         match info.payment_platform {
             PaymentPlatform::Stripe { card_last_4_digits } => {
-                println!("type: Stripe, *{}", card_last_4_digits)
+                println!("type: Stripe, *{card_last_4_digits}")
             }
             PaymentPlatform::GooglePlay { account_state } => {
                 println!("type: Google Play");
-                println!("state: {:?}", account_state);
+                println!("state: {account_state:?}");
             }
             PaymentPlatform::AppStore { account_state } => {
                 println!("type: App Store");
-                println!("state: {:?}", account_state);
+                println!("state: {account_state:?}");
             }
         }
         println!("renews on: {}", info.period_end);

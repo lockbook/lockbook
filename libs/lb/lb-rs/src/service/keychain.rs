@@ -1,7 +1,5 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
 use crate::{
     model::{
@@ -11,6 +9,7 @@ use crate::{
     },
     LbServer,
 };
+use crate::Lb;
 use libsecp256k1::PublicKey;
 use serde::{ser::SerializeMap, Deserialize, Deserializer, Serialize, Serializer};
 use tokio::sync::OnceCell;

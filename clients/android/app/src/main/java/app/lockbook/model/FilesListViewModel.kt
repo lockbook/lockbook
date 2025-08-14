@@ -21,7 +21,7 @@ import net.lockbook.LbError.LbEC
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
+    internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
 
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
@@ -115,35 +115,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private suspend fun maybeToggleSuggestedDocs() {
+    suspend fun maybeToggleSuggestedDocs() {
         val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
         if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
             isSuggestedDocsVisible = newIsSuggestedDocsVisible
             withContext(Dispatchers.Main) {
                 _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleSuggestedDocsVisibility(isSuggestedDocsVisible)
-            }
-        }
-    }
-
-    fun generateQuickNote(workspaceModel: WorkspaceViewModel) {
-        viewModelScope.launch(Dispatchers.IO) {
-            var iter = 0
-            var fileName: String
-
-            do {
-                iter++
-                fileName = "${getString(R.string.note)}-$iter.md"
-            } while (fileModel.children.any { it.name == fileName })
-
-            try {
-                val newFile = Lb.createFile(fileName, fileModel.parent.id, true)
-                withContext(Dispatchers.Main) {
-                    workspaceModel._openFile.postValue(Pair(newFile.id, true))
-                }
-
-                refreshFiles()
-            } catch (err: LbError) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
     }

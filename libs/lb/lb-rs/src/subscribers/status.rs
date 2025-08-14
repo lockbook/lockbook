@@ -1,4 +1,5 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -12,6 +13,7 @@ use crate::{
     service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
     LbServer,
 };
+use crate::Lb;
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -91,7 +93,7 @@ impl Status {
             }
 
             if let Some(last_synced) = &self.sync_status {
-                return Some(format!("Offline, last synced: {}", last_synced));
+                return Some(format!("Offline, last synced: {last_synced}"));
             }
 
             return Some("Offline.".to_string());
@@ -115,7 +117,7 @@ impl Status {
         }
 
         if let Some(last_synced) = &self.sync_status {
-            return Some(format!("Last synced: {}", last_synced));
+            return Some(format!("Last synced: {last_synced}"));
         }
 
         None

@@ -138,7 +138,7 @@ impl FromStr for FileType {
 
 impl fmt::Display for FileType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -220,15 +220,13 @@ impl<F: FileLike> FileDiff<F> {
         }
     }
 
-    pub fn new(new: &F) -> Self {
+    pub fn new(new: F) -> Self {
         let old = None;
-        let new = new.clone();
         Self { old, new }
     }
 
-    pub fn edit(old: &F, new: &F) -> Self {
-        let old = Some(old.clone());
-        let new = new.clone();
+    pub fn edit(old: F, new: F) -> Self {
+        let old = Some(old);
         Self { old, new }
     }
 }

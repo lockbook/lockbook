@@ -11,7 +11,7 @@ use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
-use prometheus::{register_int_gauge_vec, IntGaugeVec};
+use prometheus::{IntGaugeVec, register_int_gauge_vec};
 use prometheus_static_metric::make_static_metric;
 use std::fmt::Debug;
 use tracing::*;
@@ -142,8 +142,8 @@ where
                         match billing_info.billing_platform {
                             None => {
                                 return Err(internal!(
-                        "Could not retrieve billing platform although it was used moments before."
-                    ));
+                                    "Could not retrieve billing platform although it was used moments before."
+                                ));
                             }
                             Some(billing_platform) => match billing_platform {
                                 BillingPlatform::GooglePlay { .. } => {
@@ -183,6 +183,7 @@ where
                 .with_label_values(&[APP_STORE_LABEL_NAME])
                 .set(premium_app_store_users);
 
+            info!("metrics refresh finished");
             tokio::time::sleep(self.config.metrics.time_between_metrics_refresh).await;
         }
     }
@@ -245,7 +246,7 @@ where
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
 
-        let total_bytes: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())
+        let total_bytes: u64 = Self::get_usage_helper(&mut tree)
             .unwrap_or_default()
             .iter()
             .map(|f| f.size_bytes)

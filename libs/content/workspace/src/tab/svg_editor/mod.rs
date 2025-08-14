@@ -19,28 +19,22 @@ use crate::workspace::WsPersistentStore;
 
 use element::PromoteBufferWeakImages;
 pub use eraser::Eraser;
-pub use history::DeleteElement;
-pub use history::Event;
-pub use history::InsertElement;
+pub use history::{DeleteElement, Event, InsertElement};
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::model::svg::buffer::u_transform_to_bezier;
-use lb_rs::model::svg::buffer::Buffer;
+use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::Element;
-use lb_rs::Uuid;
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use pen::PenSettings;
 use renderer::Renderer;
 use resvg::usvg::Transform;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
-use toolbar::ToolContext;
-use toolbar::ToolbarContext;
-use tracing::span;
-use tracing::Level;
+use toolbar::{ToolContext, ToolbarContext};
+use tracing::{Level, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -66,12 +60,11 @@ pub struct SVGEditor {
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
-    /// the drawable rect in the master-transformed plane.
+    /// the drawable rect in the viewport-transformed plane.
     /// **only defined if there's a lock**
     pub bounded_rect: Option<egui::Rect>,
     /// the intersection of the bounded rect and the current screen rect  
     pub working_rect: egui::Rect,
-    /// a transform applied on the none master-transformed plane  
     pub viewport_transform: Option<Transform>,
     pub master_transform: Transform,
     container_rect: egui::Rect,
@@ -109,6 +102,7 @@ pub struct CanvasSettings {
     pub bottom_locked: bool,
     pub top_locked: bool,
     pub pen: PenSettings,
+    pub show_mini_map: bool,
 }
 
 impl Default for CanvasSettings {
@@ -121,6 +115,7 @@ impl Default for CanvasSettings {
             top_locked: false,
             pen: PenSettings::default_pen(),
             background_type: BackgroundOverlay::default(),
+            show_mini_map: true,
         }
     }
 }
@@ -215,10 +210,17 @@ impl SVGEditor {
             .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
         self.show_toolbar(ui);
+
+        for (_, el) in &mut self.buffer.elements {
+            match el {
+                Element::Path(p) => p.diff_state = DiffState::default(),
+                Element::Image(i) => i.diff_state = DiffState::default(),
+                Element::Text(_) => todo!(),
+            }
+        }
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
-        self.viewport_settings.update_working_rect();
 
         self.paint_background_colors(ui);
         ui.set_clip_rect(self.viewport_settings.working_rect);
@@ -229,6 +231,12 @@ impl SVGEditor {
         if cfg!(debug_assertions) {
             self.show_debug_info(ui);
         }
+        self.viewport_settings.update_working_rect(
+            self.settings,
+            &self.buffer,
+            &global_diff,
+            self.toolbar.hide_overlay,
+        );
 
         if non_empty_weak_imaegs {
             self.has_queued_save_request = true;
@@ -250,14 +258,6 @@ impl SVGEditor {
             } else {
                 false
             };
-
-        for (_, el) in &mut self.buffer.elements {
-            match el {
-                Element::Path(p) => p.diff_state = DiffState::default(),
-                Element::Image(i) => i.diff_state = DiffState::default(),
-                Element::Text(_) => todo!(),
-            }
-        }
 
         self.buffer.master_transform_changed = false;
         Response { request_save: needs_save_and_frame_is_cheap }

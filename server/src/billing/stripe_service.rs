@@ -1,7 +1,6 @@
 use crate::billing::billing_model::StripeUserInfo;
 use crate::document_service::DocumentService;
-use crate::StripeWebhookError;
-use crate::{ClientError, ServerError, ServerState};
+use crate::{ClientError, ServerError, ServerState, StripeWebhookError};
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
 use lb_rs::model::api::{
@@ -102,9 +101,9 @@ where
                 };
 
                 info!(
-                ?owner,
-                "Creating a setup intent to confirm a users payment method for their subscription"
-            );
+                    ?owner,
+                    "Creating a setup intent to confirm a users payment method for their subscription"
+                );
 
                 let setup_intent_resp = self
                     .stripe_client
@@ -184,13 +183,12 @@ where
         &self, request_body: &Bytes, stripe_sig: HeaderValue,
     ) -> Result<Event, ServerError<StripeWebhookError>> {
         let payload = std::str::from_utf8(request_body).map_err(|e| {
-            ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {:?}", e)))
+            ClientError(StripeWebhookError::InvalidBody(format!("Cannot get body as str: {e:?}")))
         })?;
 
         let sig = stripe_sig.to_str().map_err(|e| {
             ClientError(StripeWebhookError::InvalidHeader(format!(
-                "Cannot get header as str: {:?}",
-                e
+                "Cannot get header as str: {e:?}"
             )))
         })?;
 

@@ -1,23 +1,25 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
 use std::cmp;
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
 use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
-use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
+use workspace_rs::tab::markdown_editor::input::{
+    Bound, Event, Increment, Offset, Region, mutation,
+};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
-use workspace_rs::tab::{ContentState, ExtendedInput as _};
+use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
 
 use super::super::response::*;
 use super::response::*;
-use crate::apple::keyboard::UIKeys;
 use crate::WgpuWorkspace;
+use crate::apple::keyboard::UIKeys;
 
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 #[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
@@ -37,7 +39,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 
     if content == "\n" {
         obj.context
-            .push_markdown_event(Event::Newline { advance_cursor: true });
+            .push_markdown_event(Event::Newline { shift: false });
     } else if content == "\t" {
         obj.context
             .push_markdown_event(Event::Indent { deindent: false });
@@ -90,7 +92,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
     let region: Option<Region> = range.into();
     if let Some(region) = region {
         obj.context
-            .push_markdown_event(Event::Replace { region, text });
+            .push_markdown_event(Event::Replace { region, text, advance_cursor: true });
     }
 }
 
@@ -549,8 +551,6 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 
     let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
 
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -576,8 +576,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect)
     };
 
-    let start_line = cursor::line(selection_representing_rect.start(), galleys, text, appearance);
-    let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
+    let start_line = markdown.cursor_line(selection_representing_rect.start());
+    let end_line = markdown.cursor_line(selection_representing_rect.end());
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -613,16 +613,10 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
 
-    let offset = mutation::pos_to_char_offset(
-        Pos2 { x: point.x as f32, y: point.y as f32 },
-        galleys,
-        segs,
-        text,
-    );
+    let offset =
+        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -653,11 +647,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
-
-    let line = cursor::line(pos.pos.into(), galleys, text, appearance);
+    let line = markdown.cursor_line(pos.pos.into());
 
     CRect {
         min_x: line[0].x as f64,
@@ -692,9 +682,6 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
     let bounds = &markdown.bounds;
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -708,9 +695,9 @@ pub unsafe extern "C" fn selection_rects(
 
     let mut selection_rects = vec![];
 
-    let lines = bounds.lines.find_intersecting(range, false);
+    let lines = bounds.wrap_lines.find_intersecting(range, false);
     for line in lines.iter() {
-        let mut line = bounds.lines[line];
+        let mut line = bounds.wrap_lines[line];
         if line.0 < range.start() {
             line.0 = range.start();
         }
@@ -721,8 +708,8 @@ pub unsafe extern "C" fn selection_rects(
             continue;
         }
 
-        let start_line = cursor::line(line.0, galleys, text, appearance);
-        let end_line = cursor::line(line.1, galleys, text, appearance);
+        let start_line = markdown.cursor_line(line.0);
+        let end_line = markdown.cursor_line(line.1);
         selection_rects.push(CRect {
             min_x: (start_line[1].x) as f64,
             min_y: start_line[0].y as f64,

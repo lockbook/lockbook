@@ -5,22 +5,21 @@ use crate::billing::stripe_client::StripeClient;
 use crate::config::Config;
 use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
-use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
+use crate::{ServerError, ServerState, handle_version_header, router_service, verify_auth};
 use lazy_static::lazy_static;
-use lb_rs::model::api::*;
-use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
+use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
-    register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
+    CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::*;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
-use warp::{reject, Filter, Rejection};
+use warp::{Filter, Rejection, reject};
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -191,7 +190,9 @@ macro_rules! core_req {
 
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -200,7 +201,9 @@ where
 {
     core_req!(NewAccountRequest, ServerState::new_account, server_state)
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
+        .or(core_req!(ChangeDocRequestV2, ServerState::change_doc_v2, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
+        .or(core_req!(UpsertRequestV2, ServerState::upsert_file_metadata_v2, server_state))
         .or(core_req!(GetDocRequest, ServerState::get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, ServerState::get_public_key, server_state))
         .or(core_req!(GetUsernameRequest, ServerState::get_username, server_state))
@@ -292,7 +295,9 @@ static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 
 pub fn stripe_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -312,7 +317,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{STRIPE_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -346,7 +351,9 @@ static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 
 pub fn google_play_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -368,7 +375,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", PLAY_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{PLAY_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -408,7 +415,9 @@ where
 static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
 pub fn app_store_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -426,7 +435,7 @@ where
                 Level::INFO,
                 "matched_request",
                 method = "POST",
-                route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str()
+                route = format!("/{APP_STORE_WEBHOOK_ROUTE}").as_str()
             );
             let _enter = span.enter();
             info!("webhook routed");
@@ -456,11 +465,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
     warp::method()
         .and(warp::any().map(move || name.clone()))
         .and_then(|request: Method, intention: Method| async move {
-            if request == intention {
-                Ok(())
-            } else {
-                Err(reject::not_found())
-            }
+            if request == intention { Ok(()) } else { Err(reject::not_found()) }
         })
         .untuple_one()
 }

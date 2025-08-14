@@ -1,8 +1,9 @@
+use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::account::Username;
 use crate::model::api::*;
-use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
 use crate::LbServer;
+use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use uuid::Uuid;
 
 impl LbServer {

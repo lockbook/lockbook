@@ -11,6 +11,10 @@ class BillingState: ObservableObject {
     
     var purchaseState: PurchaseState = .uninitiated
     
+    init() {
+        processPendingTransactions()
+    }
+    
     func processPendingTransactions() {
         processPending = Task.detached { [self] in
             await self.listenToTransactions()
@@ -46,7 +50,7 @@ class BillingState: ObservableObject {
             return
         }
         
-        guard case .success(nil) = AppState.lb.getSubscriptionInfo() else {
+        if case .success(.some(let info)) = AppState.lb.getSubscriptionInfo(), info.isPremium() == true {
             return
         }
         

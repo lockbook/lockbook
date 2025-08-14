@@ -1,7 +1,7 @@
 use std::num::NonZeroUsize;
 use std::thread;
 
-use futures::{stream, StreamExt};
+use futures::{StreamExt, stream};
 
 use crate::model::file_metadata::Owner;
 use crate::model::filename::DocumentType;
@@ -9,6 +9,7 @@ use crate::model::tree_like::TreeLike;
 
 use crate::model::errors::{LbErrKind, LbResult, Warning};
 use crate::LbServer;
+use crate::Lb;
 
 impl LbServer {
     #[instrument(level = "debug", skip(self), err(Debug))]

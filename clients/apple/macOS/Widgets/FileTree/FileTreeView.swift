@@ -42,6 +42,7 @@ struct FileTreeView: NSViewRepresentable {
         treeView.outlineTableColumn = column
         
         scrollView.documentView = treeView
+        
         return scrollView
     }
     
@@ -68,22 +69,7 @@ struct FileTreeView: NSViewRepresentable {
                     return
                 }
                 
-                guard let selectedFolder else {
-                    return
-                }
-                
-                guard let file = try? AppState.lb.getFile(id: selectedFolder).get() else {
-                    return
-                }
-                
-                guard let treeView else {
-                    return
-                }
-                
-                self?.expandToFile(treeView: treeView, file: file)
-                let row = treeView.row(forItem: file)
-                treeView.selectRowIndexes([row], byExtendingSelection: false)
-                treeView.animator().scrollRowToVisible(row)
+                self?.selectAndReveal(selected: selectedFolder, treeView: treeView)
             }
             .store(in: &cancellables)
             
@@ -92,30 +78,44 @@ struct FileTreeView: NSViewRepresentable {
                     self?.delegate.supressNextOpenDoc = false
                     return
                 }
-                
-                guard let openDoc else {
-                    return
-                }
-                
-                guard let file = try? AppState.lb.getFile(id: openDoc).get() else {
-                    return
-                }
-                
-                guard let treeView else {
-                    return
-                }
-                
-                self?.expandToFile(treeView: treeView, file: file)
-                let row = treeView.row(forItem: file)
-                treeView.selectRowIndexes([row], byExtendingSelection: false)
-                treeView.animator().scrollRowToVisible(row)
+                                
+                self?.selectAndReveal(selected: openDoc, treeView: treeView)
             }
             .store(in: &cancellables)
             
-            filesModel.$files.sink { _ in
+            filesModel.$files.sink { [weak treeView] _ in
+                guard let treeView else { return }
+                
+                let selectedId = {
+                    let ids = treeView.selectedRowIndexes.compactMap { row in
+                        (treeView.item(atRow: row) as? File)?.id
+                    }
+                    
+                    return ids.count == 1 ? ids[0] : nil
+                }()
+                
                 treeView.reloadData()
+                
+                guard let selectedId else { return }
+                
+                guard let file = try? AppState.lb.getFile(id: selectedId).get() else { return }
+                let row = treeView.row(forItem: file)
+                
+                treeView.selectRowIndexes([row], byExtendingSelection: false)
             }
             .store(in: &cancellables)
+        }
+        
+        func selectAndReveal(selected: UUID?, treeView: FileTreeOutlineView?) {
+            guard let selected else { return }
+            guard let treeView else { return }
+            
+            guard let file = try? AppState.lb.getFile(id: selected).get() else { return }
+            
+            self.expandToFile(treeView: treeView, file: file)
+            let row = treeView.row(forItem: file)
+            treeView.selectRowIndexes([row], byExtendingSelection: false)
+            treeView.animator().scrollRowToVisible(row)
         }
         
         func expandToFile(treeView: FileTreeOutlineView, file: File) {
@@ -236,7 +236,7 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
     func moveDraggedFiles(treeView: NSOutlineView, newParent: UUID) {
         for file in dragged ?? [] {
             if case .failure(let err) = AppState.lb.moveFile(id: file.id, newParent: newParent) {
-                homeState.error = .lb(error: err)
+                AppState.shared.error = .lb(error: err)
                 break
             }
         }
@@ -287,11 +287,14 @@ class FileTreeOutlineView: NSOutlineView {
         guard let file = item(atRow: clickedRow) as? File else {
             return
         }
+        let delegate = (delegate as! FileTreeDelegate)
+        
+        delegate.homeState.closeWorkspaceBlockingScreens()
         
         if(file.type == .document) {
-            (delegate as! FileTreeDelegate).supressNextOpenDoc = true
+            delegate.supressNextOpenDoc = true
         } else {
-            (delegate as! FileTreeDelegate).supressnextOpenFolder = true
+            delegate.supressnextOpenFolder = true
         }
         
         guard let event = outlineView.window?.currentEvent else {
@@ -429,7 +432,8 @@ class FileItemView: NSTableCellView {
         label.isBezeled = false
         label.drawsBackground = false
         label.lineBreakMode = .byTruncatingTail
-        label.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        label.setContentHuggingPriority(.defaultHigh, for: .horizontal)
+        icon.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let stackView = NSStackView(views: [icon, label])
         stackView.orientation = .horizontal

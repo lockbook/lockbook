@@ -61,9 +61,11 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
                 },
             })
         }
-        egui::Event::Text(text) | egui::Event::Paste(text) => {
-            Some(Event::Replace { region: Region::Selection, text: text.clone() })
-        }
+        egui::Event::Text(text) | egui::Event::Paste(text) => Some(Event::Replace {
+            region: Region::Selection,
+            text: text.clone(),
+            advance_cursor: true,
+        }),
         egui::Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {
@@ -77,7 +79,7 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
         egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
             if !cfg!(target_os = "ios") =>
         {
-            Some(Event::Newline { advance_cursor: !modifiers.shift })
+            Some(Event::Newline { shift: modifiers.shift })
         }
         egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
             if !modifiers.shift && cfg!(target_os = "ios") {

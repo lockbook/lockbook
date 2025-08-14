@@ -11,12 +11,12 @@ use crate::workspace::Workspace;
 
 use chrono::DateTime;
 use egui::Id;
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
-use lb_rs::Uuid;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -156,12 +156,14 @@ impl TabsExt for Vec<Tab> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum ContentState {
     Loading(Uuid),
     Open(TabContent),
     Failed(TabFailure),
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
@@ -253,7 +255,7 @@ impl From<LbErr> for TabFailure {
     fn from(err: LbErr) -> Self {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
-            _ => Self::SimpleMisc(format!("{:?}", err)),
+            _ => Self::SimpleMisc(format!("{err:?}")),
         }
     }
 }
@@ -262,7 +264,7 @@ impl TabFailure {
     pub fn msg(&self) -> String {
         match self {
             TabFailure::SimpleMisc(msg) => msg.clone(),
-            TabFailure::Unexpected(msg) => format!("Unexpected error: {}", msg),
+            TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
         }
     }
 }
@@ -281,6 +283,7 @@ pub enum ClipContent {
     Image(Vec<u8>), // image format guessed by egui
 }
 
+#[derive(PartialEq)]
 pub enum TabStatus {
     Dirty,
     LoadQueued,
@@ -461,7 +464,7 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
 
     let file = core
         .create_file(
-            &format!("pasted_image_{}.{}", human_readable_time, file_extension),
+            &format!("pasted_image_{human_readable_time}.{file_extension}"),
             &imports_folder.id,
             FileType::Document,
         )
@@ -532,7 +535,10 @@ pub fn canonicalize_path(path: &str) -> String {
     result.to_string_lossy().to_string()
 }
 
-pub fn core_get_by_relative_path(core: &Lb, from: Uuid, path: &Path) -> Result<File, String> {
+pub fn core_get_by_relative_path<P: AsRef<Path>>(
+    core: &Lb, from: Uuid, path: P,
+) -> Result<File, String> {
+    let path = path.as_ref();
     let target_path = if path.is_relative() {
         let mut open_file_path =
             PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);

@@ -1,5 +1,5 @@
-use crate::config::Config;
 use crate::ServerError;
+use crate::config::Config;
 use async_trait::async_trait;
 use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::file_metadata::DocumentHmac;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tokio::fs::{remove_file, File};
+use tokio::fs::{File, remove_file};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
@@ -83,7 +83,7 @@ impl DocumentService for OnDiskDocuments {
         let mut path = self.config.files.path.clone();
         // we may need to truncate this
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        path.push(format!("{}-{}", id, hmac));
+        path.push(format!("{id}-{hmac}"));
         path
     }
 }

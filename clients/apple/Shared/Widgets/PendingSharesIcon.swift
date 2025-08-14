@@ -29,7 +29,7 @@ struct PendingSharesIcon: View {
                 if pendingSharesCount > 0 {
                     Circle()
                         .foregroundColor(.red)
-                        .frame(width: 12, height: 12)
+                        .frame(width: 10, height: 10)
                         .offset(x: alertOffsetX, y: alertOffsetY)
                     
                     if pendingSharesCount < 10 {
@@ -50,19 +50,19 @@ class PendingSharesIconViewModel: ObservableObject {
     @Published var pendingSharesCount: Int? = nil
     
     private var cancellables: Set<AnyCancellable> = []
-
+    private var homeState: HomeState
         
     init(homeState: HomeState) {
-        self.loadPendingSharesCount(homeState: homeState)
+        self.homeState = homeState
+        self.loadPendingSharesCount()
         
-        AppState.workspaceState.$reloadFiles.sink { [weak self] reload in
-            self?.loadPendingSharesCount(homeState: homeState)
+        AppState.lb.events.$metadataUpdated.sink { [weak self] pendingShares in
+            self?.loadPendingSharesCount()
         }
         .store(in: &cancellables)
-
     }
     
-    func loadPendingSharesCount(homeState: HomeState) {
+    func loadPendingSharesCount() {
         DispatchQueue.global(qos: .userInteractive).async {
             let res = AppState.lb.getPendingShares()
             
@@ -71,7 +71,7 @@ class PendingSharesIconViewModel: ObservableObject {
                 case .success(let shares):
                     self.pendingSharesCount = shares.count
                 case .failure(let err):
-                    homeState.error = .lb(error: err)
+                    AppState.shared.error = .lb(error: err)
                 }
             }
         }

@@ -10,15 +10,13 @@ struct StatusBarView: View {
     
     var body: some View {
         VStack {
-            Divider()
-            
             if filesModel.selectedFilesState.isSelectableState() {
                 selectedFilesOptions
             } else {
                 statusBar
             }
         }
-        .frame(height: 40, alignment: .bottom)
+        .frame(height: 50, alignment: .bottom)
     }
     
     var selectedFilesOptions: some View {
@@ -62,30 +60,21 @@ struct StatusBarView: View {
     
     var statusBar: some View {
         HStack {
-            if workspaceState.syncing {
-                ProgressView()
-            } else {
-                Button(action: {
-                    workspaceState.requestSync()
-                }) {
-                    Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
-                        .imageScale(.large)
-                        .foregroundColor(.accentColor)
-                }
-            }
-            
-            Text(workspaceState.statusMsg)
-                .font(.callout)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .padding(.leading)
+            SyncButton()
             
             Spacer()
             
+            fileActionButtons
+        }
+        .padding(.horizontal, 20)
+    }
+    
+    var fileActionButtons: some View {
+        HStack {
             if let root = filesModel.root {
                 Button(action: {
                     self.docCreateAction {
-                        filesModel.createDoc(parent: root.id, isDrawing: false)
+                        filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
                     }
                 }) {
                     Image(systemName: "doc.badge.plus")
@@ -96,7 +85,7 @@ struct StatusBarView: View {
                 
                 Button(action: {
                     self.docCreateAction {
-                        filesModel.createDoc(parent: root.id, isDrawing: true)
+                        filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: true)
                     }
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
@@ -106,7 +95,7 @@ struct StatusBarView: View {
                 .padding(.trailing, 2)
                 
                 Button(action: {
-                    homeState.sheetInfo = .createFolder(parent: root)
+                    homeState.sheetInfo = .createFolder(parent: selectedFolderOrRoot(root))
                 }) {
                     Image(systemName: "folder.badge.plus")
                         .font(.title2)
@@ -116,7 +105,6 @@ struct StatusBarView: View {
                 ProgressView()
             }
         }
-        .padding(.horizontal, 20)
     }
     
     func docCreateAction(f: () -> Void) {
@@ -125,6 +113,14 @@ struct StatusBarView: View {
         }
         
         f()
+    }
+    
+    func selectedFolderOrRoot(_ root: File) -> File {
+        guard let selectedFolder = AppState.workspaceState.selectedFolder else {
+            return root
+        }
+        
+        return filesModel.idsToFiles[selectedFolder] ?? root
     }
 }
 

@@ -44,6 +44,10 @@ impl Default for EventSubs {
 }
 
 impl EventSubs {
+    pub fn pending_shares_changed(&self) {
+        self.queue(Event::PendingSharesChanged);
+    }
+
     pub fn meta_changed(&self) {
         self.queue(Event::MetadataChanged);
     }

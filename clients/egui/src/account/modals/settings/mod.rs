@@ -4,8 +4,7 @@ mod debug_tab;
 mod general_tab;
 mod usage_tab;
 
-use std::sync::Mutex;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
@@ -49,7 +48,7 @@ impl SettingsModal {
     ) -> Self {
         let export_result = core
             .export_account_phrase()
-            .map_err(|err| format!("{:?}", err)); // TODO
+            .map_err(|err| format!("{err:?}")); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();
 
@@ -60,12 +59,12 @@ impl SettingsModal {
             move || {
                 let sub_info_result = core
                     .get_subscription_info()
-                    .map_err(|err| format!("{:?}", err)); // TODO
+                    .map_err(|err| format!("{err:?}")); // TODO
 
-                let metrics_result = core.get_usage().map_err(|err| format!("{:?}", err)); // TODO
+                let metrics_result = core.get_usage().map_err(|err| format!("{err:?}")); // TODO
                 let uncompressed_result = core
                     .get_uncompressed_usage()
-                    .map_err(|err| format!("{:?}", err)); // TODO
+                    .map_err(|err| format!("{err:?}")); // TODO
 
                 let usage_info =
                     UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
@@ -166,7 +165,7 @@ impl SettingsModal {
 
         let response = ui.interact(
             response.rect,
-            egui::Id::from(format!("tab_label_{}", text)),
+            egui::Id::from(format!("tab_label_{text}")),
             egui::Sense::click(),
         );
 

@@ -98,8 +98,7 @@ impl<'a> Context<'a> {
                     let expected_target =
                         String::from_utf8(expected_target).expect("get atom name as utf8");
                     println!(
-                        "handle selection: received data of wrong type: {} (expected {})",
-                        event_name, expected_target
+                        "handle selection: received data of wrong type: {event_name} (expected {expected_target})",
                     );
                     return Ok(());
                 }
@@ -231,7 +230,7 @@ impl Ctx<'_> {
         } else {
             let name = conn.get_atom_name(format)?.reply()?.name;
             let name = String::from_utf8(name).expect("get atom name as utf8");
-            println!("handle selection: unsupported clipboard type: {}", name);
+            println!("handle selection: unsupported clipboard type: {name}");
         }
 
         Ok(())

@@ -1,14 +1,8 @@
-use jni::{
-    objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue},
-    JNIEnv,
-};
-use lb_rs::{
-    blocking::Lb,
-    model::{
-        errors::{LbErr, LbErrKind},
-        ValidationFailure,
-    },
-};
+use jni::JNIEnv;
+use jni::objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue};
+use lb_rs::blocking::Lb;
+use lb_rs::model::ValidationFailure;
+use lb_rs::model::errors::{LbErr, LbErrKind};
 
 pub(crate) fn rstring<'local>(env: &mut JNIEnv<'local>, input: JString<'local>) -> String {
     env.get_string(&input).unwrap().to_str().unwrap().to_owned()

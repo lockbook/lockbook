@@ -1,5 +1,5 @@
-use lb_rs::model::file::ShareMode;
 use lb_rs::Lb;
+use lb_rs::model::file::ShareMode;
 use test_utils::*;
 
 /// Tests that setup one device each on two accounts, share a file from one to the other, then sync both

@@ -1,3 +1,5 @@
+use crate::Lb;
+use crate::model::ValidationFailure;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_metadata::FileType;
@@ -86,7 +88,7 @@ impl LbServer {
                     ) =>
                 {
                     tries += 1;
-                    retry_name = format!("{}-{}", name, tries);
+                    retry_name = format!("{name}-{tries}");
                 }
                 Err(err) => return Err(err),
             }

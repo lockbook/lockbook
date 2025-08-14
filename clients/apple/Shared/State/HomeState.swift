@@ -5,11 +5,11 @@ import Combine
 class HomeState: ObservableObject {
     private var cancellables: Set<AnyCancellable> = []
     
-    @Published var error: UIError? = nil
     @Published var fileActionCompleted: FileAction? = nil
     
     @Published var showSettings: Bool = false
     @Published var showPendingShares: Bool = false
+    @Published var showUpgradeAccount: Bool = false
     
     @Published var sheetInfo: FileOperationSheetInfo? = nil
     @Published var selectSheetInfo: SelectFolderAction? = nil
@@ -17,6 +17,7 @@ class HomeState: ObservableObject {
     
     @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
     @Published var showTabsSheet: Bool = false
+    @Published var showOutOfSpaceAlert: Bool = false
     
     init() {
         AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
@@ -45,16 +46,8 @@ class HomeState: ObservableObject {
     }
     
     func expandSidebarIfNoDocs() {
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.5) {
-            while AppState.workspaceState.wsHandle == nil {
-                Thread.sleep(until: .now + 0.1)
-            }
-            
-            if AppState.workspaceState.openDoc == nil {
-                DispatchQueue.main.async {
-                    self.constrainedSidebarState = .openPartial
-                }
-            }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.constrainedSidebarState = .openPartial
         }
     }
     
@@ -69,6 +62,12 @@ class HomeState: ObservableObject {
             }
         }
     }
+    
+    func closeWorkspaceBlockingScreens() {
+        showSettings = false
+        showPendingShares = false
+        showUpgradeAccount = false
+    }
 }
 
 public enum ConstrainedSidebarState {
@@ -82,11 +81,6 @@ public enum FileAction {
     case createFolder
     case importFiles
     case acceptedShare
-}
-
-enum UIError {
-    case lb(error: LbError)
-    case custom(title: String, msg: String)
 }
 
 struct TabSheetInfo: Identifiable {

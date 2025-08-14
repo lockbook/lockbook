@@ -1,4 +1,5 @@
-use lb_rs::{model::core_config::Config, Lb};
+use lb_rs::Lb;
+use lb_rs::model::core_config::Config;
 
 #[tokio::test]
 #[ignore]

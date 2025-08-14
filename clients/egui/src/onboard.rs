@@ -1,13 +1,13 @@
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 
-use egui::text::LayoutJob;
 use egui::Image;
+use egui::text::LayoutJob;
+use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
 use lb::model::file::File;
 use lb::service::sync::SyncProgress;
-use lb::DEFAULT_API_LOCATION;
 use workspace_rs::widgets::Button;
 
 use crate::model::AccountPhraseData;
@@ -221,7 +221,6 @@ impl OnboardScreen {
                                                 .clicked()
                                             {
                                                 self.router.route = Route::Import;
-                                                self.router.needs_focus = true;
                                             };
                                         });
                                     });
@@ -327,7 +326,7 @@ impl OnboardScreen {
                                                     },
                                                 );
                                                 job.append(
-                                                    &format!("{}\n", word),
+                                                    &format!("{word}\n"),
                                                     0.0,
                                                     egui::TextFormat {
                                                         font_id: egui::FontId::new(

@@ -29,6 +29,44 @@ pub mod rpc;
 pub mod service;
 pub mod subscribers;
 
+#[derive(Clone)]
+pub struct Lb {
+    pub config: Config,
+    pub keychain: Keychain,
+    pub db: LbDb,
+    pub docs: AsyncDocs,
+    pub search: SearchIndex,
+    pub client: Network,
+    pub events: EventSubs,
+    pub syncing: Arc<AtomicBool>,
+    pub status: StatusUpdater,
+}
+
+impl Lb {
+    #[instrument(level = "info", skip_all, err(Debug))]
+    pub async fn init(config: Config) -> LbResult<Self> {
+        logging::init(&config)?;
+
+        let db = CoreDb::init(db_rs::Config::in_folder(&config.writeable_path))
+            .map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+        let keychain = Keychain::from(db.account.get());
+        let db = Arc::new(RwLock::new(db));
+        let docs = AsyncDocs::from(&config);
+        let client = Network::default();
+        let search = SearchIndex::default();
+        let status = StatusUpdater::default();
+        let syncing = Arc::default();
+        let events = EventSubs::default();
+
+        let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
+
+        result.setup_search();
+        result.setup_status().await?;
+
+        Ok(result)
+    }
+}
+
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
@@ -38,6 +76,19 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub use lb::Lb;
 pub use lb_server::LbServer;
-use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
+use crate::io::CoreDb;
+use crate::service::logging;
+use db_rs::Db;
+use io::LbDb;
+use io::docs::AsyncDocs;
+use io::network::Network;
+use model::core_config::Config;
+use service::events::EventSubs;
+use service::keychain::Keychain;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use subscribers::search::SearchIndex;
+use subscribers::status::StatusUpdater;
+use tokio::sync::RwLock;
 pub use uuid::Uuid;

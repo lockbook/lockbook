@@ -6,8 +6,7 @@ import Combine
 public protocol LbAPI {
     var lb: OpaquePointer? { get set }
     var lbUnsafeRawPtr: UnsafeMutableRawPointer? { get set }
-    var status: Status { get }
-    var statusPublisher: Published<Status>.Publisher { get }
+    var events: Events { get }
     
     func start(writablePath: String, logs: Bool) -> Result<Void, LbError>
     func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError>
@@ -61,19 +60,22 @@ public protocol LbAPI {
 public class Lb: LbAPI {
     public var lb: OpaquePointer? = nil
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
-    
-    @Published public var status: Status = Status()
-    public var statusPublisher: Published<Status>.Publisher { $status }
+    public var events: Events = Events()
 
     public init(writablePath: String, logs: Bool) {
         print("Starting core at \(writablePath) and logs=\(logs)")
         
         let res = start(writablePath: writablePath, logs: logs)
-        print("Lb init result: \(res)")
         
-//        subscribe(notify: { event in
-//            self.status = self.getStatus()
-//        })
+        subscribe(notify: { event in
+            if event.status_updated {
+                self.events.status = self.getStatus()
+            } else if event.metadata_updated {
+                self.events.metadataUpdated = true
+            } else if event.pending_shares_changed {
+                self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+            }
+        })
     }
             
     public func start(writablePath: String, logs: Bool) -> Result<Void, LbError> {
@@ -657,8 +659,12 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
+    @Published public var status: Status = Status()
+    public var statusPublisher: Published<Status>.Publisher { $status }
+    
     public var lb: OpaquePointer? = nil
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer? = nil
+    public var events: Events = Events()
     
     public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
     public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"

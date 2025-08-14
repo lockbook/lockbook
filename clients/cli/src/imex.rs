@@ -1,14 +1,13 @@
-use std::{
-    cell::Cell,
-    fs,
-    io::{self, Write},
-    path::PathBuf,
-};
+use std::cell::Cell;
+use std::fs;
+use std::io::{self, Write};
+use std::path::PathBuf;
 
 use cli_rs::cli_error::CliResult;
 use lb_rs::service::import_export::ImportStatus;
 
-use crate::{core, ensure_account_and_root, input::FileInput};
+use crate::input::FileInput;
+use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
 pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
@@ -52,7 +51,7 @@ pub async fn export(target: FileInput, dest: PathBuf) -> CliResult<()> {
         dest,
         false,
         &Some(|i| {
-            println!("{:?}", i);
+            println!("{i:?}");
         }),
     )
     .await?;

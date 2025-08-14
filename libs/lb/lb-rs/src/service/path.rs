@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;

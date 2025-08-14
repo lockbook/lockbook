@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
@@ -13,6 +13,7 @@ pub struct SplashHandOff {
     pub maybe_acct_data: Option<Vec<File>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SplashUpdate {
     Status(String),
     Error(String),
@@ -53,7 +54,7 @@ impl SplashScreen {
             let core = match Lb::init(cfg) {
                 Ok(core) => core,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
@@ -61,7 +62,7 @@ impl SplashScreen {
             let is_signed_in = match is_signed_in(&core) {
                 Ok(is_signed_in) => is_signed_in,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
@@ -74,7 +75,7 @@ impl SplashScreen {
                 let files = match core.list_metadatas() {
                     Ok(files) => files,
                     Err(err) => {
-                        tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                        tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                         ctx.request_repaint();
                         return;
                     }
@@ -129,7 +130,7 @@ fn is_signed_in(core: &Lb) -> Result<bool, String> {
         Ok(_acct) => Ok(true),
         Err(err) => match err.kind {
             LbErrKind::AccountNonexistent => Ok(false),
-            _ => Err(format!("{:?}", err)), // todo(steve): display
+            _ => Err(format!("{err:?}")), // todo(steve): display
         },
     }
 }

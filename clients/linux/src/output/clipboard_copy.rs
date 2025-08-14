@@ -1,11 +1,9 @@
-use x11rb::{
-    protocol::xproto::{
-        ConnectionExt as _, EventMask, PropMode, SelectionNotifyEvent, SelectionRequestEvent,
-    },
-    reexports::x11rb_protocol::protocol::xproto,
-    wrapper::ConnectionExt as _,
-    xcb_ffi::XCBConnection,
+use x11rb::protocol::xproto::{
+    ConnectionExt as _, EventMask, PropMode, SelectionNotifyEvent, SelectionRequestEvent,
 };
+use x11rb::reexports::x11rb_protocol::protocol::xproto;
+use x11rb::wrapper::ConnectionExt as _;
+use x11rb::xcb_ffi::XCBConnection;
 
 use crate::window::AtomCollection;
 

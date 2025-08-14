@@ -1,10 +1,11 @@
 use crate::model::crypto::*;
-use aead::{generic_array::GenericArray, Aead, NewAead};
+use aead::generic_array::GenericArray;
+use aead::{Aead, NewAead};
 use aes_gcm::Aes256Gcm;
-use rand::rngs::OsRng;
 use rand::RngCore;
-use serde::de::DeserializeOwned;
+use rand::rngs::OsRng;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 use super::errors::{CryptoError, LbErrKind, LbResult, Unexpected};
 

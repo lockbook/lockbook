@@ -22,6 +22,8 @@ class WorkspaceViewModel : ViewModel() {
     val sync: LiveData<Unit>
         get() = _sync
 
+    var lastSyncStatusUpdate = System.currentTimeMillis()
+
     val _showTabs = SingleMutableLiveData<Boolean>()
     val showTabs: LiveData<Boolean>
         get() = _showTabs

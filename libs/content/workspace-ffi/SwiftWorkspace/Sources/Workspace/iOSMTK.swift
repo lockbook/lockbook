@@ -755,6 +755,13 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handleTrackpadScroll(sender)
     }
+    
+    @available(iOS 17.5, *)
+    public func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
+        if squeeze.phase == .ended {
+            show_tool_popover_at_cursor(wsHandle)
+        }
+    }
 
     public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
         switch UIPencilInteraction.preferredTapAction {
@@ -1104,7 +1111,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url)
+                self.workspaceState?.urlOpened = url
             }
         }
 

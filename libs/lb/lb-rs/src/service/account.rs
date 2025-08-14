@@ -2,10 +2,10 @@ use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
 };
-use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
+use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
-use crate::{LbServer, DEFAULT_API_LOCATION};
+use crate::{DEFAULT_API_LOCATION, Lb, LbServer};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 

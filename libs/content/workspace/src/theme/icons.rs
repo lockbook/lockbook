@@ -97,6 +97,10 @@ impl Icon {
     pub const DEINDENT: Self = ic("\u{e23d}");
     pub const BUG: Self = ic("\u{e868}");
     pub const LANGUAGE: Self = ic("\u{e894}");
+    pub const LIGHT_BULB: Self = ic("\u{e0f0}");
+    pub const WARNING_2: Self = ic("\u{e002}");
+    pub const FEEDBACK: Self = ic("\u{e87f}");
+    pub const REPORT: Self = ic("\u{e160}");
 
     //pub const ARTICLE: Self = ic("\u{ef42}");
     //pub const COMMAND_KEY: Self = Self('\u{eae7}');
@@ -106,8 +110,8 @@ impl Icon {
     //pub const SHIELD: Self = Self("\u{e8e8}");
     //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
     pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
-                                                //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
-                                                //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
+    //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
+    //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;

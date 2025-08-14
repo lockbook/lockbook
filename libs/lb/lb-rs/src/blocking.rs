@@ -1,35 +1,29 @@
-use std::{collections::HashMap, path::PathBuf, sync::Arc};
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-use tokio::{runtime::Runtime, sync::broadcast::Receiver};
+use tokio::runtime::Runtime;
+use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
-use crate::{
-    model::{
-        account::{Account, Username},
-        api::{
-            AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse,
-            AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex,
-            StripeAccountTier, SubscriptionInfo,
-        },
-        core_config::Config,
-        crypto::DecryptedDocument,
-        errors::{LbResult, Warning},
-        file::{File, ShareMode},
-        file_metadata::{DocumentHmac, FileType},
-        path_ops::Filter,
-    },
-    service::{
-        activity::RankingWeights,
-        events::Event,
-        import_export::{ExportFileInfo, ImportStatus},
-        sync::{SyncProgress, SyncStatus},
-        usage::{UsageItemMetric, UsageMetrics},
-    },
-    subscribers::{
-        search::{SearchConfig, SearchResult},
-        status::Status,
-    },
+use crate::model::account::{Account, Username};
+use crate::model::api::{
+    AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
+    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo,
 };
+use crate::model::core_config::Config;
+use crate::model::crypto::DecryptedDocument;
+use crate::model::errors::{LbResult, Warning};
+use crate::model::file::{File, ShareMode};
+use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::path_ops::Filter;
+use crate::service::activity::RankingWeights;
+use crate::service::events::Event;
+use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::service::sync::{SyncProgress, SyncStatus};
+use crate::service::usage::{UsageItemMetric, UsageMetrics};
+use crate::subscribers::search::{SearchConfig, SearchResult};
+use crate::subscribers::status::Status;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -194,6 +188,14 @@ impl Lb {
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         self.rt.block_on(self.lb.suggested_docs(settings))
+    }
+
+    pub fn clear_suggested(&self) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested())
+    }
+
+    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
+        self.rt.block_on(self.lb.clear_suggested_id(target_id))
     }
 
     // TODO: examine why the old get_usage does a bunch of things

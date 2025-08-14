@@ -17,6 +17,7 @@ struct HomeView: View {
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
+                        .modifier(OutOfSpaceAlert())
                 }
             })
             .confirmationDialog(
@@ -100,29 +101,6 @@ struct DetailView: View {
         } else {
             WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
                 .modifier(OnLbLinkViewModifier())
-                .toolbar {
-                    HStack(alignment: .bottom, spacing: 5) {
-                        if workspaceState.openDoc != nil {
-                            Button(action: {
-                                runOnOpenDoc { file in
-                                    homeState.sheetInfo = .share(file: file)
-                                }
-                            }, label: {
-                                Image(systemName: "person.wave.2.fill")
-                                    .foregroundStyle(Color.accentColor)
-                            })
-                            
-                            Button(action: {
-                                runOnOpenDoc { file in
-                                    exportFiles(homeState: homeState, files: [file])
-                                }
-                            }, label: {
-                                Image(systemName: "square.and.arrow.up.fill")
-                                    .foregroundStyle(Color.accentColor)
-                            })
-                        }
-                    }
-                }
         }
     }
 }

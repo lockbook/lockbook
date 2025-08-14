@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,

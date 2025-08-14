@@ -1,21 +1,20 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use jni::JNIEnv;
 use jni::objects::{JClass, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
-use jni::JNIEnv;
-use lb_c::model::text::offset_types::DocCharOffset;
 use lb_c::Uuid;
+use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
-use workspace_rs::tab::{ContentState, ExtendedInput};
+use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
@@ -70,7 +69,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
     if pressed == 1 && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
         let text: String = match env.get_string(&content) {
             Ok(cont) => cont.into(),
-            Err(err) => format!("# The error is: {:?}", err),
+            Err(err) => format!("# The error is: {err:?}"),
         };
 
         obj.raw_input.events.push(egui::Event::Text(text));
@@ -192,10 +191,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let status = WsStatus {
-        syncing: obj.workspace.visibly_syncing(),
-        msg: obj.workspace.status.message.clone(),
-    };
+    let lb_status = obj.workspace.core.status();
+
+    let status = WsStatus { syncing: lb_status.syncing, msg: lb_status.msg().unwrap_or_default() };
 
     env.new_string(serde_json::to_string(&status).unwrap())
         .expect("Couldn't create JString from rust string!")
@@ -310,7 +308,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 
@@ -383,6 +381,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
             end: Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position()),
         },
         text: "".to_string(),
+        advance_cursor: false,
     })
 }
 
@@ -394,7 +393,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     obj.context.push_markdown_event(Event::Replace {
@@ -403,6 +402,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
         },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -414,7 +414,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
@@ -422,6 +422,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -438,7 +439,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position());
@@ -446,6 +447,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -461,7 +463,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 
@@ -516,7 +518,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
 
     let content: String = match env.get_string(&content) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err),
+        Err(err) => format!("# The error is: {err:?}"),
     };
 
     obj.raw_input.events.push(egui::Event::Paste(content));

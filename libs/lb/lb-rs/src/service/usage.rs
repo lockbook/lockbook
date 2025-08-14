@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::model::errors::LbResult;
 use crate::model::file_like::FileLike;

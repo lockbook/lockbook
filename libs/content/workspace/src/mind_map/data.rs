@@ -1,14 +1,11 @@
-use lb_rs::{blocking::Lb, Uuid};
+use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
 use linkify::{LinkFinder, LinkKind};
 use num_cpus;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::AtomicIsize;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
@@ -190,11 +187,7 @@ fn extract_website_name(url: &str) -> String {
 fn in_classify(name: &String, classify: &[NameId]) -> Option<usize> {
     classify.iter().find_map(
         |linkinfo| {
-            if &linkinfo.name == name {
-                Some(linkinfo.id)
-            } else {
-                None
-            }
+            if &linkinfo.name == name { Some(linkinfo.id) } else { None }
         },
     )
 }
@@ -274,7 +267,7 @@ async fn fetch_title(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     let normalized_url = if url.starts_with("http://") || url.starts_with("https://") {
         url.to_string()
     } else {
-        format!("https://{}", url)
+        format!("https://{url}")
     };
     // println!("{}", normalized_url);
     let client = reqwest::Client::builder()

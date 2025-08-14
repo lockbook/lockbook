@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -95,6 +96,14 @@ impl LbServer {
         self.events.meta_changed();
 
         Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    pub async fn known_usernames(&self) -> LbResult<Vec<String>> {
+        let db = self.ro_tx().await;
+        let db = db.db();
+
+        Ok(db.pub_key_lookup.get().values().cloned().collect())
     }
 
     #[instrument(level = "debug", skip(self))]

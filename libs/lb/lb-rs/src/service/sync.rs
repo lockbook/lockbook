@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
@@ -16,18 +17,16 @@ use crate::model::svg::element::Element;
 use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
-use crate::model::{clock, svg};
-use crate::model::{symkey, ValidationFailure};
 use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
-use futures::stream;
-use futures::StreamExt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::{hash_map, HashMap, HashSet};
+use crate::model::{ValidationFailure, clock, svg, symkey};
+use futures::{StreamExt, stream};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use std::time::Instant;
 use time::Duration;
@@ -411,8 +410,7 @@ impl LbServer {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            deletion_creations
+                            "sync failed to find a topomodelal order for file creations: {deletion_creations:?}"
                         ))
                         .into());
                     }
@@ -490,8 +488,7 @@ impl LbServer {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            creations
+                            "sync failed to find a topomodelal order for file creations: {creations:?}"
                         ))
                         .into());
                     }
@@ -769,8 +766,7 @@ impl LbServer {
                                     continue 'merge_construction;
                                 } else {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link (deletion): {:?}",
-                                        link
+                                        "sync failed to resolve broken link (deletion): {link:?}"
                                     ))
                                     .into());
                                 }
@@ -801,8 +797,7 @@ impl LbServer {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve cycle: {:?}",
-                                        ids
+                                        "sync failed to resolve cycle: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -828,8 +823,7 @@ impl LbServer {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve path conflict: {:?}",
-                                        ids
+                                        "sync failed to resolve path conflict: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -850,8 +844,7 @@ impl LbServer {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
-                                    link, shared_ancestor
+                                    "sync failed to resolve shared link: link: {link:?}, shared_ancestor: {shared_ancestor:?}"
                                 )).into());
                                 }
                             }
@@ -865,8 +858,7 @@ impl LbServer {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve duplicate link: target: {:?}",
-                                        target
+                                        "sync failed to resolve duplicate link: target: {target:?}"
                                     ))
                                     .into());
                                 }
@@ -875,8 +867,7 @@ impl LbServer {
                                 // delete local link with this target
                                 if !links_to_delete.insert(*link) {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link: {:?}",
-                                        link
+                                        "sync failed to resolve broken link: {link:?}"
                                     ))
                                     .into());
                                 }
@@ -899,8 +890,7 @@ impl LbServer {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve owned link: {:?}",
-                                        link
+                                        "sync failed to resolve owned link: {link:?}"
                                     ))
                                     .into());
                                 }

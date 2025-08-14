@@ -1,18 +1,12 @@
-use lb_rs::{
-    blocking::Lb,
-    model::svg::{
-        buffer::{Buffer, WeakViewportSettings},
-        diff::DiffState,
-        element::{Element, Image, Path, WeakImage},
-        WeakTransform,
-    },
-};
+use lb_rs::blocking::Lb;
+use lb_rs::model::svg::WeakTransform;
+use lb_rs::model::svg::buffer::{Buffer, WeakViewportSettings};
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::{Element, Image, Path, WeakImage};
 use resvg::usvg::{NonZeroRect, Transform};
 
-use super::{
-    util::{demote_to_weak_rect, promote_weak_rect},
-    ViewportSettings,
-};
+use super::ViewportSettings;
+use super::util::{demote_to_weak_rect, promote_weak_rect};
 
 pub trait BoundedElement {
     fn bounding_box(&self) -> egui::Rect;
@@ -129,10 +123,10 @@ impl PromoteBufferWeakImages for Buffer {
             image.diff_state.transformed = None;
 
             if weak_image.z_index >= self.elements.len() {
-                self.elements.insert(id, Element::Image(image));
+                self.elements.insert(id, Element::Image(Box::new(image)));
             } else {
                 self.elements
-                    .shift_insert(weak_image.z_index, id, Element::Image(image));
+                    .shift_insert(weak_image.z_index, id, Element::Image(Box::new(image)));
             };
         });
     }

@@ -5,10 +5,10 @@ import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.method.LinkMovementMethod
 import android.view.*
 import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
@@ -17,6 +17,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -30,10 +31,11 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -170,23 +172,16 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
-            val extendedFileType = when (it.id) {
-                R.id.fab_create_drawing -> ExtendedFileType.Drawing
-                R.id.fab_create_document -> ExtendedFileType.Document
-                R.id.fab_create_folder -> ExtendedFileType.Folder
+            when (it.id) {
+                R.id.fab_create_drawing -> createFile("svg")
+                R.id.fab_create_document -> createFile("md")
+                R.id.fab_create_folder -> activityModel.launchTransientScreen(
+                    TransientScreen.Create(model.fileModel.parent.id)
+                )
                 else -> return@setOnActionSelectedListener false
             }
 
-            activityModel.launchTransientScreen(
-                TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
-            )
-
             binding.fabSpeedDial.close()
-            true
-        }
-        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            model.generateQuickNote(workspaceModel)
             true
         }
 
@@ -208,10 +203,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000,
             30000
         )
-
-        if (getApp().isNewAccount) {
-            updateUI(UpdateFilesUI.ShowBeforeWeStart)
-        }
 
         model.maybeLastSidebarInfo?.let { uiUpdate ->
             updateUI(uiUpdate)
@@ -246,6 +237,31 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
+    }
+
+    private fun createFile(ext: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var attempt = 0
+            var created: File? = null
+
+            while (created == null) {
+                val name = "untitled${if (attempt != 0) "-$attempt" else ""}.$ext"
+
+                try {
+                    created = Lb.createFile(name, model.fileModel.parent.id, true)
+                    withContext(Dispatchers.Main) {
+                        workspaceModel._openFile.postValue(Pair(created.id, true))
+                    }
+                    refreshFiles()
+                } catch (err: LbError) {
+                    if (err.kind == LbError.LbEC.PathTaken) {
+                        attempt++
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
     }
 
     private fun setUpToolbar() {
@@ -404,12 +420,20 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
+        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener {
+            model.suggestedDocs.clear()
+            Lb.clearSuggested()
+            lifecycleScope.launch {
+                model.maybeToggleSuggestedDocs()
+            }
+        }
+
         binding.suggestedDocsLayout.suggestedDocsList.setup {
             withDataSource(model.suggestedDocs)
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
 
             withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
-                onBind(::SuggestedDocsItemViewHolder) { _, item ->
+                onBind(::SuggestedDocsItemViewHolder) { i, item ->
                     name.text = item.fileMetadata.name
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
@@ -424,6 +448,22 @@ class FilesListFragment : Fragment(), FilesFragment {
                     }
 
                     icon.setImageResource(iconResource)
+
+                    itemView.setOnLongClickListener { view ->
+                        val popup = PopupMenu(view.context, view)
+
+                        popup.menu.add(0, 1, 0, "Remove")
+
+                        popup.setOnMenuItemClickListener { menuItem ->
+                            Lb.clearSuggestedId(item.fileMetadata.id)
+                            model.suggestedDocs.removeAt(i)
+                            model.reloadFiles()
+                            true
+                        }
+
+                        popup.show()
+                        true
+                    }
                 }
 
                 onClick {
@@ -468,20 +508,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 )
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
-            UpdateFilesUI.ShowBeforeWeStart -> {
-                val beforeYouStartDialog = BottomSheetDialog(requireContext())
-                beforeYouStartDialog.setContentView(R.layout.sheet_before_you_start)
-                beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
-                    beforeYouStartDialog.dismiss()
-
-                    activityModel.launchActivityScreen(ActivityScreen.Settings(R.string.export_account_raw_key))
-                }
-
-                beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
-
-                beforeYouStartDialog.show()
-                getApp().isNewAccount = false
-            }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
@@ -660,7 +686,6 @@ sealed class UpdateFilesUI {
     data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
-    object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()

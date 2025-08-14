@@ -2,7 +2,7 @@ use crate::billing::billing_model::SubscriptionProfile;
 use db_rs::{LookupSet, LookupTable};
 use db_rs_derive::Schema;
 use lb_rs::model::file_metadata::Owner;
-use lb_rs::model::server_file::ServerFile;
+use lb_rs::model::server_meta::ServerMeta;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -15,14 +15,13 @@ pub struct Account {
     pub billing_info: SubscriptionProfile,
 }
 
-pub type ServerDb = ServerV4;
+pub type ServerDb = ServerV5;
 
 #[derive(Schema)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
-pub struct ServerV4 {
+pub struct ServerV5 {
     pub usernames: LookupTable<String, Owner>,
-    pub metas: LookupTable<Uuid, ServerFile>,
-    pub sizes: LookupTable<Uuid, u64>,
+    pub metas: LookupTable<Uuid, ServerMeta>,
     pub google_play_ids: LookupTable<String, Owner>,
     pub stripe_ids: LookupTable<String, Owner>,
     pub app_store_ids: LookupTable<String, Owner>,

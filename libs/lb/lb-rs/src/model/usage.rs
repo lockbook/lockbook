@@ -29,7 +29,7 @@ pub fn bytes_to_human(size: u64) -> String {
         .trim_end_matches(['.'])
         .to_owned();
 
-    format!("{} {}", num, abbr)
+    format!("{num} {abbr}")
 }
 
 pub(crate) fn get_usage(server_usage_and_cap: GetUsageResponse) -> UsageMetrics {

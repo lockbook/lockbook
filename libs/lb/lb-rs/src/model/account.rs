@@ -33,7 +33,7 @@ impl Account {
     pub fn get_phrase(&self) -> LbResult<[&'static str; 24]> {
         let key = self.private_key.serialize();
         let key_bits = key.iter().fold(String::new(), |mut out, byte| {
-            let _ = write!(out, "{:08b}", byte);
+            let _ = write!(out, "{byte:08b}");
             out
         });
 
@@ -41,12 +41,12 @@ impl Account {
             sha2::Sha256::digest(&key)
                 .into_iter()
                 .fold(String::new(), |mut out, byte| {
-                    let _ = write!(out, "{:08b}", byte);
+                    let _ = write!(out, "{byte:08b}");
                     out
                 });
 
         let checksum_last_4_bits = &checksum[..4];
-        let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
+        let combined_bits = format!("{key_bits}{checksum_last_4_bits}");
 
         let mut phrase: [&str; 24] = Default::default();
 
@@ -107,7 +107,7 @@ impl Account {
             sha2::Sha256::digest(&key)
                 .iter()
                 .fold(String::new(), |mut acc, byte| {
-                    acc.push_str(&format!("{:08b}", byte));
+                    acc.push_str(&format!("{byte:08b}"));
                     acc
                 });
 
@@ -157,8 +157,7 @@ impl Account {
 
 pub mod secret_key_serializer {
     use libsecp256k1::SecretKey;
-    use serde::de::Deserialize;
-    use serde::de::Deserializer;
+    use serde::de::{Deserialize, Deserializer};
     use serde::ser::Serializer;
 
     pub fn serialize<S>(sk: &SecretKey, serializer: S) -> Result<S::Ok, S::Error>

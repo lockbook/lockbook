@@ -3,6 +3,8 @@ import SwiftWorkspace
 
 struct FileTreeView: View {
     
+    @EnvironmentObject var homeState: HomeState
+    
     @StateObject var fileTreeModel: FileTreeViewModel
     
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
@@ -29,6 +31,12 @@ struct FileTreeView: View {
                 FileRowContextMenu(file: root)
             }
             .refreshable {
+                if AppState.lb.events.status.outOfSpace {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                        homeState.showOutOfSpaceAlert = true
+                    }
+                }
+                
                 AppState.workspaceState.requestSync()
             }
             .padding(.leading)
@@ -160,6 +168,8 @@ struct FileRowView: View {
     }
     
     func openOrSelectFile() {
+        homeState.closeWorkspaceBlockingScreens()
+        
         if isSelectable {
             if isSelected {
                 filesModel.removeFileFromSelection(file: file)

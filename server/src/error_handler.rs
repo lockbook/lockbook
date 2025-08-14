@@ -1,8 +1,8 @@
+use crate::ServerError::InternalError;
 use crate::account_service::DeleteAccountHelperError;
 use crate::billing::billing_service::{AppStoreNotificationError, LockBillingWorkflowError};
 use crate::billing::google_play_client::SimpleGCPError;
 use crate::metrics::MetricsError;
-use crate::ServerError::InternalError;
 use crate::{
     ClientError, GetUsageHelperError, ServerError, SimplifiedStripeError, StripeWebhookError,
 };
@@ -131,22 +131,23 @@ impl From<stripe::WebhookError> for ServerError<StripeWebhookError> {
     fn from(e: stripe::WebhookError) -> Self {
         match e {
             stripe::WebhookError::BadKey => {
-                internal!("Cannot verify stripe webhook request because server is using a bad signing key")
+                internal!(
+                    "Cannot verify stripe webhook request because server is using a bad signing key"
+                )
             }
             stripe::WebhookError::BadHeader(bad_header_err) => {
-                ClientError(StripeWebhookError::InvalidHeader(format!("{:?}", bad_header_err)))
+                ClientError(StripeWebhookError::InvalidHeader(format!("{bad_header_err:?}")))
             }
             stripe::WebhookError::BadSignature => {
                 ClientError(StripeWebhookError::InvalidHeader("Bad signature".to_string()))
             }
             stripe::WebhookError::BadTimestamp(bad_timestamp_err) => {
                 ClientError(StripeWebhookError::InvalidHeader(format!(
-                    "Timestamp for webhook is too old: {}",
-                    bad_timestamp_err
+                    "Timestamp for webhook is too old: {bad_timestamp_err}"
                 )))
             }
             stripe::WebhookError::BadParse(bad_parse_err) => ClientError(
-                StripeWebhookError::ParseError(format!("Parsing error: {:?}", bad_parse_err)),
+                StripeWebhookError::ParseError(format!("Parsing error: {bad_parse_err:?}")),
             ),
         }
     }
@@ -329,6 +330,7 @@ impl From<LbErr> for ServerError<UpsertError> {
                 DiffError::OldVersionRequired => ClientError(OldVersionRequired),
                 DiffError::DiffMalformed => ClientError(DiffMalformed),
                 DiffError::HmacModificationInvalid => ClientError(HmacModificationInvalid),
+                DiffError::SizeModificationInvalid => ClientError(SizeModificationInvalid),
             },
             LbErrKind::InsufficientPermission => ClientError(NotPermissioned),
             LbErrKind::Validation(fail) => ClientError(Validation(fail)),

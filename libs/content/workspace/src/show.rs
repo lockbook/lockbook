@@ -3,9 +3,9 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
-    Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand,
-    Widget as _, WidgetText,
+    Align, Align2, CursorIcon, EventFilter, FontSelection, Galley, Id, Image, Key, Label,
+    Modifiers, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2,
+    ViewportCommand, Widget as _, WidgetText, include_image, vec2,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -14,7 +14,9 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{image_viewer, ContentState, Tab, TabContent};
+use crate::tab::{
+    ContentState, Tab, TabContent, TabStatus, core_get_by_relative_path, image_viewer,
+};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -34,7 +36,11 @@ impl Workspace {
         self.status.message = self.status_message();
 
         if self.is_empty() {
-            self.show_landing_page(ui);
+            if self.show_tabs {
+                self.show_landing_page(ui);
+            } else {
+                self.show_mobile_landing_page(ui);
+            }
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
@@ -67,7 +73,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(target_vendor = "apple")]
     fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
         let punchout = if ui.visuals().dark_mode {
             include_image!("../punchout-dark.png")
@@ -475,7 +480,9 @@ impl Workspace {
 
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
+                let mut open_id = None;
                 if let Some(tab) = self.current_tab_mut() {
+                    let id = tab.id();
                     match &mut tab.content {
                         ContentState::Loading(_) => {
                             ui.spinner();
@@ -490,7 +497,7 @@ impl Workspace {
                                     // The editor signals a text change when the buffer is initially
                                     // loaded. Since we use that signal to trigger saves, we need to
                                     // check that this change was not from the initial frame.
-                                    if resp.text_updated && md.past_first_frame() {
+                                    if resp.text_updated && md.initialized {
                                         tab.last_changed = Instant::now();
                                     }
 
@@ -500,10 +507,9 @@ impl Workspace {
 
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
+                                        self.out.markdown_editor_selection_updated = true;
                                     }
-                                    if resp.cursor_screen_postition_updated {
-                                        // markdown_editor_selection_updated represents a change to the screen position of
-                                        // the cursor, which is also updated when scrolling
+                                    if resp.selection_updated {
                                         self.out.markdown_editor_selection_updated = true;
                                     }
                                     if resp.scroll_updated {
@@ -530,9 +536,37 @@ impl Workspace {
                             };
                         }
                     }
+
+                    ui.ctx().output_mut(|w| {
+                        if let Some(url) = &w.open_url {
+                            // only intercept open urls for tabs representing files
+                            let Some(id) = id else {
+                                return;
+                            };
+
+                            // lookup this file so we can get the parent
+                            let Ok(file) = self.core.get_file_by_id(id) else {
+                                return;
+                            };
+
+                            // evaluate relative path based on parent location
+                            let Ok(file) =
+                                core_get_by_relative_path(&self.core, file.parent, &url.url)
+                            else {
+                                return;
+                            };
+
+                            // if all that found something then open within lockbook
+                            open_id = Some(file.id);
+                            w.open_url = None;
+                        }
+                    });
                 }
                 if let Some(req) = rename_req {
                     self.rename_file(req, false);
+                }
+                if let Some(id) = open_id {
+                    self.open_file(id, false, true);
                 }
             });
         });
@@ -647,6 +681,10 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+
+        let bg_color = get_apple_bg_color(ui);
+        ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
+
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
     }
@@ -729,54 +767,184 @@ impl Workspace {
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
         let mut result = None;
-        let icon_size = 16.0;
+        let icon_size = 15.0;
         let x_icon = Icon::CLOSE.size(icon_size);
         let status = self.tab_status(t);
-        let status_icon = status.icon();
 
-        let padding_x = 10.;
-        let w = if self.tabs[t].is_closing { 40. } else { 160. };
-        let h = 40.;
+        ui.style_mut()
+            .text_styles
+            .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
 
-        let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
-            (w, h).into(),
-            Sense { click: true, drag: false, focusable: false },
-        );
+        let tab_bg =
+            if is_active { ui.style().visuals.extreme_bg_color } else { get_apple_bg_color(ui) };
 
-        if is_active {
-            ui.painter().rect(
-                tab_label_rect,
-                0.,
-                ui.style().visuals.extreme_bg_color,
-                egui::Stroke::NONE,
-            );
-        };
+        let tab_padding = egui::Margin::symmetric(10.0, 10.0);
 
-        if is_active && active_tab_changed {
-            tab_label_resp.scroll_to_me(None);
-        }
+        let tab_label = egui::Frame::default()
+            .fill(tab_bg)
+            .inner_margin(tab_padding)
+            .show(ui, |ui| {
+                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                    let start = ui.available_rect_before_wrap().min;
 
-        // closing (just draw status icon)
-        if self.tabs[t].is_closing {
-            let icon_draw_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
+                    // create galleys - text layout
 
-            let icon: egui::WidgetText = (&status_icon).into();
-            let icon = icon.into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                status_icon.size,
-                egui::TextStyle::Body,
-            );
-            ui.painter()
-                .galley(icon_draw_pos, icon, ui.visuals().text_color());
-        }
+                    // tab label - the actual file name
+                    let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
+                    let text = text.into_galley(
+                        ui,
+                        Some(TextWrapMode::Truncate),
+                        200.0,
+                        egui::TextStyle::Body,
+                    );
+
+                    // tab marker - tab status / tab number
+                    let tab_marker = if status == TabStatus::Clean {
+                        (t + 1).to_string()
+                    } else {
+                        "*".to_string()
+                    };
+
+                    let tab_marker: egui::WidgetText = egui::RichText::new(tab_marker)
+                        .font(egui::FontId::monospace(12.0))
+                        .color(if status == TabStatus::Clean {
+                            ui.style().visuals.hyperlink_color
+                        } else {
+                            ui.style().visuals.warn_fg_color
+                        })
+                        .into();
+
+                    let tab_marker = tab_marker.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+
+                    // close button - the x
+                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                        .font(egui::FontId::monospace(x_icon.size))
+                        .into();
+                    let close_button = close_button.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+
+                    // create rects - place these relative to one another
+                    let marker_rect = centered_galley_rect(&tab_marker);
+                    let marker_rect = Align2::LEFT_TOP.anchor_size(
+                        start
+                            + egui::vec2(
+                                0.0,
+                                text.rect.height() / 2.0 - marker_rect.height() / 2.0,
+                            ),
+                        marker_rect.size(),
+                    );
+
+                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
+                        text.size(),
+                    );
+
+                    let close_button_rect = centered_galley_rect(&close_button);
+                    let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        text_rect.right_top()
+                            + vec2(5.0, (text.rect.height() - close_button_rect.height()) / 2.0),
+                        close_button_rect.size(),
+                    );
+
+                    // uncomment to see geometry debug views
+                    // ui.painter().rect_filled(
+                    //     marker_rect,
+                    //     Rounding::default(),
+                    //     Color32::RED.linear_multiply(0.5),
+                    // );
+                    // ui.painter()
+                    //     .rect_filled(text_rect, Rounding::default(), Color32::RED);
+                    // ui.painter()
+                    //     .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
+
+                    // render & process input
+                    ui.painter().galley(
+                        marker_rect.left_top(),
+                        tab_marker.clone(),
+                        ui.visuals().text_color(),
+                    );
+
+                    let text_resp = ui.interact(
+                        text_rect,
+                        Id::new("tab label").with(t),
+                        Sense { click: true, drag: false, focusable: false },
+                    );
+
+                    let close_button_resp = ui.interact(
+                        close_button_rect,
+                        Id::new("tab label close button").with(t),
+                        Sense { click: true, drag: false, focusable: false },
+                    );
+
+                    let text_color = if is_active {
+                        ui.visuals().text_color()
+                    } else {
+                        ui.visuals()
+                            .widgets
+                            .noninteractive
+                            .fg_stroke
+                            .color
+                            .linear_multiply(0.8)
+                    };
+
+                    // draw the tab text
+                    ui.painter().galley(text_rect.min, text, text_color);
+
+                    let touch_mode =
+                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+
+                    if close_button_resp.clicked()
+                        || close_button_resp.drag_started()
+                        || text_resp.middle_clicked()
+                    {
+                        result = Some(TabLabelResponse::Closed);
+                    }
+                    if close_button_resp.hovered() {
+                        ui.painter().rect(
+                            close_button_rect.expand(2.0),
+                            2.0,
+                            ui.visuals().code_bg_color,
+                            egui::Stroke::NONE,
+                        );
+                    }
+
+                    let estimated_tab_label_resp = text_resp.union(close_button_resp);
+
+                    let show_close_button =
+                        touch_mode || estimated_tab_label_resp.hovered() || is_active;
+
+                    if show_close_button {
+                        ui.painter().galley(
+                            close_button_rect.min,
+                            close_button,
+                            ui.visuals().text_color(),
+                        );
+                    }
+
+                    // drag started makes it easier to click on touch screens
+                    if text_resp.clicked() || text_resp.drag_started() {
+                        result = Some(TabLabelResponse::Clicked);
+                    }
+
+                    ui.advance_cursor_after_rect(estimated_tab_label_resp.rect);
+
+                    text_resp
+                })
+            });
+
         // renaming
-        else if let Some(ref mut str) = self.tabs[t].rename {
+        if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label_rect, |ui| {
+                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)
@@ -815,176 +983,77 @@ impl Workspace {
             if res.lost_focus() {
                 self.tabs[t].rename = None;
             }
-        } else {
-            // interact with button rect whether it's shown or not
-            let close_button_pos = egui::pos2(
-                tab_label_rect.max.x - padding_x - x_icon.size,
-                tab_label_rect.center().y - x_icon.size / 2.0,
+        }
+
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
+        }
+
+        if !is_active && tab_label.response.hovered() {
+            ui.painter().rect_filled(
+                tab_label.response.rect,
+                0.0,
+                egui::Color32::WHITE.linear_multiply(0.002),
             );
-            let close_button_rect =
-                egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
-                    .expand(2.0);
-            let close_button_resp = ui.interact(
-                close_button_rect,
-                Id::new("tab label close button").with(t),
-                Sense { click: true, drag: false, focusable: false },
-            );
+        }
 
-            let status_icon_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
-            let status_icon_rect = egui::Rect::from_min_size(
-                status_icon_pos,
-                egui::vec2(status_icon.size, status_icon.size),
-            )
-            .expand(2.0);
-
-            // touch mode: always show close button
-            let touch_mode =
-                matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-            let show_close_button =
-                touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
-
-            // draw backgrounds and set cursor icon
-            if close_button_resp.hovered() {
-                ui.painter().rect(
-                    close_button_rect,
-                    2.0,
-                    ui.visuals().code_bg_color,
-                    egui::Stroke::NONE,
-                );
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            } else if tab_label_resp.hovered() {
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            }
-
-            // draw status icon
-            {
-                let icon_draw_pos = egui::pos2(
-                    tab_label_rect.min.x + padding_x,
-                    tab_label_rect.center().y - status_icon.size / 2.0,
-                );
-
-                let icon: egui::WidgetText = (&status_icon).into();
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    status_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter()
-                    .galley(icon_draw_pos, icon, ui.visuals().text_color());
-            }
-
-            // status icon tooltip explains situation
-            ui.ctx()
-                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
-            ui.interact(
-                status_icon_rect,
-                Id::new("tab label status icon").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = self.tab_status(t).summary();
-                let text: egui::WidgetText = text.into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-                let text: egui::WidgetText = format!("last saved {last_saved}").into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                ui.ctx().request_repaint_after_secs(1.0);
-            });
-
-            // draw text
-            let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-            let wrap_width = if show_close_button {
-                w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
-            } else {
-                w - (padding_x + status_icon.size + padding_x + padding_x)
-            };
-
-            // tooltip contains unelided text
-            let mut text_rect = tab_label_resp.rect;
-            text_rect.min.x = status_icon_rect.max.x;
-            text_rect.max.x = close_button_rect.min.x;
-            ui.interact(
-                text_rect,
-                Id::new("tab label text").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = text.clone().into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    wrap_width,
-                    egui::TextStyle::Small,
-                );
-                ui.add(egui::Label::new(text));
-            });
-
-            let text = text.into_galley(
-                ui,
-                Some(TextWrapMode::Truncate),
-                wrap_width,
-                egui::TextStyle::Small,
-            );
-            let text_color = ui.style().interact(&tab_label_resp).text_color();
-            let text_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x + status_icon.size + padding_x,
-                tab_label_rect.center().y - 0.5 * text.size().y,
-            );
-            ui.painter().galley(text_pos, text, text_color);
-
-            // draw close button icon
-            if show_close_button {
-                let icon_draw_pos = egui::pos2(
-                    close_button_rect.center().x - x_icon.size / 2.,
-                    close_button_rect.center().y - x_icon.size / 2.2,
-                );
-                let icon: egui::WidgetText = (&x_icon).into();
-                let icon_color = if close_button_resp.is_pointer_button_down_on() {
-                    ui.visuals().widgets.active.bg_fill
-                } else {
-                    ui.visuals().text_color()
-                };
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    x_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter().galley(icon_draw_pos, icon, icon_color);
-            }
-
-            // respond to input
-            if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
-                result = Some(TabLabelResponse::Closed);
-            } else if tab_label_resp.clicked() {
-                result = Some(TabLabelResponse::Clicked);
-            }
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
         }
 
         // draw separators
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         if !is_active {
-            ui.painter()
-                .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
+            ui.painter().hline(
+                tab_label.response.rect.x_range(),
+                tab_label.response.rect.max.y,
+                sep_stroke,
+            );
         }
-        ui.painter()
-            .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+        ui.painter().vline(
+            tab_label.response.rect.max.x,
+            tab_label.response.rect.y_range(),
+            sep_stroke,
+        );
+
+        tab_label.response.on_hover_ui(|ui| {
+            let text = self.tab_status(t).summary();
+            let text: egui::WidgetText = RichText::from(text).size(15.0).into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            let last_saved = self.tabs[t].last_saved.elapsed_human_string();
+            let text: egui::WidgetText = RichText::from(format!("last saved {last_saved}"))
+                .size(12.0)
+                .into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            ui.ctx().request_repaint_after_secs(1.0);
+        });
 
         result
     }
+}
+
+/// get the color for the native apple title bar
+fn get_apple_bg_color(ui: &mut egui::Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(57, 57, 56)
+    } else {
+        egui::Color32::from_rgb(240, 240, 239)
+    }
+}
+
+/// egui, when rendering a single monospace symbol character doesn't seem to be able to center a character vertically
+/// this fn takes into account where the text was positioned within the galley and computes a size using mesh_bounds
+/// and retruns a rect with uniform padding.
+fn centered_galley_rect(galley: &Galley) -> Rect {
+    let min = galley.rect.min;
+    let offset = galley.rect.min - galley.mesh_bounds.min;
+    let max = galley.mesh_bounds.max - offset;
+
+    Rect { min, max }
 }
 
 enum TabLabelResponse {
@@ -1044,11 +1113,7 @@ impl ElapsedHumanString for time::Duration {
         let minutes = self.whole_minutes();
         let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
-            if seconds <= 1 {
-                "1 second ago".to_string()
-            } else {
-                format!("{seconds} seconds ago")
-            }
+            if seconds <= 1 { "1 second ago".to_string() } else { format!("{seconds} seconds ago") }
         } else {
             self.format_human().to_string()
         }

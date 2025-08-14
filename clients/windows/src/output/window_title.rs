@@ -1,7 +1,6 @@
-use windows::{
-    core::*,
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::core::*;
 
 pub fn handle(hwnd: HWND, window_title: Option<String>) {
     if let Some(title) = window_title {

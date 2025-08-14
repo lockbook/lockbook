@@ -1,8 +1,8 @@
-use lb_rs::{
-    model::api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-    model::usage::bytes_to_human,
-    service::usage::{UsageItemMetric, UsageMetrics},
+use lb_rs::model::api::{
+    AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
+use lb_rs::model::usage::bytes_to_human;
+use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 
 use crate::widgets::ProgressBar;
 
@@ -50,21 +50,21 @@ fn draw_free_tier(ui: &mut egui::Ui) {
 }
 
 fn draw_stripe(ui: &mut egui::Ui, last4: &str) -> Option<SubscriptionResponse> {
-    ui.heading(format!("Stripe ({})", last4));
+    ui.heading(format!("Stripe ({last4})"));
     None
 }
 
 fn draw_google_play(
     ui: &mut egui::Ui, account_state: &GooglePlayAccountState,
 ) -> Option<SubscriptionResponse> {
-    ui.heading(format!("Google Play ({:?})", account_state));
+    ui.heading(format!("Google Play ({account_state:?})"));
     None
 }
 
 fn draw_app_store(
     ui: &mut egui::Ui, account_state: &AppStoreAccountState,
 ) -> Option<SubscriptionResponse> {
-    ui.heading(format!("App Store ({:?})", account_state));
+    ui.heading(format!("App Store ({account_state:?})"));
     None
 }
 

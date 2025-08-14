@@ -89,13 +89,13 @@ impl super::SettingsModal {
                                 Ok(()) => {
                                     let sub_info_result = core
                                         .get_subscription_info()
-                                        .map_err(|err| format!("{:?}", err)); // TODO
+                                        .map_err(|err| format!("{err:?}")); // TODO
 
                                     let metrics_result =
-                                        core.get_usage().map_err(|err| format!("{:?}", err)); // TODO
+                                        core.get_usage().map_err(|err| format!("{err:?}")); // TODO
                                     let uncompressed_result = core
                                         .get_uncompressed_usage()
-                                        .map_err(|err| format!("{:?}", err)); // TODO
+                                        .map_err(|err| format!("{err:?}")); // TODO
 
                                     let new_usage_data = UsageSettingsInfo {
                                         sub_info_result,
@@ -105,7 +105,7 @@ impl super::SettingsModal {
 
                                     update_tx.send(Ok(new_usage_data)).unwrap();
                                 }
-                                Err(err) => update_tx.send(Err(format!("{:?}", err))).unwrap(),
+                                Err(err) => update_tx.send(Err(format!("{err:?}"))).unwrap(),
                             }
                             ctx.request_repaint();
                         });

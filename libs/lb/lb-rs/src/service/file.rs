@@ -1,3 +1,4 @@
+use crate::Lb;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
