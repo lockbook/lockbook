@@ -1241,7 +1241,7 @@ impl SyncContext {
     }
 }
 
-#[derive(Debug, Serialize,Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
@@ -1266,26 +1266,18 @@ pub enum SyncIncrement {
     SyncStarted,
     PullingDocument(Uuid, bool),
     PushingDocument(Uuid, bool),
-    #[serde(
-        serialize_with   = "serialize_finish",
-        deserialize_with = "deserialize_finish"
-    )]
+    #[serde(serialize_with = "serialize_finish", deserialize_with = "deserialize_finish")]
     SyncFinished(Option<LbErrKind>),
 }
 
-fn serialize_finish<S>(
-    opt: &Option<LbErrKind>,
-    serializer: S,
-) -> Result<S::Ok, S::Error>
+fn serialize_finish<S>(opt: &Option<LbErrKind>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
     serializer.serialize_bool(opt.is_some())
 }
- 
-fn deserialize_finish<'de, D>(
-    _deserializer: D,
-) -> Result<Option<LbErrKind>, D::Error>
+
+fn deserialize_finish<'de, D>(_deserializer: D) -> Result<Option<LbErrKind>, D::Error>
 where
     D: Deserializer<'de>,
 {

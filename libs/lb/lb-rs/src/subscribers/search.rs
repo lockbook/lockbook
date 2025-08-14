@@ -272,7 +272,7 @@ impl LbServer {
     }
 
     pub fn get_search(&self) -> SearchIndex {
-        self.search.clone()         
+        self.search.clone()
     }
 }
 

@@ -76,4 +76,3 @@ impl LbServer {
         self.events.tx.subscribe()
     }
 }
-

@@ -1,17 +1,17 @@
-use crate::io::CoreDb;
-use crate::service::logging;
-use db_rs::Db;
 use crate::io::docs::AsyncDocs;
 use crate::io::network::Network;
+use crate::io::CoreDb;
 use crate::io::LbDb;
 use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::service::events::EventSubs;
 use crate::service::keychain::Keychain;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
+use crate::service::logging;
 use crate::subscribers::search::SearchIndex;
 use crate::subscribers::status::StatusUpdater;
+use db_rs::Db;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tokio::sync::RwLock;
 
 #[derive(Clone)]

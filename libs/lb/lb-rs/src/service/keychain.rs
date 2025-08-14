@@ -37,7 +37,7 @@ where
     let cache_read = cache.read().unwrap();
     let map = &*cache_read;
     let mut map_serializer = serializer.serialize_map(Some(map.len()))?;
-    
+
     for (key, value) in map {
         map_serializer.serialize_entry(key, value)?;
     }

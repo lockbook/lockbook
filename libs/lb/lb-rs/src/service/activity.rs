@@ -119,7 +119,7 @@ impl DocEvent {
     }
 }
 
-#[derive(Debug, Copy, Clone,Serialize,Deserialize)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct RankingWeights {
     /// the freshness of a doc as determined by the last activity
     pub temporality: i64,

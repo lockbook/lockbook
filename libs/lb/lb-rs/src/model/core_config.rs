@@ -30,7 +30,7 @@ impl Config {
             logs: true,
             stdout_logs: false,
             colored_logs: true,
-            rpc_port: Self::rpc_port()
+            rpc_port: Self::rpc_port(),
         }
     }
 
@@ -43,7 +43,7 @@ impl Config {
             logs: true,
             stdout_logs: true,
             colored_logs: true,
-            rpc_port: Self::rpc_port()
+            rpc_port: Self::rpc_port(),
         }
     }
 
@@ -70,7 +70,6 @@ impl Config {
             Err(_) => None,
         }
     }
-
 }
 
 // todo: we added background work as a flag to speed up test execution in debug mode

@@ -1,12 +1,8 @@
-use std::future::Future;
-use std::path::PathBuf;
-use std::sync::Arc;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use uuid::Uuid;
-use crate::model::api::{AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier};
-use crate::model::errors::{LbErrKind};
-use crate::model::errors::{core_err_unexpected};
+use crate::model::api::{
+    AccountFilter, AccountIdentifier, AdminSetUserTierInfo, ServerIndex, StripeAccountTier,
+};
+use crate::model::errors::core_err_unexpected;
+use crate::model::errors::LbErrKind;
 use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
@@ -14,7 +10,13 @@ use crate::rpc::Method;
 use crate::service::activity::RankingWeights;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::subscribers::search::SearchConfig;
-use crate::{LbServer,LbResult};
+use crate::{LbResult, LbServer};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::future::Future;
+use std::path::PathBuf;
+use std::sync::Arc;
+use uuid::Uuid;
 
 pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult<Vec<u8>> {
     let res = match method {
@@ -33,29 +35,17 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.import_account_private_key_v1(account)).await?
         }
 
-        Method::ExportAccountPrivateKey => {
-            call_sync(|| lb.export_account_private_key())?
-        }
+        Method::ExportAccountPrivateKey => call_sync(|| lb.export_account_private_key())?,
 
-        Method::ExportAccountPrivateKeyV1 => {
-            call_sync(|| lb.export_account_private_key_v1())?
-        }
+        Method::ExportAccountPrivateKeyV1 => call_sync(|| lb.export_account_private_key_v1())?,
 
-        Method::ExportAccountPrivateKeyV2 => {
-            call_sync(|| lb.export_account_private_key_v2())?
-        }
+        Method::ExportAccountPrivateKeyV2 => call_sync(|| lb.export_account_private_key_v2())?,
 
-        Method::ExportAccountPhrase => {
-            call_sync(|| lb.export_account_phrase())?
-        }
+        Method::ExportAccountPhrase => call_sync(|| lb.export_account_phrase())?,
 
-        Method::ExportAccountQr => {
-            call_sync(|| lb.export_account_qr())?
-        }
+        Method::ExportAccountQr => call_sync(|| lb.export_account_qr())?,
 
-        Method::DeleteAccount => {
-            call_async(|| lb.delete_account()).await?
-        }
+        Method::DeleteAccount => call_async(|| lb.delete_account()).await?,
 
         Method::SuggestedDocs => {
             let settings: RankingWeights = deserialize_args(raw)?;
@@ -87,9 +77,7 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.validate_account(&username)).await?
         }
 
-        Method::ValidateServer => {
-            call_async(|| lb.validate_server()).await?
-        }
+        Method::ValidateServer => call_async(|| lb.validate_server()).await?,
 
         Method::FileInfo => {
             let id: Uuid = deserialize_args(raw)?;
@@ -101,9 +89,7 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.rebuild_index(index)).await?
         }
 
-        Method::BuildIndex => {
-            call_async(|| lb.build_index()).await?
-        }
+        Method::BuildIndex => call_async(|| lb.build_index()).await?,
 
         Method::SetUserTier => {
             let (username, tier_info): (String, AdminSetUserTierInfo) = deserialize_args(raw)?;
@@ -121,17 +107,15 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
         }
 
         Method::UpgradeAccountAppStore => {
-            let (original_transaction_id, app_account_token): (String, String) = deserialize_args(raw)?;
-            call_async(|| lb.upgrade_account_app_store(original_transaction_id, app_account_token)).await?
+            let (original_transaction_id, app_account_token): (String, String) =
+                deserialize_args(raw)?;
+            call_async(|| lb.upgrade_account_app_store(original_transaction_id, app_account_token))
+                .await?
         }
 
-        Method::CancelSubscription => {
-            call_async(|| lb.cancel_subscription()).await?
-        }
+        Method::CancelSubscription => call_async(|| lb.cancel_subscription()).await?,
 
-        Method::GetSubscriptionInfo => {
-            call_async(|| lb.get_subscription_info()).await?
-        }
+        Method::GetSubscriptionInfo => call_async(|| lb.get_subscription_info()).await?,
 
         Method::DebugInfo => {
             let os_info: String = deserialize_args(raw)?;
@@ -154,7 +138,8 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
         }
 
         Method::SafeWrite => {
-            let (id, old_hmac, content): (Uuid, Option<DocumentHmac>, Vec<u8>) = deserialize_args(raw)?;
+            let (id, old_hmac, content): (Uuid, Option<DocumentHmac>, Vec<u8>) =
+                deserialize_args(raw)?;
             call_async(|| lb.safe_write(id, old_hmac, content)).await?
         }
 
@@ -178,13 +163,9 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.delete(&id)).await?
         }
 
-        Method::Root => {
-            call_async(|| lb.root()).await?
-        }
+        Method::Root => call_async(|| lb.root()).await?,
 
-        Method::ListMetadatas => {
-            call_async(|| lb.list_metadatas()).await?
-        }
+        Method::ListMetadatas => call_async(|| lb.list_metadatas()).await?,
 
         Method::GetChildren => {
             let id: Uuid = deserialize_args(raw)?;
@@ -202,10 +183,11 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
         }
 
         Method::LocalChanges => {
-             call_async(|| async move {
+            call_async(|| async move {
                 let changes: Vec<Uuid> = lb.local_changes().await;
                 Ok(changes)
-            }).await?
+            })
+            .await?
         }
 
         Method::ImportFiles => {
@@ -222,16 +204,15 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
 
         Method::ExportFileRecursively => {
             let (id, disk_path, edit): (Uuid, PathBuf, bool) = deserialize_args(raw)?;
-            call_async(|| lb.export_file_recursively(id, &disk_path, edit, &None::<fn(ExportFileInfo)>)).await?
+            call_async(|| {
+                lb.export_file_recursively(id, &disk_path, edit, &None::<fn(ExportFileInfo)>)
+            })
+            .await?
         }
 
-        Method::TestRepoIntegrity => {
-            call_async(|| lb.test_repo_integrity()).await?
-        }
+        Method::TestRepoIntegrity => call_async(|| lb.test_repo_integrity()).await?,
 
-        Method::GetAccount => {
-            call_sync(|| lb.get_account()).map_err(core_err_unexpected)?
-        }
+        Method::GetAccount => call_sync(|| lb.get_account()).map_err(core_err_unexpected)?,
 
         Method::CreateLinkAtPath => {
             let (path, target_id): (String, Uuid) = deserialize_args(raw)?;
@@ -268,45 +249,31 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| lb.share_file(id, &username, mode)).await?
         }
 
-        Method::GetPendingShares => {
-            call_async(|| lb.get_pending_shares()).await?
-        }
+        Method::GetPendingShares => call_async(|| lb.get_pending_shares()).await?,
 
         Method::RejectShare => {
             let id: Uuid = deserialize_args(raw)?;
             call_async(|| lb.reject_share(&id)).await?
         }
 
-        Method::CalculateWork => {
-            call_async(|| lb.calculate_work()).await?
-        }
+        Method::CalculateWork => call_async(|| lb.calculate_work()).await?,
 
-        Method::Sync => {
-            call_async(|| lb.sync(None)).await?
-        }
+        Method::Sync => call_async(|| lb.sync(None)).await?,
 
-        Method::GetLastSyncedHuman => {
-            call_async(|| lb.get_last_synced_human()).await?
-        }
+        Method::GetLastSyncedHuman => call_async(|| lb.get_last_synced_human()).await?,
 
         Method::GetTimestampHumanString => {
             let timestamp: i64 = deserialize_args(raw)?;
-            call_async(|| async {
-                Ok(lb.get_timestamp_human_string(timestamp))
-            }).await?
+            call_async(|| async { Ok(lb.get_timestamp_human_string(timestamp)) }).await?
         }
 
-        Method::GetUsage => {
-            call_async(|| lb.get_usage()).await?
-        }
+        Method::GetUsage => call_async(|| lb.get_usage()).await?,
 
         Method::GetUncompressedUsageBreakdown => {
             call_async(|| lb.get_uncompressed_usage_breakdown()).await?
         }
 
-        Method::GetUncompressedUsage => {
-            call_async(|| lb.get_uncompressed_usage()).await?
-        }
+        Method::GetUncompressedUsage => call_async(|| lb.get_uncompressed_usage()).await?,
 
         Method::Search => {
             let (input, cfg): (String, SearchConfig) = deserialize_args(raw)?;
@@ -317,36 +284,19 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
             call_async(|| async {
                 let status = lb.status().await;
                 Ok(status)
-            }).await?
+            })
+            .await?
         }
 
-        Method::GetConfig => {
-            call_async(|| async {
-                Ok(lb.get_config())
-            }).await?
-        }
+        Method::GetConfig => call_async(|| async { Ok(lb.get_config()) }).await?,
 
-        Method::GetLastSynced => {
-            call_async(|| async {
-                Ok(lb.get_last_synced().await)
-            }).await?
-        }
+        Method::GetLastSynced => call_async(|| async { Ok(lb.get_last_synced().await) }).await?,
 
-        Method::GetSearch => {
-            call_async(|| async {
-                Ok(lb.get_search())
-            }).await?
-        }
+        Method::GetSearch => call_async(|| async { Ok(lb.get_search()) }).await?,
 
-        Method::GetKeychain => {
-            call_async(|| async {
-                Ok(lb.get_keychain())
-            }).await?
-        }
+        Method::GetKeychain => call_async(|| async { Ok(lb.get_keychain()) }).await?,
 
-        other => {
-            return Err(LbErrKind::Unexpected(format!("Unknown method: {:?}", other)).into())
-        }
+        other => return Err(LbErrKind::Unexpected(format!("Unknown method: {:?}", other)).into()),
     };
     Ok(res)
 }
@@ -355,8 +305,7 @@ fn deserialize_args<A>(raw: &[u8]) -> LbResult<A>
 where
     A: DeserializeOwned,
 {
-    bincode::deserialize(raw)
-        .map_err(|e| core_err_unexpected(e).into())
+    bincode::deserialize(raw).map_err(|e| core_err_unexpected(e).into())
 }
 
 async fn call_async<R, Fut>(f: impl FnOnce() -> Fut) -> LbResult<Vec<u8>>
