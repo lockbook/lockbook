@@ -59,7 +59,7 @@ pub fn run_rust_tests() -> CliResult<()> {
     dotenvy::from_path(local_env_path()).unwrap();
 
     Command::new("cargo")
-        .args(["test", "--workspace", "--release"])
+        .args(["test", "--workspace"])
         .current_dir(root())
         .assert_success()
 }
