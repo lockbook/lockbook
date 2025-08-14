@@ -8,7 +8,6 @@ use std::sync::PoisonError;
 use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
 use serde::{
-    de::{self, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use tracing::error;
@@ -38,25 +37,11 @@ impl Serialize for LbErr {
 }
 
 impl<'de> Deserialize<'de> for LbErr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        todo!("Implement deser for LbErr");
-        struct LbErrVisitor;
-        impl<'de> Visitor<'de> for LbErrVisitor {
-            type Value = LbErr;
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                f.write_str("a debug‐formatted LbErr string")
-            }
-            fn visit_str<E>(self, s: &str) -> Result<LbErr, E>
-            where
-                E: de::Error,
-            {
-                Ok(LbErrKind::Unexpected(s.to_string()).into())
-            }
-        }
-        deserializer.deserialize_str(LbErrVisitor)
+        Ok(LbErr {kind: LbErrKind::Unexpected("Deserializing LbErr".to_string()), backtrace: None})
     }
 }
 

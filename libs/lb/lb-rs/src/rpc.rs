@@ -156,7 +156,7 @@ impl LbServer {
         stream.read_exact(&mut len_buf).await?;
         let msg_len = usize::from_le_bytes(len_buf);
 
-        let mut msg = vec![0u8; msg_len as usize];
+        let mut msg = vec![0u8; msg_len];
         stream.read_exact(&mut msg).await?;
 
         let method: Method = unsafe { std::mem::transmute(method_id) };

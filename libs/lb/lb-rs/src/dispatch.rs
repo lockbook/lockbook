@@ -192,7 +192,7 @@ pub async fn dispatch(lb: Arc<LbServer>, method: Method, raw: &[u8]) -> LbResult
 
         Method::ImportFiles => {
             let (paths, dest): (Vec<String>, Uuid) =
-                bincode::deserialize(&raw).map_err(core_err_unexpected)?;
+                bincode::deserialize(raw).map_err(core_err_unexpected)?;
             let sources: Vec<PathBuf> = paths.into_iter().map(PathBuf::from).collect();
             call_async(|| lb.import_files(&sources, dest, &None::<fn(ImportStatus)>)).await?
         }

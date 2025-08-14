@@ -66,10 +66,6 @@ impl LbClient {
         call_rpc(self.addr, Method::ExportAccountPrivateKeyV1, ()).await
     }
 
-    pub(crate) async fn export_account_private_key_v2(&self) -> LbResult<String> {
-        call_rpc(self.addr, Method::ExportAccountPrivateKeyV2, ()).await
-    }
-
     pub async fn export_account_phrase(&self) -> LbResult<String> {
         call_rpc(self.addr, Method::ExportAccountPhrase, ()).await
     }
@@ -275,7 +271,7 @@ impl LbClient {
     }
 
     pub async fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
+        &self, sources: &[PathBuf], dest: Uuid, _update_status: &Option<F>,
     ) -> LbResult<()> {
         let source_paths: Vec<String> = sources
             .iter()
@@ -286,14 +282,14 @@ impl LbClient {
     }
 
     pub async fn export_file<F: Fn(ExportFileInfo)>(
-        &self, id: Uuid, dest: PathBuf, edit: bool, update_status: &Option<F>,
+        &self, id: Uuid, dest: PathBuf, edit: bool, _update_status: &Option<F>,
     ) -> LbResult<()> {
         let args = (id, dest.clone(), edit);
         call_rpc(self.addr, Method::ExportFile, args).await
     }
 
     pub async fn export_file_recursively<F: Fn(ExportFileInfo)>(
-        &self, id: Uuid, disk_path: &Path, edit: bool, update_status: &Option<F>,
+        &self, id: Uuid, disk_path: &Path, edit: bool, _update_status: &Option<F>,
     ) -> LbResult<()> {
         let args = (id, disk_path.to_path_buf(), edit);
         call_rpc(self.addr, Method::ExportFileRecursively, args).await
@@ -357,7 +353,7 @@ impl LbClient {
         call_rpc(self.addr, Method::CalculateWork, ()).await
     }
 
-    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
+    pub async fn sync(&self, _f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
         call_rpc(self.addr, Method::Sync, ()).await
     }
 
