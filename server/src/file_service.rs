@@ -230,9 +230,9 @@ where
     pub async fn change_doc(
         &self, context: RequestContext<ChangeDocRequest>,
     ) -> Result<(), ServerError<ChangeDocError>> {
+        use ChangeDocError::*;
         let request = context.request;
-        let public_key = context.public_key;
-        let request = ChangeDocRequestV2 {
+        let mut request = ChangeDocRequestV2 {
             diff: FileDiff {
                 old: request.diff.old.map(|f| f.into()),
                 new: request.diff.new.into(),
@@ -240,16 +240,7 @@ where
             new_content: request.new_content,
         };
 
-        self.change_doc_v2(RequestContext { request, public_key })
-            .await
-    }
-
-    pub async fn change_doc_v2(
-        &self, context: RequestContext<ChangeDocRequestV2>,
-    ) -> Result<(), ServerError<ChangeDocError>> {
-        use ChangeDocError::*;
         let owner = Owner(context.public_key);
-        let mut request = context.request;
         let id = *request.diff.id();
 
         // Validate Diff
@@ -307,6 +298,208 @@ where
                     *doc_size = Some(request.new_content.value.len());
                 }
             }
+
+            let new_size = request.new_content.value.len();
+
+            let new_usage = old_usage - old_size.unwrap_or_default() + new_size;
+
+            debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
+
+            if new_usage > usage_cap {
+                return Err(ClientError(UsageIsOverDataCap));
+            }
+
+            let meta_owner = meta.owner();
+
+            let direct_access = meta_owner.0 == req_pk;
+
+            if tree.maybe_find(request.diff.new.id()).is_none() {
+                return Err(ClientError(NotPermissioned));
+            }
+
+            let mut share_access = false;
+            if !direct_access {
+                for ancestor in tree
+                    .ancestors(request.diff.id())?
+                    .iter()
+                    .chain(vec![request.diff.new.id()])
+                {
+                    let meta = tree.find(ancestor)?;
+
+                    if meta
+                        .user_access_keys()
+                        .iter()
+                        .any(|access| access.encrypted_for == req_pk)
+                    {
+                        share_access = true;
+                        break;
+                    }
+                }
+            }
+
+            if !direct_access && !share_access {
+                return Err(ClientError(NotPermissioned));
+            }
+
+            let meta = &tree
+                .maybe_find(request.diff.new.id())
+                .ok_or(ClientError(DocumentNotFound))?
+                .file;
+
+            if let Some(old) = &request.diff.old {
+                if meta != old {
+                    return Err(ClientError(OldVersionIncorrect));
+                }
+            }
+
+            if tree.calculate_deleted(request.diff.new.id())? {
+                return Err(ClientError(DocumentDeleted));
+            }
+
+            // Here is where you would check if the person is out of space as a result of the new file.
+            // You could make this a transaction and check whether or not this is an increase in size or
+            // a reduction
+        }
+
+        let new_version = get_time().0 as u64;
+        let new = request.diff.new.clone().add_time(new_version);
+        self.document_service
+            .insert(
+                request.diff.new.id(),
+                request.diff.new.document_hmac().unwrap(),
+                &request.new_content,
+            )
+            .await?;
+        debug!(?id, ?hmac, "Inserted document contents");
+
+        let result = async {
+            let mut lock = self.index_db.lock().await;
+            let db = lock.deref_mut();
+            let tx = db.begin_transaction()?;
+
+            let mut tree = ServerTree::new(
+                owner,
+                &mut db.owned_files,
+                &mut db.shared_files,
+                &mut db.file_children,
+                &mut db.metas,
+            )?
+            .to_lazy();
+
+            if tree.calculate_deleted(request.diff.new.id())? {
+                return Err(ClientError(DocumentDeleted));
+            }
+
+            let meta = &tree
+                .maybe_find(request.diff.new.id())
+                .ok_or(ClientError(DocumentNotFound))?
+                .file;
+
+            if let Some(old) = &request.diff.old {
+                if meta != old {
+                    return Err(ClientError(OldVersionIncorrect));
+                }
+            }
+
+            tree.stage(vec![new]).promote()?;
+            db.last_seen.insert(owner, get_time().0 as u64)?;
+
+            tx.drop_safely()?;
+            drop(lock);
+            Ok(())
+        };
+
+        let result = result.await;
+
+        if result.is_err() {
+            // Cleanup the NEW file created if, for some reason, the tx failed
+            self.document_service
+                .delete(request.diff.new.id(), request.diff.new.document_hmac().unwrap())
+                .await?;
+            debug!(?id, ?hmac, "Cleaned up new document contents after failed metadata update");
+        }
+
+        result?;
+
+        // New
+        if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
+            self.document_service
+                .delete(request.diff.new.id(), hmac)
+                .await?;
+            let old_hmac = base64::encode_config(hmac, base64::URL_SAFE);
+            debug!(
+                ?id,
+                ?old_hmac,
+                "Cleaned up old document contents after successful metadata update"
+            );
+        }
+
+        Ok(())
+    }
+
+    pub async fn change_doc_v2(
+        &self, context: RequestContext<ChangeDocRequestV2>,
+    ) -> Result<(), ServerError<ChangeDocError>> {
+        use ChangeDocError::*;
+        let owner = Owner(context.public_key);
+        let request = context.request;
+        let id = *request.diff.id();
+
+        // Validate Diff
+        if request.diff.diff() != vec![Diff::Hmac] {
+            return Err(ClientError(DiffMalformed));
+        }
+
+        match request.diff.new.timestamped_value.value.doc_size() {
+            Some(size) => {
+                if *size != request.new_content.value.len() {
+                    return Err(ClientError(NewSizeIncorrect));
+                }
+            }
+            None => {
+                // do we even want to support this?
+                if request.new_content.value.is_empty() {
+                    return Err(ClientError(NewSizeIncorrect));
+                }
+            }
+        }
+
+        let hmac = if let Some(hmac) = request.diff.new.document_hmac() {
+            base64::encode_config(hmac, base64::URL_SAFE)
+        } else {
+            return Err(ClientError(HmacMissing));
+        };
+
+        let req_pk = context.public_key;
+
+        {
+            let mut lock = self.index_db.lock().await;
+            let db = lock.deref_mut();
+            let usage_cap = Self::get_cap(db, &context.public_key)
+                .map_err(|err| internal!("{:?}", err))? as usize;
+
+            let meta = db
+                .metas
+                .get()
+                .get(request.diff.new.id())
+                .ok_or(ClientError(DocumentNotFound))?
+                .clone();
+
+            let mut tree = ServerTree::new(
+                owner,
+                &mut db.owned_files,
+                &mut db.shared_files,
+                &mut db.file_children,
+                &mut db.metas,
+            )?
+            .to_lazy();
+
+            let old_usage = Self::get_usage_helper(&mut tree)
+                .map_err(|err| internal!("{:?}", err))?
+                .iter()
+                .map(|f| f.size_bytes)
+                .sum::<u64>() as usize;
+            let old_size = *meta.file.timestamped_value.value.doc_size();
 
             let new_size = request.new_content.value.len();
 
