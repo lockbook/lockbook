@@ -50,23 +50,23 @@ impl Lb {
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.lb.export_account_private_key_v1()
+        self.rt.block_on(self.lb.export_account_private_key_v1())
     }
 
     pub fn export_account_phrase(&self) -> LbResult<String> {
-        self.lb.export_account_phrase()
+        self.rt.block_on(self.lb.export_account_phrase())
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        self.lb.export_account_qr()
+        self.rt.block_on(self.lb.export_account_qr())
     }
 
-    pub fn get_account(&self) -> LbResult<&Account> {
-        self.lb.get_account()
+    pub fn get_account(&self) -> LbResult<Account> {
+        self.rt.block_on(self.lb.get_account())
     }
 
     pub fn get_config(&self) -> Config {
-        self.lb.config.clone()
+        self.rt.block_on(self.lb.get_config())
     }
 
     pub fn create_file(&self, name: &str, parent: &Uuid, file_type: FileType) -> LbResult<File> {
@@ -174,11 +174,7 @@ impl Lb {
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {
-        self.rt.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            Ok(db.last_synced.get().copied().unwrap_or(0))
-        })
+        self.rt.block_on(self.lb.get_last_synced())
     }
 
     pub fn get_last_synced_human_string(&self) -> LbResult<String> {
@@ -186,7 +182,8 @@ impl Lb {
     }
 
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
-        self.lb.get_timestamp_human_string(timestamp)
+        self.rt
+            .block_on(self.lb.get_timestamp_human_string(timestamp))
     }
 
     pub fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
@@ -215,7 +212,7 @@ impl Lb {
     }
 
     pub fn import_files<F: Fn(ImportStatus)>(
-        &self, sources: &[PathBuf], dest: Uuid, update_status: &F,
+        &self, sources: &[PathBuf], dest: Uuid, update_status: &Option<F>,
     ) -> LbResult<()> {
         self.rt
             .block_on(self.lb.import_files(sources, dest, update_status))
@@ -314,7 +311,7 @@ impl Lb {
     }
 
     pub fn subscribe(&self) -> Receiver<Event> {
-        self.lb.subscribe()
+        self.rt.block_on(self.lb.subscribe())
     }
 
     pub fn status(&self) -> Status {

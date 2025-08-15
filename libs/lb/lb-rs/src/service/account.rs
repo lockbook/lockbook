@@ -5,13 +5,13 @@ use crate::model::api::{
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileMetadata, FileType, Owner};
-use crate::{DEFAULT_API_LOCATION, Lb};
+use crate::{DEFAULT_API_LOCATION, Lb, LbServer};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl Lb {
+impl LbServer {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,
@@ -149,7 +149,6 @@ impl Lb {
             .await
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_account_private_key(&self) -> LbResult<String> {
         self.export_account_private_key_v1()
     }
