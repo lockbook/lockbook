@@ -292,10 +292,10 @@ where
             mac.finalize().into_bytes()
         }
         .into();
-        file.set_hmac(Some(hmac));
-        let file = file.sign(keychain)?;
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
+        file.set_hmac_and_size(Some(hmac), Some(document.value.len()));
+        let file = file.sign(keychain)?;
 
         Ok((file, document))
     }

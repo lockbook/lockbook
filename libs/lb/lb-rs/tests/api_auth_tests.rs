@@ -89,7 +89,10 @@ async fn change_document_content() {
     };
 
     let mut file2 = file1.clone();
-    file2.timestamped_value.value.set_hmac(Some([0; 32]));
+    file2
+        .timestamped_value
+        .value
+        .set_hmac_and_size(Some([0; 32]), Some(1));
 
     let acc2 = &core2.get_account().unwrap();
     let result = core2

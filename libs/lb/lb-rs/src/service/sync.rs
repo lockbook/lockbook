@@ -955,7 +955,10 @@ impl Lb {
             let maybe_base_file = local.tree.base.maybe_find(&id);
 
             // change everything but document hmac and re-sign
-            local_change.set_hmac(maybe_base_file.and_then(|f| f.document_hmac().copied()));
+            local_change.set_hmac_and_size(
+                maybe_base_file.and_then(|f| f.document_hmac().copied()),
+                maybe_base_file.and_then(|f| *f.timestamped_value.value.doc_size()),
+            );
             let local_change = local_change.sign(&self.keychain)?;
 
             local_changes_no_digests.push(local_change.clone());
@@ -1004,7 +1007,10 @@ impl Lb {
 
             // change only document hmac and re-sign
             let mut local_change = base_file.timestamped_value.value.clone();
-            local_change.set_hmac(local.find(&id)?.document_hmac().copied());
+            local_change.set_hmac_and_size(
+                local.find(&id)?.document_hmac().copied(),
+                *local.find(&id)?.timestamped_value.value.doc_size(),
+            );
 
             if base_file.document_hmac() == local_change.document_hmac()
                 || local_change.document_hmac().is_none()

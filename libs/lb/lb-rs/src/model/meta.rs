@@ -110,9 +110,12 @@ impl Meta {
         }
     }
 
-    pub fn set_hmac(&mut self, new_hmac: Option<DocumentHmac>) {
+    pub fn set_hmac_and_size(&mut self, new_hmac: Option<DocumentHmac>, new_size: Option<usize>) {
         match self {
-            Meta::V1 { doc_hmac, .. } => *doc_hmac = new_hmac,
+            Meta::V1 { doc_hmac, doc_size, .. } => {
+                *doc_hmac = new_hmac;
+                *doc_size = new_size;
+            }
         }
     }
 
@@ -128,6 +131,7 @@ impl Meta {
         }
     }
 
+    // todo move to FileLike when possible
     pub fn doc_size(&self) -> &Option<usize> {
         match self {
             Meta::V1 { doc_size, .. } => doc_size,
