@@ -200,6 +200,7 @@ where
     D: DocumentService,
 {
     core_req!(NewAccountRequest, ServerState::new_account, server_state)
+        .or(core_req!(NewAccountRequestV2, ServerState::new_account_v2, server_state))
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
         .or(core_req!(ChangeDocRequestV2, ServerState::change_doc_v2, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
