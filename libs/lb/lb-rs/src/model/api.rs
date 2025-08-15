@@ -335,7 +335,7 @@ impl Request for NewAccountRequestV2 {
     type Response = NewAccountResponse;
     type Error = NewAccountError;
     const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/new-account";
+    const ROUTE: &'static str = "/new-account-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
