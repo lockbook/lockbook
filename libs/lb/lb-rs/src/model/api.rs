@@ -121,6 +121,7 @@ pub struct ChangeDocRequestV2 {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum ChangeDocError {
     HmacMissing,
+    NewSizeIncorrect,
     DocumentNotFound,
     DocumentDeleted,
     NotPermissioned,
