@@ -211,6 +211,7 @@ where
         .or(core_req!(GetUsageRequest, ServerState::get_usage, server_state))
         .or(core_req!(GetFileIdsRequest, ServerState::get_file_ids, server_state))
         .or(core_req!(GetUpdatesRequest, ServerState::get_updates, server_state))
+        .or(core_req!(GetUpdatesRequestV2, ServerState::get_updates_v2, server_state))
         .or(core_req!(
             UpgradeAccountGooglePlayRequest,
             ServerState::upgrade_account_google_play,
