@@ -1,6 +1,7 @@
 use lb_rs::model::access_info::{UserAccessInfo, UserAccessMode};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::ShareMode;
+use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::{ValidationFailure, symkey};
@@ -75,7 +76,7 @@ async fn directly_shared_link() {
         .timestamped_value
         .value
         .clone();
-    link.user_access_keys.push(
+    link.user_access_keys_mut().push(
         UserAccessInfo::encrypt(
             accounts[1],
             &accounts[1].public_key(),
@@ -87,7 +88,7 @@ async fn directly_shared_link() {
     );
     tx.db()
         .local_metadata
-        .insert(link.id, link.sign(&cores[1].keychain).unwrap())
+        .insert(*link.id(), link.sign(&cores[1].keychain).unwrap())
         .unwrap();
 
     let db = tx.db();

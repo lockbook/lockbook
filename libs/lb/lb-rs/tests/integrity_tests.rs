@@ -70,7 +70,7 @@ async fn test_invalid_file_name_slash() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();
@@ -92,7 +92,7 @@ async fn empty_filename() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();
@@ -124,7 +124,7 @@ async fn test_cycle() {
         .unwrap()
         .clone();
     let child = core.get_by_path("folder1/folder2").await.unwrap();
-    parent.timestamped_value.value.parent = child.id;
+    parent.timestamped_value.value.set_parent(child.id);
     core.begin_tx()
         .await
         .db()
@@ -153,7 +153,7 @@ async fn test_documents_treated_as_folders() {
         .get(&parent.id)
         .unwrap()
         .clone();
-    parent.timestamped_value.value.file_type = Document;
+    parent.timestamped_value.value.set_type(Document);
     core.begin_tx()
         .await
         .db()
@@ -178,7 +178,7 @@ async fn test_name_conflict() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();

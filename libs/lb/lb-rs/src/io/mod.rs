@@ -12,6 +12,7 @@ use crate::Lb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
@@ -20,9 +21,9 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use uuid::Uuid;
 
-pub(crate) type LbDb = Arc<RwLock<CoreV3>>;
+pub(crate) type LbDb = Arc<RwLock<CoreDb>>;
 // todo: limit visibility
-pub type CoreDb = CoreV3;
+pub type CoreDb = CoreV4;
 
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
@@ -32,6 +33,21 @@ pub struct CoreV3 {
     pub root: Single<Uuid>,
     pub local_metadata: LookupTable<Uuid, SignedFile>,
     pub base_metadata: LookupTable<Uuid, SignedFile>,
+
+    /// map from pub key to username
+    pub pub_key_lookup: LookupTable<Owner, String>,
+
+    pub doc_events: List<DocEvent>,
+}
+
+#[derive(Schema, Debug)]
+#[cfg_attr(feature = "no-network", derive(Clone))]
+pub struct CoreV4 {
+    pub account: Single<Account>,
+    pub last_synced: Single<i64>,
+    pub root: Single<Uuid>,
+    pub local_metadata: LookupTable<Uuid, SignedMeta>,
+    pub base_metadata: LookupTable<Uuid, SignedMeta>,
 
     /// map from pub key to username
     pub pub_key_lookup: LookupTable<Owner, String>,
