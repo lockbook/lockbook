@@ -17,15 +17,15 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
-    NewAccountRequest, NewAccountResponse, PaymentPlatform,
+    NewAccountRequest, NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::lazy::LazyTree;
-use lb_rs::model::server_file::IntoServerFile;
-use lb_rs::model::server_meta::ServerMeta;
+use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
+use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
@@ -47,9 +47,25 @@ where
     pub async fn new_account(
         &self, context: RequestContext<NewAccountRequest>,
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
+        let request = context.request;
+        let request = NewAccountRequestV2 {
+            username: request.username.to_lowercase(),
+            public_key: request.public_key,
+            root_folder: SignedMeta::from(request.root_folder),
+        };
+
+        self.new_account_v2(RequestContext { request, public_key: context.public_key })
+            .await
+    }
+
+    /// Create a new account given a username, public_key, and root folder.
+    /// Checks that username is valid, and that username, public_key and root_folder are new.
+    /// Inserts all of these values into their respective keys along with the default free account tier size
+    pub async fn new_account_v2(
+        &self, mut context: RequestContext<NewAccountRequestV2>,
+    ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
+        context.request.username = context.request.username.to_lowercase();
         let request = &context.request;
-        let request =
-            NewAccountRequest { username: request.username.to_lowercase(), ..request.clone() };
 
         if !username_is_valid(&request.username) {
             return Err(ClientError(NewAccountError::InvalidUsername));
@@ -78,7 +94,7 @@ where
             return Err(ClientError(FileIdTaken));
         }
 
-        let username = request.username;
+        let username = &request.username;
         let account = Account { username: username.clone(), billing_info: Default::default() };
 
         let owner = Owner(request.public_key);
@@ -87,12 +103,11 @@ where
         owned_files.insert(*root.id());
 
         db.accounts.insert(owner, account)?;
-        db.usernames.insert(username, owner)?;
+        db.usernames.insert(username.clone(), owner)?;
         db.owned_files.insert(owner, *root.id())?;
         db.shared_files.create_key(owner)?;
         db.file_children.create_key(*root.id())?;
-        db.metas
-            .insert(*root.id(), ServerMeta::from(root.clone()))?;
+        db.metas.insert(*root.id(), root.clone())?;
 
         handle.drop_safely()?;
 
