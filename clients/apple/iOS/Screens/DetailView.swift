@@ -6,14 +6,16 @@ struct DetailView: View {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
 
     @EnvironmentObject var workspaceState: WorkspaceState
-    @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var filesModel: FilesViewModel
-    @State var wrappedWorkspaceState: WrappedWorkspaceState
+    @ObservedObject var homeState: HomeState
+    @ObservedObject var filesModel: FilesViewModel
+    @StateObject var wrappedWorkspaceState: WrappedWorkspaceState
         
     @State var sheetHeight: CGFloat = 0
     
     init(homeState: HomeState, filesModel: FilesViewModel) {
-        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
+        self._wrappedWorkspaceState = StateObject(wrappedValue: WrappedWorkspaceState(homeState: homeState, filesModel: filesModel))
+        self.homeState = homeState
+        self.filesModel = filesModel
     }
 
     var body: some View {
@@ -111,10 +113,7 @@ struct ConstrainedTitle: ViewModifier {
 
     var title: String {
         get {
-            guard let id = workspaceState.openDoc else {
-                return ""
-            }
-            
+            guard let id = workspaceState.openDoc else { return "" }
             return filesModel.idsToFiles[id]?.name ?? "Unknown file"
         }
     }

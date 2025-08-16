@@ -14,7 +14,9 @@ class WrappedWorkspaceState: ObservableObject {
         
         AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
             self?.runOnActiveWorkspaceState(doRun: rename) { file in
-                self?.homeState.sheetInfo = .rename(file: file)
+                DispatchQueue.main.async {
+                    self?.homeState.sheetInfo = .rename(file: file)
+                }
             }
         }
         .store(in: &cancellables)
@@ -28,18 +30,20 @@ class WrappedWorkspaceState: ObservableObject {
                 return
             }
             
-            homeState.sheetInfo = .createFolder(parent: root)
+            DispatchQueue.main.async {
+                homeState.sheetInfo = .createFolder(parent: root)
+            }
         }
         .store(in: &cancellables)
     }
     
-    func runOnActiveWorkspaceState(doRun: Bool, f: (File) -> Void) {
+    func runOnActiveWorkspaceState(doRun: Bool, f: @escaping (File) -> Void) {
         guard let openDoc = AppState.workspaceState.openDoc else {
             return
         }
         
         if doRun {
-            if let file = try? AppState.lb.getFile(id: openDoc).get() {
+            if let file = filesModel.idsToFiles[openDoc] {
                 f(file)
             }
         }
