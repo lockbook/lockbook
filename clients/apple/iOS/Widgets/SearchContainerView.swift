@@ -1,8 +1,13 @@
 import SwiftUI
 
 struct SearchContainerView<Content: View>: View {
+    @StateObject var model: SearchContainerViewModel
     @ViewBuilder let content: Content
-    @StateObject var model = SearchContainerViewModel()
+    
+    init(filesModel: FilesViewModel, content: @escaping () -> Content) {
+        self._model = StateObject(wrappedValue: SearchContainerViewModel(filesModel: filesModel))
+        self.content = content()
+    }
     
     var body: some View {
         SearchContainerWrapperView(model: model) {
@@ -18,7 +23,7 @@ struct SearchContainerWrapperView<Content: View>: View {
     
     @State var passedIsSearching: Bool = false
     
-    @ObservedObject var model = SearchContainerViewModel()
+    @ObservedObject var model: SearchContainerViewModel
     @ViewBuilder let content: Content
     
     var body: some View {

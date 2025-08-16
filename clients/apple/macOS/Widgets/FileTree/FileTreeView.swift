@@ -98,7 +98,7 @@ struct FileTreeView: NSViewRepresentable {
                 
                 guard let selectedId else { return }
                 
-                guard let file = try? AppState.lb.getFile(id: selectedId).get() else { return }
+                guard let file = filesModel.idsToFiles[selectedId] else { return }
                 let row = treeView.row(forItem: file)
                 
                 treeView.selectRowIndexes([row], byExtendingSelection: false)
@@ -110,7 +110,7 @@ struct FileTreeView: NSViewRepresentable {
             guard let selected else { return }
             guard let treeView else { return }
             
-            guard let file = try? AppState.lb.getFile(id: selected).get() else { return }
+            guard let file = filesModel.idsToFiles[selected] else { return }
             
             self.expandToFile(treeView: treeView, file: file)
             let row = treeView.row(forItem: file)
