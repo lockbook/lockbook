@@ -1095,7 +1095,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             if showTabs {
                 unfocus_title(wsHandle)
             }
-        } 
+        }
 
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
