@@ -64,7 +64,7 @@ struct HomeView: View {
     
     @ViewBuilder
     var detail: some View {
-        DetailView()
+        DetailView(homeState: homeState, filesModel: filesModel)
             .navigationDestination(isPresented: $homeState.showSettings) {
                 SettingsView()
             }

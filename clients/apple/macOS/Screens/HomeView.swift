@@ -13,7 +13,7 @@ struct HomeView: View {
                 }
             }, detail: {
                 NavigationStack {
-                    DetailView()
+                    DetailView(homeState: homeState, filesModel: filesModel)
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
@@ -94,6 +94,11 @@ struct DetailView: View {
     
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceState: WorkspaceState
+    @State var wrappedWorkspaceState: WrappedWorkspaceState
+    
+    init(homeState: HomeState, filesModel: FilesViewModel) {
+        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
+    }
     
     var body: some View {
         if isPreview {

@@ -8,8 +8,13 @@ struct DetailView: View {
     @EnvironmentObject var workspaceState: WorkspaceState
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    
+    @State var wrappedWorkspaceState: WrappedWorkspaceState
+        
     @State var sheetHeight: CGFloat = 0
+    
+    init(homeState: HomeState, filesModel: FilesViewModel) {
+        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
+    }
 
     var body: some View {
         Group {
@@ -141,7 +146,7 @@ struct ConstrainedTitle: ViewModifier {
     workspaceState.tabCount = 5
     
     return NavigationStack {
-        DetailView()
+        DetailView(homeState: HomeState(), filesModel: FilesViewModel())
             .environmentObject(workspaceState)
             .environmentObject(HomeState())
     }
