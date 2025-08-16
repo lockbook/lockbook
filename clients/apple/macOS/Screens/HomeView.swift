@@ -6,9 +6,9 @@ struct HomeView: View {
     @StateObject var filesModel = FilesViewModel()
 
     var body: some View {
-        PathSearchContainerView {
+        PathSearchContainerView(filesModel: filesModel) {
             NavigationSplitView(sidebar: {
-                SearchContainerView {
+                SearchContainerView(filesModel: filesModel) {
                     SidebarView()
                 }
             }, detail: {

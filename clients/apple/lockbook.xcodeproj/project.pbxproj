@@ -103,7 +103,6 @@
 		4731981A2D2AE88E00FBCD5F /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE862D273263002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE992D273B35002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
-		4742CE9D2D273B8B002F3BE4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 		478B1BC42CCEB67300FDCB73 /* LbSwiftTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LbSwiftTests; sourceTree = "<group>"; };
 		47BC31D42D249E3A0020F0E4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -224,7 +223,6 @@
 			children = (
 				4731980C2D29A1CD00FBCD5F /* State */,
 				473198002D28916400FBCD5F /* Screens */,
-				4742CE9D2D273B8B002F3BE4 /* Utils */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
 				EA5C7D722516606000F7F358 /* Info.plist */,
 				B273394C26C8A4B400303EAE /* Assets.xcassets */,
@@ -311,7 +309,6 @@
 				4731980C2D29A1CD00FBCD5F /* State */,
 				4731981A2D2AE88E00FBCD5F /* Widgets */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
-				4742CE9D2D273B8B002F3BE4 /* Utils */,
 				47BC31D42D249E3A0020F0E4 /* Utils */,
 			);
 			name = "Lockbook (iOS)";

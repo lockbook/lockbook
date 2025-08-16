@@ -14,16 +14,16 @@ struct HomeView: View {
                     NewDrawerView(homeState: homeState, mainView: {
                         detail
                     }, sideView: {
-                        SearchContainerView {
+                        SearchContainerView(filesModel: filesModel) {
                             sidebar
                         }
                     })
                     .environment(\.isConstrainedLayout, true)
                 }
             } else {
-                PathSearchContainerView {
+                PathSearchContainerView(filesModel: filesModel) {
                     NavigationSplitView(sidebar: {
-                        SearchContainerView {
+                        SearchContainerView(filesModel: filesModel) {
                             sidebar
                         }
                     }, detail: {

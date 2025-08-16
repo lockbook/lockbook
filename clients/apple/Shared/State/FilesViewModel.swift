@@ -17,7 +17,7 @@ class FilesViewModel: ObservableObject {
     
     private var cancellables: Set<AnyCancellable> = []
         
-    init() {        
+    init() {
         AppState.lb.events.$metadataUpdated.sink { [weak self] status in
             self?.loadFiles()
         }
