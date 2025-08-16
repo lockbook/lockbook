@@ -6,14 +6,14 @@ struct HomeView: View {
     @StateObject var filesModel = FilesViewModel()
 
     var body: some View {
-        PathSearchContainerView {
+        PathSearchContainerView(filesModel: filesModel) {
             NavigationSplitView(sidebar: {
-                SearchContainerView {
+                SearchContainerView(filesModel: filesModel) {
                     SidebarView()
                 }
             }, detail: {
                 NavigationStack {
-                    DetailView()
+                    DetailView(homeState: homeState, filesModel: filesModel)
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
@@ -94,6 +94,11 @@ struct DetailView: View {
     
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceState: WorkspaceState
+    @State var wrappedWorkspaceState: WrappedWorkspaceState
+    
+    init(homeState: HomeState, filesModel: FilesViewModel) {
+        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
+    }
     
     var body: some View {
         if isPreview {

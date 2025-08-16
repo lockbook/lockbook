@@ -2,12 +2,22 @@ import SwiftUI
 import SwiftWorkspace
 
 struct PathSearchContainerView<Content: View>: View {
-    @StateObject var model = PathSearchViewModel()
+    @StateObject var model: PathSearchViewModel
     @ViewBuilder var content: Content
     
     #if os(macOS)
     @FocusState var focused: Bool
     #endif
+    
+    init(model: PathSearchViewModel, content: @escaping () -> Content) {
+        self._model = StateObject(wrappedValue: model)
+        self.content = content()
+    }
+    
+    init(filesModel: FilesViewModel, content: @escaping () -> Content) {
+        self._model = StateObject(wrappedValue: PathSearchViewModel(filesModel: filesModel))
+        self.content = content()
+    }
     
     let SEARCH_BAR_WIDTH: CGFloat = 500
     
@@ -138,16 +148,16 @@ struct PathSearchContainerView<Content: View>: View {
 }
 
 #Preview("Path Search") {
-    var pathSearchModel = PathSearchViewModel()
+    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel())
     pathSearchModel.isShown = true
     
-    return PathSearchContainerView(model: pathSearchModel) {
+    return PathSearchContainerView(model: pathSearchModel, content: {
         Color.red
-    }
+    })
 }
 
 #Preview("Path Search Single Item") {
-    var pathSearchModel = PathSearchViewModel()
+    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel())
     pathSearchModel.isShown = true
     pathSearchModel.results = [
         PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: [])

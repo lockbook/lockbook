@@ -96,8 +96,14 @@ class SearchContainerViewModel: ObservableObject {
     
     @Published var results: [SearchResult] = []
     
+    let filesModel: FilesViewModel
+    
+    init(filesModel: FilesViewModel) {
+        self.filesModel = filesModel
+    }
+    
     func open(id: UUID) {
-        guard let file = try? AppState.lb.getFile(id: id).get() else {
+        guard let file = filesModel.idsToFiles[id] else {
             return
         }
         

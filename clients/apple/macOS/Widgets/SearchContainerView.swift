@@ -2,10 +2,15 @@ import SwiftUI
 
 struct SearchContainerView<Content: View>: View {
     @Environment(\.dismissSearch) private var dismissSearch
-    @StateObject var model = SearchContainerViewModel()
+    @StateObject var model: SearchContainerViewModel
     @ViewBuilder let content: Content
     @FocusState var isFocused: Bool
     @State var isSearching: Bool = false
+    
+    init(filesModel: FilesViewModel, content: @escaping () -> Content) {
+        self._model = StateObject(wrappedValue: SearchContainerViewModel(filesModel: filesModel))
+        self.content = content()
+    }
     
     var body: some View {
         VStack {
