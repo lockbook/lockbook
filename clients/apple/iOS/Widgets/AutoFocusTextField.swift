@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 
 struct AutoFocusTextField: UIViewRepresentable {
+    @State var selectedName: Bool = false
     @Binding var text: String
 
     let placeholder: String
@@ -43,6 +44,18 @@ struct AutoFocusTextField: UIViewRepresentable {
     
     func updateUIView(_ uiView: UITextField, context: Context) {
         uiView.text = text
+        
+        guard let baseName = (uiView.text as? NSString)?.deletingPathExtension else { return }
+        
+        if !selectedName,
+           let start = uiView.position(from: uiView.beginningOfDocument, offset: 0),
+           let end = uiView.position(from: start, offset: baseName.count) {
+            DispatchQueue.main.async {
+                self.selectedName = true
+            }
+            
+            uiView.selectedTextRange = uiView.textRange(from: start, to: end)
+        }
     }
         
     class Coordinator: NSObject, UITextFieldDelegate {
