@@ -83,7 +83,8 @@ class SelectFolderViewModel: ObservableObject {
             filesModel.selectedFilesState = .unselected
             
             return true
-        case .externalImport(let paths):
+        case .externalImport(let urls):
+            let paths = urls.map({ $0.path(percentEncoded: false) })
             if case .failure(let err) = AppState.lb.importFiles(sources: paths, dest: parent) {
                 error = err.msg
                 
@@ -93,6 +94,10 @@ class SelectFolderViewModel: ObservableObject {
             homeState.fileActionCompleted = .importFiles
             filesModel.loadFiles()
             filesModel.selectedFilesState = .unselected
+            
+            for url in urls {
+                url.stopAccessingSecurityScopedResource()
+            }
             
             return true
         case .acceptShare(let name, let id):

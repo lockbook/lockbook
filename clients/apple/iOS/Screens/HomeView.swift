@@ -46,6 +46,12 @@ struct HomeView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
                         Button(action: {
+                            homeState.sheetInfo = .importPicker
+                        }, label: {
+                            Image(systemName: "square.and.arrow.down.fill")
+                        })
+                        
+                        Button(action: {
                             homeState.showPendingShares = true
                         }, label: {
                             PendingSharesIcon(homeState: homeState)

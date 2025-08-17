@@ -32,8 +32,8 @@ struct SelectFolderSheet: View {
             } else {
                 "Moving \(files.count) \(files.count == 1 ? "file" : "files")."
             }
-        case .externalImport(let paths):
-            "Importing \(paths.count) \(paths.count == 1 ? "file" : "files")."
+        case .externalImport(let urls):
+            "Importing \(urls.count) \(urls.count == 1 ? "file" : "files")."
         case .acceptShare(let name, _):
             "Accepting share \"\(name)\"."
         }
@@ -279,7 +279,7 @@ struct HighlightedText: View {
             SelectFolderSheet(
                 homeState: HomeState(),
                 filesModel: FilesViewModel(),
-                action: .externalImport(paths: ["/path/to/file.txt", "/path/to/file2.txt"])
+                action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")])
             )
         }
 }
