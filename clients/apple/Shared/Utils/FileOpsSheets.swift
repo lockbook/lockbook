@@ -67,6 +67,9 @@ struct FileOpSheets: ViewModifier {
                 case .share(file: let file):
                     ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
                         .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
+                case .importPicker:
+                    // Unused
+                    EmptyView()
                 }
             }
         #endif
