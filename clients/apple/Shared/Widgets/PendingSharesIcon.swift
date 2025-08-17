@@ -5,15 +5,18 @@ import Combine
 struct PendingSharesIcon: View {
     @StateObject var model: PendingSharesIconViewModel
     
+    #if os(iOS)
+    let textSize: CGFloat = 10
+    let circleSize: CGFloat = 10
     let alertOffsetX: CGFloat = 10
     let alertOffsetY: CGFloat = 5
-    
-    #if os(iOS)
-    let textOffsetX: CGFloat = 0.3
-    let textOffsetY: CGFloat = 0.2
+    let controlSize = ControlSize.regular
     #else
-    let textOffsetX: CGFloat = 0.3
-    let textOffsetY: CGFloat = 0.5
+    let textSize: CGFloat = 9
+    let circleSize: CGFloat = 9
+    let alertOffsetX: CGFloat = 8
+    let alertOffsetY: CGFloat = 3
+    let controlSize = ControlSize.small
     #endif
     
     init(homeState: HomeState) {
@@ -27,21 +30,20 @@ struct PendingSharesIcon: View {
                     .foregroundColor(.accentColor)
                 
                 if pendingSharesCount > 0 {
-                    Circle()
-                        .foregroundColor(.red)
-                        .frame(width: 10, height: 10)
+                    Text(pendingSharesCount < 10 ? String(pendingSharesCount) : "")
+                        .foregroundStyle(.white)
+                        .font(.custom("PendingShares", fixedSize: textSize))
+                        .background(
+                            Circle()
+                                .foregroundColor(.red)
+                                .frame(width: circleSize, height: circleSize)
+                        )
                         .offset(x: alertOffsetX, y: alertOffsetY)
-                    
-                    if pendingSharesCount < 10 {
-                        Text(String(pendingSharesCount))
-                            .foregroundStyle(.white)
-                            .offset(x: alertOffsetX + textOffsetX, y: alertOffsetY + textOffsetY)
-                            .font(.custom("pending shares", fixedSize: 10))
-                    }
                 }
             }
         } else {
             ProgressView()
+                .controlSize(controlSize)
         }
     }
 }
