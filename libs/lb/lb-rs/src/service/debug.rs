@@ -1,7 +1,7 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::service::logging::LOG_FILE;
-use crate::{Lb, get_code_version};
+use crate::LbServer;
+use crate::{get_code_version, service::logging::LOG_FILE, Lb};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
 use serde::Serialize;
@@ -27,7 +27,7 @@ pub struct DebugInfo {
     pub last_panic: String,
 }
 
-impl Lb {
+impl LbServer {
     async fn tail_log(&self) -> LbResult<String> {
         let mut path = PathBuf::from(&self.config.writeable_path);
         if path.exists() {

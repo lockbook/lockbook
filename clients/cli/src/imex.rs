@@ -18,7 +18,7 @@ pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
 
     let total = Cell::new(0);
     let nth_file = Cell::new(0);
-    let update_status = move |status: ImportStatus| match status {
+    let _update_status = move |status: ImportStatus| match status {
         ImportStatus::CalculatedTotal(n_files) => total.set(n_files),
         ImportStatus::StartingItem(disk_path) => {
             nth_file.set(nth_file.get() + 1);
@@ -28,7 +28,7 @@ pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
         ImportStatus::FinishedItem(_meta) => println!("done."),
     };
 
-    lb.import_files(&[disk], parent, &update_status).await?;
+    lb.import_files(&[disk], parent, &None::<fn(ImportStatus)>).await?;
 
     Ok(())
 }
