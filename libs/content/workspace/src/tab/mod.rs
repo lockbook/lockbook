@@ -539,12 +539,9 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     core: &Lb, from: Uuid, path: P,
 ) -> Result<File, String> {
     let path = path.as_ref();
-    println!("path {:?} from {:?}", path.to_string_lossy().to_string(), from);
     let target_path = if path.is_relative() {
         let open_file_path = core.get_path_by_id(from).map_err(|e| e.to_string())?;
         let target_file_path = open_file_path + "/" + &path.to_string_lossy();
-
-        println!("relative target_file_path: {:?}", target_file_path);
 
         canonicalize_path(&target_file_path)
     } else {
@@ -554,10 +551,7 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     #[cfg(windows)]
     let target_path = target_path.replace('\\', "/");
 
-    let result = core.get_by_path(&target_path).map_err(|e| e.to_string());
-
-    println!("result: {:?}", result);
-    result
+    core.get_by_path(&target_path).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
