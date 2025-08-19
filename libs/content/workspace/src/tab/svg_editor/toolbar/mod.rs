@@ -246,8 +246,8 @@ impl Toolbar {
 
     pub fn show(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
-    ) {
-        self.handle_keyboard_shortcuts(ui, tlbr_ctx);
+    ) -> bool {
+        let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
 
         let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
@@ -255,7 +255,10 @@ impl Toolbar {
 
         ui.set_opacity(opacity);
 
-        let history_island = self.show_history_island(ui, tlbr_ctx);
+        let (history_island, history_dirty) = self.show_history_island(ui, tlbr_ctx);
+        if history_dirty {
+            res = true;
+        }
 
         let overlay_toggle_res = ui
             .scope(|ui| {
@@ -271,7 +274,7 @@ impl Toolbar {
             {
                 *skip_frame = true;
             }
-            return;
+            return res;
         }
 
         let mini_map_res = self.show_mini_map(ui, tlbr_ctx);
@@ -304,17 +307,24 @@ impl Toolbar {
         if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
             *skip_frame = true;
         }
+        res
     }
 
-    fn handle_keyboard_shortcuts(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
+    fn handle_keyboard_shortcuts(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+    ) -> bool {
+        let mut res = false;
+
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
         }) {
             tlbr_ctx.history.redo(tlbr_ctx.buffer);
+            res = true;
         }
 
         if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
             tlbr_ctx.history.undo(tlbr_ctx.buffer);
+            res = true;
         }
 
         if ui.input(|r| r.key_pressed(egui::Key::E)) {
@@ -332,6 +342,7 @@ impl Toolbar {
         if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
             self.toggle_at_cursor_tool_popover();
         }
+        res
     }
 
     pub fn toggle_at_cursor_tool_popover(&mut self) {

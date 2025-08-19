@@ -209,15 +209,18 @@ impl SVGEditor {
         self.buffer
             .promote_weak_images(self.viewport_settings.master_transform, &self.lb);
 
-        self.show_toolbar(ui);
+        let request_diff_change = self.show_toolbar(ui);
 
-        for (_, el) in &mut self.buffer.elements {
-            match el {
-                Element::Path(p) => p.diff_state = DiffState::default(),
-                Element::Image(i) => i.diff_state = DiffState::default(),
-                Element::Text(_) => todo!(),
+        if !request_diff_change {
+            for (_, el) in &mut self.buffer.elements {
+                match el {
+                    Element::Path(p) => p.diff_state = DiffState::default(),
+                    Element::Image(i) => i.diff_state = DiffState::default(),
+                    Element::Text(_) => todo!(),
+                }
             }
         }
+
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
@@ -263,7 +266,7 @@ impl SVGEditor {
         Response { request_save: needs_save_and_frame_is_cheap }
     }
 
-    fn show_toolbar(&mut self, ui: &mut egui::Ui) {
+    fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {
         let mut toolbar_context = ToolbarContext {
             buffer: &mut self.buffer,
             history: &mut self.history,
@@ -281,14 +284,25 @@ impl SVGEditor {
                     ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
 
                 self.toolbar
-                    .show(&mut ui, &mut toolbar_context, &mut self.skip_frame);
+                    .show(&mut ui, &mut toolbar_context, &mut self.skip_frame)
             },
-        );
+        )
+        .inner
     }
 
     fn process_events(&mut self, ui: &mut egui::Ui) {
         if !ui.is_enabled() {
             return;
+        }
+
+        if ui.input_mut(|r| {
+            r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
+        }) {
+            self.history.redo(&mut self.buffer);
+        }
+
+        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+            self.history.undo(&mut self.buffer);
         }
 
         self.handle_clip_input(ui);
