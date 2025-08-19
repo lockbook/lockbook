@@ -552,6 +552,12 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     };
 
     let result = core.get_by_path(&target_path).map_err(|e| e.to_string());
+    #[cfg(windows)]
+    let result = result.map(|mut file| {
+        file.name = file.name.replace('\\', "/");
+        file
+    });
+
     println!("result: {:?}", result);
     result
 }
