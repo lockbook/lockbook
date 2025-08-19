@@ -82,7 +82,7 @@ impl<'ast> Editor {
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
                 wrap.offset +=
-                    self.span_text_line(&wrap, postfix_whitespace, self.text_format_syntax(node));
+                    self.span_text_line(&wrap, postfix_whitespace, self.text_format(node));
             }
         } else {
             unreachable!("setext headings never have empty lines");
@@ -133,8 +133,7 @@ impl<'ast> Editor {
             }
 
             if reveal && !postfix_range.is_empty() {
-                wrap.offset +=
-                    self.span_text_line(&wrap, postfix_range, self.text_format_syntax(node));
+                wrap.offset += self.span_text_line(&wrap, postfix_range, self.text_format(node));
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
@@ -242,7 +241,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     postfix_whitespace,
-                    self.text_format_syntax(node),
+                    self.text_format(node),
                     false,
                 );
             }
@@ -298,7 +297,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     postfix_range,
-                    self.text_format_syntax(node),
+                    self.text_format(node),
                     false,
                 );
             }
