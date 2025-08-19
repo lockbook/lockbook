@@ -6,7 +6,9 @@ use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 impl Toolbar {
     pub fn show_history_island(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> egui::Response {
+    ) -> (egui::Response, bool) {
+        let mut dirty = false;
+
         let history_island_x_start =
             tlbr_ctx.viewport_settings.container_rect.left() + SCREEN_PADDING;
         let history_island_y_start =
@@ -29,6 +31,7 @@ impl Toolbar {
                             .inner;
                         if undo_btn.clicked() || undo_btn.drag_started() {
                             tlbr_ctx.history.undo(tlbr_ctx.buffer);
+                            dirty = true;
                         }
 
                         let redo_btn = ui
@@ -39,11 +42,12 @@ impl Toolbar {
 
                         if redo_btn.clicked() || redo_btn.drag_started() {
                             tlbr_ctx.history.redo(tlbr_ctx.buffer);
+                            dirty = true;
                         }
                     })
                 })
         });
         self.layout.history_island = Some(res.response.rect);
-        res.inner.response
+        (res.inner.response, dirty)
     }
 }
