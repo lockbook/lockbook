@@ -541,11 +541,13 @@ impl Workspace {
                         if let Some(url) = &w.open_url {
                             // only intercept open urls for tabs representing files
                             let Some(id) = id else {
+                                println!("NO INTERCEPT");
                                 return;
                             };
 
                             // lookup this file so we can get the parent
                             let Ok(file) = self.core.get_file_by_id(id) else {
+                                println!("NO FILE");
                                 return;
                             };
 
@@ -553,6 +555,7 @@ impl Workspace {
                             let Ok(file) =
                                 core_get_by_relative_path(&self.core, file.parent, &url.url)
                             else {
+                                println!("NO PATH");
                                 return;
                             };
 
