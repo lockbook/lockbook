@@ -551,12 +551,10 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
         path.to_string_lossy().to_string()
     };
 
-    let result = core.get_by_path(&target_path).map_err(|e| e.to_string());
     #[cfg(windows)]
-    let result = result.map(|mut file| {
-        file.name = file.name.replace('\\', "/");
-        file
-    });
+    let target_path = target_path.replace('\\', "/");
+
+    let result = core.get_by_path(&target_path).map_err(|e| e.to_string());
 
     println!("result: {:?}", result);
     result
