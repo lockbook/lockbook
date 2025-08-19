@@ -19,31 +19,37 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let node_range = self.node_range(node);
+        let text_format = self.text_format(node);
 
-        let prefix_range = (node_range.start(), node_range.start() + 1);
-        let infix_range = (node_range.start() + 1, node_range.end() - 1);
-        let postfix_range = (node_range.end() - 1, node_range.end());
+        let prefix_range = (node_range.start(), node_range.start() + 1).trim(&range);
+        let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
+        let postfix_range = (node_range.end() - 1, node_range.end()).trim(&range);
 
         let reveal = self.node_intersects_selection(node);
-        let mut span = 0.0;
+        let mut tmp_wrap = wrap.clone();
 
-        if reveal {
-            span +=
-                self.span_text_line(wrap, prefix_range.trim(&range), self.text_format_syntax(node));
+        if !prefix_range.is_empty() && reveal {
+            tmp_wrap.offset +=
+                self.span_text_line(&tmp_wrap, prefix_range, self.text_format_syntax(node));
         }
-        let infix_range_trim = infix_range.trim(&range);
-        if !infix_range_trim.is_empty() {
-            span += self.span_text_line(wrap, infix_range_trim, self.text_format(node));
-        }
-        if reveal {
-            span += self.span_text_line(
-                wrap,
-                postfix_range.trim(&range),
-                self.text_format_syntax(node),
+        if !infix_range.is_empty() {
+            let pre_span = self.text_pre_span(&tmp_wrap, text_format.clone());
+            let mid_span = self.text_mid_span(
+                &tmp_wrap,
+                pre_span,
+                &self.buffer[infix_range],
+                text_format.clone(),
             );
+            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, text_format);
+
+            tmp_wrap.offset += pre_span + mid_span + post_span;
+        }
+        if !postfix_range.is_empty() && reveal {
+            tmp_wrap.offset +=
+                self.span_text_line(&tmp_wrap, postfix_range, self.text_format_syntax(node));
         }
 
-        span
+        tmp_wrap.offset - wrap.offset
     }
 
     pub fn show_code(
