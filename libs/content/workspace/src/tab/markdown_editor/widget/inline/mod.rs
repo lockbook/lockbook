@@ -99,7 +99,10 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        match &node.data.borrow().value {
+        let span = self.span(node, wrap, range);
+        let pre_offset = wrap.offset;
+
+        let response = match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => Default::default(),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
@@ -155,7 +158,19 @@ impl<'ast> Editor {
             NodeValue::Paragraph => unimplemented!("not an inline"),
             NodeValue::TableCell => unimplemented!("not an inline"),
             NodeValue::ThematicBreak => unimplemented!("not an inline"),
+        };
+
+        let post_offset = wrap.offset;
+        if span != post_offset - pre_offset && self.debug {
+            println!(
+                "SPAN MISMATCH: {:?} vs {:?} {:?}",
+                span,
+                post_offset - pre_offset,
+                node.data.borrow().value
+            );
         }
+
+        response
     }
 
     #[allow(clippy::only_used_in_recursion)]
