@@ -539,6 +539,7 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     core: &Lb, from: Uuid, path: P,
 ) -> Result<File, String> {
     let path = path.as_ref();
+    println!("path {:?} from {:?}", path.to_string_lossy().to_string(), from);
     let target_path = if path.is_relative() {
         let mut open_file_path =
             PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
@@ -547,11 +548,16 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
         }
         let target_file_path = open_file_path.to_string_lossy();
 
+        println!("relative target_file_path: {:?}", target_file_path);
+
         canonicalize_path(&target_file_path)
     } else {
         path.to_string_lossy().to_string()
     };
-    core.get_by_path(&target_path).map_err(|e| e.to_string())
+
+    let result = core.get_by_path(&target_path).map_err(|e| e.to_string());
+    println!("result: {:?}", result);
+    result
 }
 
 #[cfg(test)]
