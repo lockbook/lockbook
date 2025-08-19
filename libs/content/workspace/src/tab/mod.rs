@@ -541,12 +541,8 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     let path = path.as_ref();
     println!("path {:?} from {:?}", path.to_string_lossy().to_string(), from);
     let target_path = if path.is_relative() {
-        let mut open_file_path =
-            PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
-        for component in path.components() {
-            open_file_path.push(component);
-        }
-        let target_file_path = open_file_path.to_string_lossy();
+        let open_file_path = core.get_path_by_id(from).map_err(|e| e.to_string())?;
+        let target_file_path = open_file_path + "/" + &path.to_string_lossy();
 
         println!("relative target_file_path: {:?}", target_file_path);
 
