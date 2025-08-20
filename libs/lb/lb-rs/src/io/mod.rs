@@ -10,6 +10,7 @@ pub mod network;
 
 use crate::model::account::Account;
 use crate::model::core_config::Config;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::model::signed_meta::SignedMeta;
@@ -17,6 +18,7 @@ use crate::service::activity::DocEvent;
 use crate::{Lb, LbErrKind, LbResult};
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
+use docs::AsyncDocs;
 use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -57,7 +59,7 @@ pub struct CoreV4 {
     pub doc_events: List<DocEvent>,
 }
 
-pub fn migrate_and_init(cfg: &Config) -> LbResult<CoreV4> {
+pub async fn migrate_and_init(cfg: &Config, docs: &AsyncDocs) -> LbResult<CoreV4> {
     let cfg = db_rs::Config::in_folder(&cfg.writeable_path);
 
     let mut db =
@@ -82,11 +84,32 @@ pub fn migrate_and_init(cfg: &Config) -> LbResult<CoreV4> {
             db.root.insert(root)?;
         }
         for (id, file) in old.base_metadata.get() {
-            db.base_metadata.insert(*id, file.clone().into())?;
+            let mut meta: SignedMeta = file.clone().into();
+            if meta.is_document() {
+                if let Some(doc) = docs.maybe_get(*id, file.document_hmac().copied()).await? {
+                    meta.timestamped_value
+                        .value
+                        .set_hmac_and_size(file.document_hmac().copied(), Some(doc.value.len()));
+                } else {
+                    warn!("local document missing for {id}");
+                }
+            }
+            db.base_metadata.insert(*id, meta)?;
         }
 
         for (id, file) in old.local_metadata.get() {
-            db.local_metadata.insert(*id, file.clone().into())?;
+            let mut meta: SignedMeta = file.clone().into();
+            if meta.is_document() {
+                if let Some(doc) = docs.maybe_get(*id, file.document_hmac().copied()).await? {
+                    meta.timestamped_value
+                        .value
+                        .set_hmac_and_size(file.document_hmac().copied(), Some(doc.value.len()));
+                } else {
+                    warn!("local document missing for {id}");
+                }
+            }
+
+            db.local_metadata.insert(*id, meta)?;
         }
 
         for (o, s) in old.pub_key_lookup.get() {

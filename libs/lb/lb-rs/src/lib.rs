@@ -42,10 +42,10 @@ impl Lb {
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
 
-        let db = migrate_and_init(&config)?;
+        let docs = AsyncDocs::from(&config);
+        let db = migrate_and_init(&config, &docs).await?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
-        let docs = AsyncDocs::from(&config);
         let client = Network::default();
         let search = SearchIndex::default();
         let status = StatusUpdater::default();
