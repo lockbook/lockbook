@@ -121,7 +121,7 @@ impl Lb {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash, Copy)]
 pub enum DocEvent {
     Read(Uuid, i64),
     Write(Uuid, i64),

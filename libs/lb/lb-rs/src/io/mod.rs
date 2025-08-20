@@ -8,14 +8,16 @@
 pub mod docs;
 pub mod network;
 
-use crate::Lb;
 use crate::model::account::Account;
+use crate::model::core_config::Config;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
+use crate::{Lb, LbErrKind, LbResult};
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
+use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -53,6 +55,60 @@ pub struct CoreV4 {
     pub pub_key_lookup: LookupTable<Owner, String>,
 
     pub doc_events: List<DocEvent>,
+}
+
+pub fn migrate_and_init(cfg: &Config) -> LbResult<CoreV4> {
+    let cfg = db_rs::Config::in_folder(&cfg.writeable_path);
+
+    let mut db =
+        CoreDb::init(cfg.clone()).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+    let mut old = CoreV3::init(cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+
+    // --- migration begins ---
+    let tx = db.begin_transaction()?;
+
+    info!("evaluating migration");
+    if old.account.get().is_some() && db.account.get().is_none() {
+        info!("performing migration");
+        if let Some(account) = old.account.get().cloned() {
+            db.account.insert(account)?;
+        }
+
+        if let Some(last_synced) = old.last_synced.get().copied() {
+            db.last_synced.insert(last_synced)?;
+        }
+
+        if let Some(root) = old.root.get().copied() {
+            db.root.insert(root)?;
+        }
+        for (id, file) in old.base_metadata.get() {
+            db.base_metadata.insert(*id, file.clone().into())?;
+        }
+
+        for (id, file) in old.local_metadata.get() {
+            db.local_metadata.insert(*id, file.clone().into())?;
+        }
+
+        for (o, s) in old.pub_key_lookup.get() {
+            db.pub_key_lookup.insert(*o, s.clone())?;
+        }
+
+        for event in old.doc_events.get() {
+            db.doc_events.push(*event)?;
+        }
+    } else {
+        info!("no migration");
+    }
+
+    tx.drop_safely()?;
+    // --- migration ends ---
+
+    info!("cleaning up");
+    old.account.clear()?;
+    let old_db = old.config()?.db_location_v2()?;
+    let _ = fs::remove_file(old_db);
+
+    Ok(db)
 }
 
 pub struct LbRO<'a> {
