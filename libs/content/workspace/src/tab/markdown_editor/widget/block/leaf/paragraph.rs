@@ -63,17 +63,19 @@ impl<'ast> Editor {
     }
 
     pub fn show_paragraph(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        for descendant in node.descendants() {
-            if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
-                self.show_image_block(ui, node, top_left, url);
-                top_left.y += self.height_image(node, url);
-                top_left.y += BLOCK_SPACING;
-            }
-        }
-
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
+
+            for descendant in node.descendants() {
+                if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+                    if !self.node_range(descendant).trim(&node_line).is_empty() {
+                        self.show_image_block(ui, node, top_left, url);
+                        top_left.y += self.height_image(node, url);
+                        top_left.y += BLOCK_SPACING;
+                    }
+                }
+            }
 
             let line_height = self.height_paragraph_line(node, node_line);
 
