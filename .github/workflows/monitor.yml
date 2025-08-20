@@ -5,6 +5,7 @@ on:
     - cron:  '*/5 * * * *'
 jobs:
   Server-Status:
+    if: github.repository == 'lockbook/lockbook'
     runs-on: ubuntu-latest
     env:
       STATUS_API_URL: https://api.prod.lockbook.net/get-build-info
