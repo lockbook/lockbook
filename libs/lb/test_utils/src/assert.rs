@@ -1,6 +1,6 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use lb_rs::Lb;
-use lb_rs::model::api::GetUpdatesRequest;
+use lb_rs::model::api::GetUpdatesRequestV2;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::path_ops::Filter::DocumentsOnly;
@@ -209,7 +209,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .client
         .request(
             account,
-            GetUpdatesRequest {
+            GetUpdatesRequestV2 {
                 since_metadata_version: db.last_synced.get().copied().unwrap_or_default() as u64,
             },
         )

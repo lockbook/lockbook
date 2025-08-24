@@ -19,7 +19,7 @@ async fn rename_document() {
         .unwrap()
         .clone();
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(doc.clone())] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
@@ -36,7 +36,7 @@ async fn rename_document() {
         .clone();
 
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::edit(old, new)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(old, new)] })
         .await
         .unwrap();
 }
