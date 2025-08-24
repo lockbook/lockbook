@@ -5,7 +5,7 @@ struct ImportFilePicker: UIViewControllerRepresentable {
     @EnvironmentObject var homeState: HomeState
     
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.fileURL, UTType.image], asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.item], asCopy: true)
         picker.allowsMultipleSelection = true
         picker.delegate = context.coordinator
         return picker
