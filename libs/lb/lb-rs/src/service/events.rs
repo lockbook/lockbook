@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::Lb;
+use crate::LbServer;
 
 use super::sync::SyncIncrement;
 
@@ -11,7 +12,7 @@ pub struct EventSubs {
     tx: Sender<Event>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
@@ -29,7 +30,7 @@ pub enum Event {
     StatusUpdated,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Actor {
     Workspace,
     Sync,
@@ -63,6 +64,10 @@ impl EventSubs {
         self.queue(Event::StatusUpdated);
     }
 
+    pub fn get_tx(&self) -> &Sender<Event> {
+        &self.tx
+    }
+
     fn queue(&self, evt: Event) {
         if let Err(e) = self.tx.send(evt.clone()) {
             error!(?evt, ?e, "could not queue");
@@ -70,7 +75,7 @@ impl EventSubs {
     }
 }
 
-impl Lb {
+impl LbServer {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }

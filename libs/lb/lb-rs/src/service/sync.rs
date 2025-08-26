@@ -17,11 +17,12 @@ use crate::model::svg::element::Element;
 use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
-use crate::model::{ValidationFailure, clock, svg, symkey};
+use crate::LbServer;
 pub use basic_human_duration::ChronoHumanDuration;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::{hash_map, HashMap, HashSet};
+use crate::model::{ValidationFailure, clock, svg, symkey};
 use futures::{StreamExt, stream};
-use serde::Serialize;
-use std::collections::{HashMap, HashSet, hash_map};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -51,7 +52,7 @@ pub struct SyncContext {
     pulled_docs: Vec<Uuid>,
 }
 
-impl Lb {
+impl LbServer {
     #[instrument(level = "debug", skip_all, err(Debug))]
     pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
         let tx = self.ro_tx().await;
@@ -1156,6 +1157,12 @@ impl Lb {
             "never".to_string()
         }
     }
+
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        Ok(db.last_synced.get().copied().unwrap_or(0))
+    }
 }
 
 impl SyncContext {
@@ -1224,13 +1231,13 @@ impl SyncContext {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize)]
 pub struct SyncProgress {
     pub total: usize,
     pub progress: usize,
@@ -1244,10 +1251,25 @@ impl Display for SyncProgress {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SyncIncrement {
     SyncStarted,
     PullingDocument(Uuid, bool),
     PushingDocument(Uuid, bool),
+    #[serde(serialize_with = "serialize_finish", deserialize_with = "deserialize_finish")]
     SyncFinished(Option<LbErrKind>),
+}
+
+fn serialize_finish<S>(opt: &Option<LbErrKind>, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_bool(opt.is_some())
+}
+
+fn deserialize_finish<'de, D>(_deserializer: D) -> Result<Option<LbErrKind>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    Ok(None)
 }

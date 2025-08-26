@@ -6,7 +6,9 @@ use std::sync::PoisonError;
 
 use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use tracing::error;
 use uuid::Uuid;
 
@@ -21,6 +23,25 @@ pub type LbResult<T> = Result<T, LbErr>;
 pub struct LbErr {
     pub kind: LbErrKind,
     pub backtrace: Option<Backtrace>,
+}
+
+impl Serialize for LbErr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = format!("{:?}", self);
+        serializer.serialize_str(&s)
+    }
+}
+
+impl<'de> Deserialize<'de> for LbErr {
+    fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(LbErr {kind: LbErrKind::Unexpected("Deserializing LbErr".to_string()), backtrace: None})
+    }
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error
@@ -520,7 +541,7 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

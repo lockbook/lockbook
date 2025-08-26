@@ -238,7 +238,7 @@ async fn search(query: &str) -> CliResult<()> {
     lb.build_index().await?;
     let build_time = time.elapsed();
 
-    lb.search.tantivy_reader.reload().unwrap();
+    lb.get_search().await.tantivy_reader.reload().unwrap();
 
     let time = Instant::now();
     let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
@@ -287,7 +287,7 @@ async fn search(query: &str) -> CliResult<()> {
 #[tokio::main]
 async fn sync() -> CliResult<()> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     println!("syncing...");
     lb.sync(Some(Box::new(|sp: SyncProgress| {
@@ -374,8 +374,8 @@ async fn rename(target: FileInput, new_name: String) -> Result<(), CliError> {
     Ok(())
 }
 
-fn ensure_account(lb: &Lb) -> CliResult<()> {
-    if let Err(e) = lb.get_account() {
+async fn ensure_account(lb: &Lb) -> CliResult<()> {
+    if let Err(e) = lb.get_account().await {
         if e.kind == LbErrKind::AccountNonexistent {
             return Err(CliError::from("no account found, run lockbook account import"));
         }
@@ -385,7 +385,7 @@ fn ensure_account(lb: &Lb) -> CliResult<()> {
 }
 
 async fn ensure_account_and_root(lb: &Lb) -> CliResult<()> {
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
     if let Err(e) = lb.root().await {
         if e.kind == LbErrKind::RootNonexistent {
             return Err(CliError::from("no root found, have you synced yet?"));
