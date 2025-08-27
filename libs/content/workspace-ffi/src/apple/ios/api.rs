@@ -37,6 +37,8 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
+    println!(">>> Inserting text: {:?} <<<", content);
+
     if content == "\n" {
         obj.context
             .push_markdown_event(Event::Newline { shift: false });
@@ -91,6 +93,14 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 
     let region: Option<Region> = range.into();
     if let Some(region) = region {
+        // let markdown = match obj.workspace.current_tab_markdown_mut() {
+        //     Some(markdown) => markdown,
+        //     None => return,
+        // };
+        // let range = markdown.region_to_range(region);
+        // let replaced_text = &markdown.buffer.current.text[range.0.0..range.1.0].to_string();
+        // println!(">>> Replacing text: {:?} with {:?} <<<", replaced_text, text);
+
         obj.context
             .push_markdown_event(Event::Replace { region, text, advance_cursor: true });
     }
@@ -162,9 +172,18 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614541-selectedtextrange
 #[no_mangle]
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
+    println!(
+        "✅ set_selected - INPUT: range={{ none: {}, start: {{ none: {}, pos: {} }}, end: {{ none: {}, pos: {} }} }}",
+        range.none, range.start.none, range.start.pos, range.end.none, range.end.pos
+    );
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if let Some(region) = range.into() {
+        println!("✅ set_selected - Converting to region: {:?}", region);
         obj.context.push_markdown_event(Event::Select { region });
+        println!("✅ set_selected - Selection event pushed");
+    } else {
+        println!("✅ set_selected - Range conversion failed, no selection event pushed");
     }
 }
 
@@ -250,9 +269,13 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 #[no_mangle]
 #[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
+    println!("👆 touches_began - INPUT: id={}, pos=({}, {}), force={}", id, x, y, force);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
+    println!("👆 touches_began - Processed force: {:?}", force);
+
     obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
@@ -260,6 +283,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         pos: Pos2 { x, y },
         force,
     });
+    println!("👆 touches_began - Added Touch event (Start phase)");
 
     obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
@@ -267,6 +291,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         pressed: true,
         modifiers: Default::default(),
     });
+    println!("👆 touches_began - Added PointerButton event (pressed=true)");
 }
 
 /// # Safety
@@ -298,9 +323,12 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 #[no_mangle]
 #[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
+    println!("🔚 touches_ended - INPUT: id={}, pos=({}, {}), force={}", id, x, y, force);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
+    println!("🔚 touches_ended - Processed force: {:?}", force);
 
     obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
@@ -309,6 +337,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         pos: Pos2 { x, y },
         force,
     });
+    println!("🔚 touches_ended - Added Touch event (End phase)");
 
     obj.raw_input.events.push(egui::Event::PointerButton {
         pos: Pos2 { x, y },
@@ -316,8 +345,10 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         pressed: false,
         modifiers: Default::default(),
     });
+    println!("🔚 touches_ended - Added PointerButton event (pressed=false)");
 
     obj.raw_input.events.push(egui::Event::PointerGone);
+    println!("🔚 touches_ended - Added PointerGone event");
 }
 
 /// # Safety
@@ -371,7 +402,7 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
-    if start.pos < end.pos {
+    if start.pos <= end.pos {
         CTextRange { none: false, start, end }
     } else {
         CTextRange { none: false, start: end, end: start }
@@ -386,28 +417,54 @@ pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextR
 pub unsafe extern "C" fn position_offset(
     obj: *mut c_void, start: CTextPosition, offset: i32,
 ) -> CTextPosition {
+    println!(
+        "📍 position_offset - INPUT: start={{ none: {}, pos: {} }}, offset: {}",
+        start.none, start.pos, offset
+    );
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
-        None => return CTextPosition::default(),
+        None => {
+            println!("📍 position_offset - ERROR: No current tab markdown, returning default");
+            return CTextPosition::default();
+        }
     };
 
     let start: Option<DocCharOffset> = start.into();
+    println!("📍 position_offset - Converted start to DocCharOffset: {:?}", start);
+
     if let Some(start) = start {
         let last_cursor_position = markdown.buffer.current.segs.last_cursor_position();
+        println!(
+            "📍 position_offset - Last cursor position: DocCharOffset({})",
+            last_cursor_position.0
+        );
 
-        let result = if offset < 0 && -offset > start.0 as i32 {
+        let result: DocCharOffset = if offset < 0 && -offset > start.0 as i32 {
+            println!(
+                "📍 position_offset - Negative offset exceeds start position, returning default"
+            );
             DocCharOffset::default()
         } else if offset > 0 && (start.0).saturating_add(offset as usize) > last_cursor_position.0 {
+            println!(
+                "📍 position_offset - Positive offset exceeds document end, returning last position"
+            );
             last_cursor_position
         } else {
-            start + RelCharOffset(offset as _)
+            let new_offset = start + RelCharOffset(offset as _);
+            println!("📍 position_offset - Calculated new offset: DocCharOffset({})", new_offset.0);
+            new_offset
         };
 
-        result.into()
+        let final_result: CTextPosition = result.into();
+        println!(
+            "📍 position_offset - OUTPUT: CTextPosition {{ none: {}, pos: {} }}",
+            final_result.none, final_result.pos
+        );
+        final_result
     } else {
         println!("warning: position_offset() called with nil start position");
-
         CTextPosition::default()
     }
 }
@@ -420,10 +477,20 @@ pub unsafe extern "C" fn position_offset(
 pub unsafe extern "C" fn position_offset_in_direction(
     obj: *mut c_void, start: CTextPosition, direction: CTextLayoutDirection, offset: i32,
 ) -> CTextPosition {
+    println!(
+        "🧭 position_offset_in_direction - INPUT: start={{ none: {}, pos: {} }}, direction: {:?}, offset: {}",
+        start.none, start.pos, direction, offset
+    );
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
-        None => return CTextPosition::default(),
+        None => {
+            println!(
+                "🧭 position_offset_in_direction - ERROR: No current tab markdown, returning default"
+            );
+            return CTextPosition::default();
+        }
     };
 
     let segs = &markdown.buffer.current.segs;
@@ -437,12 +504,31 @@ pub unsafe extern "C" fn position_offset_in_direction(
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
+    println!(
+        "🧭 position_offset_in_direction - Offset type: {:?}, backwards: {}",
+        offset_type, backwards
+    );
+
     let mut result: DocCharOffset = start.pos.into();
-    for _ in 0..offset {
+    println!("🧭 position_offset_in_direction - Starting from DocCharOffset({})", result.0);
+
+    for i in 0..offset {
+        let prev_result = result;
         result = result.advance(&mut None, offset_type, backwards, segs, galleys, &markdown.bounds);
+        println!(
+            "🧭 position_offset_in_direction - Step {}: {} -> {}",
+            i + 1,
+            prev_result.0,
+            result.0
+        );
     }
 
-    CTextPosition { none: start.none, pos: result.0 }
+    let final_result = CTextPosition { none: start.none, pos: result.0 };
+    println!(
+        "🧭 position_offset_in_direction - OUTPUT: CTextPosition {{ none: {}, pos: {} }}",
+        final_result.none, final_result.pos
+    );
+    final_result
 }
 
 /// # Safety
@@ -453,18 +539,39 @@ pub unsafe extern "C" fn position_offset_in_direction(
 pub unsafe extern "C" fn is_position_at_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
+    println!(
+        "🎯 is_position_at_bound - INPUT: pos={{ none: {}, pos: {} }}, granularity: {:?}, backwards: {}",
+        pos.none, pos.pos, granularity, backwards
+    );
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
-        None => return false,
+        None => {
+            println!("🎯 is_position_at_bound - ERROR: No current tab markdown, returning false");
+            return false;
+        }
     };
 
-    let text_position = pos.pos.into();
+    let text_position: DocCharOffset = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
+    println!(
+        "🎯 is_position_at_bound - Converted: text_position=DocCharOffset({}), at_boundary: {:?}",
+        text_position.0, at_boundary
+    );
+
+    println!("**text**");
+    println!("{:?}", markdown.buffer.current.text);
+    println!("**boundaries**");
+    markdown.print_bounds();
+
+    let result = markdown
         .bounds
-        .is_position_at_boundary(text_position, at_boundary, backwards)
+        .is_position_at_boundary(text_position, at_boundary, backwards);
+
+    println!("🎯 is_position_at_bound - OUTPUT: {}", result);
+    result
 }
 
 /// # Safety
@@ -481,12 +588,21 @@ pub unsafe extern "C" fn is_position_within_bound(
         None => return false,
     };
 
-    let text_position = pos.pos.into();
+    let text_position: DocCharOffset = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .bounds
-        .is_position_within_text_unit(text_position, at_boundary, backwards)
+    println!(
+        "🎯 is_position_within_bound - INPUT: text_position=DocCharOffset({}), at_boundary: {:?}",
+        text_position.0, at_boundary
+    );
+
+    let result =
+        markdown
+            .bounds
+            .is_position_within_text_unit(text_position, at_boundary, backwards);
+
+    println!("🎯 is_position_within_bound - OUTPUT: {}", result);
+    result
 }
 
 /// # Safety
@@ -503,13 +619,20 @@ pub unsafe extern "C" fn bound_from_position(
         None => return CTextPosition::default(),
     };
 
-    let text_position = pos.pos.into();
+    let text_position: DocCharOffset = pos.pos.into();
     let to_boundary = granularity.into();
 
-    markdown
+    println!(
+        "🎯 bound_from_position - INPUT: text_position=DocCharOffset({}), to_boundary: {:?}, backwards: {:?}",
+        text_position.0, to_boundary, backwards
+    );
+
+    let result = markdown
         .bounds
-        .position_from(text_position, to_boundary, backwards)
-        .into()
+        .position_from(text_position, to_boundary, backwards);
+
+    println!("🎯 bound_from_position - OUTPUT: {:?}", result);
+    result.into()
 }
 
 /// # Safety
@@ -526,14 +649,20 @@ pub unsafe extern "C" fn bound_at_position(
         None => return CTextRange::default(),
     };
 
-    let text_position = pos.pos.into();
+    let text_position: DocCharOffset = pos.pos.into();
     let with_granularity = granularity.into();
+
+    println!(
+        "🎯 bound_at_position - INPUT: text_position=DocCharOffset({}), to_boundary: {:?}, backwards: {:?}",
+        text_position.0, with_granularity, backwards
+    );
 
     let result =
         markdown
             .bounds
             .range_enclosing_position(text_position, with_granularity, backwards);
 
+    println!("🎯 bound_at_position - OUTPUT: {:?}", result);
     result.into()
 }
 
@@ -607,18 +736,30 @@ pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
+    println!("🔍 position_at_point - INPUT: point=({}, {})", point.x, point.y);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
-        None => return CTextPosition::default(),
+        None => {
+            println!("🔍 position_at_point - ERROR: No current tab markdown, returning default");
+            return CTextPosition::default();
+        }
     };
 
     let galleys = &markdown.galleys;
+    println!("🔍 position_at_point - Galleys count: {}", galleys.galleys.len());
 
-    let offset =
-        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
+    let pos2 = Pos2 { x: point.x as f32, y: point.y as f32 };
+    println!("🔍 position_at_point - Converting point to Pos2: ({}, {})", pos2.x, pos2.y);
 
-    CTextPosition { none: false, pos: offset.0 }
+    let offset = mutation::pos_to_char_offset(pos2, galleys);
+    println!("🔍 position_at_point - pos_to_char_offset returned: DocCharOffset({})", offset.0);
+
+    let result = CTextPosition { none: false, pos: offset.0 };
+    println!("🔍 position_at_point - OUTPUT: CTextPosition {{ none: false, pos: {} }}", result.pos);
+
+    result
 }
 
 /// # Safety
@@ -641,20 +782,41 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
+    println!("📐 cursor_rect_at_position - INPUT: pos={{ none: {}, pos: {} }}", pos.none, pos.pos);
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
-        None => return CRect::default(),
+        None => {
+            println!(
+                "📐 cursor_rect_at_position - ERROR: No current tab markdown, returning default"
+            );
+            return CRect::default();
+        }
     };
 
-    let line = markdown.cursor_line(pos.pos.into());
+    let doc_char_offset = pos.pos.into();
+    println!("📐 cursor_rect_at_position - Converting to DocCharOffset: {:?}", doc_char_offset);
 
-    CRect {
+    let line = markdown.cursor_line(doc_char_offset);
+    println!(
+        "📐 cursor_rect_at_position - Cursor line: point1=({}, {}), point2=({}, {})",
+        line[0].x, line[0].y, line[1].x, line[1].y
+    );
+
+    let result = CRect {
         min_x: line[0].x as f64,
         min_y: line[0].y as f64,
         max_x: line[1].x as f64,
         max_y: line[1].y as f64,
-    }
+    };
+
+    println!(
+        "📐 cursor_rect_at_position - OUTPUT: CRect {{ min_x: {}, min_y: {}, max_x: {}, max_y: {} }}",
+        result.min_x, result.min_y, result.max_x, result.max_y
+    );
+
+    result
 }
 
 /// # Safety
@@ -693,6 +855,8 @@ pub unsafe extern "C" fn selection_rects(
         }
     };
 
+    println!("📐 📐 selection_rects() called with range {:?}", range);
+
     let mut selection_rects = vec![];
 
     let lines = bounds.wrap_lines.find_intersecting(range, false);
@@ -717,6 +881,8 @@ pub unsafe extern "C" fn selection_rects(
             max_y: end_line[1].y as f64,
         });
     }
+
+    println!("📐 📐 selection_rects() result: {:?}", selection_rects);
 
     UITextSelectionRects {
         size: selection_rects.len() as i32,

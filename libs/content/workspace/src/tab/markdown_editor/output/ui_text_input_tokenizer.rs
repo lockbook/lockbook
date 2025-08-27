@@ -67,8 +67,8 @@ impl UITextInputTokenizer for Bounds {
             }
             BoundCase::AtEmptyRange { .. } => true,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => true,
-            BoundCase::AtEndOfNonemptyRange { .. } => in_backward_direction,
-            BoundCase::AtStartOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtEndOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtStartOfNonemptyRange { .. } => in_backward_direction,
             BoundCase::BetweenRanges { .. } => false,
         }
     }
@@ -115,7 +115,7 @@ impl UITextInputTokenizer for Bounds {
     fn position_from(
         &self, text_position: DocCharOffset, to_boundary: Bound, in_backward_direction: bool,
     ) -> Option<DocCharOffset> {
-        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, self))
+        Some(text_position.advance_to_next_bound(to_boundary, !in_backward_direction, self))
     }
 
     fn range_enclosing_position(
@@ -126,19 +126,7 @@ impl UITextInputTokenizer for Bounds {
                 unimplemented!()
             }
             Bound::Word => &self.words,
-            Bound::Line => {
-                // note: lines handled as words
-                //
-                // I assume there's a mistake in the implementation of Apple's virtual keyboard. Documentation and
-                // examples are sparse - we do not have a single working implementation, even using the built-in
-                // tokenizer or a reference implementation crafted by an Apple engineer for us.
-                //
-                // I inspected the keyboard behavior by logging all fn calls and their results. The keyboard iterates
-                // the returned ranges until it receives a nil value, which is more consistent with a text granularity
-                // that is non-contiguous the way words are and lines are not. This seems to be what it takes to get
-                // the correct undeline behavior after autocorrecting a word.
-                &self.words
-            }
+            Bound::Line => &self.source_lines,
             Bound::Paragraph => &self.paragraphs,
             Bound::Doc => {
                 unimplemented!()
