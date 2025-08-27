@@ -40,6 +40,15 @@ impl<'ast> Editor {
             range.1 = range.1.min(parent_range.1);
         }
 
+        // hack: "A line break (not in a code span or HTML tag) that is preceded
+        // by two or more spaces and does not occur at the end of a block is
+        // parsed as a hard line break" but we prefer to show the spaces since
+        // we render soft breaks as hard breaks (which is up to our discretion).
+        // https://github.github.com/gfm/#hard-line-breaks
+        if let NodeValue::LineBreak = node.data.borrow().value {
+            range.0 = range.1 - 1; // include only the newline
+        }
+
         // hack: GFM spec says "Blank lines preceding or following an indented
         // code block are not included in it" and I have observed the behavior
         // for following lines to be incorrect in e.g. "    f\n".
