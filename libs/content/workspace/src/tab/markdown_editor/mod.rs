@@ -431,6 +431,9 @@ impl Editor {
         }
         self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
+        if self.next_resp.selection_updated {
+            self.layout_cache.clear();
+        }
         if self.next_resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
