@@ -92,15 +92,17 @@ impl<'ast> Editor {
         children.sort_by_key(|c| c.data.borrow().sourcepos);
 
         for child in &children {
+            let tolerance = self.height;
+
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            let pre_spacing_above_viewport = 2. * MARGIN > top_left.y + pre_spacing;
-            let pre_spacing_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let pre_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + pre_spacing;
+            let pre_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            if pre_spacing_visible {
+            if pre_spacing_visible || self.scroll_to_cursor {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
             }
-            if pre_spacing_below_viewport {
+            if pre_spacing_below_viewport && !self.scroll_to_cursor {
                 break;
             }
             top_left.y += pre_spacing;
@@ -123,26 +125,26 @@ impl<'ast> Editor {
                 }
             }
 
-            let block_above_viewport = 2. * MARGIN > top_left.y + child_height;
-            let block_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let block_above_viewport = 2. * MARGIN > tolerance + top_left.y + child_height;
+            let block_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let block_visible = !block_above_viewport && !block_below_viewport;
-            if block_visible {
+            if block_visible || self.scroll_to_cursor {
                 self.show_block(ui, child, top_left);
             }
-            if block_below_viewport {
+            if block_below_viewport && !self.scroll_to_cursor {
                 break;
             }
             top_left.y += child_height;
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            let post_spacing_above_viewport = 2. * MARGIN > top_left.y + post_spacing;
-            let post_spacing_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let post_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + post_spacing;
+            let post_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            if post_spacing_visible {
+            if post_spacing_visible || self.scroll_to_cursor {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
-            if post_spacing_below_viewport {
+            if post_spacing_below_viewport && !self.scroll_to_cursor {
                 break;
             }
             top_left.y += post_spacing;
