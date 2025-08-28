@@ -427,8 +427,6 @@ impl Editor {
 
             self.calc_words();
 
-            self.layout_cache.clear();
-
             ui.ctx().request_repaint();
         }
         self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
