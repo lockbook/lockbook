@@ -30,75 +30,80 @@ impl<'ast> Editor {
             return cached_range;
         }
 
-        let mut range = self.sourcepos_to_range(node.data.borrow().sourcepos);
+        let node_data = node.data.borrow();
+        let mut range = self.sourcepos_to_range(node_data.sourcepos);
 
-        // hack: comrak's sourcepos's are unstable (and indeed broken) for some
-        // nested block situations. clamping paragraph ranges to their parent's
-        // prevents the worst of the adverse consequences (e.g. double-rendering
-        // source text).
-        //
-        // see: https://github.com/kivikakk/comrak/issues/567
-        if matches!(node.data.borrow().value, NodeValue::Paragraph) {
-            let parent = node.parent().unwrap();
-            let parent_range = self.node_range(parent);
-            range.0 = range.0.max(parent_range.0);
-            range.1 = range.1.min(parent_range.1);
-        }
-
-        // hack: "A line break (not in a code span or HTML tag) that is preceded
-        // by two or more spaces and does not occur at the end of a block is
-        // parsed as a hard line break" but we prefer to show the spaces since
-        // we render soft breaks as hard breaks (which is up to our discretion).
-        // https://github.github.com/gfm/#hard-line-breaks
-        if let NodeValue::LineBreak = node.data.borrow().value {
-            range.0 = range.1 - 1; // include only the newline
-        }
-
-        // hack: GFM spec says "Blank lines preceding or following an indented
-        // code block are not included in it" and I have observed the behavior
-        // for following lines to be incorrect in e.g. "    f\n".
-        if let NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) = node.data.borrow().value
-        {
-            for line_idx in self.range_lines(range).iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let node_line = self.node_line(node, line);
-                if self.buffer[node_line].chars().any(|c| !c.is_whitespace()) {
-                    range.1 = line.end();
-                }
+        match &node_data.value {
+            // hack: comrak's sourcepos's are unstable (and indeed broken) for some
+            // nested block situations. clamping paragraph ranges to their parent's
+            // prevents the worst of the adverse consequences (e.g. double-rendering
+            // source text).
+            //
+            // see: https://github.com/kivikakk/comrak/issues/567
+            NodeValue::Paragraph => {
+                let parent = node.parent().unwrap();
+                let parent_range = self.node_range(parent);
+                range.0 = range.0.max(parent_range.0);
+                range.1 = range.1.min(parent_range.1);
             }
-        }
 
-        // hack: thematic breaks are emitted to contain all subsequent lines if
-        // they are the last block in the document; we trim them to their first
-        // line.
-        if matches!(node.data.borrow().value, NodeValue::ThematicBreak) {
-            if let Some(line_idx) = self.range_lines(range).iter().next() {
-                let line = self.bounds.source_lines[line_idx];
-                range = range.trim(&line);
+            // hack: "A line break (not in a code span or HTML tag) that is preceded
+            // by two or more spaces and does not occur at the end of a block is
+            // parsed as a hard line break" but we prefer to show the spaces since
+            // we render soft breaks as hard breaks (which is up to our discretion).
+            // https://github.github.com/gfm/#hard-line-breaks
+            NodeValue::LineBreak => {
+                range.0 = range.1 - 1; // include only the newline
             }
-        }
 
-        // hack: list items are emitted to contain all lines until the next
-        // block which would cause the cursor to be shown indented; we trim
-        // trailing blank lines.
-        if matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
-            let node_lines = self.range_lines(range);
-            let mut last_nonempty_line_idx = node_lines.start();
-            for line_idx in node_lines.iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let node_line = self.node_line(node, line);
-                if !node_line.is_empty() {
-                    last_nonempty_line_idx = line_idx;
+            // hack: GFM spec says "Blank lines preceding or following an indented
+            // code block are not included in it" and I have observed the behavior
+            // for following lines to be incorrect in e.g. "    f\n".
+            NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) => {
+                for line_idx in self.range_lines(range).iter() {
+                    let line = self.bounds.source_lines[line_idx];
+                    let node_line = self.node_line(node, line);
+                    if self.buffer[node_line].chars().any(|c| !c.is_whitespace()) {
+                        range.1 = line.end();
+                    }
                 }
             }
 
-            let last_nonempty_line = self.bounds.source_lines[last_nonempty_line_idx];
-            range.1 = last_nonempty_line.end();
-        }
-        if matches!(node.data.borrow().value, NodeValue::List(_)) {
-            let children = self.sorted_children(node);
-            let last_child = children.last().unwrap();
-            range.1 = self.node_range(last_child).1;
+            // hack: thematic breaks are emitted to contain all subsequent lines if
+            // they are the last block in the document; we trim them to their first
+            // line.
+            NodeValue::ThematicBreak => {
+                if let Some(line_idx) = self.range_lines(range).iter().next() {
+                    let line = self.bounds.source_lines[line_idx];
+                    range = range.trim(&line);
+                }
+            }
+
+            // hack: list items are emitted to contain all lines until the next
+            // block which would cause the cursor to be shown indented; we trim
+            // trailing blank lines.
+            NodeValue::Item(_) | NodeValue::TaskItem(_) => {
+                let node_lines = self.range_lines(range);
+                let mut last_nonempty_line_idx = node_lines.start();
+                for line_idx in node_lines.iter() {
+                    let line = self.bounds.source_lines[line_idx];
+                    let node_line = self.node_line(node, line);
+                    if !node_line.is_empty() {
+                        last_nonempty_line_idx = line_idx;
+                    }
+                }
+
+                let last_nonempty_line = self.bounds.source_lines[last_nonempty_line_idx];
+                range.1 = last_nonempty_line.end();
+            }
+
+            NodeValue::List(_) => {
+                let children = self.sorted_children(node);
+                let last_child = children.last().unwrap();
+                range.1 = self.node_range(last_child).1;
+            }
+
+            _ => {}
         }
 
         // Cache the result before returning
