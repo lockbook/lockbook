@@ -98,7 +98,7 @@ impl<'ast> Editor {
             // draw cell contents
             let mut child_top_left = top_left;
             for table_cell in node.children() {
-                self.show_block(ui, table_cell, child_top_left);
+                self.show_table_cell(ui, table_cell, child_top_left);
                 child_top_left.x += child_width;
             }
         }
