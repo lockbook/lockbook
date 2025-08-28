@@ -42,6 +42,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @StateObject var settingsModel = SettingsViewModel()
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -70,7 +71,13 @@ struct SidebarView: View {
                 
                 Spacer()
                 
-                StatusBarView()
+                VStack(spacing: 0) {
+                    UsageBar()
+                        .environmentObject(settingsModel)
+                        .padding(.horizontal, 12)
+                    
+                    StatusBarView()
+                }
             }
             .formStyle(.columns)
             .selectFolderSheets()
