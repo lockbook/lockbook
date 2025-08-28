@@ -16,7 +16,6 @@ struct StatusBarView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
-        .padding(.top, 8)
     }
     
     var fileActionButtons: some View {
@@ -71,4 +70,5 @@ struct StatusBarView: View {
         .environmentObject(workspaceState)
         .environmentObject(FilesViewModel())
         .environmentObject(HomeState())
+        .padding(.top, 8)
 }

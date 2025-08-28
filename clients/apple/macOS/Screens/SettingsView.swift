@@ -168,6 +168,8 @@ struct SettingsUsageView: View {
     
     @State var confirmCancelSubscription = false
     
+    @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+    
     var body: some View {
         Form {
             Section("Usage") {
@@ -202,6 +204,13 @@ struct SettingsUsageView: View {
                 } else {
                     ProgressView()
                 }
+                
+                Picker("Display Mode", selection: $usageBarMode) {
+                    ForEach(UsageBarDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
                 
                 if model.isPremium == true {
                     HStack {
