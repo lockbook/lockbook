@@ -418,6 +418,7 @@ impl Editor {
 
             self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
+            self.layout_cache.clear();
 
             self.calc_source_lines();
             self.compute_bounds(root);
@@ -425,8 +426,6 @@ impl Editor {
             self.bounds.inline_paragraphs.sort();
 
             self.calc_words();
-
-            self.layout_cache.clear();
 
             ui.ctx().request_repaint();
         }
