@@ -1,7 +1,7 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
+use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
