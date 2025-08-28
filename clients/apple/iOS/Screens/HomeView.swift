@@ -38,6 +38,7 @@ struct HomeView: View {
         }
         .environmentObject(homeState)
         .environmentObject(filesModel)
+        .environmentObject(settingsModel)
     }
     
     @ViewBuilder
@@ -67,7 +68,6 @@ struct HomeView: View {
                 }
             }
             .modifier(OutOfSpaceAlert())
-            .environmentObject(SettingsViewModel())
     }
     
     @ViewBuilder
@@ -85,7 +85,6 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var settingsModel: SettingsViewModel
         
     var body: some View {
         if let error = filesModel.error {
@@ -122,25 +121,27 @@ struct SidebarView: View {
                     
                     Spacer()
                     
-                    UsageBar()
-                        .padding(.horizontal, 16)
-                    
-                    StatusBarView()
-                        .confirmationDialog(
-                            "Are you sure? This action cannot be undone.",
-                            isPresented: Binding(
-                                get: { filesModel.isMoreThanOneFileInDeletion() },
-                                set: { _ in filesModel.deleteFileConfirmation = nil }
-                            ),
-                            titleVisibility: .visible,
-                            actions: {
-                                if let files = filesModel.deleteFileConfirmation {
-                                    DeleteConfirmationButtons(files: files)
+                    VStack(spacing: 0) {
+                        UsageBar()
+                            .padding(.horizontal, 16)
+                        
+                        StatusBarView()
+                            .confirmationDialog(
+                                "Are you sure? This action cannot be undone.",
+                                isPresented: Binding(
+                                    get: { filesModel.isMoreThanOneFileInDeletion() },
+                                    set: { _ in filesModel.deleteFileConfirmation = nil }
+                                ),
+                                titleVisibility: .visible,
+                                actions: {
+                                    if let files = filesModel.deleteFileConfirmation {
+                                        DeleteConfirmationButtons(files: files)
+                                    }
                                 }
-                            }
-                        )
-                        .selectFolderSheets()
+                            )
+                            .selectFolderSheets()
                     }
+                }
                 .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)

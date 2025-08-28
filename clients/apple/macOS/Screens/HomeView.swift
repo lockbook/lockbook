@@ -71,12 +71,13 @@ struct SidebarView: View {
                 
                 Spacer()
                 
-                UsageBar()
-                    .environmentObject(settingsModel)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-                
-                StatusBarView()
+                VStack(spacing: 0) {
+                    UsageBar()
+                        .environmentObject(settingsModel)
+                        .padding(.horizontal, 12)
+                    
+                    StatusBarView()
+                }
             }
             .formStyle(.columns)
             .selectFolderSheets()
