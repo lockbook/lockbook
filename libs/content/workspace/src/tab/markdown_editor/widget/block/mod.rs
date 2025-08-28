@@ -277,14 +277,7 @@ impl<'ast> Editor {
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
         let mut children = Vec::new();
         children.extend(node.children());
-        children.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
         children
     }
 
@@ -301,14 +294,8 @@ impl<'ast> Editor {
         siblings.extend(preceding_siblings);
         siblings.push(node);
         siblings.extend(following_siblings);
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
+
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
         siblings
     }
 
