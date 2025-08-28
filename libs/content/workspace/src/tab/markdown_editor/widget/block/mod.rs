@@ -284,19 +284,7 @@ impl<'ast> Editor {
     /// Returns the siblings of the given node in sourcepos order (unlike
     /// `node.siblings()`).
     pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut preceding_siblings = node.preceding_siblings();
-        preceding_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut following_siblings = node.following_siblings();
-        following_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut siblings = Vec::new();
-        siblings.extend(preceding_siblings);
-        siblings.push(node);
-        siblings.extend(following_siblings);
-
-        siblings.sort_by_key(|c| c.data.borrow().sourcepos);
-        siblings
+        self.sorted_children(node.parent().unwrap())
     }
 
     pub fn sibling_index(
