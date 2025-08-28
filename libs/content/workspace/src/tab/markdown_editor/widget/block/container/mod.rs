@@ -88,7 +88,8 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
         let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|child| child.data.borrow().sourcepos);
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
+
         for child in children {
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child);
@@ -536,7 +537,8 @@ impl<'ast> Editor {
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
         let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|child| child.data.borrow().sourcepos);
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
+
         for child in children {
             // add pre-spacing bounds
             self.compute_bounds_block_pre_spacing(child);

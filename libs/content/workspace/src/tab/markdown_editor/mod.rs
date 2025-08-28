@@ -244,8 +244,6 @@ impl Editor {
         self.height = ui.available_size().y;
         self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
 
-        // todo: more thoughtful cache invalidation
-        self.layout_cache.clear();
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
             self.syntax.clear();
@@ -420,6 +418,7 @@ impl Editor {
 
             self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
+            self.layout_cache.clear();
 
             self.calc_source_lines();
             self.compute_bounds(root);

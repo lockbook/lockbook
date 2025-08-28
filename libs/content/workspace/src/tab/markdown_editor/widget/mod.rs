@@ -25,6 +25,11 @@ pub const BLOCK_SPACING: f32 = 10.0;
 impl<'ast> Editor {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        // Check cache first
+        if let Some(cached_range) = self.get_cached_node_range(node) {
+            return cached_range;
+        }
+
         let mut range = self.sourcepos_to_range(node.data.borrow().sourcepos);
 
         // hack: comrak's sourcepos's are unstable (and indeed broken) for some
@@ -96,6 +101,8 @@ impl<'ast> Editor {
             range.1 = self.node_range(last_child).1;
         }
 
+        // Cache the result before returning
+        self.set_cached_node_range(node, range);
         range
     }
 
