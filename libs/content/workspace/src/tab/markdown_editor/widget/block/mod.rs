@@ -275,7 +275,7 @@ impl<'ast> Editor {
 
     /// Returns the children of the given node in sourcepos order.
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::new();
+        let mut children = Vec::with_capacity(node.children().count());
         children.extend(node.children());
         children.sort_by_key(|c| c.data.borrow().sourcepos);
         children

@@ -6,7 +6,9 @@ use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
 
 impl<'ast> Editor {
-    pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+    pub fn block_pre_spacing_height(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> f32 {
         let Some(parent) = node.parent() else {
             // document never spaced
             return 0.;
@@ -19,7 +21,6 @@ impl<'ast> Editor {
 
         let mut result = 0.;
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_first_sibling = sibling_index == 0;
 
@@ -60,6 +61,7 @@ impl<'ast> Editor {
 
     pub fn show_block_pre_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        siblings: &[&'ast AstNode<'ast>],
     ) {
         let Some(parent) = node.parent() else {
             // document never spaced
@@ -71,7 +73,6 @@ impl<'ast> Editor {
         }
         let width = self.width(node);
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_first_sibling = sibling_index == 0;
         let spacing_first_line = if is_first_sibling {
@@ -113,7 +114,9 @@ impl<'ast> Editor {
         }
     }
 
-    pub(crate) fn block_post_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+    pub(crate) fn block_post_spacing_height(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> f32 {
         let Some(parent) = node.parent() else {
             // document never spaced
             return 0.;
@@ -126,7 +129,6 @@ impl<'ast> Editor {
 
         let mut result = 0.;
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);
@@ -155,6 +157,7 @@ impl<'ast> Editor {
 
     pub(crate) fn show_block_post_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        siblings: &[&'ast AstNode<'ast>],
     ) {
         let Some(parent) = node.parent() else {
             // document never spaced
@@ -166,7 +169,6 @@ impl<'ast> Editor {
         }
         let width = self.width(node);
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);
@@ -197,7 +199,9 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn compute_bounds_block_pre_spacing(&mut self, node: &'ast AstNode<'ast>) {
+    pub fn compute_bounds_block_pre_spacing(
+        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) {
         let Some(parent) = node.parent() else {
             // document never spaced
             return;
@@ -207,7 +211,6 @@ impl<'ast> Editor {
             return;
         }
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_first_sibling = sibling_index == 0;
 
@@ -237,7 +240,9 @@ impl<'ast> Editor {
         }
     }
 
-    pub(crate) fn compute_bounds_block_post_spacing(&mut self, node: &'ast AstNode<'ast>) {
+    pub(crate) fn compute_bounds_block_post_spacing(
+        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) {
         let Some(parent) = node.parent() else {
             // document never spaced
             return;
@@ -247,7 +252,6 @@ impl<'ast> Editor {
             return;
         }
 
-        let siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);

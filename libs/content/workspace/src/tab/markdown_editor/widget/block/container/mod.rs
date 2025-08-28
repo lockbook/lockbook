@@ -74,11 +74,12 @@ impl<'ast> Editor {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let children: Vec<_> = node.children().collect(); // note: does not need to be sorted for height
         let mut height_sum = 0.0;
-        for child in node.children() {
-            height_sum += self.block_pre_spacing_height(child);
+        for child in &children {
+            height_sum += self.block_pre_spacing_height(child, &children);
             height_sum += self.height(child);
-            height_sum += self.block_post_spacing_height(child);
+            height_sum += self.block_post_spacing_height(child, &children);
         }
         height_sum
     }
@@ -90,10 +91,10 @@ impl<'ast> Editor {
         let mut children: Vec<_> = node.children().collect();
         children.sort_by_key(|c| c.data.borrow().sourcepos);
 
-        for child in children {
+        for child in &children {
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing_height(child);
-            self.show_block_pre_spacing(ui, child, top_left);
+            let pre_spacing = self.block_pre_spacing_height(child, &children);
+            self.show_block_pre_spacing(ui, child, top_left, &children);
             top_left.y += pre_spacing;
 
             // add block
@@ -118,8 +119,8 @@ impl<'ast> Editor {
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing_height(child);
-            self.show_block_post_spacing(ui, child, top_left);
+            let post_spacing = self.block_post_spacing_height(child, &children);
+            self.show_block_post_spacing(ui, child, top_left, &children);
             top_left.y += post_spacing;
         }
     }
@@ -539,15 +540,15 @@ impl<'ast> Editor {
         let mut children: Vec<_> = node.children().collect();
         children.sort_by_key(|c| c.data.borrow().sourcepos);
 
-        for child in children {
+        for child in &children {
             // add pre-spacing bounds
-            self.compute_bounds_block_pre_spacing(child);
+            self.compute_bounds_block_pre_spacing(child, &children);
 
             // add block bounds
             self.compute_bounds(child);
 
             // add post-spacing bounds
-            self.compute_bounds_block_post_spacing(child);
+            self.compute_bounds_block_post_spacing(child, &children);
         }
     }
 }
