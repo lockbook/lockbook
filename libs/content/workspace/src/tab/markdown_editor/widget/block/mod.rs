@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
