@@ -94,7 +94,15 @@ impl<'ast> Editor {
         for child in &children {
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            self.show_block_pre_spacing(ui, child, top_left, &children);
+            let pre_spacing_above_viewport = 2. * MARGIN > top_left.y + pre_spacing;
+            let pre_spacing_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
+            if pre_spacing_visible {
+                self.show_block_pre_spacing(ui, child, top_left, &children);
+            }
+            if pre_spacing_below_viewport {
+                break;
+            }
             top_left.y += pre_spacing;
 
             // add block
@@ -115,16 +123,28 @@ impl<'ast> Editor {
                 }
             }
 
-            let visible =
-                2. * MARGIN <= top_left.y + child_height && 2. * MARGIN + self.height >= top_left.y;
-            if visible {
+            let block_above_viewport = 2. * MARGIN > top_left.y + child_height;
+            let block_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let block_visible = !block_above_viewport && !block_below_viewport;
+            if block_visible {
                 self.show_block(ui, child, top_left);
+            }
+            if block_below_viewport {
+                break;
             }
             top_left.y += child_height;
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            self.show_block_post_spacing(ui, child, top_left, &children);
+            let post_spacing_above_viewport = 2. * MARGIN > top_left.y + post_spacing;
+            let post_spacing_below_viewport = 2. * MARGIN + self.height < top_left.y;
+            let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
+            if post_spacing_visible {
+                self.show_block_post_spacing(ui, child, top_left, &children);
+            }
+            if post_spacing_below_viewport {
+                break;
+            }
             top_left.y += post_spacing;
         }
     }

@@ -21,7 +21,7 @@ impl<'ast> Editor {
 
         let mut result = 0.;
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_first_sibling = sibling_index == 0;
 
         let spacing_first_line = if is_first_sibling {
@@ -73,7 +73,7 @@ impl<'ast> Editor {
         }
         let width = self.width(node);
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_first_sibling = sibling_index == 0;
         let spacing_first_line = if is_first_sibling {
             // parent top -> (empty row -> spacing)* -> first sibling top
@@ -129,7 +129,7 @@ impl<'ast> Editor {
 
         let mut result = 0.;
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);
         if !is_last_sibling {
@@ -169,7 +169,7 @@ impl<'ast> Editor {
         }
         let width = self.width(node);
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);
         if !is_last_sibling {
@@ -211,7 +211,7 @@ impl<'ast> Editor {
             return;
         }
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_first_sibling = sibling_index == 0;
 
         let spacing_first_line = if is_first_sibling {
@@ -252,7 +252,7 @@ impl<'ast> Editor {
             return;
         }
 
-        let sibling_index = self.sibling_index(node, &siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let is_last_sibling = sibling_index == siblings.len() - 1;
         let node_last_line = self.node_last_line_idx(node);
         if !is_last_sibling {

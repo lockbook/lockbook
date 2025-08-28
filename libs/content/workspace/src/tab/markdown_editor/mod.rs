@@ -242,8 +242,6 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        println!("---------- frame ----------");
-
         let resp = mem::take(&mut self.next_resp);
 
         self.height = ui.available_size().y;

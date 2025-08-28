@@ -290,10 +290,9 @@ impl<'ast> Editor {
     pub fn sibling_index(
         &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
     ) -> usize {
-        let range = self.node_range(node);
         let this_sibling_index = sorted_siblings
             .iter()
-            .position(|sibling| self.node_range(sibling) == range)
+            .position(|sibling| node.same_node(sibling))
             .unwrap();
 
         this_sibling_index
@@ -399,34 +398,8 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     }
 }
 
-// Stable cache key that works across AST rebuilds
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct StableNodeKey {
-    start_line: usize,
-    start_column: usize,
-    end_line: usize,
-    end_column: usize,
-    node_value_discriminant: u8,
-}
-
-impl StableNodeKey {
-    fn new(node: &AstNode) -> Self {
-        let borrowed = node.data.borrow();
-        let sourcepos = borrowed.sourcepos;
-        let discriminant = node_value_to_discriminant_id(&borrowed.value);
-
-        Self {
-            start_line: sourcepos.start.line,
-            start_column: sourcepos.start.column,
-            end_line: sourcepos.end.line,
-            end_column: sourcepos.end.column,
-            node_value_discriminant: discriminant,
-        }
-    }
-}
-
 pub struct LinePrefixCacheEntry {
-    node_key: StableNodeKey,
+    node_key_hash: u64,
     line: (DocCharOffset, DocCharOffset),
     value: (RelCharOffset, bool),
 }
@@ -435,7 +408,7 @@ pub struct LinePrefixCacheEntry {
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
-    pub node_range: RefCell<HashMap<StableNodeKey, (DocCharOffset, DocCharOffset)>>,
+    pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
 }
 
 impl LayoutCache {
@@ -469,11 +442,16 @@ impl<'ast> Editor {
     pub fn get_cached_line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<(RelCharOffset, bool)> {
-        let node_key = StableNodeKey::new(node);
+        let node_key_hash = Self::pack_node_key(node);
         self.layout_cache
             .line_prefix_len
             .borrow()
-            .binary_search_by(|entry| entry.node_key.cmp(&node_key).then(entry.line.cmp(&line)))
+            .binary_search_by(|entry| {
+                entry
+                    .node_key_hash
+                    .cmp(&node_key_hash)
+                    .then(entry.line.cmp(&line))
+            })
             .ok()
             .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
     }
@@ -482,13 +460,16 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         value: (RelCharOffset, bool),
     ) {
-        let node_key = StableNodeKey::new(node);
+        let node_key_hash = Self::pack_node_key(node);
         let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
-        match cache
-            .binary_search_by(|entry| entry.node_key.cmp(&node_key).then(entry.line.cmp(&line)))
-        {
+        match cache.binary_search_by(|entry| {
+            entry
+                .node_key_hash
+                .cmp(&node_key_hash)
+                .then(entry.line.cmp(&line))
+        }) {
             Ok(i) => cache[i].value = value,
-            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key, line, value }),
+            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key_hash, line, value }),
         }
     }
 
@@ -496,15 +477,44 @@ impl<'ast> Editor {
     pub fn get_cached_node_range(
         &self, node: &'ast AstNode<'ast>,
     ) -> Option<(DocCharOffset, DocCharOffset)> {
-        let key = StableNodeKey::new(node);
-        self.layout_cache.node_range.borrow().get(&key).copied()
+        let key_hash = Self::pack_node_key(node);
+        self.layout_cache
+            .node_range
+            .borrow()
+            .get(&key_hash)
+            .copied()
     }
 
     #[inline]
     pub fn set_cached_node_range(
         &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
     ) {
-        let key = StableNodeKey::new(node);
-        self.layout_cache.node_range.borrow_mut().insert(key, range);
+        let key_hash = Self::pack_node_key(node);
+        self.layout_cache
+            .node_range
+            .borrow_mut()
+            .insert(key_hash, range);
+    }
+
+    /// Pack node info into u64 using bit manipulation - ultra fast cache key
+    fn pack_node_key(node: &AstNode) -> u64 {
+        let borrowed = node.data.borrow();
+        let sp = borrowed.sourcepos;
+        let (start_line, start_column, end_line, end_column, discriminant) = (
+            sp.start.line as u64,
+            sp.start.column as u64,
+            sp.end.line as u64,
+            sp.end.column as u64,
+            node_value_to_discriminant_id(&borrowed.value) as u64,
+        );
+
+        // Pack into 64 bits: 15 bits each for start_line, start_column, end_line, end_column
+        // and 4 bits for discriminant (total: 15+15+15+15+4 = 64 bits exactly)
+        // Use bitwise AND for fastest truncation
+        ((start_line & 0x7FFF) << 49)
+            | ((start_column & 0x7FFF) << 34)
+            | ((end_line & 0x7FFF) << 19)
+            | ((end_column & 0x7FFF) << 4)
+            | (discriminant & 0xF)
     }
 }
