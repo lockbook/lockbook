@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::INDENT;
+use crate::tab::markdown_editor::widget::{INDENT, MARGIN};
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -115,7 +115,11 @@ impl<'ast> Editor {
                 }
             }
 
-            self.show_block(ui, child, top_left);
+            let visible =
+                2. * MARGIN <= top_left.y + child_height && 2. * MARGIN + self.height >= top_left.y;
+            if visible {
+                self.show_block(ui, child, top_left);
+            }
             top_left.y += child_height;
 
             // add post-spacing
