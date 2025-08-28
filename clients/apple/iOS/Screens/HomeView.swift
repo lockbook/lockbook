@@ -6,6 +6,7 @@ struct HomeView: View {
 
     @StateObject var homeState = HomeState()
     @StateObject var filesModel = FilesViewModel()
+    @StateObject var settingsModel = SettingsViewModel()
             
     var body: some View {
         Group {
@@ -66,13 +67,14 @@ struct HomeView: View {
                 }
             }
             .modifier(OutOfSpaceAlert())
+            .environmentObject(SettingsViewModel())
     }
     
     @ViewBuilder
     var detail: some View {
         DetailView(homeState: homeState, filesModel: filesModel)
             .navigationDestination(isPresented: $homeState.showSettings) {
-                SettingsView()
+                SettingsView(model: settingsModel)
             }
             .navigationDestination(isPresented: $homeState.showPendingShares) {
                 PendingSharesView()
@@ -83,6 +85,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var settingsModel: SettingsViewModel
         
     var body: some View {
         if let error = filesModel.error {
@@ -119,6 +122,9 @@ struct SidebarView: View {
                     
                     Spacer()
                     
+                    UsageBar()
+                        .padding(.horizontal, 16)
+                    
                     StatusBarView()
                         .confirmationDialog(
                             "Are you sure? This action cannot be undone.",
@@ -134,7 +140,7 @@ struct SidebarView: View {
                             }
                         )
                         .selectFolderSheets()
-                }
+                    }
                 .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)

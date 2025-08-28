@@ -54,3 +54,19 @@ struct TabSheetInfo: Identifiable {
     
     let info: [(name: String, id: UUID)]
 }
+
+enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
+    case always
+    case never
+    case whenHalf
+    
+    var id: Self { self }
+    
+    var label: String {
+        switch self {
+        case .always: "Always show"
+        case .never: "Never show"
+        case .whenHalf: "Show above 50%"
+        }
+    }
+}

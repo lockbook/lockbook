@@ -42,6 +42,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @StateObject var settingsModel = SettingsViewModel()
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -69,6 +70,11 @@ struct SidebarView: View {
                 }
                 
                 Spacer()
+                
+                UsageBar()
+                    .environmentObject(settingsModel)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 
                 StatusBarView()
             }
