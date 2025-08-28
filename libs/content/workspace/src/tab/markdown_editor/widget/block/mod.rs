@@ -295,7 +295,7 @@ impl<'ast> Editor {
         siblings.push(node);
         siblings.extend(following_siblings);
 
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
+        siblings.sort_by_key(|c| c.data.borrow().sourcepos);
         siblings
     }
 
