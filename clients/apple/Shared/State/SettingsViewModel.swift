@@ -5,7 +5,7 @@ class SettingsViewModel: ObservableObject {
     @Published var account: Account? = nil
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
-            
+    
     init(initalUsageComputation: Bool = true) {
         self.loadAccount()
         self.loadTier()
