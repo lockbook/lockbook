@@ -746,14 +746,12 @@ impl Workspace {
                 } else {
                     0
                 }
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageUp) {
+                1
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageDown) {
+                -1
             } else {
-                if input.consume_key_exact(CTRL | SHIFT, Key::PageUp) {
-                    1
-                } else if input.consume_key_exact(CTRL | SHIFT, Key::PageDown) {
-                    -1
-                } else {
-                    0
-                }
+                0
             }
         });
 
