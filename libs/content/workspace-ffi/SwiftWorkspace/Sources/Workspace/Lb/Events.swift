@@ -17,7 +17,7 @@ public struct Status {
     public var dirtyLocally: [UUID]
     public var pullingFiles: [UUID]
     public var spaceUsed: UsageMetrics?
-    public var syncStatus: String
+    public var message: String
     
     init(_ status: LbStatus) {
         self.offline = status.offline
@@ -29,7 +29,7 @@ public struct Status {
         self.pushingFiles = Array(UnsafeBufferPointer(start: status.pushing_files.ids, count: Int(status.pushing_files.len))).toUUIDs()
         self.pullingFiles = Array(UnsafeBufferPointer(start: status.pulling_files.ids, count: Int(status.pulling_files.len))).toUUIDs()
         self.spaceUsed = status.space_used != nil ? UsageMetrics(status.space_used.move()) : nil
-        self.syncStatus = status.sync_status != nil ? String(cString: status.sync_status) : ""
+        self.message = String(cString: status.msg)
     }
 
     init() {
@@ -42,7 +42,7 @@ public struct Status {
         self.dirtyLocally = []
         self.pullingFiles = []
         self.spaceUsed = nil
-        self.syncStatus = ""
+        self.message = ""
     }
 }
 
