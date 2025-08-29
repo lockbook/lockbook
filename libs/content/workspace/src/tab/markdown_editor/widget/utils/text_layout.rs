@@ -281,6 +281,7 @@ impl Editor {
         if let Some(first_section) = layout_job.sections.first_mut() {
             first_section.leading_space = tmp_wrap.row_offset();
         }
+        layout_job.round_output_size_to_nearest_ui_point = false;
 
         let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
         for row in &galley.rows {
