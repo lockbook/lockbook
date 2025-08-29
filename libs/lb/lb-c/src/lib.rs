@@ -992,13 +992,18 @@ pub struct LbStatus {
     pub dirty_locally: LbIds,
     pub pulling_files: LbIds,
     pub space_used: *mut LbUsageMetrics,
-    pub sync_status: *mut c_char,
+    pub msg: *mut c_char,
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
     let lb = rlb(lb);
     let status = lb.status();
+
+    let msg = match status.msg() {
+        Some(msg) => cstring(msg),
+        None => null_mut(),
+    };
 
     let pushing_files = carray(status.pushing_files.into_iter().map(LbUuid::from).collect());
     let pushing_files = LbIds { ids: pushing_files.0, len: pushing_files.1 };
@@ -1019,11 +1024,6 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         None => null_mut(),
     };
 
-    let sync_status = match status.sync_status {
-        Some(sync_status) => cstring(sync_status),
-        None => null_mut(),
-    };
-
     LbStatus {
         offline: status.offline,
         syncing: status.syncing,
@@ -1034,7 +1034,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         dirty_locally,
         pulling_files,
         space_used,
-        sync_status,
+        msg
     }
 }
 
