@@ -1034,7 +1034,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         dirty_locally,
         pulling_files,
         space_used,
-        msg
+        msg,
     }
 }
 
