@@ -72,8 +72,9 @@ class PendingSharesIconViewModel: ObservableObject {
                 switch res {
                 case .success(let shares):
                     self.pendingSharesCount = shares.count
-                case .failure(let err):
-                    AppState.shared.error = .lb(error: err)
+                case .failure(_):
+                    print("silent")
+                    // fail silently, don't want to throw an error a user doesn't expect to see
                 }
             }
         }

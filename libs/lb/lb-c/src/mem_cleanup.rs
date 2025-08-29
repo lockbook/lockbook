@@ -314,8 +314,8 @@ pub extern "C" fn lb_free_status(status: LbStatus) {
             drop(usage);
         }
 
-        if !status.sync_status.is_null() {
-            drop(CString::from_raw(status.sync_status));
+        if !status.msg.is_null() {
+            drop(CString::from_raw(status.msg));
         }
     }
 }
