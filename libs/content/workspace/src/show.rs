@@ -781,13 +781,17 @@ impl Workspace {
                 goto_tab = Some(self.tabs.len() - 1);
             }
 
-            // Cmd+Shift+[ to go to previous tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.current_tab != 0 {
+            // Cmd+Shift+[ or ctrl shift tab to go to previous tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
+                && self.current_tab != 0
+            {
                 goto_tab = Some(self.current_tab - 1);
             }
 
-            // Cmd+Shift+] to go to next tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
+            // Cmd+Shift+] or ctrl tab to go to next tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
                 && self.current_tab != self.tabs.len() - 1
             {
                 goto_tab = Some(self.current_tab + 1);
