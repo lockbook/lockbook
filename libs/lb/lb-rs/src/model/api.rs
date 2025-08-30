@@ -1,7 +1,7 @@
 use crate::model::ValidationFailure;
 use crate::model::account::{Account, Username};
 use crate::model::crypto::*;
-use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
+use crate::model::file_metadata::{DocumentHmac, FileDiff, Owner};
 use crate::model::signed_file::SignedFile;
 use http::Method;
 use libsecp256k1::PublicKey;
@@ -321,10 +321,10 @@ pub struct NewAccountRequestV2 {
     pub root_folder: SignedMeta,
 }
 
-impl NewAccountRequest {
-    pub fn new(account: &Account, root_folder: &ECSigned<FileMetadata>) -> Self {
+impl NewAccountRequestV2 {
+    pub fn new(account: &Account, root_folder: &SignedMeta) -> Self {
         let root_folder = root_folder.clone();
-        NewAccountRequest {
+        NewAccountRequestV2 {
             username: account.username.clone(),
             public_key: account.public_key(),
             root_folder,
