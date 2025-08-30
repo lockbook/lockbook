@@ -48,7 +48,7 @@ fn backup_old_server() -> CliResult<()> {
 }
 
 fn replace_old_server() -> CliResult<()> {
-    println!("scp'ing new server into /root/new-server");
+    println!("scp'ing new server into ~/lockbook-server.tmp");
     Command::new("gcloud")
         .args([
             "compute",
@@ -63,7 +63,7 @@ fn replace_old_server() -> CliResult<()> {
         .current_dir(root())
         .assert_success()?;
 
-    println!("mv new-server /usr/bin");
+    println!("mv lockbook-server.tmp /usr/bin");
     Command::new("gcloud")
         .args([
             "compute",
