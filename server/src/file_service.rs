@@ -458,7 +458,7 @@ where
             }
             None => {
                 // do we even want to support this?
-                if request.new_content.value.is_empty() {
+                if !request.new_content.value.is_empty() {
                     return Err(ClientError(NewSizeIncorrect));
                 }
             }
