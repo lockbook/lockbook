@@ -81,6 +81,9 @@ class WorkspaceFragment : Fragment() {
 
             true
         }
+        binding.workspaceToolbar.setOnClickListener{
+            activityModel.launchTransientScreen(TransientScreen.Rename(Lb.getFileById(model.selectedFile.value!!)))
+        }
 
         val layoutParams = ConstraintLayout.LayoutParams(
             ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
@@ -118,6 +121,9 @@ class WorkspaceFragment : Fragment() {
             if (!show) {
                 binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
 
+                if (model.selectedFile.value != null){
+                    binding.workspaceToolbar.setTitle(Lb.getFileById(model.selectedFile.value)?.name)
+                }
                 binding.workspaceToolbar.setNavigationOnClickListener {
                     val currentDoc = model.selectedFile.value
 
@@ -125,6 +131,8 @@ class WorkspaceFragment : Fragment() {
                         workspaceWrapper.workspaceView.closeDoc(currentDoc)
                     }
                 }
+            }else{
+                binding.workspaceToolbar.setTitle("")
             }
 
             workspaceWrapper.workspaceView.showTabs(show)
@@ -133,7 +141,13 @@ class WorkspaceFragment : Fragment() {
         model.finishedAction.observe(viewLifecycleOwner) { action ->
             when (action) {
                 is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
-                is FinishedAction.Rename -> workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
+                is FinishedAction.Rename -> {
+                    workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
+                    if (binding.workspaceToolbar.title != ""){
+                        // we're showing the title in the menu bar. let's update it
+                        binding.workspaceToolbar.setTitle(action.name)
+                    }
+                }
             }
         }
 
@@ -147,6 +161,7 @@ class WorkspaceFragment : Fragment() {
             WorkspaceTab.Graph -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = false
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = false
+                binding.workspaceToolbar.setTitle("")
             }
             WorkspaceTab.Svg,
             WorkspaceTab.Image,
@@ -155,6 +170,9 @@ class WorkspaceFragment : Fragment() {
             WorkspaceTab.PlainText -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = true
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = true
+                if (model.showTabs.value == false){
+                    binding.workspaceToolbar.setTitle(Lb.getFileById(model.selectedFile.value)?.name)
+                }
             }
         }
 
