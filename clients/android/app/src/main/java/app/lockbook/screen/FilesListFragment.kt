@@ -222,6 +222,14 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
             model.fileOpened(id)
+
+            val file = Lb.getFileById(id)
+            if (file != null){
+                val parent = Lb.getFileById(file.parent)
+                if (!parent.isRoot){
+                    model.enterFolder(parent)
+                }
+            }
         }
 
         return binding.root
