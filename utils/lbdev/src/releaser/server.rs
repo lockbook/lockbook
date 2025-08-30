@@ -22,8 +22,15 @@ pub fn deploy() -> CliResult<()> {
 
 fn build_server() -> CliResult<()> {
     println!("Building server");
-    Command::new("cargo")
-        .args(["build", "-p", "lockbook-server", "--release"])
+    Command::new("cross")
+        .args([
+            "build",
+            "-p",
+            "lockbook-server",
+            "--release",
+            "--target",
+            "x86_64-unknown-linux-gnu",
+        ])
         .current_dir(root())
         .assert_success()
 }
@@ -57,7 +64,7 @@ fn replace_old_server() -> CliResult<()> {
             "us-east4-c",
             "--project",
             "lockbook-net",
-            "target/release/lockbook-server",
+            "target/x86_64-unknown-linux-gnu/release/lockbook-server",
             "lb-prod:~/lockbook-server.tmp",
         ])
         .current_dir(root())
