@@ -35,6 +35,14 @@ pub struct WsBuildTargets {
     x86_macos: bool,
 }
 
+pub fn android_ws() -> CliResult<()> {
+    Command::new("sh")
+        .arg("libs/content/workspace-ffi/create_android_libs.sh")
+        .current_dir(root())
+        .assert_success()?;
+    Ok(())
+}
+
 fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     println!("cbindgen");
     let _ = fs::remove_dir_all(workspace_swift_libs());
