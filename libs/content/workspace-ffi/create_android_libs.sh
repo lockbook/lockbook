@@ -1,5 +1,6 @@
 #!/bin/bash
 set -ae
+cd "$(dirname "$0")"
 
 cargo ndk --target aarch64-linux-android --target armv7-linux-androideabi --target i686-linux-android --target x86_64-linux-android --platform 22 -- build --release
 
