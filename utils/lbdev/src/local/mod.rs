@@ -36,10 +36,10 @@ pub struct WsBuildTargets {
 }
 
 pub fn android_ws() -> CliResult<()> {
-    Command::new("sh")
-        .arg("libs/content/workspace-ffi/create_android_libs.sh")
+    Command::new("libs/content/workspace-ffi/create_android_libs.sh")
         .current_dir(root())
         .assert_success()?;
+
     Ok(())
 }
 
