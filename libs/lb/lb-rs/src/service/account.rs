@@ -1,10 +1,11 @@
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
-    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
+    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
-use crate::model::file_metadata::{FileMetadata, FileType, Owner};
+use crate::model::file_metadata::{FileType, Owner};
+use crate::model::meta::Meta;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
@@ -37,12 +38,12 @@ impl Lb {
 
         let account = Account::new(username.clone(), api_url.to_string());
 
-        let root = FileMetadata::create_root(&account)?.sign_with(&account)?;
+        let root = Meta::create_root(&account)?.sign_with(&account)?;
         let root_id = *root.id();
 
         let last_synced = self
             .client
-            .request(&account, NewAccountRequest::new(&account, &root))
+            .request(&account, NewAccountRequestV2::new(&account, &root))
             .await?
             .last_synced;
 
