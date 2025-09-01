@@ -2,10 +2,10 @@ use crate::model::access_info::{UserAccessInfo, UserAccessMode};
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
-use crate::model::file_metadata::{FileMetadata, FileType, Owner};
+use crate::model::file_metadata::{FileType, Owner};
 use crate::model::lazy::LazyTree;
+use crate::model::meta::Meta;
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
-use crate::model::signed_file::SignedFile;
 use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{compression_service, symkey, validate};
@@ -17,13 +17,14 @@ use tracing::debug;
 use uuid::Uuid;
 
 use super::file_like::FileLike;
+use super::signed_meta::SignedMeta;
 
-pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedFile>>>;
-pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedFile>>>;
+pub type TreeWithOp<Staged> = LazyTree<StagedTree<Staged, Option<SignedMeta>>>;
+pub type TreeWithOps<Staged> = LazyTree<StagedTree<Staged, Vec<SignedMeta>>>;
 
 impl<T> LazyTree<T>
 where
-    T: TreeLike<F = SignedFile>,
+    T: TreeLike<F = SignedMeta>,
 {
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt(
@@ -112,7 +113,7 @@ where
     pub fn create_op(
         &mut self, id: Uuid, key: AESKey, parent: &Uuid, name: &str, file_type: FileType,
         keychain: &Keychain,
-    ) -> LbResult<(SignedFile, Uuid)> {
+    ) -> LbResult<(SignedMeta, Uuid)> {
         validate::file_name(name)?;
 
         if self.maybe_find(parent).is_none() {
@@ -120,9 +121,8 @@ where
         }
         let parent_owner = self.find(parent)?.owner().0;
         let parent_key = self.decrypt_key(parent, keychain)?;
-        let file =
-            FileMetadata::create(id, key, &parent_owner, *parent, &parent_key, name, file_type)?
-                .sign(keychain)?;
+        let file = Meta::create(id, key, &parent_owner, *parent, &parent_key, name, file_type)?
+            .sign(keychain)?;
         let id = *file.id();
 
         debug!("new {:?} with id: {}", file_type, id);
@@ -131,7 +131,7 @@ where
 
     pub fn rename_op(
         &mut self, id: &Uuid, name: &str, keychain: &Keychain,
-    ) -> LbResult<SignedFile> {
+    ) -> LbResult<SignedMeta> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         validate::file_name(name)?;
@@ -140,7 +140,7 @@ where
         }
         let parent_key = self.decrypt_key(file.parent(), keychain)?;
         let key = self.decrypt_key(id, keychain)?;
-        file.name = SecretFileName::from_str(name, &key, &parent_key)?;
+        file.set_name(SecretFileName::from_str(name, &key, &parent_key)?);
         let file = file.sign(keychain)?;
 
         Ok(file)
@@ -148,7 +148,7 @@ where
 
     pub fn move_op(
         &mut self, id: &Uuid, new_parent: &Uuid, keychain: &Keychain,
-    ) -> LbResult<Vec<SignedFile>> {
+    ) -> LbResult<Vec<SignedMeta>> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
         if self.maybe_find(new_parent).is_none() {
             return Err(LbErrKind::FileParentNonexistent.into());
@@ -156,10 +156,10 @@ where
         let key = self.decrypt_key(id, keychain)?;
         let parent_key = self.decrypt_key(new_parent, keychain)?;
         let owner = self.find(new_parent)?.owner();
-        file.owner = owner;
-        file.parent = *new_parent;
-        file.folder_access_key = symkey::encrypt(&parent_key, &key)?;
-        file.name = SecretFileName::from_str(&self.name(id, keychain)?, &key, &parent_key)?;
+        file.set_owner(owner);
+        file.set_parent(*new_parent);
+        file.set_folder_access_keys(symkey::encrypt(&parent_key, &key)?);
+        file.set_name(SecretFileName::from_str(&self.name(id, keychain)?, &key, &parent_key)?);
         let file = file.sign(keychain)?;
 
         let mut result = vec![file];
@@ -168,17 +168,17 @@ where
                 continue;
             }
             let mut descendant = self.find(&id)?.timestamped_value.value.clone();
-            descendant.owner = owner;
+            descendant.set_owner(owner);
             result.push(descendant.sign(keychain)?);
         }
 
         Ok(result)
     }
 
-    pub fn delete_op(&self, id: &Uuid, keychain: &Keychain) -> LbResult<SignedFile> {
+    pub fn delete_op(&self, id: &Uuid, keychain: &Keychain) -> LbResult<SignedMeta> {
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
-        file.is_deleted = true;
+        file.set_deleted(true);
         let file = file.sign(keychain)?;
 
         Ok(file)
@@ -186,7 +186,7 @@ where
 
     pub fn add_share_op(
         &mut self, id: Uuid, sharee: Owner, mode: ShareMode, keychain: &Keychain,
-    ) -> LbResult<SignedFile> {
+    ) -> LbResult<SignedMeta> {
         let owner = Owner(keychain.get_pk()?);
         let access_mode = match mode {
             ShareMode::Write => UserAccessMode::Write,
@@ -199,12 +199,12 @@ where
             if let FileType::Link { target } = self.find(&id)?.file_type() { target } else { id };
         let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::not_root(&file)?;
-        if mode == ShareMode::Write && file.owner.0 != owner.0 {
+        if mode == ShareMode::Write && file.owner().0 != owner.0 {
             return Err(LbErrKind::InsufficientPermission.into());
         }
         // check for and remove duplicate shares
         let mut found = false;
-        for user_access in &mut file.user_access_keys {
+        for user_access in file.user_access_keys() {
             if user_access.encrypted_for == sharee.0 {
                 found = true;
                 if user_access.mode == access_mode && !user_access.deleted {
@@ -213,10 +213,10 @@ where
             }
         }
         if found {
-            file.user_access_keys
+            file.user_access_keys_mut()
                 .retain(|k| k.encrypted_for != sharee.0);
         }
-        file.user_access_keys.push(UserAccessInfo::encrypt(
+        file.user_access_keys_mut().push(UserAccessInfo::encrypt(
             keychain.get_account()?,
             &owner.0,
             &sharee.0,
@@ -230,12 +230,12 @@ where
 
     pub fn delete_share_op(
         &mut self, id: &Uuid, maybe_encrypted_for: Option<PublicKey>, keychain: &Keychain,
-    ) -> LbResult<Vec<SignedFile>> {
+    ) -> LbResult<Vec<SignedMeta>> {
         let mut result = Vec::new();
         let mut file = self.find(id)?.timestamped_value.value.clone();
 
         let mut found = false;
-        for key in file.user_access_keys.iter_mut() {
+        for key in file.user_access_keys_mut() {
             if let Some(encrypted_for) = maybe_encrypted_for {
                 if !key.deleted && key.encrypted_for == encrypted_for {
                     found = true;
@@ -256,7 +256,7 @@ where
             if encrypted_for == keychain.get_pk()? {
                 if let Some(link) = self.linked_by(id)? {
                     let mut link = self.find(&link)?.timestamped_value.value.clone();
-                    link.is_deleted = true;
+                    link.set_deleted(true);
                     result.push(link.sign(keychain)?);
                 }
             }
@@ -277,12 +277,12 @@ where
 
     pub fn update_document_op(
         &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
-    ) -> LbResult<(SignedFile, EncryptedDocument)> {
+    ) -> LbResult<(SignedMeta, EncryptedDocument)> {
         let id = match self.find(id)?.file_type() {
             FileType::Document | FileType::Folder => *id,
             FileType::Link { target } => target,
         };
-        let mut file: FileMetadata = self.find(&id)?.timestamped_value.value.clone();
+        let mut file = self.find(&id)?.timestamped_value.value.clone();
         validate::is_document(&file)?;
         let key = self.decrypt_key(&id, keychain)?;
         let hmac = {
@@ -292,10 +292,10 @@ where
             mac.finalize().into_bytes()
         }
         .into();
-        file.document_hmac = Some(hmac);
-        let file = file.sign(keychain)?;
         let document = compression_service::compress(document)?;
         let document = symkey::encrypt(&key, &document)?;
+        file.set_hmac_and_size(Some(hmac), Some(document.value.len()));
+        let file = file.sign(keychain)?;
 
         Ok((file, document))
     }
@@ -303,7 +303,7 @@ where
 
 impl<Base, Local, Staged> LazyTree<Staged>
 where
-    Staged: StagedTreeLike<Base = Base, Staged = Local, F = SignedFile> + TreeLikeMut,
+    Staged: StagedTreeLike<Base = Base, Staged = Local, F = SignedMeta> + TreeLikeMut,
     Base: TreeLike<F = Staged::F>,
     Local: TreeLikeMut<F = Staged::F>,
 {
