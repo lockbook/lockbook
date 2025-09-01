@@ -6,7 +6,7 @@ use crate::{core, ensure_account};
 #[tokio::main]
 pub async fn validate() -> CliResult<()> {
     let lb = core().await?;
-    ensure_account(&lb)?;
+    ensure_account(&lb).await?;
 
     let warnings = lb
         .test_repo_integrity()
@@ -24,7 +24,7 @@ pub async fn validate() -> CliResult<()> {
 #[tokio::main]
 pub async fn info(target: FileInput) -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
     let f = target.find(lb).await?;
     println!("{f:#?}");
@@ -34,19 +34,19 @@ pub async fn info(target: FileInput) -> Result<(), CliError> {
 #[tokio::main]
 pub async fn whoami() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
-    println!("{}", lb.get_account()?.username);
+    println!("{}", lb.get_account().await?.username);
     Ok(())
 }
 
 #[tokio::main]
 pub async fn whereami() -> Result<(), CliError> {
     let lb = &core().await?;
-    ensure_account(lb)?;
+    ensure_account(lb).await?;
 
-    let account = lb.get_account()?;
-    let config = &lb.config;
+    let account = lb.get_account().await?;
+    let config = &lb.get_config().await;
     println!("Server: {}", account.api_url);
     println!("Core: {}", config.writeable_path);
     Ok(())
