@@ -58,20 +58,19 @@ class FileModel(
             fileDir.add(root)
             fileDir.add(newParent)
         } else {
-            try{
-                var curr = newParent
-                val temp : MutableList<File> = mutableListOf()
+            try {
+                var curr: File? = newParent
+                val temp: MutableList<File> = mutableListOf()
 
-                while (curr.id != parent.id && !curr.isRoot) {
+                while (curr != null && curr.id != parent.id && !curr.isRoot) {
                     temp.add(curr)
-                    curr = Lb.getFileById(curr.parent)
+                    curr = idsAndFiles[curr.parent]
                 }
                 temp.reverse()
                 fileDir.addAll(temp)
-            }catch (err: LbError){
+            } catch (err: LbError) {
                 println(err)
             }
-
         }
 
         parent = newParent

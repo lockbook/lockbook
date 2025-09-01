@@ -224,9 +224,9 @@ class FilesListFragment : Fragment(), FilesFragment {
             model.fileOpened(id)
 
             val file = Lb.getFileById(id)
-            if (file != null){
+            if (file != null) {
                 val parent = Lb.getFileById(file.parent)
-                if (!parent.isRoot){
+                if (!parent.isRoot) {
                     model.enterFolder(parent)
                 }
             }
