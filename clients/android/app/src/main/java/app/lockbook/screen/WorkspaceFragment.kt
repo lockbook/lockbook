@@ -81,7 +81,7 @@ class WorkspaceFragment : Fragment() {
 
             true
         }
-        binding.workspaceToolbar.setOnClickListener{
+        binding.workspaceToolbar.setOnClickListener {
             activityModel.launchTransientScreen(TransientScreen.Rename(Lb.getFileById(model.selectedFile.value!!)))
         }
 
@@ -121,7 +121,7 @@ class WorkspaceFragment : Fragment() {
             if (!show) {
                 binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
 
-                if (model.selectedFile.value != null){
+                if (model.selectedFile.value != null) {
                     binding.workspaceToolbar.setTitle(Lb.getFileById(model.selectedFile.value)?.name)
                 }
                 binding.workspaceToolbar.setNavigationOnClickListener {
@@ -131,7 +131,7 @@ class WorkspaceFragment : Fragment() {
                         workspaceWrapper.workspaceView.closeDoc(currentDoc)
                     }
                 }
-            }else{
+            } else {
                 binding.workspaceToolbar.setTitle("")
             }
 
@@ -143,7 +143,7 @@ class WorkspaceFragment : Fragment() {
                 is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
-                    if (binding.workspaceToolbar.title != ""){
+                    if (binding.workspaceToolbar.title != "") {
                         // we're showing the title in the menu bar. let's update it
                         binding.workspaceToolbar.setTitle(action.name)
                     }
@@ -170,7 +170,7 @@ class WorkspaceFragment : Fragment() {
             WorkspaceTab.PlainText -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = true
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible = true
-                if (model.showTabs.value == false){
+                if (model.showTabs.value == false) {
                     binding.workspaceToolbar.setTitle(Lb.getFileById(model.selectedFile.value)?.name)
                 }
             }
