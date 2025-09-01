@@ -264,6 +264,7 @@
     <string name="no_access_mode">Please choose an access mode.</string>
     <string name="reject_pending_share">Reject pending share</string>
     <string name="accept_pending_share">Accept pending share</string>
+    <string name="importing_files">Importing files...</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

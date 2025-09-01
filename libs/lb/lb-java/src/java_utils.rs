@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JObject, JString, JThrowable, JValue};
 use lb_rs::blocking::Lb;
@@ -35,6 +37,23 @@ pub(crate) fn rbyte_array(env: &JNIEnv, bytes: JByteArray) -> Vec<u8> {
 
     env.get_byte_array_region(bytes, 0, &mut rbytes).unwrap();
     rbytes.into_iter().map(|b| b as u8).collect()
+}
+
+use jni::objects::JObjectArray;
+
+pub(crate) fn rpaths_array<'local>(
+    env: &mut JNIEnv, strings: JObjectArray<'local>,
+) -> Vec<PathBuf> {
+    let len = env.get_array_length(&strings).unwrap();
+
+    let mut rstrings: Vec<PathBuf> = Vec::with_capacity(len as usize);
+    for i in 0..len {
+        let jstr = env.get_object_array_element(&strings, i).unwrap();
+        let path: PathBuf = rstring(env, JString::from(jstr)).parse().unwrap();
+        rstrings.push(path);
+    }
+
+    rstrings
 }
 
 pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject<'local> {

@@ -22,6 +22,8 @@ use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
 
+use crate::java_utils::rpaths_array;
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
@@ -636,6 +638,21 @@ pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     let edit = jedit == 1;
 
     if let Err(err) = lb.export_files(id, dest, edit, &None) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_importFiles<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, sources: JObjectArray<'local>,
+    jdest: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let dest = Uuid::from_str(&rstring(&mut env, jdest)).unwrap();
+    let sources = rpaths_array(&mut env, sources);
+
+    if let Err(err) = lb.import_files(&sources, dest, &|_| {}) {
         throw_err(&mut env, err);
     }
 }
