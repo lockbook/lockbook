@@ -14,9 +14,7 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{
-    ContentState, Tab, TabContent, TabStatus, core_get_by_relative_path, image_viewer,
-};
+use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -470,12 +468,8 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if let Some(current_tab) = self.current_tab() {
-                if self.show_tabs {
-                    self.show_tab_strip(ui);
-                } else if !matches!(ui.ctx().os(), OperatingSystem::IOS) {
-                    self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
-                }
+            if self.current_tab().is_some() && self.show_tabs {
+                self.show_tab_strip(ui);
             }
 
             ui.centered_and_justified(|ui| {
@@ -570,30 +564,6 @@ impl Workspace {
                 }
             });
         });
-    }
-
-    /// Shows the mobile title and returns true if clicked.
-    fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
-        ui.horizontal(|ui| {
-            let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(self.tab_title(tab)))
-                    .frame(false)
-                    .wrap_mode(TextWrapMode::Truncate)
-                    .fill(if ui.visuals().dark_mode {
-                        egui::Color32::BLACK
-                    } else {
-                        egui::Color32::WHITE
-                    }); // matches iOS native toolbar
-
-            ui.allocate_ui(ui.available_size(), |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    ui.add(selectable_label).clicked()
-                })
-                .inner
-            })
-            .inner
-        })
-        .inner
     }
 
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {

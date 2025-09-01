@@ -83,7 +83,7 @@ impl Workspace {
             cfg: WsPersistentStore::new(writeable_path),
             ctx: ctx.clone(),
             core: core.clone(),
-            show_tabs: true,
+            show_tabs: !cfg!(any(target_os = "ios", target_os = "android")),
             focused_parent: Default::default(),
 
             current_tab_changed: Default::default(),
