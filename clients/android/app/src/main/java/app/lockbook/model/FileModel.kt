@@ -2,6 +2,7 @@ package app.lockbook.model
 
 import net.lockbook.File
 import net.lockbook.Lb
+import net.lockbook.LbError
 
 class FileModel(
     val root: File,
@@ -52,15 +53,27 @@ class FileModel(
     }
 
     fun intoFile(newParent: File) {
-        parent = newParent
         if (newParent.parent == root.id && fileDir.size > 1) {
             fileDir.clear()
             fileDir.add(root)
             fileDir.add(newParent)
         } else {
-            fileDir.add(newParent)
+            try {
+                var curr: File? = newParent
+                val temp: MutableList<File> = mutableListOf()
+
+                while (curr != null && curr.id != parent.id && !curr.isRoot) {
+                    temp.add(curr)
+                    curr = idsAndFiles[curr.parent]
+                }
+                temp.reverse()
+                fileDir.addAll(temp)
+            } catch (err: LbError) {
+                println(err)
+            }
         }
 
+        parent = newParent
         refreshChildren()
     }
 
