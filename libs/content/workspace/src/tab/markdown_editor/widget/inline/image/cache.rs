@@ -14,6 +14,7 @@ use std::thread;
 #[derive(Clone, Default)]
 pub struct ImageCache {
     pub map: HashMap<String, Arc<Mutex<ImageState>>>,
+    pub updated: Arc<Mutex<bool>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -48,6 +49,7 @@ pub fn calc<'ast>(
                 let client = client.clone();
                 let core = core.clone();
                 let ctx = ui.ctx().clone();
+                let updated = result.updated.clone();
 
                 result.map.insert(url.clone(), image_state.clone());
 
@@ -137,6 +139,8 @@ pub fn calc<'ast>(
                             *image_state.lock().unwrap() = ImageState::Failed(err);
                         }
                     }
+
+                    *updated.lock().unwrap() = true;
 
                     // request a frame when the image is done loading
                     ctx.request_repaint();
