@@ -67,8 +67,8 @@ impl UITextInputTokenizer for Bounds {
             }
             BoundCase::AtEmptyRange { .. } => true,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => true,
-            BoundCase::AtEndOfNonemptyRange { .. } => !in_backward_direction,
-            BoundCase::AtStartOfNonemptyRange { .. } => in_backward_direction,
+            BoundCase::AtEndOfNonemptyRange { .. } => in_backward_direction,
+            BoundCase::AtStartOfNonemptyRange { .. } => !in_backward_direction,
             BoundCase::BetweenRanges { .. } => false,
         }
     }
@@ -115,7 +115,7 @@ impl UITextInputTokenizer for Bounds {
     fn position_from(
         &self, text_position: DocCharOffset, to_boundary: Bound, in_backward_direction: bool,
     ) -> Option<DocCharOffset> {
-        Some(text_position.advance_to_next_bound(to_boundary, !in_backward_direction, self))
+        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, self))
     }
 
     fn range_enclosing_position(
