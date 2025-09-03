@@ -296,6 +296,12 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
+        let images_updated = {
+            let mut images_updated = self.images.updated.lock().unwrap();
+            let result = *images_updated;
+            *images_updated = false;
+            result
+        };
         if !self.initialized || self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
 
@@ -428,37 +434,11 @@ impl Editor {
                 "                                                              render: {render_elapsed:?}"
             );
         }
-        let prior_selection = self.buffer.current.selection;
-        let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
-        };
-        if !self.initialized || self.process_events(ui.ctx(), root) {
-            resp.text_updated = true;
 
-            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-            let root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-            self.bounds.paragraphs.clear();
-            self.bounds.inline_paragraphs.clear();
-            self.layout_cache.clear();
-
-            self.calc_source_lines();
-            self.compute_bounds(root);
-            self.bounds.paragraphs.sort();
-            self.bounds.inline_paragraphs.sort();
-
-            self.calc_words();
-
-            ui.ctx().request_repaint();
-        }
-        resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
         if resp.selection_updated || images_updated || height_updated || width_updated {
             self.layout_cache.clear();
+            ui.ctx().request_repaint();
         }
         if resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
