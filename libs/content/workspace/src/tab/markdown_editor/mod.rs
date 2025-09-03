@@ -414,7 +414,13 @@ impl Editor {
             );
         }
         let prior_selection = self.buffer.current.selection;
-        if !self.initialized || self.process_events(ui.ctx(), root) {
+        let images_updated = {
+            let mut images_updated = self.images.updated.lock().unwrap();
+            let result = *images_updated;
+            *images_updated = false;
+            result
+        };
+        if !self.initialized || self.process_events(ui.ctx(), root) || images_updated {
             self.next_resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
