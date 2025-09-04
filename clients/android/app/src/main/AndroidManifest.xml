@@ -47,7 +47,6 @@
         </provider>
         <activity
             android:name=".screen.ShareReceiverActivity"
-            android:theme="@style/Theme.AppCompat.Light.Dialog"
             android:exported="true">
 
             <!-- Handle single file sharing -->

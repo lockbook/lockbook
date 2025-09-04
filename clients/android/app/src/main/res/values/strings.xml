@@ -265,6 +265,8 @@
     <string name="reject_pending_share">Reject pending share</string>
     <string name="accept_pending_share">Accept pending share</string>
     <string name="importing_files">Importing files...</string>
+    <string name="new_folder">New Folder</string>
+    <string name="import_rcv_share_btn">Import</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>
