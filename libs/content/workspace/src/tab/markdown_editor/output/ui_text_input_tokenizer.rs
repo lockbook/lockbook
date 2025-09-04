@@ -1,4 +1,5 @@
-use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _, Bounds};
+use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::Bound;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
@@ -26,7 +27,7 @@ pub trait UITextInputTokenizer {
     ) -> Option<(DocCharOffset, DocCharOffset)>;
 }
 
-impl UITextInputTokenizer for Bounds {
+impl UITextInputTokenizer for Editor {
     fn is_position_at_boundary(
         &self, text_position: DocCharOffset, at_boundary: Bound, in_backward_direction: bool,
     ) -> bool {
@@ -34,12 +35,19 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.wrap_lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => &self.bounds.words,
+            Bound::Line => &self.bounds.wrap_lines,
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
-                    || text_position == self.paragraphs.last().copied().unwrap_or_default().end();
+                    || text_position
+                        == self
+                            .bounds
+                            .paragraphs
+                            .last()
+                            .copied()
+                            .unwrap_or_default()
+                            .end();
             }
         };
         match text_position.bound_case(ranges) {
@@ -80,9 +88,9 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.wrap_lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => &self.bounds.words,
+            Bound::Line => &self.bounds.wrap_lines,
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 return true;
             }
@@ -115,7 +123,7 @@ impl UITextInputTokenizer for Bounds {
     fn position_from(
         &self, text_position: DocCharOffset, to_boundary: Bound, in_backward_direction: bool,
     ) -> Option<DocCharOffset> {
-        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, self))
+        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, &self.bounds))
     }
 
     fn range_enclosing_position(
@@ -125,14 +133,15 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 unimplemented!()
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.source_lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => &self.bounds.words,
+            Bound::Line => &self.bounds.words, // hack
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 unimplemented!()
             }
         };
-        match text_position.bound_case(ranges) {
+        let bound_case = text_position.bound_case(ranges);
+        match bound_case {
             BoundCase::NoRanges => None,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if in_backward_direction {
@@ -148,7 +157,19 @@ impl UITextInputTokenizer for Bounds {
                     None
                 }
             }
-            BoundCase::InsideRange { range } => Some(range),
+            BoundCase::InsideRange { range } => {
+                // // hack: don't include trailing whitespace in the range
+                // if self.buffer[(text_position, range.end())]
+                //     .trim_end()
+                //     .is_empty()
+                // {
+                //     println!("  InsideRange -> AtEndOfNonemptyRange");
+                //     if in_backward_direction { Some(range) } else { None }
+                // } else {
+                //     Some(range)
+                // }
+                Some(range)
+            }
             BoundCase::AtEmptyRange { .. } => None,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after } => {
                 Some(if in_backward_direction { range_before } else { range_after })

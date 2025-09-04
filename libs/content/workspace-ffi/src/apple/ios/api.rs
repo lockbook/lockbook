@@ -566,9 +566,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     println!("**boundaries**");
     markdown.print_bounds();
 
-    let result = markdown
-        .bounds
-        .is_position_at_boundary(text_position, at_boundary, backwards);
+    let result = markdown.is_position_at_boundary(text_position, at_boundary, backwards);
 
     println!("🎯 is_position_at_bound - OUTPUT: {}", result);
     result
@@ -596,10 +594,7 @@ pub unsafe extern "C" fn is_position_within_bound(
         text_position.0, at_boundary
     );
 
-    let result =
-        markdown
-            .bounds
-            .is_position_within_text_unit(text_position, at_boundary, backwards);
+    let result = markdown.is_position_within_text_unit(text_position, at_boundary, backwards);
 
     println!("🎯 is_position_within_bound - OUTPUT: {}", result);
     result
@@ -627,9 +622,7 @@ pub unsafe extern "C" fn bound_from_position(
         text_position.0, to_boundary, backwards
     );
 
-    let result = markdown
-        .bounds
-        .position_from(text_position, to_boundary, backwards);
+    let result = markdown.position_from(text_position, to_boundary, backwards);
 
     println!("🎯 bound_from_position - OUTPUT: {:?}", result);
     result.into()
@@ -657,10 +650,7 @@ pub unsafe extern "C" fn bound_at_position(
         text_position.0, with_granularity, backwards
     );
 
-    let result =
-        markdown
-            .bounds
-            .range_enclosing_position(text_position, with_granularity, backwards);
+    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
 
     println!("🎯 bound_at_position - OUTPUT: {:?}", result);
     result.into()
