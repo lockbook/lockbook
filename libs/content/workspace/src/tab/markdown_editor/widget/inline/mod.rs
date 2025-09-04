@@ -25,7 +25,7 @@ pub(crate) mod text;
 pub(crate) mod underline;
 pub(crate) mod wiki_link;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Response {
     pub clicked: bool,
     pub hovered: bool,
@@ -310,26 +310,30 @@ impl<'ast> Editor {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
                     if reveal {
-                        response |= self.show_text_line(
+                        response |= self.show_override_text_line(
                             ui,
                             top_left,
                             wrap,
                             prefix_range,
                             self.text_format_syntax(node),
                             false,
+                            None,
+                            self.sense_inline(ui, node),
                         );
                     } else {
                         // when syntax is captured, show an empty range
                         // representing the beginning of the prefix, so that clicking
                         // at the start of the circumfix places the cursor before
                         // the syntax
-                        response |= self.show_text_line(
+                        response |= self.show_override_text_line(
                             ui,
                             top_left,
                             wrap,
                             prefix_range.start().into_range(),
                             self.text_format_syntax(node),
                             false,
+                            None,
+                            self.sense_inline(ui, node),
                         );
                     }
                 }
@@ -338,26 +342,30 @@ impl<'ast> Editor {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
                     if reveal {
-                        response |= self.show_text_line(
+                        response |= self.show_override_text_line(
                             ui,
                             top_left,
                             wrap,
                             postfix_range,
                             self.text_format_syntax(node),
                             false,
+                            None,
+                            self.sense_inline(ui, node),
                         );
                     } else {
                         // when syntax is captured, show an empty range
                         // representing the end of the postfix, so that clicking
                         // at the end of the circumfix places the cursor after
                         // the syntax
-                        response |= self.show_text_line(
+                        response |= self.show_override_text_line(
                             ui,
                             top_left,
                             wrap,
                             postfix_range.end().into_range(),
                             self.text_format_syntax(node),
                             false,
+                            None,
+                            self.sense_inline(ui, node),
                         );
                     }
                 }
