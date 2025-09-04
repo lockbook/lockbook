@@ -244,8 +244,12 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let resp = mem::take(&mut self.next_resp);
 
-        self.height = ui.available_size().y;
-        self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let height = ui.available_size().y;
+        let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let height_updated = self.height != height;
+        let width_updated = self.width != width;
+        self.height = height;
+        self.width = width;
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
@@ -420,7 +424,7 @@ impl Editor {
             *images_updated = false;
             result
         };
-        if !self.initialized || self.process_events(ui.ctx(), root) || images_updated {
+        if !self.initialized || self.process_events(ui.ctx(), root) {
             self.next_resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
@@ -442,7 +446,7 @@ impl Editor {
         }
         self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if self.next_resp.selection_updated {
+        if self.next_resp.selection_updated || images_updated || height_updated || width_updated {
             self.layout_cache.clear();
         }
         if self.next_resp.selection_updated && !all_selected {
