@@ -30,8 +30,8 @@ pub fn calc<'ast>(
     core: &Lb, file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
-
     let mut prior_cache = prior_cache.clone();
+    result.updated = prior_cache.updated;
     for node in root.descendants() {
         if let NodeValue::Image(NodeLink { url, .. }) = &node.data.borrow().value {
             if result.map.contains_key(url) {
