@@ -210,7 +210,7 @@
     <string name="premium_gb">30 GB</string>
     <string name="out_of_premium_gb">%s / 30 GB</string>
     <string name="per_month">/ month</string>
-    <string name="one_mb">1 MB</string>
+    <string name="twenty_five_mb">25 MB</string>
     <string name="premium_price">$2.99</string>
     <string name="success_subscription_benefit">Your data cap has been extended to 30 GB.</string>
     <string name="successful_purchase">Thank you for purchasing premium.</string>
@@ -246,7 +246,7 @@
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
-    <string name="no_shared_files">No shared files.</string>
+    <string name="no_shared_files">No pending shares.</string>
     <string name="export">Export</string>
     <string name="write_access">Write access:</string>
     <string name="read_access">Read access:</string>

@@ -122,9 +122,9 @@ impl<'ast> Editor {
                         });
                     });
                 }
-                ImageState::Failed(_) => {
+                ImageState::Failed(message) => {
                     let icon = "\u{f116}";
-                    let caption = "Could not show image";
+                    let caption = format!("Could not show image: {message}");
 
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));

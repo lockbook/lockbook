@@ -4,6 +4,7 @@ import AlertToast
 struct SyncButton: View {
     @EnvironmentObject var homeState: HomeState
     @State var syncButtonStatus: SyncButtonStatus = .canSync
+    @State var statusMessage: String? = nil
     @State private var showClickToast = false
 
     @Environment(\.isPreview) var isPreview
@@ -24,16 +25,21 @@ struct SyncButton: View {
                         .progressViewStyle(.circular)
                         .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
+                        .tint(.white)
+                        
                 }).padding(.vertical, 5)
             } else {
                 Label("Sync", systemImage: getButtonIcon()).padding(.vertical, 5)
             }
         })
-        .buttonStyle(.bordered)
+        .modifier(SyncButtonHelpMessage(statusMessage: $statusMessage))
+        .buttonStyle(.borderedProminent)
         .tint(getButtonTintColor())
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }
             
+            statusMessage = status.message
+                        
             if status.offline {
                 syncButtonStatus = .offline
             } else if status.outOfSpace {
@@ -47,7 +53,7 @@ struct SyncButton: View {
     }
         
     func getButtonTintColor() -> Color? {
-        return syncButtonStatus == .updateRequired ? .red : nil
+        return (syncButtonStatus == .updateRequired || syncButtonStatus == .syncError) ? .red : nil
     }
     
     func getButtonIcon() -> String {
@@ -63,6 +69,8 @@ struct SyncButton: View {
         case .syncing:
             // Should never be reached
             return "arrow.triangle.2.circlepath"
+        case .syncError:
+            return "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
         }
     }
 }
@@ -77,12 +85,25 @@ struct SyncButtonProgressBarSize: ViewModifier {
     }
 }
 
+struct SyncButtonHelpMessage: ViewModifier {
+    @Binding var statusMessage: String?
+    
+    func body(content: Content) -> some View {
+        if let statusMessage {
+            content.help(statusMessage)
+        } else {
+            content
+        }
+    }
+}
+
 enum SyncButtonStatus {
     case offline
     case canSync
     case outOfSpace
     case updateRequired
     case syncing
+    case syncError
 }
 
 #Preview("Can Sync") {
@@ -99,4 +120,8 @@ enum SyncButtonStatus {
 
 #Preview("Update required") {
     SyncButton(syncButtonStatus: .updateRequired)
+}
+
+#Preview("Error") {
+    SyncButton(syncButtonStatus: .syncError)
 }

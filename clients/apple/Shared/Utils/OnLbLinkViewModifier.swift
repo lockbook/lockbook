@@ -48,14 +48,17 @@ struct OnLbLinkViewModifier: ViewModifier {
                let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
                 let filePaths = filePathsQuery.components(separatedBy: ",")
                 
-                var paths: [String] = []
+                var urls: [URL] = []
                 
                 for filePath in filePaths {
-                    paths.append(containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
+                    let url = URL(filePath: containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
+                    let _ = url.startAccessingSecurityScopedResource()
+                    
+                    urls.append(url)
                 }
                 
                 DispatchQueue.main.async {
-                    homeState.selectSheetInfo = .externalImport(paths: paths)
+                    homeState.selectSheetInfo = .externalImport(urls: urls)
                 }
             }
         }

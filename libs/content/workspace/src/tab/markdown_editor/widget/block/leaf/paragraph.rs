@@ -19,8 +19,9 @@ impl<'ast> Editor {
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
 
-            result += self.height_paragraph_line(node, line);
+            result += self.height_paragraph_line(node, node_line);
 
             if line_idx != last_line_idx {
                 result += BLOCK_SPACING;
@@ -44,32 +45,37 @@ impl<'ast> Editor {
             unreachable!("Paragraphs always have children")
         };
 
-        let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if reveal {
-            wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format_syntax(node));
-            wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
+        if !pre_node.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format(node));
+        }
+        if !pre_children.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format(node));
         }
         wrap.offset += self.inline_children_span(node, &wrap, node_line);
-        if reveal {
-            wrap.offset += self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
-            wrap.offset += self.span_text_line(&wrap, post_node, self.text_format_syntax(node));
+        if !post_children.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, post_children, self.text_format(node));
+        }
+        if !post_node.is_empty() {
+            wrap.offset += self.span_text_line(&wrap, post_node, self.text_format(node));
         }
 
         wrap.height()
     }
 
     pub fn show_paragraph(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        for descendant in node.descendants() {
-            if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
-                self.show_image_block(ui, node, top_left, url);
-                top_left.y += self.height_image(node, url);
-                top_left.y += BLOCK_SPACING;
-            }
-        }
-
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
+
+            for descendant in node.descendants() {
+                if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+                    if !self.node_range(descendant).trim(&node_line).is_empty() {
+                        self.show_image_block(ui, node, top_left, url);
+                        top_left.y += self.height_image(node, url);
+                        top_left.y += BLOCK_SPACING;
+                    }
+                }
+            }
 
             let line_height = self.height_paragraph_line(node, node_line);
 
@@ -138,6 +144,8 @@ impl<'ast> Editor {
     pub fn compute_bounds_paragraph_line(
         &mut self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) {
+        self.bounds.inline_paragraphs.push(node_line);
+
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
         let Some((pre_node, pre_children, children, post_children, post_node)) =
@@ -153,7 +161,6 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(pre_children);
         }
         self.bounds.paragraphs.push(children);
-        self.bounds.inline_paragraphs.push(children);
         if !post_children.is_empty() {
             self.bounds.paragraphs.push(post_children);
         }

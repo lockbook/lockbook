@@ -18,7 +18,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          cargo run -p releaser -- github-release
+          cargo run -p lbdev -- releaser github-release
   
   call_publish:
     needs: release

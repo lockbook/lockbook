@@ -5,11 +5,14 @@ class SettingsViewModel: ObservableObject {
     @Published var account: Account? = nil
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
-        
-    init() {
+    
+    init(initalUsageComputation: Bool = true) {
         self.loadAccount()
         self.loadTier()
-        self.loadUsages()
+        
+        if initalUsageComputation {
+            self.loadUsages()
+        }
     }
     
     func loadAccount() {
@@ -17,7 +20,9 @@ class SettingsViewModel: ObservableObject {
         case .success(let account):
             self.account = account
         case .failure(let err):
-            AppState.shared.error = .lb(error: err)
+            if err.code != .serverUnreachable {
+                AppState.shared.error = .lb(error: err)
+            }
         }
     }
     
@@ -30,7 +35,9 @@ class SettingsViewModel: ObservableObject {
                 case .success(let info):
                     self.isPremium = info?.isPremium() ?? false
                 case .failure(let err):
-                    AppState.shared.error = .lb(error: err)
+                    if err.code != .serverUnreachable {
+                        AppState.shared.error = .lb(error: err)
+                    }
                 }
             }
         }
@@ -44,7 +51,9 @@ class SettingsViewModel: ObservableObject {
                 case .success(let usage):
                     self.usage = usage
                 case .failure(let err):
-                    AppState.shared.error = .lb(error: err)
+                    if err.code != .serverUnreachable {
+                        AppState.shared.error = .lb(error: err)
+                    }
                 }
             }
         }

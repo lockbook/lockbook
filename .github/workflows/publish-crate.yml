@@ -26,11 +26,11 @@ jobs:
           toolchain: stable
       - name: Publish lb-rs
         run: |
-          cargo run -p releaser -- publish-crate lb-rs
+          cargo run -p lbdev -- releaser publish-crate lb-rs
       - name: Publish lb-fs
         run: |
-          cargo run -p releaser -- publish-crate lb-fs
+          cargo run -p lbdev -- releaser publish-crate lb-fs
       - name: Publish cli
         run: |
-          cargo run -p releaser -- publish-crate lockbook
+          cargo run -p lbdev -- releaser publish-crate lockbook
       

@@ -61,9 +61,11 @@ pub fn translate_egui_keyboard_event(event: egui::Event) -> Option<Event> {
                 },
             })
         }
-        egui::Event::Text(text) | egui::Event::Paste(text) => {
-            Some(Event::Replace { region: Region::Selection, text: text.clone() })
-        }
+        egui::Event::Text(text) | egui::Event::Paste(text) => Some(Event::Replace {
+            region: Region::Selection,
+            text: text.clone(),
+            advance_cursor: true,
+        }),
         egui::Event::Key { key, pressed: true, modifiers, .. }
             if matches!(key, Key::Backspace | Key::Delete) =>
         {

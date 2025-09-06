@@ -558,17 +558,17 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
 ) -> Result<File, String> {
     let path = path.as_ref();
     let target_path = if path.is_relative() {
-        let mut open_file_path =
-            PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
-        for component in path.components() {
-            open_file_path.push(component);
-        }
-        let target_file_path = open_file_path.to_string_lossy();
+        let open_file_path = core.get_path_by_id(from).map_err(|e| e.to_string())?;
+        let target_file_path = open_file_path + "/" + &path.to_string_lossy();
 
         canonicalize_path(&target_file_path)
     } else {
         path.to_string_lossy().to_string()
     };
+
+    #[cfg(windows)]
+    let target_path = target_path.replace('\\', "/");
+
     core.get_by_path(&target_path).map_err(|e| e.to_string())
 }
 

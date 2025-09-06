@@ -98,7 +98,7 @@ impl<'ast> Editor {
             // draw cell contents
             let mut child_top_left = top_left;
             for table_cell in node.children() {
-                self.show_block(ui, table_cell, child_top_left);
+                self.show_table_cell(ui, table_cell, child_top_left);
                 child_top_left.x += child_width;
             }
         }
@@ -152,6 +152,7 @@ impl<'ast> Editor {
 
                 let between_range = (range_start, cell_range.start());
                 self.bounds.paragraphs.push(between_range);
+                self.bounds.inline_paragraphs.push(between_range);
 
                 range_start = cell_range.end();
             }
@@ -160,6 +161,7 @@ impl<'ast> Editor {
 
                 let between_range = (cell_range.end(), row_range.end());
                 self.bounds.paragraphs.push(between_range);
+                self.bounds.inline_paragraphs.push(between_range);
             }
 
             // Compute bounds for cell contents

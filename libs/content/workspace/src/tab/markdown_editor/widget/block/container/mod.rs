@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::INDENT;
+use crate::tab::markdown_editor::widget::{INDENT, MARGIN};
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -74,11 +74,12 @@ impl<'ast> Editor {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let children: Vec<_> = node.children().collect(); // note: does not need to be sorted for height
         let mut height_sum = 0.0;
-        for child in node.children() {
-            height_sum += self.block_pre_spacing_height(child);
+        for child in &children {
+            height_sum += self.block_pre_spacing_height(child, &children);
             height_sum += self.height(child);
-            height_sum += self.block_post_spacing_height(child);
+            height_sum += self.block_post_spacing_height(child, &children);
         }
         height_sum
     }
@@ -88,11 +89,22 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
         let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|child| child.data.borrow().sourcepos);
-        for child in children {
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
+
+        for child in &children {
+            let tolerance = self.height;
+
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing_height(child);
-            self.show_block_pre_spacing(ui, child, top_left);
+            let pre_spacing = self.block_pre_spacing_height(child, &children);
+            let pre_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + pre_spacing;
+            let pre_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
+            if pre_spacing_visible || self.scroll_to_cursor {
+                self.show_block_pre_spacing(ui, child, top_left, &children);
+            }
+            if pre_spacing_below_viewport && !self.scroll_to_cursor {
+                break;
+            }
             top_left.y += pre_spacing;
 
             // add block
@@ -113,12 +125,28 @@ impl<'ast> Editor {
                 }
             }
 
-            self.show_block(ui, child, top_left);
+            let block_above_viewport = 2. * MARGIN > tolerance + top_left.y + child_height;
+            let block_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let block_visible = !block_above_viewport && !block_below_viewport;
+            if block_visible || self.scroll_to_cursor {
+                self.show_block(ui, child, top_left);
+            }
+            if block_below_viewport && !self.scroll_to_cursor {
+                break;
+            }
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing_height(child);
-            self.show_block_post_spacing(ui, child, top_left);
+            let post_spacing = self.block_post_spacing_height(child, &children);
+            let post_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + post_spacing;
+            let post_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
+            if post_spacing_visible || self.scroll_to_cursor {
+                self.show_block_post_spacing(ui, child, top_left, &children);
+            }
+            if post_spacing_below_viewport && !self.scroll_to_cursor {
+                break;
+            }
             top_left.y += post_spacing;
         }
     }
@@ -329,7 +357,14 @@ impl<'ast> Editor {
             NodeValue::TableRow(_) => {
                 return None;
             }
-            NodeValue::TaskItem(_) => " ".repeat(own_prefix.len().0),
+            NodeValue::TaskItem(_) => {
+                if line == self.node_first_line(node) {
+                    // ' [ ]' is not part of the list marker for indentation purposes
+                    " ".repeat(own_prefix.len().0.saturating_sub(4))
+                } else {
+                    " ".repeat(own_prefix.len().0)
+                }
+            }
 
             // inline
             NodeValue::Image(_)
@@ -529,16 +564,17 @@ impl<'ast> Editor {
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
         let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|child| child.data.borrow().sourcepos);
-        for child in children {
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
+
+        for child in &children {
             // add pre-spacing bounds
-            self.compute_bounds_block_pre_spacing(child);
+            self.compute_bounds_block_pre_spacing(child, &children);
 
             // add block bounds
             self.compute_bounds(child);
 
             // add post-spacing bounds
-            self.compute_bounds_block_post_spacing(child);
+            self.compute_bounds_block_post_spacing(child, &children);
         }
     }
 }

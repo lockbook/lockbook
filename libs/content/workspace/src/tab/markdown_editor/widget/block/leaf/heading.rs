@@ -28,7 +28,7 @@ impl<'ast> Editor {
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level == 1 { BLOCK_SPACING } else { 0. }
+        text_height + if level <= 2 { BLOCK_SPACING } else { 0. }
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -82,7 +82,7 @@ impl<'ast> Editor {
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
                 wrap.offset +=
-                    self.span_text_line(&wrap, postfix_whitespace, self.text_format_syntax(node));
+                    self.span_text_line(&wrap, postfix_whitespace, self.text_format(node));
             }
         } else {
             unreachable!("setext headings never have empty lines");
@@ -133,8 +133,7 @@ impl<'ast> Editor {
             }
 
             if reveal && !postfix_range.is_empty() {
-                wrap.offset +=
-                    self.span_text_line(&wrap, postfix_range, self.text_format_syntax(node));
+                wrap.offset += self.span_text_line(&wrap, postfix_range, self.text_format(node));
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
@@ -196,7 +195,7 @@ impl<'ast> Editor {
         }
 
         top_left.y -= ROW_SPACING;
-        if level == 1 {
+        if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
     }
@@ -242,7 +241,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     postfix_whitespace,
-                    self.text_format_syntax(node),
+                    self.text_format(node),
                     false,
                 );
             }
@@ -298,7 +297,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     postfix_range,
-                    self.text_format_syntax(node),
+                    self.text_format(node),
                     false,
                 );
             }
@@ -316,7 +315,7 @@ impl<'ast> Editor {
 
         top_left.y += height;
         self.bounds.wrap_lines.extend(wrap.row_ranges);
-        if level == 1 {
+        if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
     }
@@ -367,6 +366,7 @@ impl<'ast> Editor {
                 self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
+                self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
@@ -377,15 +377,20 @@ impl<'ast> Editor {
                 self.bounds.paragraphs.push(prefix);
             }
             self.bounds.paragraphs.push(children);
-            self.bounds.inline_paragraphs.push(children);
             if !postfix_whitespace.is_empty() {
                 self.bounds.paragraphs.push(postfix_whitespace);
+                self.bounds
+                    .inline_paragraphs
+                    .push((children.start(), postfix_whitespace.end()));
+            } else {
+                self.bounds.inline_paragraphs.push(children);
             }
         } else {
             let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
                 self.split_range(node, node_line)
             else {
                 self.bounds.paragraphs.push(node_line);
+                self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
@@ -408,18 +413,23 @@ impl<'ast> Editor {
 
             if let Some(infix_range) = self.infix_range(node) {
                 self.bounds.paragraphs.push(infix_range);
-                self.bounds.inline_paragraphs.push(infix_range);
-                for child in node.children() {
-                    self.compute_bounds(child);
-                }
-            }
 
-            if !postfix_range.is_empty() {
+                if !postfix_range.is_empty() {
+                    self.bounds.paragraphs.push(postfix_range);
+                    self.bounds
+                        .inline_paragraphs
+                        .push((infix_range.start(), postfix_range.end()));
+                } else {
+                    self.bounds.inline_paragraphs.push(infix_range);
+                }
+            } else if !postfix_range.is_empty() {
                 self.bounds.paragraphs.push(postfix_range);
+                self.bounds.inline_paragraphs.push(postfix_range);
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
             self.bounds.paragraphs.push(node_line);
+            self.bounds.inline_paragraphs.push(node_line);
         }
     }
 }

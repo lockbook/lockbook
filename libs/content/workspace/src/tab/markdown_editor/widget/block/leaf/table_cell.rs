@@ -111,6 +111,7 @@ impl<'ast> Editor {
 
     pub fn compute_bounds_table_cell(&mut self, node: &'ast AstNode<'ast>) {
         let node_line = self.node_range(node); // table cells are always single-line
+        self.bounds.inline_paragraphs.push(node_line);
 
         if let Some((pre_node, pre_children, children, post_children, post_node)) =
             self.split_range(node, node_line)
@@ -122,7 +123,6 @@ impl<'ast> Editor {
                 self.bounds.paragraphs.push(pre_children);
             }
             self.bounds.paragraphs.push(children);
-            self.bounds.inline_paragraphs.push(children);
             if !post_children.is_empty() {
                 self.bounds.paragraphs.push(post_children);
             }

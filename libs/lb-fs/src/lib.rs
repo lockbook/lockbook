@@ -4,7 +4,7 @@ use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::model::core_config::Config;
 use lb_rs::service::sync::SyncProgress;
 use lb_rs::{Lb, Uuid};
-use nfsserve::tcp::{NFSTcp, NFSTcpListener};
+use nfs3_server::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
 use std::io::IsTerminal;
 use std::process::exit;
@@ -13,6 +13,7 @@ use std::time::Duration;
 use tracing::info;
 
 pub mod cache;
+pub(crate) mod file_handle;
 pub mod fs_impl;
 pub mod logger;
 pub mod mount;

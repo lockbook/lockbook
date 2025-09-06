@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftWorkspace
 
 struct SettingsView: View {
-    @StateObject var model = SettingsViewModel()
+    @ObservedObject var model = SettingsViewModel()
     
     @State var confirmLogout = false
     @State var confirmCancelSubscription = false
@@ -10,6 +10,8 @@ struct SettingsView: View {
     
     @State var showAccountKeys = false
     @State var navigateToUpgradeAccount = false
+    
+    @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
     
     var body: some View {
         Form {
@@ -74,6 +76,13 @@ struct SettingsView: View {
                 } else {
                     ProgressView()
                 }
+                
+                Picker("Display Mode", selection: $usageBarMode) {
+                    ForEach(UsageBarDisplayMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
+                    }
+                }
+                .pickerStyle(.menu)
                 
                 if model.isPremium == true {
                     Button("Cancel Subscription", role: .destructive) {

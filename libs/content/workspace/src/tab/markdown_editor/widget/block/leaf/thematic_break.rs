@@ -1,5 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
+use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::ROW_HEIGHT;
@@ -32,6 +33,18 @@ impl<'ast> Editor {
                 rect.center().y,
                 Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
             );
+
+            // show empty row with mapped text range
+            let mut wrap = Wrap::new(width);
+            self.show_text_line(
+                ui,
+                top_left,
+                &mut wrap,
+                node_line.end().into_range(),
+                self.text_format_syntax(node),
+                false,
+            );
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
 

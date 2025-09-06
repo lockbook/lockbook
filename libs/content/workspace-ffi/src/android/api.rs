@@ -382,6 +382,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
             end: Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position()),
         },
         text: "".to_string(),
+        advance_cursor: false,
     })
 }
 
@@ -402,6 +403,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
         },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -421,6 +423,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -445,6 +448,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
     obj.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 

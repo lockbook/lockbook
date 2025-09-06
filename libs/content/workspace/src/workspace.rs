@@ -84,7 +84,7 @@ impl Workspace {
             cfg: WsPersistentStore::new(writeable_path),
             ctx: ctx.clone(),
             core: core.clone(),
-            show_tabs: true,
+            show_tabs: !cfg!(any(target_os = "ios", target_os = "android")),
             focused_parent: Default::default(),
 
             current_tab_changed: Default::default(),
@@ -161,6 +161,18 @@ impl Workspace {
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         self.tabs.get_mut_by_id(id)
+    }
+
+    pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
+        for (idx, tab) in self.tabs.iter().enumerate() {
+            if let Some(tab_id) = tab.id() {
+                if tab_id == id {
+                    return Some(idx);
+                }
+            }
+        }
+
+        None
     }
 
     pub fn is_empty(&self) -> bool {
@@ -273,17 +285,23 @@ impl Workspace {
                     self.files = FileCache::new(&self.core).log_and_ignore();
                     if let Some(files) = &self.files {
                         let mut tabs_to_delete = vec![];
-                        for (i, tab) in self.tabs.iter().enumerate() {
-                            if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
-                                tabs_to_delete.push(i);
+                        for tab in &self.tabs {
+                            if let Some(id) = tab.id() {
+                                if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
+                                    tabs_to_delete.push(id);
+                                }
                             }
                         }
-                        for i in tabs_to_delete {
-                            self.remove_tab(i);
+
+                        for id in tabs_to_delete {
+                            if let Some(idx) = self.get_idx_by_id(id) {
+                                self.remove_tab(idx);
+                            }
                         }
                     }
                 }
                 Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                    self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
                             self.open_file(id, false, false);
@@ -528,9 +546,9 @@ impl Workspace {
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(60);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
                 let sync_period = if user_active && focused {
-                    Duration::from_secs(5)
+                    Duration::from_secs(3)
                 } else {
                     Duration::from_secs(5 * 60)
                 };

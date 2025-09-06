@@ -98,7 +98,7 @@ struct FileTreeView: NSViewRepresentable {
                 
                 guard let selectedId else { return }
                 
-                guard let file = try? AppState.lb.getFile(id: selectedId).get() else { return }
+                guard let file = filesModel.idsToFiles[selectedId] else { return }
                 let row = treeView.row(forItem: file)
                 
                 treeView.selectRowIndexes([row], byExtendingSelection: false)
@@ -110,7 +110,7 @@ struct FileTreeView: NSViewRepresentable {
             guard let selected else { return }
             guard let treeView else { return }
             
-            guard let file = try? AppState.lb.getFile(id: selected).get() else { return }
+            guard let file = filesModel.idsToFiles[selected] else { return }
             
             self.expandToFile(treeView: treeView, file: file)
             let row = treeView.row(forItem: file)
@@ -287,11 +287,14 @@ class FileTreeOutlineView: NSOutlineView {
         guard let file = item(atRow: clickedRow) as? File else {
             return
         }
+        let delegate = (delegate as! FileTreeDelegate)
+        
+        delegate.homeState.closeWorkspaceBlockingScreens()
         
         if(file.type == .document) {
-            (delegate as! FileTreeDelegate).supressNextOpenDoc = true
+            delegate.supressNextOpenDoc = true
         } else {
-            (delegate as! FileTreeDelegate).supressnextOpenFolder = true
+            delegate.supressnextOpenFolder = true
         }
         
         guard let event = outlineView.window?.currentEvent else {

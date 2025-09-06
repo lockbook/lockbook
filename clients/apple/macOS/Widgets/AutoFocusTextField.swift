@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct AutoFocusTextField: NSViewRepresentable {
+    @State var selectedName: Bool = false
     @Binding var text: String
 
     let placeholder: String
@@ -27,6 +28,7 @@ struct AutoFocusTextField: NSViewRepresentable {
         textField.isBezeled = isBordered
         textField.wantsLayer = true
         textField.layer?.cornerRadius = 4
+        textField.stringValue = text
         
         textField.becomeFirstResponder()
         
@@ -36,6 +38,15 @@ struct AutoFocusTextField: NSViewRepresentable {
     public func updateNSView(_ nsView: NSTextField, context: NSViewRepresentableContext<AutoFocusTextField>) {
         if nsView.currentEditor() == nil {
             nsView.becomeFirstResponder()
+        }
+
+        if let editor = nsView.currentEditor(), !selectedName {
+            DispatchQueue.main.async {
+                self.selectedName = true
+            }
+            
+            let baseName = (nsView.stringValue as NSString).deletingPathExtension
+            editor.selectedRange = NSRange(location: 0, length: baseName.count)
         }
     }
     

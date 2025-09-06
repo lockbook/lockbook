@@ -24,4 +24,4 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
+          cargo run -p lbdev -- releaser bump-versions ${{ github.event.inputs.bump_type }}

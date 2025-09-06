@@ -9,6 +9,12 @@ class PathSearchViewModel: ObservableObject {
     @Published var results: [PathSearchResult] = []
     @Published var selected = 0
     
+    let filesModel: FilesViewModel
+    
+    init(filesModel: FilesViewModel) {
+        self.filesModel = filesModel
+    }
+    
     func openSelected() {
         guard selected != -1 || (selected == -1 && !results.isEmpty) else {
             return
@@ -18,7 +24,7 @@ class PathSearchViewModel: ObservableObject {
             return
         }
                 
-        guard let file = try? AppState.lb.getFile(id: results[selected].id).get() else {
+        guard let file = filesModel.idsToFiles[results[selected].id] else {
             return
         }
         

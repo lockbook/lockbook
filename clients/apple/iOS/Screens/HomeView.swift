@@ -6,6 +6,7 @@ struct HomeView: View {
 
     @StateObject var homeState = HomeState()
     @StateObject var filesModel = FilesViewModel()
+    @StateObject var settingsModel = SettingsViewModel()
             
     var body: some View {
         Group {
@@ -14,16 +15,16 @@ struct HomeView: View {
                     NewDrawerView(homeState: homeState, mainView: {
                         detail
                     }, sideView: {
-                        SearchContainerView {
+                        SearchContainerView(filesModel: filesModel) {
                             sidebar
                         }
                     })
                     .environment(\.isConstrainedLayout, true)
                 }
             } else {
-                PathSearchContainerView {
+                PathSearchContainerView(filesModel: filesModel) {
                     NavigationSplitView(sidebar: {
-                        SearchContainerView {
+                        SearchContainerView(filesModel: filesModel) {
                             sidebar
                         }
                     }, detail: {
@@ -37,6 +38,7 @@ struct HomeView: View {
         }
         .environmentObject(homeState)
         .environmentObject(filesModel)
+        .environmentObject(settingsModel)
     }
     
     @ViewBuilder
@@ -45,6 +47,12 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     HStack(spacing: 0) {
+                        Button(action: {
+                            homeState.sheetInfo = .importPicker
+                        }, label: {
+                            Image(systemName: "square.and.arrow.down.fill")
+                        })
+                        
                         Button(action: {
                             homeState.showPendingShares = true
                         }, label: {
@@ -64,9 +72,9 @@ struct HomeView: View {
     
     @ViewBuilder
     var detail: some View {
-        DetailView()
+        DetailView(homeState: homeState, filesModel: filesModel)
             .navigationDestination(isPresented: $homeState.showSettings) {
-                SettingsView()
+                SettingsView(model: settingsModel)
             }
             .navigationDestination(isPresented: $homeState.showPendingShares) {
                 PendingSharesView()
@@ -113,21 +121,26 @@ struct SidebarView: View {
                     
                     Spacer()
                     
-                    StatusBarView()
-                        .confirmationDialog(
-                            "Are you sure? This action cannot be undone.",
-                            isPresented: Binding(
-                                get: { filesModel.isMoreThanOneFileInDeletion() },
-                                set: { _ in filesModel.deleteFileConfirmation = nil }
-                            ),
-                            titleVisibility: .visible,
-                            actions: {
-                                if let files = filesModel.deleteFileConfirmation {
-                                    DeleteConfirmationButtons(files: files)
+                    VStack(spacing: 0) {
+                        UsageBar()
+                            .padding(.horizontal, 16)
+                        
+                        StatusBarView()
+                            .confirmationDialog(
+                                "Are you sure? This action cannot be undone.",
+                                isPresented: Binding(
+                                    get: { filesModel.isMoreThanOneFileInDeletion() },
+                                    set: { _ in filesModel.deleteFileConfirmation = nil }
+                                ),
+                                titleVisibility: .visible,
+                                actions: {
+                                    if let files = filesModel.deleteFileConfirmation {
+                                        DeleteConfirmationButtons(files: files)
+                                    }
                                 }
-                            }
-                        )
-                        .selectFolderSheets()
+                            )
+                            .selectFolderSheets()
+                    }
                 }
                 .formStyle(.columns)
                 .environmentObject(filesModel)

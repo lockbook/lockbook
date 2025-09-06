@@ -56,6 +56,9 @@ class RenameFileDialogFragment : DialogFragment() {
             .apply {
                 window.requestKeyboardFocus(binding.renameFile)
 
+                binding.renameFile.text?.lastIndexOf(".")?.takeIf { it > 0 }
+                    ?.let { binding.renameFile.setSelection(0, it) }
+
                 setOnShowListener {
                     getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
                 }

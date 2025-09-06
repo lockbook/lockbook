@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
+use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
@@ -274,50 +275,24 @@ impl<'ast> Editor {
 
     /// Returns the children of the given node in sourcepos order.
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::new();
+        let mut children = Vec::with_capacity(node.children().count());
         children.extend(node.children());
-        children.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
+        children.sort_by_key(|c| c.data.borrow().sourcepos);
         children
     }
 
     /// Returns the siblings of the given node in sourcepos order (unlike
     /// `node.siblings()`).
     pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut preceding_siblings = node.preceding_siblings();
-        preceding_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut following_siblings = node.following_siblings();
-        following_siblings.next().unwrap(); // "Call .next().unwrap() once on the iterator to skip the node itself."
-
-        let mut siblings = Vec::new();
-        siblings.extend(preceding_siblings);
-        siblings.push(node);
-        siblings.extend(following_siblings);
-        siblings.sort_by(|a, b| {
-            a.data
-                .borrow()
-                .sourcepos
-                .start
-                .line
-                .cmp(&b.data.borrow().sourcepos.start.line)
-        });
-        siblings
+        self.sorted_children(node.parent().unwrap())
     }
 
     pub fn sibling_index(
         &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
     ) -> usize {
-        let range = self.node_range(node);
         let this_sibling_index = sorted_siblings
             .iter()
-            .position(|sibling| self.node_range(sibling) == range)
+            .position(|sibling| node.same_node(sibling))
             .unwrap();
 
         this_sibling_index
@@ -376,8 +351,55 @@ pub struct CacheEntry<T> {
     value: T,
 }
 
+// Fast integer mapping for NodeValue variants - no hashing needed
+fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
+    match value {
+        NodeValue::FrontMatter(_) => 1,
+        NodeValue::Raw(_) => 2,
+        NodeValue::Alert(_) => 3,
+        NodeValue::BlockQuote => 4,
+        NodeValue::DescriptionItem(_) => 5,
+        NodeValue::DescriptionList => 6,
+        NodeValue::Document => 7,
+        NodeValue::FootnoteDefinition(_) => 8,
+        NodeValue::Item(_) => 9,
+        NodeValue::List(_) => 10,
+        NodeValue::MultilineBlockQuote(_) => 11,
+        NodeValue::Table(_) => 12,
+        NodeValue::TableRow(_) => 13,
+        NodeValue::TaskItem(_) => 14,
+        NodeValue::Image(_) => 15,
+        NodeValue::Code(_) => 16,
+        NodeValue::Emph => 17,
+        NodeValue::Escaped => 18,
+        NodeValue::EscapedTag(_) => 19,
+        NodeValue::FootnoteReference(_) => 20,
+        NodeValue::HtmlInline(_) => 21,
+        NodeValue::LineBreak => 22,
+        NodeValue::Link(_) => 23,
+        NodeValue::Math(_) => 24,
+        NodeValue::SoftBreak => 25,
+        NodeValue::SpoileredText => 26,
+        NodeValue::Strikethrough => 27,
+        NodeValue::Strong => 28,
+        NodeValue::Subscript => 29,
+        NodeValue::Superscript => 30,
+        NodeValue::Text(_) => 31,
+        NodeValue::Underline => 32,
+        NodeValue::WikiLink(_) => 33,
+        NodeValue::CodeBlock(_) => 34,
+        NodeValue::DescriptionDetails => 35,
+        NodeValue::DescriptionTerm => 36,
+        NodeValue::Heading(_) => 37,
+        NodeValue::HtmlBlock(_) => 38,
+        NodeValue::Paragraph => 39,
+        NodeValue::TableCell => 40,
+        NodeValue::ThematicBreak => 41,
+    }
+}
+
 pub struct LinePrefixCacheEntry {
-    node_ptr: usize,
+    node_key_hash: u64,
     line: (DocCharOffset, DocCharOffset),
     value: (RelCharOffset, bool),
 }
@@ -386,12 +408,14 @@ pub struct LinePrefixCacheEntry {
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
+    pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
 }
 
 impl LayoutCache {
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
+        self.node_range.borrow_mut().clear();
     }
 }
 
@@ -418,11 +442,16 @@ impl<'ast> Editor {
     pub fn get_cached_line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
     ) -> Option<(RelCharOffset, bool)> {
-        let node_ptr = node as *const _ as usize;
+        let node_key_hash = Self::pack_node_key(node);
         self.layout_cache
             .line_prefix_len
             .borrow()
-            .binary_search_by(|entry| entry.node_ptr.cmp(&node_ptr).then(entry.line.cmp(&line)))
+            .binary_search_by(|entry| {
+                entry
+                    .node_key_hash
+                    .cmp(&node_key_hash)
+                    .then(entry.line.cmp(&line))
+            })
             .ok()
             .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
     }
@@ -431,13 +460,61 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
         value: (RelCharOffset, bool),
     ) {
-        let node_ptr = node as *const _ as usize;
+        let node_key_hash = Self::pack_node_key(node);
         let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
-        match cache
-            .binary_search_by(|entry| entry.node_ptr.cmp(&node_ptr).then(entry.line.cmp(&line)))
-        {
+        match cache.binary_search_by(|entry| {
+            entry
+                .node_key_hash
+                .cmp(&node_key_hash)
+                .then(entry.line.cmp(&line))
+        }) {
             Ok(i) => cache[i].value = value,
-            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_ptr, line, value }),
+            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key_hash, line, value }),
         }
+    }
+
+    #[inline]
+    pub fn get_cached_node_range(
+        &self, node: &'ast AstNode<'ast>,
+    ) -> Option<(DocCharOffset, DocCharOffset)> {
+        let key_hash = Self::pack_node_key(node);
+        self.layout_cache
+            .node_range
+            .borrow()
+            .get(&key_hash)
+            .copied()
+    }
+
+    #[inline]
+    pub fn set_cached_node_range(
+        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
+    ) {
+        let key_hash = Self::pack_node_key(node);
+        self.layout_cache
+            .node_range
+            .borrow_mut()
+            .insert(key_hash, range);
+    }
+
+    /// Pack node info into u64 using bit manipulation - ultra fast cache key
+    fn pack_node_key(node: &AstNode) -> u64 {
+        let borrowed = node.data.borrow();
+        let sp = borrowed.sourcepos;
+        let (start_line, start_column, end_line, end_column, discriminant) = (
+            sp.start.line as u64,
+            sp.start.column as u64,
+            sp.end.line as u64,
+            sp.end.column as u64,
+            node_value_to_discriminant_id(&borrowed.value) as u64,
+        );
+
+        // Pack into 64 bits: 15 bits each for start_line, start_column, end_line, end_column
+        // and 4 bits for discriminant (total: 15+15+15+15+4 = 64 bits exactly)
+        // Use bitwise AND for fastest truncation
+        ((start_line & 0x7FFF) << 49)
+            | ((start_column & 0x7FFF) << 34)
+            | ((end_line & 0x7FFF) << 19)
+            | ((end_column & 0x7FFF) << 4)
+            | (discriminant & 0xF)
     }
 }

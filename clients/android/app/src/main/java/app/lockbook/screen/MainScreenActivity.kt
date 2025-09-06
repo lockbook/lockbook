@@ -186,7 +186,7 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id, ExtendedFileType.Folder))
+            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {
@@ -205,6 +205,9 @@ class MainScreenActivity : AppCompatActivity() {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
             if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
                 slidingPaneLayout.openPane()
+            }
+            if (binding.slidingPaneLayout.isSlideable && binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value == WorkspaceTab.Welcome) {
+                slidingPaneLayout.closePane()
             }
         }
     }

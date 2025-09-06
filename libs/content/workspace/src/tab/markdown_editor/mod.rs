@@ -8,7 +8,7 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::ScrollAreaOutput;
+use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
     ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
@@ -102,6 +102,16 @@ pub struct Editor {
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
     height: f32,
+    /// scroll area offset, useful for determining what will actually be drawn
+    scroll_area_offset: f32,
+
+    // response: indicates text, selection, and scroll update. Some of these are
+    // stored here for one frame because sometimes it takes a frame for all
+    // changes to be processed. This is because we process events after
+    // rendering, so that rendering can produce events, but events can also
+    // affect rendering. The cursor may disappear or be misplaced in the
+    // intervening frame.
+    next_resp: Response,
 }
 
 impl Drop for Editor {
@@ -171,6 +181,9 @@ impl Editor {
             scroll_to_cursor: Default::default(),
             width: Default::default(),
             height: Default::default(),
+            scroll_area_offset: Default::default(),
+
+            next_resp: Default::default(),
         }
     }
 
@@ -229,13 +242,15 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let mut resp = Response::default();
+        let resp = mem::take(&mut self.next_resp);
 
-        self.height = ui.available_size().y;
-        self.width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let height = ui.available_size().y;
+        let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let height_updated = self.height != height;
+        let width_updated = self.width != width;
+        self.height = height;
+        self.width = width;
 
-        // todo: more thoughtful cache invalidation
-        self.layout_cache.clear();
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
             self.syntax.clear();
@@ -308,17 +323,6 @@ impl Editor {
         self.galleys.galleys.clear();
         self.bounds.wrap_lines.clear();
 
-        if self.touch_mode {
-            ui.ctx().style_mut(|style| {
-                style.spacing.scroll = egui::style::ScrollStyle::solid();
-            });
-        }
-        let scroll_area_id = ui.id().with("child").with(egui::Id::new(self.file_id));
-        let prev_scroll_area_offset = ui.data_mut(|d| {
-            d.get_persisted(scroll_area_id)
-                .map(|s: scroll_area::State| s.offset)
-                .unwrap_or_default()
-        });
         ui.vertical(|ui| {
             if self.touch_mode {
                 // touch devices: show find...
@@ -330,18 +334,44 @@ impl Editor {
                 }
 
                 // ...then show editor content...
+                let available_width = ui.available_width();
                 ui.allocate_ui(
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
+                        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                        self.scroll_area_offset = ui.data_mut(|d| {
+                            d.get_persisted(scroll_area_id)
+                                .map(|s: scroll_area::State| s.offset)
+                                .unwrap_or_default()
+                                .y
+                        });
+
+                        ui.ctx().style_mut(|style| {
+                            style.spacing.scroll = egui::style::ScrollStyle::solid();
+                            style.spacing.scroll.bar_width = 10.;
+                        });
+
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
-                        resp.scroll_updated =
-                            scroll_area_output.state.offset != prev_scroll_area_offset;
+                        self.next_resp.scroll_updated =
+                            scroll_area_output.state.offset.y != self.scroll_area_offset;
                     },
                 );
 
                 // ...then show toolbar at the bottom
-                self.show_toolbar(root, ui);
+                let (_, rect) =
+                    ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                ui.allocate_ui_at_rect(rect, |ui| {
+                    self.show_toolbar(root, ui);
+                });
             } else {
+                let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                self.scroll_area_offset = ui.data_mut(|d| {
+                    d.get_persisted(scroll_area_id)
+                        .map(|s: scroll_area::State| s.offset)
+                        .unwrap_or_default()
+                        .y
+                });
+
                 // non-touch devices: show toolbar...
                 self.show_toolbar(root, ui);
 
@@ -355,7 +385,8 @@ impl Editor {
 
                 // ...then show editor content
                 let scroll_area_output = self.show_scrollable_editor(ui, root);
-                resp.scroll_updated = scroll_area_output.state.offset != prev_scroll_area_offset;
+                self.next_resp.scroll_updated =
+                    scroll_area_output.state.offset.y != self.scroll_area_offset;
             }
         });
 
@@ -387,8 +418,14 @@ impl Editor {
             );
         }
         let prior_selection = self.buffer.current.selection;
+        let images_updated = {
+            let mut images_updated = self.images.updated.lock().unwrap();
+            let result = *images_updated;
+            *images_updated = false;
+            result
+        };
         if !self.initialized || self.process_events(ui.ctx(), root) {
-            resp.text_updated = true;
+            self.next_resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
             let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
@@ -396,6 +433,7 @@ impl Editor {
 
             self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
+            self.layout_cache.clear();
 
             self.calc_source_lines();
             self.compute_bounds(root);
@@ -406,10 +444,16 @@ impl Editor {
 
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection != self.buffer.current.selection;
+        self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if resp.selection_updated && !all_selected {
+        if self.next_resp.selection_updated || images_updated || height_updated || width_updated {
+            self.layout_cache.clear();
+        }
+        if self.next_resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
+            ui.ctx().request_repaint();
+        }
+        if self.next_resp.scroll_updated {
             ui.ctx().request_repaint();
         }
         if self.images.any_loading() {
@@ -435,6 +479,11 @@ impl Editor {
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
+            .scroll_bar_visibility(if self.touch_mode {
+                ScrollBarVisibility::AlwaysVisible
+            } else {
+                ScrollBarVisibility::VisibleWhenNeeded
+            })
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
@@ -568,45 +617,63 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, icons) = (
-        lb_fonts::PT_SANS_REGULAR,
-        lb_fonts::JETBRAINS_MONO,
-        lb_fonts::PT_SANS_BOLD,
-        lb_fonts::MATERIAL_SYMBOLS_OUTLINED,
-    );
+    let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
+        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+    } else {
+        (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
+    };
 
-    fonts
-        .font_data
-        .insert("sans".to_string(), FontData::from_static(sans));
+    let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
+
+    fonts.font_data.insert(
+        "sans".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
+            ..FontData::from_static(sans)
+        },
+    );
     fonts.font_data.insert("mono".into(), {
         FontData {
             tweak: FontTweak {
                 y_offset_factor: 0.1,
-                scale: 0.9,
+                scale: 0.9 * base_scale,
                 baseline_offset_factor: -0.1,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
         }
     });
-    fonts
-        .font_data
-        .insert("bold".to_string(), FontData::from_static(bold));
+    fonts.font_data.insert(
+        "bold".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
+            ..FontData::from_static(bold)
+        },
+    );
     fonts.font_data.insert("super".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: -1. / 4., scale: 3. / 4., ..Default::default() },
+            tweak: FontTweak {
+                y_offset_factor: -1. / 4.,
+                scale: (3. / 4.) * base_scale,
+                ..Default::default()
+            },
             ..FontData::from_static(sans)
         }
     });
     fonts.font_data.insert("sub".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: 1. / 4., scale: 3. / 4., ..Default::default() },
+            tweak: FontTweak {
+                y_offset_factor: 1. / 4.,
+                scale: (3. / 4.) * base_scale,
+                ..Default::default()
+            },
             ..FontData::from_static(sans)
         }
     });
     fonts.font_data.insert("material_icons".into(), {
         let mut font = FontData::from_static(icons);
         font.tweak.y_offset_factor = -0.1;
+        font.tweak.scale = base_scale;
         font
     });
 

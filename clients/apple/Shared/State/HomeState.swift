@@ -3,8 +3,6 @@ import SwiftWorkspace
 import Combine
 
 class HomeState: ObservableObject {
-    private var cancellables: Set<AnyCancellable> = []
-    
     @Published var fileActionCompleted: FileAction? = nil
     
     @Published var showSettings: Bool = false
@@ -20,26 +18,6 @@ class HomeState: ObservableObject {
     @Published var showOutOfSpaceAlert: Bool = false
     
     init() {
-        AppState.workspaceState.$renameOpenDoc.sink { [weak self] rename in
-            self?.runOnActiveWorkspaceState(doRun: rename) { file in
-                self?.sheetInfo = .rename(file: file)
-            }
-        }
-        .store(in: &cancellables)
-        
-        AppState.workspaceState.$newFolderButtonPressed.sink { [weak self] newFolder in
-            guard newFolder else {
-                return
-            }
-            
-            guard let root = try? AppState.lb.getRoot().get() else {
-                return
-            }
-            
-            self?.sheetInfo = .createFolder(parent: root)
-        }
-        .store(in: &cancellables)
-        
         #if os(iOS)
         expandSidebarIfNoDocs()
         #endif
@@ -51,16 +29,10 @@ class HomeState: ObservableObject {
         }
     }
     
-    func runOnActiveWorkspaceState(doRun: Bool, f: (File) -> Void) {
-        guard let openDoc = AppState.workspaceState.openDoc else {
-            return
-        }
-        
-        if doRun {
-            if let file = try? AppState.lb.getFile(id: openDoc).get() {
-                f(file)
-            }
-        }
+    func closeWorkspaceBlockingScreens() {
+        showSettings = false
+        showPendingShares = false
+        showUpgradeAccount = false
     }
 }
 
@@ -81,4 +53,20 @@ struct TabSheetInfo: Identifiable {
     let id = UUID()
     
     let info: [(name: String, id: UUID)]
+}
+
+enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
+    case always
+    case never
+    case whenHalf
+    
+    var id: Self { self }
+    
+    var label: String {
+        switch self {
+        case .always: "Always show"
+        case .never: "Never show"
+        case .whenHalf: "Show above 50%"
+        }
+    }
 }

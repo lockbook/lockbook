@@ -14,9 +14,7 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{
-    ContentState, Tab, TabContent, TabStatus, core_get_by_relative_path, image_viewer,
-};
+use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -470,12 +468,8 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if let Some(current_tab) = self.current_tab() {
-                if self.show_tabs {
-                    self.show_tab_strip(ui);
-                } else if !matches!(ui.ctx().os(), OperatingSystem::IOS) {
-                    self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
-                }
+            if self.current_tab().is_some() && self.show_tabs {
+                self.show_tab_strip(ui);
             }
 
             ui.centered_and_justified(|ui| {
@@ -575,30 +569,6 @@ impl Workspace {
         });
     }
 
-    /// Shows the mobile title and returns true if clicked.
-    fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
-        ui.horizontal(|ui| {
-            let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(self.tab_title(tab)))
-                    .frame(false)
-                    .wrap_mode(TextWrapMode::Truncate)
-                    .fill(if ui.visuals().dark_mode {
-                        egui::Color32::BLACK
-                    } else {
-                        egui::Color32::WHITE
-                    }); // matches iOS native toolbar
-
-            ui.allocate_ui(ui.available_size(), |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    ui.add(selectable_label).clicked()
-                })
-                .inner
-            })
-            .inner
-        })
-        .inner
-    }
-
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
@@ -693,7 +663,9 @@ impl Workspace {
     }
 
     fn process_keys(&mut self) {
+        const APPLE: bool = cfg!(target_vendor = "apple");
         const COMMAND: Modifiers = Modifiers::COMMAND;
+        const CTRL: Modifiers = Modifiers::CTRL;
         const SHIFT: Modifiers = Modifiers::SHIFT;
         const NUM_KEYS: [Key; 10] = [
             Key::Num0,
@@ -733,28 +705,66 @@ impl Workspace {
             self.out.selected_file = self.current_tab_id();
         }
 
+        // reorder tabs
+        // non-apple: ctrl+shift+pg down / up
+        // apple: command+control+shift [ ]
+        let change: i32 = self.ctx.input_mut(|input| {
+            if APPLE {
+                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket) {
+                    -1
+                } else if input
+                    .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseBracket)
+                {
+                    1
+                } else {
+                    0
+                }
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageUp) {
+                -1
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageDown) {
+                1
+            } else {
+                0
+            }
+        });
+
+        let old = self.current_tab as i32;
+        let new = old + change;
+        if new >= 0 && new < self.tabs.len() as i32 {
+            self.tabs.swap(old as usize, new as usize);
+            self.current_tab = new as usize;
+        }
+
         // tab navigation
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if input.consume_key_exact(COMMAND, key) {
+                if input.consume_key_exact(COMMAND, key)
+                    || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
+                {
                     goto_tab = Some(i.min(self.tabs.len()) - 1);
                 }
             }
 
             // Cmd+9 to go to last tab
-            if input.consume_key_exact(COMMAND, Key::Num9) {
+            if input.consume_key_exact(COMMAND, Key::Num9)
+                || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
+            {
                 goto_tab = Some(self.tabs.len() - 1);
             }
 
-            // Cmd+Shift+[ to go to previous tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.current_tab != 0 {
+            // Cmd+Shift+[ or ctrl shift tab to go to previous tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
+                && self.current_tab != 0
+            {
                 goto_tab = Some(self.current_tab - 1);
             }
 
-            // Cmd+Shift+] to go to next tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
+            // Cmd+Shift+] or ctrl tab to go to next tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
                 && self.current_tab != self.tabs.len() - 1
             {
                 goto_tab = Some(self.current_tab + 1);

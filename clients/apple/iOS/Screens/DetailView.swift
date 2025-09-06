@@ -6,9 +6,17 @@ struct DetailView: View {
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
 
     @EnvironmentObject var workspaceState: WorkspaceState
-    @EnvironmentObject var homeState: HomeState
-    
+    @ObservedObject var homeState: HomeState
+    @ObservedObject var filesModel: FilesViewModel
+    @StateObject var wrappedWorkspaceState: WrappedWorkspaceState
+        
     @State var sheetHeight: CGFloat = 0
+    
+    init(homeState: HomeState, filesModel: FilesViewModel) {
+        self._wrappedWorkspaceState = StateObject(wrappedValue: WrappedWorkspaceState(homeState: homeState, filesModel: filesModel))
+        self.homeState = homeState
+        self.filesModel = filesModel
+    }
 
     var body: some View {
         Group {
@@ -70,12 +78,11 @@ struct DetailView: View {
     
     func showTabsSheet() {
         homeState.tabsSheetInfo = TabSheetInfo(info: workspaceState.getTabsIds().map({ id in
-            switch AppState.lb.getFile(id: id) {
-            case .success(let file):
-                return (name: file.name, id: file.id)
-            case .failure(_):
+            guard let file = filesModel.idsToFiles[id] else {
                 return nil
             }
+            
+            return (name: file.name, id: file.id)
         }).compactMap({ $0 }))
     }
     
@@ -85,19 +92,29 @@ struct DetailView: View {
             AppState.workspaceState.showTabs = !isConstrainedLayout
         }
     }
+    
+    func runOnOpenDoc(f: @escaping (File) -> Void) {
+        guard let id = AppState.workspaceState.openDoc else {
+            return
+        }
+        
+        if let file = filesModel.idsToFiles[id] {
+            f(file)
+        }
+    }
+
 }
 
 struct ConstrainedTitle: ViewModifier {
     @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var filesModel: FilesViewModel
+    
     @Environment(\.isConstrainedLayout) var isConstrainedLayout
 
     var title: String {
         get {
-            guard let id = workspaceState.openDoc else {
-                return ""
-            }
-            
-            return (try? AppState.lb.getFile(id: id).get())?.name ?? "unknown file"
+            guard let id = workspaceState.openDoc else { return "" }
+            return filesModel.idsToFiles[id]?.name ?? "Unknown file"
         }
     }
     
@@ -128,7 +145,7 @@ struct ConstrainedTitle: ViewModifier {
     workspaceState.tabCount = 5
     
     return NavigationStack {
-        DetailView()
+        DetailView(homeState: HomeState(), filesModel: FilesViewModel())
             .environmentObject(workspaceState)
             .environmentObject(HomeState())
     }

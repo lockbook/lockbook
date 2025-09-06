@@ -6,14 +6,14 @@ struct HomeView: View {
     @StateObject var filesModel = FilesViewModel()
 
     var body: some View {
-        PathSearchContainerView {
+        PathSearchContainerView(filesModel: filesModel) {
             NavigationSplitView(sidebar: {
-                SearchContainerView {
+                SearchContainerView(filesModel: filesModel) {
                     SidebarView()
                 }
             }, detail: {
                 NavigationStack {
-                    DetailView()
+                    DetailView(homeState: homeState, filesModel: filesModel)
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
@@ -42,6 +42,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @StateObject var settingsModel = SettingsViewModel()
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -70,7 +71,13 @@ struct SidebarView: View {
                 
                 Spacer()
                 
-                StatusBarView()
+                VStack(spacing: 0) {
+                    UsageBar()
+                        .environmentObject(settingsModel)
+                        .padding(.horizontal, 12)
+                    
+                    StatusBarView()
+                }
             }
             .formStyle(.columns)
             .selectFolderSheets()
@@ -94,6 +101,11 @@ struct DetailView: View {
     
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceState: WorkspaceState
+    @State var wrappedWorkspaceState: WrappedWorkspaceState
+    
+    init(homeState: HomeState, filesModel: FilesViewModel) {
+        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
+    }
     
     var body: some View {
         if isPreview {
