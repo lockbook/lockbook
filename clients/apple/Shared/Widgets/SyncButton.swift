@@ -26,7 +26,7 @@ struct SyncButton: View {
                         .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
                         .tint(.white)
-                        // hack to get light mode version of progress spinner on macOS
+                        // hack to get the dark mode version of progress spinner on macOS
                         .colorScheme(.dark)
                         
                 }).padding(.vertical, 5)
