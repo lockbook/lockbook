@@ -126,7 +126,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun enterFolder(folder: File) {
-        println("sup entering folder " + folder.id)
         viewModelScope.launch(Dispatchers.IO) {
             fileModel.intoFile(folder)
 
