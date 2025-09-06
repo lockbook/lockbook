@@ -5084,7 +5084,7 @@ dependencies = [
  "tokio",
  "toml 0.7.8",
  "toml_edit 0.19.15",
- "zip",
+ "zip 0.6.6",
 ]
 
 [[package]]
@@ -6396,7 +6396,7 @@ dependencies = [
  "jni",
  "ndk",
  "ndk-context",
- "num-derive 0.4.2",
+ "num-derive",
  "num-traits",
  "oboe-sys",
 ]
@@ -6542,6 +6542,44 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52f0d54bde9774d3a51dcf281a5def240c71996bc6ca05d2c847ec8b2b216166"
 dependencies = [
  "libredox 0.0.2",
+]
+
+[[package]]
+name = "ordered-stream"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9aa2b01e1d916879f73a53d01d1d6cee68adbb31d6d9177a8cfce093cced1d50"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "ort"
+version = "2.0.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86d83095ae3c1258738d70ae7a06195c94d966a8e546f0d3609dc90885fb61f5"
+dependencies = [
+ "half",
+ "js-sys",
+ "ndarray",
+ "ort-sys",
+ "thiserror 1.0.64",
+ "tracing",
+ "web-sys",
+]
+
+[[package]]
+name = "ort-sys"
+version = "2.0.0-rc.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f2f6427193c808010b126bef45ebd33f8dee43770223a1200f84d3734d6c656"
+dependencies = [
+ "flate2",
+ "pkg-config",
+ "sha2 0.10.8",
+ "tar",
+ "ureq",
 ]
 
 [[package]]
@@ -7488,7 +7526,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom 0.2.15",
- "libredox 0.1.8",
+ "libredox 0.1.6",
  "thiserror 1.0.64",
 ]
 
@@ -9159,30 +9197,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
-name = "tld"
-version = "2.35.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73ca5fc340fcb4f52570c502cf443fc22d5521e9ef2bb03528e3634254016cf7"
-dependencies = [
- "phf 0.11.2",
- "phf_codegen 0.11.2",
-]
-
-[[package]]
-name = "tldextract"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec03259a0567ad58eed30812bc3e5eda8030f154abc70317ab57b14f00699ca4"
-dependencies = [
- "idna 0.2.3",
- "log",
- "regex",
- "serde_json",
- "thiserror 1.0.64",
- "url 2.5.2",
-]
-
-[[package]]
 name = "tokenizers"
 version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9221,7 +9235,6 @@ name = "tokio"
 version = "1.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "43864ed400b6043a4757a25c7a64a8efde741aed79a056a2fb348a406701bb35"
-
 dependencies = [
  "backtrace",
  "bytes",
