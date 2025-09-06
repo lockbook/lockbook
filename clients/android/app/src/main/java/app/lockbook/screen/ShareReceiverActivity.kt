@@ -38,7 +38,7 @@ class ShareReceiverActivity : AppCompatActivity() {
 
     private var uris: MutableList<Uri> = mutableListOf()
 
-    val receivedFileId = MutableLiveData<String?>()
+    val importedFileId = MutableLiveData<String?>()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -99,7 +99,7 @@ class ShareReceiverActivity : AppCompatActivity() {
             binding.importButton.isEnabled = false
             lifecycleScope.launch {
                 val fileId = importFromUris()
-                receivedFileId.value = fileId
+                importedFileId.value = fileId
             }
         }
 
@@ -127,7 +127,7 @@ class ShareReceiverActivity : AppCompatActivity() {
             true
         }
 
-        receivedFileId.observe(this) { id ->
+        importedFileId.observe(this) { id ->
             binding.importProgress.visibility = View.INVISIBLE
             binding.importButton.isEnabled = true
 
