@@ -130,6 +130,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
+        println!("warning: text_in_range() called with nil range");
         CString::new("")
             .expect("Could not Rust String -> C String")
             .into_raw()
@@ -252,7 +253,6 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
-
     obj.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
