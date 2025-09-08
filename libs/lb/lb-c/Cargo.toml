@@ -1,6 +1,6 @@
 [package]
 name = "lb-c"
-version = "0.9.27"
+version = "0.9.28"
 edition = "2021"
 
 crate-type = ["lib", "staticlib", "cdylib"]
