@@ -5,7 +5,6 @@ use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, InlineNodeType, ListItem, MarkdownNode,
 };
-use crate::tab::markdown_editor::widget::ROW_SPACING;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
@@ -941,29 +940,18 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
 
-    let expanded_rect = galley.rect.expand(ROW_SPACING / 2.);
+    let relative_pos = pos - galley.rect.min;
 
-    if pos.y < expanded_rect.min.y {
-        // click position is above galley
+    // clamp y coordinate for forgiving cursor placement clicks
+    let relative_pos = Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
+
+    if galley.range.is_empty() {
+        // hack: empty galley range means every position in the galley maps to
+        // that location
         galley.range.start()
-    } else if pos.y > expanded_rect.max.y {
-        // click position is below galley
-        galley.range.end()
     } else {
-        let relative_pos = pos - galley.rect.min;
-
-        // clamp y coordinate for forgiving cursor placement clicks
-        let relative_pos =
-            Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
-
-        if galley.range.is_empty() {
-            // hack: empty galley range means every position in the galley maps to
-            // that location
-            galley.range.start()
-        } else {
-            let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-            galleys.offset_by_galley_and_cursor(galley, new_cursor)
-        }
+        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+        galleys.offset_by_galley_and_cursor(galley, new_cursor)
     }
 }
 
