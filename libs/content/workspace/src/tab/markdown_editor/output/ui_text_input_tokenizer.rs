@@ -53,21 +53,21 @@ impl UITextInputTokenizer for Editor {
         match text_position.bound_case(ranges) {
             BoundCase::NoRanges => true,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == first_range.start()
                 } else {
                     text_position == first_range.end()
                 }
             }
             BoundCase::AtLastRangeEnd { last_range, .. } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == last_range.start()
                 } else {
                     text_position == last_range.end()
                 }
             }
             BoundCase::InsideRange { range } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == range.start()
                 } else {
                     text_position == range.end()
@@ -75,8 +75,8 @@ impl UITextInputTokenizer for Editor {
             }
             BoundCase::AtEmptyRange { .. } => true,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => true,
-            BoundCase::AtEndOfNonemptyRange { .. } => in_backward_direction,
-            BoundCase::AtStartOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtEndOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtStartOfNonemptyRange { .. } => in_backward_direction,
             BoundCase::BetweenRanges { .. } => false,
         }
     }
