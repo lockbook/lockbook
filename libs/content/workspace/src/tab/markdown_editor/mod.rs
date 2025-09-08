@@ -104,14 +104,6 @@ pub struct Editor {
     height: f32,
     /// scroll area offset, useful for determining what will actually be drawn
     scroll_area_offset: f32,
-
-    // response: indicates text, selection, and scroll update. Some of these are
-    // stored here for one frame because sometimes it takes a frame for all
-    // changes to be processed. This is because we process events after
-    // rendering, so that rendering can produce events, but events can also
-    // affect rendering. The cursor may disappear or be misplaced in the
-    // intervening frame.
-    next_resp: Response,
 }
 
 impl Drop for Editor {
@@ -182,8 +174,6 @@ impl Editor {
             width: Default::default(),
             height: Default::default(),
             scroll_area_offset: Default::default(),
-
-            next_resp: Default::default(),
         }
     }
 
@@ -242,7 +232,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let resp = mem::take(&mut self.next_resp);
+        let mut resp: Response = Default::default();
 
         let height = ui.available_size().y;
         let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -287,8 +277,7 @@ impl Editor {
         options.render.escaped_char_spans = true;
 
         let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-
-        let root = comrak::parse_document(&arena, &text_with_newline, &options);
+        let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -304,6 +293,36 @@ impl Editor {
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
+
+        // process events
+        let prior_selection = self.buffer.current.selection;
+        let images_updated = {
+            let mut images_updated = self.images.updated.lock().unwrap();
+            let result = *images_updated;
+            *images_updated = false;
+            result
+        };
+        if !self.initialized || self.process_events(ui.ctx(), root) {
+            resp.text_updated = true;
+
+            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
+            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+            root = comrak::parse_document(&arena, &text_with_newline, &options);
+
+            self.bounds.paragraphs.clear();
+            self.bounds.inline_paragraphs.clear();
+            self.layout_cache.clear();
+
+            self.calc_source_lines();
+            self.compute_bounds(root);
+            self.bounds.paragraphs.sort();
+            self.bounds.inline_paragraphs.sort();
+
+            self.calc_words();
+
+            ui.ctx().request_repaint();
+        }
+        resp.selection_updated = prior_selection != self.buffer.current.selection;
 
         self.images = widget::inline::image::cache::calc(
             root,
@@ -352,7 +371,7 @@ impl Editor {
                         });
 
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
-                        self.next_resp.scroll_updated =
+                        resp.scroll_updated =
                             scroll_area_output.state.offset.y != self.scroll_area_offset;
                     },
                 );
@@ -385,8 +404,7 @@ impl Editor {
 
                 // ...then show editor content
                 let scroll_area_output = self.show_scrollable_editor(ui, root);
-                self.next_resp.scroll_updated =
-                    scroll_area_output.state.offset.y != self.scroll_area_offset;
+                resp.scroll_updated = scroll_area_output.state.offset.y != self.scroll_area_offset;
             }
         });
 
@@ -417,43 +435,20 @@ impl Editor {
                 "                                                              render: {render_elapsed:?}"
             );
         }
-        let prior_selection = self.buffer.current.selection;
-        let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
-        };
-        if !self.initialized || self.process_events(ui.ctx(), root) {
-            self.next_resp.text_updated = true;
 
-            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-            let root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-            self.bounds.paragraphs.clear();
-            self.bounds.inline_paragraphs.clear();
+        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
+        if resp.selection_updated || images_updated || height_updated || width_updated {
             self.layout_cache.clear();
-
-            self.calc_source_lines();
-            self.compute_bounds(root);
-            self.bounds.paragraphs.sort();
-            self.bounds.inline_paragraphs.sort();
-
-            self.calc_words();
-
             ui.ctx().request_repaint();
         }
-        self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
-        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if self.next_resp.selection_updated || images_updated || height_updated || width_updated {
-            self.layout_cache.clear();
-        }
-        if self.next_resp.selection_updated && !all_selected {
+        if resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if self.next_resp.scroll_updated {
+        if resp.scroll_updated {
+            ui.ctx().request_repaint();
+        }
+        if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
         if self.images.any_loading() {
