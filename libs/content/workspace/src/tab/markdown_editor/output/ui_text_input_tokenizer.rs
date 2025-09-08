@@ -134,14 +134,25 @@ impl UITextInputTokenizer for Editor {
                 unimplemented!()
             }
             Bound::Word => &self.bounds.words,
-            Bound::Line => &self.bounds.words, // hack
+            Bound::Line => {
+                // note: lines handled as words
+                //
+                // I assume there's a mistake in the implementation of Apple's virtual keyboard. Documentation and
+                // examples are sparse - we do not have a single working implementation, even using the built-in
+                // tokenizer or a reference implementation crafted by an Apple engineer for us.
+                //
+                // I inspected the keyboard behavior by logging all fn calls and their results. The keyboard iterates
+                // the returned ranges until it receives a nil value, which is more consistent with a text granularity
+                // that is non-contiguous the way words are and lines are not. This seems to be what it takes to get
+                // the correct undeline behavior after autocorrecting a word.
+                &self.bounds.words
+            }
             Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 unimplemented!()
             }
         };
-        let bound_case = text_position.bound_case(ranges);
-        match bound_case {
+        match text_position.bound_case(ranges) {
             BoundCase::NoRanges => None,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if in_backward_direction {
@@ -157,19 +168,7 @@ impl UITextInputTokenizer for Editor {
                     None
                 }
             }
-            BoundCase::InsideRange { range } => {
-                // // hack: don't include trailing whitespace in the range
-                // if self.buffer[(text_position, range.end())]
-                //     .trim_end()
-                //     .is_empty()
-                // {
-                //     println!("  InsideRange -> AtEndOfNonemptyRange");
-                //     if in_backward_direction { Some(range) } else { None }
-                // } else {
-                //     Some(range)
-                // }
-                Some(range)
-            }
+            BoundCase::InsideRange { range } => Some(range),
             BoundCase::AtEmptyRange { .. } => None,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { range_before, range_after } => {
                 Some(if in_backward_direction { range_before } else { range_after })
