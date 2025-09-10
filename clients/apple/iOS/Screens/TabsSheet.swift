@@ -29,6 +29,7 @@ struct TabsSheet: View {
             ForEach(info, id: \.id) { info in
                 Button(action: {
                     AppState.workspaceState.requestOpenDoc(info.id)
+                    dismiss()
                 }, label: {
                     HStack {
                         Button(action: {
