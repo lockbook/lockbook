@@ -116,7 +116,9 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
-        mtkView.setInitialContent(coreHandle)
+        
+        print("showtabs: ", workspaceState.showTabs)
+        mtkView.setInitialContent(coreHandle, showTabs: workspaceState.showTabs)
         
         super.init(frame: .infinite)
                         

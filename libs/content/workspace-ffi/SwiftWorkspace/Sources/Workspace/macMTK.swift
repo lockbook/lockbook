@@ -91,7 +91,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
-        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
 
         modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])

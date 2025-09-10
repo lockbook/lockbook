@@ -88,9 +88,10 @@ struct DetailView: View {
     
     
     func toggleTabVisibility() {
-        DispatchQueue.main.async {
-            AppState.workspaceState.showTabs = !isConstrainedLayout
-        }
+        print("TAB VISIBILITY TOGGLED")
+//        DispatchQueue.main.async {
+        AppState.workspaceState.showTabs = !isConstrainedLayout
+//        }
     }
     
     func runOnOpenDoc(f: @escaping (File) -> Void) {

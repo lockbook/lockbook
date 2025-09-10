@@ -836,7 +836,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     weak var currentWrapper: UIView? = nil
 
-    var showTabs = true
+    var showTabs = false
     var overrideDefaultKeyboardBehavior = false
     
     var docHeaderSize: Double {
@@ -984,9 +984,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
     }
 
-    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, showTabs: Bool) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
-        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), showTabs)
         workspaceState?.wsHandle = wsHandle
     }
     
@@ -1012,6 +1012,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
     
     public func draw(in view: MTKView) {
+        print("device idoim: ", UIDevice.current.userInterfaceIdiom == .phone, UIDevice.current.userInterfaceIdiom == .pad)
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
@@ -1139,7 +1140,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        dark_mode(wsHandle, isDarkMode())
         setNeedsDisplay(self.frame)
     }
 
@@ -1278,7 +1278,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     func isDarkMode() -> Bool {
-        traitCollection.userInterfaceStyle != .light
+        print("horizontalSizeClass", traitCollection.horizontalSizeClass == .compact, traitCollection.horizontalSizeClass == .regular)
+
+        return traitCollection.userInterfaceStyle != .light
     }
 
     deinit {
