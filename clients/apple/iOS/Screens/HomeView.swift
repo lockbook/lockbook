@@ -19,7 +19,6 @@ struct HomeView: View {
                             sidebar
                         }
                     })
-                    .environment(\.isConstrainedLayout, true)
                 }
             } else {
                 PathSearchContainerView(filesModel: filesModel) {
@@ -32,7 +31,6 @@ struct HomeView: View {
                             detail
                         }
                     })
-                    .environment(\.isConstrainedLayout, false)
                 }
             }
         }

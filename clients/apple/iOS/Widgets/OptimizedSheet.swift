@@ -1,8 +1,8 @@
 import SwiftUI
 
 struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     @Binding var isPresented: Bool
     @Binding var constrainedSheetHeight: CGFloat
     
@@ -12,7 +12,7 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
     @ViewBuilder let presentedContent: () -> PresentedContent
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .sheet(isPresented: $isPresented) {
                     presentedContent()
@@ -29,7 +29,7 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
 }
 
 struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     @Binding var item: Item?
     @Binding var constrainedSheetHeight: CGFloat
@@ -40,7 +40,7 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
     @ViewBuilder let presentedContent: (Item) -> PresentedContent
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .sheet(item: $item) { item in
                     presentedContent(item)
@@ -57,8 +57,6 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
 }
 
 struct FormSheetPresentingViewModifier<PresentedContent: View>: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
     @Binding var isPresented: Bool
     @ViewBuilder let presentedContent: () -> PresentedContent
     
@@ -78,8 +76,6 @@ struct FormSheetPresentingViewModifier<PresentedContent: View>: ViewModifier {
 }
 
 struct FormSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
     @Binding var item: Item?
     @ViewBuilder let presentedContent: (Item) -> PresentedContent
     

@@ -153,6 +153,3 @@ class CreateFolderViewModel: ObservableObject {
         )
 }
 #endif
-
-
-

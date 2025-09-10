@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftWorkspace
 
 struct StatusBarView: View {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceState: WorkspaceState
@@ -108,7 +108,7 @@ struct StatusBarView: View {
     }
     
     func docCreateAction(f: () -> Void) {
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             homeState.constrainedSidebarState = .closed
         }
         
