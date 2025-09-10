@@ -6,7 +6,6 @@ import Bridge
 public class WorkspaceState: ObservableObject {
     
     public var wsHandle: UnsafeMutableRawPointer? = nil
-    public var showTabs: Bool = true
 
     @Published public var pasted: Bool = false
     @Published public var shouldFocus: Bool = false

@@ -76,7 +76,7 @@ impl AccountScreen {
             tree: FileTree::new(files),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),

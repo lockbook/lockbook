@@ -12,7 +12,7 @@ use workspace_rs::workspace::Workspace;
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn init_ws(
-    core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool,
+    core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool, show_tabs: bool,
 ) -> *mut c_void {
     let core = unsafe { &mut *(core as *mut Lb) };
 
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn init_ws(
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
-    let workspace = Workspace::new(core, &context);
+    let workspace = Workspace::new(core, &context, show_tabs);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     context.set_fonts(fonts);
