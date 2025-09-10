@@ -84,14 +84,14 @@ extension View {
 
 
 struct SelectFolderSheets: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var homeState: HomeState
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .sheet(item: $homeState.selectSheetInfo) { action in
                     SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
