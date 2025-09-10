@@ -7,8 +7,6 @@ struct FileTreeView: View {
     
     @StateObject var fileTreeModel: FileTreeViewModel
     
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
     var root: File
     
     init(root: File, filesModel: FilesViewModel) {
@@ -55,8 +53,8 @@ struct FileRowView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+
     let file: File
     let level: CGFloat
     
@@ -190,7 +188,7 @@ struct FileRowView: View {
         } else {
             AppState.workspaceState.requestOpenDoc(file.id)
             
-            if isConstrainedLayout {
+            if horizontalSizeClass == .compact {
                 homeState.constrainedSidebarState = .closed
             }
         }
