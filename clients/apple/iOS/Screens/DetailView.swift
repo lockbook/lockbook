@@ -27,9 +27,6 @@ struct DetailView: View {
                     .modifier(OnLbLinkViewModifier())
             }
         }
-        .onAppear {
-            toggleTabVisibility()
-        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 HStack(alignment: .lastTextBaseline, spacing: 5) {
@@ -84,14 +81,6 @@ struct DetailView: View {
             
             return (name: file.name, id: file.id)
         }).compactMap({ $0 }))
-    }
-    
-    
-    func toggleTabVisibility() {
-        print("TAB VISIBILITY TOGGLED")
-//        DispatchQueue.main.async {
-        AppState.workspaceState.showTabs = !isConstrainedLayout
-//        }
     }
     
     func runOnOpenDoc(f: @escaping (File) -> Void) {

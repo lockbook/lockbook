@@ -50,10 +50,6 @@ public struct UIWS: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
-        if uiView.mtkView.showTabs != workspaceState.showTabs {
-            uiView.mtkView.showHideTabs(show: workspaceState.showTabs)
-        }
-        
         if let id = workspaceState.openDocRequested {
             uiView.mtkView.openFile(id: id)
             DispatchQueue.main.async {
@@ -117,11 +113,10 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
         
-        print("showtabs: ", workspaceState.showTabs)
-        mtkView.setInitialContent(coreHandle, showTabs: workspaceState.showTabs)
+        mtkView.setInitialContent(coreHandle)
         
         super.init(frame: .infinite)
-                        
+
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
         NSLayoutConstraint.activate([

@@ -836,12 +836,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
     weak var currentWrapper: UIView? = nil
 
-    var showTabs = false
     var overrideDefaultKeyboardBehavior = false
     
     var docHeaderSize: Double {
         get {
-            showTabs ? iOSMTK.TAB_BAR_HEIGHT : 0
+            !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
     }
     
@@ -951,13 +950,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         setNeedsDisplay(self.frame)
     }
 
-    func showHideTabs(show: Bool) {
-        showTabs = show
-
-        show_hide_tabs(wsHandle, show)
-        setNeedsDisplay(self.frame)
-    }
-
     func closeDoc(id: UUID) {
         close_tab(wsHandle, id.uuidString)
         setNeedsDisplay(self.frame)
@@ -984,9 +976,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
     }
 
-    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?, showTabs: Bool) {
+    public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
-        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), showTabs)
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
         workspaceState?.wsHandle = wsHandle
     }
     
@@ -1012,13 +1004,13 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
     
     public func draw(in view: MTKView) {
-        print("device idoim: ", UIDevice.current.userInterfaceIdiom == .phone, UIDevice.current.userInterfaceIdiom == .pad)
         if tabSwitchTask != nil {
             tabSwitchTask!()
             tabSwitchTask = nil
         }
 
         dark_mode(wsHandle, isDarkMode())
+        show_hide_tabs(wsHandle, !isCompact())
         set_scale(wsHandle, Float(self.contentScaleFactor))
         
         let output = ios_frame(wsHandle)
@@ -1093,7 +1085,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         if output.tab_title_clicked {
             workspaceState!.renameOpenDoc = true
 
-            if showTabs {
+            if !isCompact() {
                 unfocus_title(wsHandle)
             }
         }
@@ -1278,9 +1270,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
 
     func isDarkMode() -> Bool {
-        print("horizontalSizeClass", traitCollection.horizontalSizeClass == .compact, traitCollection.horizontalSizeClass == .regular)
-
         return traitCollection.userInterfaceStyle != .light
+    }
+    
+    func isCompact() -> Bool {
+        return traitCollection.horizontalSizeClass == .compact
     }
 
     deinit {
