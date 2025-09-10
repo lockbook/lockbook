@@ -3,9 +3,9 @@ import SwiftWorkspace
 
 extension View {
     func fileOpSheets(
-        constrainedSheetHeight: Binding<CGFloat>
+        compactSheetHeight: Binding<CGFloat>
     ) -> some View {
-        modifier(FileOpSheets(constrainedSheetHeight: constrainedSheetHeight))
+        modifier(FileOpSheets(compactSheetHeight: compactSheetHeight))
     }
 }
 
@@ -14,7 +14,7 @@ struct FileOpSheets: ViewModifier {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var homeState: HomeState
         
-    @Binding var constrainedSheetHeight: CGFloat
+    @Binding var compactSheetHeight: CGFloat
     
     func body(content: Content) -> some View {
         // A little bit odd but not too bad
@@ -25,13 +25,13 @@ struct FileOpSheets: ViewModifier {
                     switch info {
                     case .createFolder(parent: let parent):
                         CreateFolderSheet(homeState: homeState, parentId: parent.id)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .rename(file: let file):
                         RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .share(file: let file):
                         ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .importPicker:
                         ImportFilePicker()
                     }

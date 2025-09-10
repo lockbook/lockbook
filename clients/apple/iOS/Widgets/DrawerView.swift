@@ -14,7 +14,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     .toolbar {
                         ToolbarItem(placement: .navigationBarLeading) {
                             Button(action: {
-                                homeState.constrainedSidebarState = .openPartial
+                                homeState.compactSidebarState = .openPartial
                                 UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                             }) {
                                 Image(systemName: "sidebar.left")
@@ -24,14 +24,14 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     }
             }
             
-            if homeState.constrainedSidebarState != .closed {
+            if homeState.compactSidebarState != .closed {
                 Color
                     .gray
                     .opacity(0.1)
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        if homeState.constrainedSidebarState != .closed {
-                            homeState.constrainedSidebarState = .closed
+                        if homeState.compactSidebarState != .closed {
+                            homeState.compactSidebarState = .closed
                         }
                     }
                 
@@ -43,7 +43,7 @@ public struct DrawerView<Menu: View, Content: View>: View {
                     .zIndex(1)
             }
         }
-        .animation(.spring(duration: 0.2), value: homeState.constrainedSidebarState)
+        .animation(.spring(duration: 0.2), value: homeState.compactSidebarState)
     }
 }
 

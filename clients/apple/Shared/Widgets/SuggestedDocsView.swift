@@ -24,7 +24,7 @@ struct SuggestedDocsView: View {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
                                 if horizontalSizeClass == .compact {
-                                    homeState.constrainedSidebarState = .closed
+                                    homeState.compactSidebarState = .closed
                                 }
                                 
                                 AppState.workspaceState.requestOpenDoc(info.id)

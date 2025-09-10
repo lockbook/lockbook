@@ -95,7 +95,7 @@ struct TabsSheet: View {
     Color.accentColor
         .optimizedSheet(
             item: $sheetInfo,
-            constrainedSheetHeight: .constant(100),
+            compactSheetHeight: .constant(100),
             presentedContent: { item in
                 TabsSheet(
                     info: item.info

@@ -66,10 +66,10 @@ struct DetailView: View {
                 }
             }
         }
-        .optimizedSheet(item: $homeState.tabsSheetInfo, constrainedSheetHeight: $sheetHeight) { info in
+        .optimizedSheet(item: $homeState.tabsSheetInfo, compactSheetHeight: $sheetHeight) { info in
             TabsSheet(info: info.info)
         }
-        .fileOpSheets(constrainedSheetHeight: $sheetHeight)
+        .fileOpSheets(compactSheetHeight: $sheetHeight)
         .modifier(CompactTitle())
     }
     

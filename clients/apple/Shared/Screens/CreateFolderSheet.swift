@@ -135,7 +135,7 @@ class CreateFolderViewModel: ObservableObject {
     Color.accentColor
         .optimizedSheet(
             item: $file,
-            constrainedSheetHeight: $sheetHeight,
+            compactSheetHeight: $sheetHeight,
             width: CreateFolderSheet.FORM_WIDTH,
             height: CreateFolderSheet.FORM_HEIGHT,
             presentedContent: { item in

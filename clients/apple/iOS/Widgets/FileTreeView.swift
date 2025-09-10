@@ -189,7 +189,7 @@ struct FileRowView: View {
             AppState.workspaceState.requestOpenDoc(file.id)
             
             if horizontalSizeClass == .compact {
-                homeState.constrainedSidebarState = .closed
+                homeState.compactSidebarState = .closed
             }
         }
     }

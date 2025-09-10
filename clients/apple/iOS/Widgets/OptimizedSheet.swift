@@ -4,7 +4,7 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @Binding var isPresented: Bool
-    @Binding var constrainedSheetHeight: CGFloat
+    @Binding var compactSheetHeight: CGFloat
     
     var width: CGFloat? = nil
     var height: CGFloat? = nil
@@ -16,7 +16,7 @@ struct OptimizedSheetPresentingViewModifier<PresentedContent: View>: ViewModifie
             content
                 .sheet(isPresented: $isPresented) {
                     presentedContent()
-                        .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                        .autoSizeSheet(sheetHeight: $compactSheetHeight)
                 }
         } else {
             content
@@ -32,7 +32,7 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     @Binding var item: Item?
-    @Binding var constrainedSheetHeight: CGFloat
+    @Binding var compactSheetHeight: CGFloat
     
     var width: CGFloat? = nil
     var height: CGFloat? = nil
@@ -44,7 +44,7 @@ struct OptimizedSheetItemViewModifier<PresentedContent: View, Item: Identifiable
             content
                 .sheet(item: $item) { item in
                     presentedContent(item)
-                        .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                        .autoSizeSheet(sheetHeight: $compactSheetHeight)
                 }
         } else {
             content
@@ -95,12 +95,12 @@ struct FormSheetItemViewModifier<PresentedContent: View, Item: Identifiable>: Vi
 }
 
 extension View {
-    func optimizedSheet<PresentedContent: View>(isPresented: Binding<Bool>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping () -> PresentedContent) -> some View {
-        modifier(OptimizedSheetPresentingViewModifier(isPresented: isPresented, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
+    func optimizedSheet<PresentedContent: View>(isPresented: Binding<Bool>, compactSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping () -> PresentedContent) -> some View {
+        modifier(OptimizedSheetPresentingViewModifier(isPresented: isPresented, compactSheetHeight: compactSheetHeight, width: width, height: height, presentedContent: presentedContent))
     }
     
-    func optimizedSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, constrainedSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping (Item) -> PresentedContent) -> some View {
-        modifier(OptimizedSheetItemViewModifier(item: item, constrainedSheetHeight: constrainedSheetHeight, width: width, height: height, presentedContent: presentedContent))
+    func optimizedSheet<PresentedContent: View, Item: Identifiable>(item: Binding<Item?>, compactSheetHeight: Binding<CGFloat>, width: CGFloat? = nil, height: CGFloat? = nil, @ViewBuilder presentedContent: @escaping (Item) -> PresentedContent) -> some View {
+        modifier(OptimizedSheetItemViewModifier(item: item, compactSheetHeight: compactSheetHeight, width: width, height: height, presentedContent: presentedContent))
     }
     
     func formSheet<PresentedContent: View>(isPresented: Binding<Bool>, @ViewBuilder presentedContent: @escaping () -> PresentedContent) -> some View {

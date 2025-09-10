@@ -109,7 +109,7 @@ struct StatusBarView: View {
     
     func docCreateAction(f: () -> Void) {
         if horizontalSizeClass == .compact {
-            homeState.constrainedSidebarState = .closed
+            homeState.compactSidebarState = .closed
         }
         
         f()
