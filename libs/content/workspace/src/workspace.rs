@@ -61,7 +61,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context) -> Self {
+    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
@@ -83,7 +83,7 @@ impl Workspace {
             cfg: WsPersistentStore::new(writeable_path),
             ctx: ctx.clone(),
             core: core.clone(),
-            show_tabs: !cfg!(any(target_os = "ios", target_os = "android")),
+            show_tabs,
             focused_parent: Default::default(),
 
             current_tab_changed: Default::default(),
