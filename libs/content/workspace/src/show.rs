@@ -678,28 +678,56 @@ impl Workspace {
         ];
 
         // Ctrl-N pressed while new file modal is not open.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::N))
+        {
             self.create_file(false);
         }
 
         // Ctrl-S to save current tab.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::S)) {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::S))
+        {
             self.save_tab(self.current_tab);
         }
 
         // Ctrl-M to open mind map
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::M))
+        {
             self.upsert_mind_map(self.core.clone());
         }
 
         // Ctrl-W to close current tab.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
+            && !self.is_empty()
+        {
             self.close_tab(self.current_tab);
             self.ctx.send_viewport_cmd(ViewportCommand::Title(
                 self.current_tab_title().unwrap_or("Lockbook".to_owned()),
             ));
 
             self.out.selected_file = self.current_tab_id();
+        }
+
+        // Ctrl-shift-W to close all tabs
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::W))
+            && !self.is_empty()
+        {
+            for i in 0..self.tabs.len() {
+                self.close_tab(i);
+            }
+
+            self.out.selected_file = None;
+            self.ctx
+                .send_viewport_cmd(ViewportCommand::Title("Lockbook".into()));
         }
 
         // reorder tabs
