@@ -448,6 +448,10 @@ impl Editor {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
+        if self.touch_mode && height_updated {
+            self.scroll_to_cursor = true;
+            ui.ctx().request_repaint();
+        }
         if self.next_resp.scroll_updated {
             ui.ctx().request_repaint();
         }
