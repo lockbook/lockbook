@@ -102,8 +102,9 @@ pub struct Editor {
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
     height: f32,
-    /// scroll area offset, useful for determining what will actually be drawn
-    scroll_area_offset: f32,
+
+    // outputs from drawing a frame need an additional frame to process before reporting
+    next_resp: Response,
 }
 
 impl Drop for Editor {
@@ -173,7 +174,8 @@ impl Editor {
             scroll_to_cursor: Default::default(),
             width: Default::default(),
             height: Default::default(),
-            scroll_area_offset: Default::default(),
+
+            next_resp: Default::default(),
         }
     }
 
@@ -232,7 +234,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let mut resp: Response = Default::default();
+        let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y;
         let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -358,7 +360,7 @@ impl Editor {
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
                         let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                        self.scroll_area_offset = ui.data_mut(|d| {
+                        let scroll_area_offset = ui.data_mut(|d| {
                             d.get_persisted(scroll_area_id)
                                 .map(|s: scroll_area::State| s.offset)
                                 .unwrap_or_default()
@@ -371,8 +373,8 @@ impl Editor {
                         });
 
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
-                        resp.scroll_updated =
-                            scroll_area_output.state.offset.y != self.scroll_area_offset;
+                        self.next_resp.scroll_updated =
+                            scroll_area_output.state.offset.y != scroll_area_offset;
                     },
                 );
 
@@ -384,7 +386,7 @@ impl Editor {
                 });
             } else {
                 let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                self.scroll_area_offset = ui.data_mut(|d| {
+                let scroll_area_offset = ui.data_mut(|d| {
                     d.get_persisted(scroll_area_id)
                         .map(|s: scroll_area::State| s.offset)
                         .unwrap_or_default()
@@ -404,7 +406,8 @@ impl Editor {
 
                 // ...then show editor content
                 let scroll_area_output = self.show_scrollable_editor(ui, root);
-                resp.scroll_updated = scroll_area_output.state.offset.y != self.scroll_area_offset;
+                self.next_resp.scroll_updated =
+                    scroll_area_output.state.offset.y != scroll_area_offset;
             }
         });
 
@@ -445,7 +448,7 @@ impl Editor {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if resp.scroll_updated {
+        if self.next_resp.scroll_updated {
             ui.ctx().request_repaint();
         }
         if !self.event.internal_events.is_empty() {
