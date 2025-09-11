@@ -458,7 +458,13 @@ impl<'ast> Editor {
             NodeValue::TableRow(_) => {
                 return None;
             }
-            NodeValue::TaskItem(_) => result += &self.buffer[own_prefix],
+            NodeValue::TaskItem(check) => {
+                if let Some(check) = check {
+                    result += &self.buffer[own_prefix].replace(*check, " ")
+                } else {
+                    result += &self.buffer[own_prefix]
+                }
+            }
 
             // inline
             NodeValue::Image(_)
