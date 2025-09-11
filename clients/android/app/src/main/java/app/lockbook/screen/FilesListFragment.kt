@@ -529,10 +529,11 @@ class FilesListFragment : Fragment(), FilesFragment {
                     val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
                     donut.cap = dataCap
 
-                    ContextCompat.getColor(context, android.R.color.system_accent1_0)
+
+
                     val usageSection = DonutSection(
                         name = "",
-                        color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                        color = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200),
                         amount = usage
                     )
 
