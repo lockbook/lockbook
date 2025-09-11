@@ -1,6 +1,6 @@
 [package]
 name = "workspace-ffi"
-version = "0.9.27"
+version = "0.9.29"
 edition = "2021"
 
 [lib]

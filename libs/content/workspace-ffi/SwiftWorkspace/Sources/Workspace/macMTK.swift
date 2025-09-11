@@ -91,7 +91,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
-        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
 
         modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
@@ -178,18 +178,32 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
     
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command) && event.keyCode == 9 {
-            let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
-            setNeedsDisplay(self.frame)
-
-            return true
-        } else if event.modifierFlags.contains(.command) && event.keyCode == 13 {
-            sendKeyEvent(event, true)
-            
+        // Let system handle their shortcuts first
+        if super.performKeyEquivalent(with: event) {
             return true
         }
 
-        return super.performKeyEquivalent(with: event)
+        guard event.modifierFlags.contains(.command) else {
+            return false
+        }
+
+        switch event.keyCode {
+        case 9: // V key
+            // If first responder isn't a text editor then we hijack the paste
+            if !(window?.firstResponder is NSTextView) {
+                _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
+                setNeedsDisplay(frame)
+                return true
+            }
+            
+            return false
+
+        case 13: // Return key
+            sendKeyEvent(event, true)
+            return true
+        default:
+            return false
+        }
     }
     
     func sendKeyEvent(_ event: NSEvent, _ isDownPress: Bool) {
