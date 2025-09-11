@@ -69,7 +69,7 @@ impl<'ast> Editor {
 
             for descendant in node.descendants() {
                 if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
-                    if !self.node_range(descendant).trim(&node_line).is_empty() {
+                    if node_line.contains_inclusive(self.node_range(descendant).start()) {
                         self.show_image_block(ui, node, top_left, url);
                         top_left.y += self.height_image(node, url);
                         top_left.y += BLOCK_SPACING;
