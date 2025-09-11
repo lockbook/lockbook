@@ -76,7 +76,6 @@ class ShareReceiverActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         _binding = ActivityShareReceiverBinding.inflate(layoutInflater)
-        setUpView()
         setContentView(binding.root)
 
         when (intent?.action) {
