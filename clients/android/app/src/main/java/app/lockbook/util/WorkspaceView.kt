@@ -10,6 +10,8 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -185,11 +187,28 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     fun openDoc(id: String, newFile: Boolean) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
+        var attempts = 0
+        val maxRetries = 5
+
+        fun tryOpen() {
+            attempts++
+
+            if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+                println("sup workspace open doc")
+                Workspace.openDoc(WGPU_OBJ, id, newFile)
+                return
+            }
+
+            if (attempts >= maxRetries) {
+                println("Failed to open doc after $maxRetries attempts - WGPU_OBJ or surface not ready")
+                return
+            }
+
+            println("Attempt $attempts failed - retrying in 500ms...")
+            Handler(Looper.getMainLooper()).postDelayed({ tryOpen() }, 500)
         }
 
-        Workspace.openDoc(WGPU_OBJ, id, newFile)
+        tryOpen()
     }
 
     fun showTabs(show: Boolean) {

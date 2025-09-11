@@ -30,6 +30,7 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import java.io.File
 import java.lang.ref.WeakReference
+import java.util.ArrayList
 import kotlin.getValue
 
 class ShareReceiverActivity : AppCompatActivity() {
@@ -38,7 +39,7 @@ class ShareReceiverActivity : AppCompatActivity() {
 
     private var uris: MutableList<Uri> = mutableListOf()
 
-    val importedFileId = MutableLiveData<String?>()
+    private val importedFiles = MutableLiveData<MutableList<String>>()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -47,7 +48,7 @@ class ShareReceiverActivity : AppCompatActivity() {
     private val activityModel: StateViewModel by viewModels()
 
     companion object {
-        const val IMPORTED_FILE_KEY = "imported_dest_folder"
+        const val IMPORTED_FILES_KEY = "imported_files_key"
     }
 
     private val model: MoveFileViewModel by viewModels(
@@ -98,8 +99,7 @@ class ShareReceiverActivity : AppCompatActivity() {
             binding.importProgress.visibility = View.VISIBLE
             binding.importButton.isEnabled = false
             lifecycleScope.launch {
-                val fileId = importFromUris()
-                importedFileId.value = fileId
+                importedFiles.value = importFromUris()
             }
         }
 
@@ -127,14 +127,16 @@ class ShareReceiverActivity : AppCompatActivity() {
             true
         }
 
-        importedFileId.observe(this) { id ->
+        importedFiles.observe(this) { ids ->
+            // hide loading ui even if import is failed
             binding.importProgress.visibility = View.INVISIBLE
             binding.importButton.isEnabled = true
 
-            if (id !== null) {
+            if (ids.count() != 0) {
+                // open the files in the main activity
                 startActivity(
                     Intent(this, MainScreenActivity::class.java).apply {
-                        putExtra(IMPORTED_FILE_KEY, id)
+                        putStringArrayListExtra(IMPORTED_FILES_KEY, ArrayList(ids))
                     }
                 )
             }
@@ -155,15 +157,15 @@ class ShareReceiverActivity : AppCompatActivity() {
         return fileName
     }
 
-    private fun importFromUris(): String? {
-        var newFileId: String? = null
+    private fun importFromUris(): MutableList<String> {
+        val newFiles: MutableList<String> = mutableListOf()
 
         for (uri in uris) {
             try {
                 val data =
                     contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
                 val lbFile = Lb.createFile(getUriFileName(uri), model.currentParent.id, true)
-                newFileId = lbFile.id
+                newFiles.add(lbFile.id)
                 Lb.writeDocumentBytes(lbFile.id, data)
             } catch (err: LbError) {
                 alertModel.notifyError(err)
@@ -173,7 +175,7 @@ class ShareReceiverActivity : AppCompatActivity() {
         }
 
         // todo: when android supports multiple tabs. open all the imported files?
-        return newFileId
+        return newFiles
     }
 
     private fun setUpView() {

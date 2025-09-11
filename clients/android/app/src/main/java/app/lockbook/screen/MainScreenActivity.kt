@@ -210,13 +210,11 @@ class MainScreenActivity : AppCompatActivity() {
                 slidingPaneLayout.closePane()
             }
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        intent.extras?.getString(ShareReceiverActivity.IMPORTED_FILE_KEY)?.let { dest ->
-            workspaceModel._openFile.postValue(Pair(dest, false))
-            intent.removeExtra(ShareReceiverActivity.IMPORTED_FILE_KEY)
+        intent.extras?.getStringArrayList(ShareReceiverActivity.IMPORTED_FILES_KEY)?.let { ids ->
+            println("sup received from intent: "+ ids.count())
+            workspaceModel._openFiles.value = ids.map { id -> Pair(id, false) }.toTypedArray()
+            intent.removeExtra(ShareReceiverActivity.IMPORTED_FILES_KEY)
         }
     }
 
@@ -224,7 +222,7 @@ class MainScreenActivity : AppCompatActivity() {
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
-                    workspaceModel._openFile.value = Pair(update.id, false)
+                    workspaceModel._openFiles.value = arrayOf(Pair(update.id, false))
                 } else {
                     if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value

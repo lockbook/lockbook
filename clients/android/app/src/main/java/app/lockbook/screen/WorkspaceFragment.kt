@@ -101,8 +101,11 @@ class WorkspaceFragment : Fragment() {
             workspaceWrapper.workspaceView.sync()
         }
 
-        model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
-            workspaceWrapper.workspaceView.openDoc(id, newFile)
+        model.openFiles.observe(viewLifecycleOwner) { files ->
+            for ((id, newFile) in files){
+                println("sup opening file $id")
+                workspaceWrapper.workspaceView.openDoc(id, newFile)
+            }
         }
 
         model.docCreated.observe(viewLifecycleOwner) { id ->

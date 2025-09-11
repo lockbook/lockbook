@@ -258,7 +258,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 try {
                     created = Lb.createFile(name, model.fileModel.parent.id, true)
                     withContext(Dispatchers.Main) {
-                        workspaceModel._openFile.postValue(Pair(created.id, true))
+                        workspaceModel._openFiles.postValue(arrayOf(Pair(created.id, true)))
                     }
                     refreshFiles()
                 } catch (err: LbError) {

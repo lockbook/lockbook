@@ -10,9 +10,9 @@ class WorkspaceViewModel : ViewModel() {
     var isSyncing = false
 
     // for workspace fragment
-    val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
-    val openFile: LiveData<Pair<String, Boolean>>
-        get() = _openFile
+    val _openFiles = SingleMutableLiveData<Array<Pair<String, Boolean>>>()
+    val openFiles: LiveData<Array<Pair<String, Boolean>>>
+        get() = _openFiles
 
     val _closeDocument = SingleMutableLiveData<String>()
     val closeDocument: LiveData<String>
