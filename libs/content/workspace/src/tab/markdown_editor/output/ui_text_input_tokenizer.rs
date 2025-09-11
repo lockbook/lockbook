@@ -187,7 +187,14 @@ impl UITextInputTokenizer for Editor {
                     Some(range_after)
                 }
             }
-            BoundCase::BetweenRanges { .. } => None,
+            BoundCase::BetweenRanges { range_before, range_after } => {
+                if with_granularity == Bound::Word {
+                    // hack: treat space between words as words
+                    Some((range_before.end(), range_after.start()))
+                } else {
+                    None
+                }
+            }
         };
         if let Some(result) = result {
             // this can happen if we are beyond the last range e.g. asking about word at a position after a document's trailing space
