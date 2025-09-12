@@ -14,7 +14,7 @@ rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-andro
 ```
 
 Steps:
-- In `/libs/lb/lb_external_interface` run `make android`.
+- Run `cargo run -p lbdev -- android ws` which will build workspace for android.
 - Choose one:
     1. Command Line
         - In `clients/android` run `./gradlew assemble`.
