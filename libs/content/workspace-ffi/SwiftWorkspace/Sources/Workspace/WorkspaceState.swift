@@ -36,6 +36,7 @@ public class WorkspaceState: ObservableObject {
     // To workspace
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
+    @Published public var createDocAtRequested: (UUID, Bool)? = nil
     @Published public var closeAllTabsRequested: Bool = false
     @Published public var closeDocRequested: UUID? = nil
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil
@@ -48,6 +49,10 @@ public class WorkspaceState: ObservableObject {
     
     public func requestOpenDoc(_ id: UUID) {
         self.openDocRequested = id
+    }
+    
+    public func requestCreateDocAt(parent: UUID, drawing: Bool) {
+        self.createDocAtRequested = (parent, drawing)
     }
     
     public func requestCloseAllTabs() {

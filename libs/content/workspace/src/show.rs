@@ -190,7 +190,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(false);
+                                        self.create_doc(false);
                                     }
 
                                     ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
@@ -210,7 +210,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(true);
+                                        self.create_doc(true);
                                     }
                                 });
 
@@ -682,7 +682,7 @@ impl Workspace {
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::N))
         {
-            self.create_file(false);
+            self.create_doc(false);
         }
 
         // Ctrl-S to save current tab.
