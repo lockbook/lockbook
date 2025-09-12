@@ -36,6 +36,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
         open_file(wsHandle, uuid, false)
         drawImmediately()
     }
+    
+    func createDocAt(parent: UUID, drawing: Bool) {
+        let parent = CUuid(_0: parent.uuid)
+        create_doc_at(wsHandle, parent, drawing)
+        setNeedsDisplay(self.frame)
+    }
 
     func requestSync() {
         request_sync(wsHandle)

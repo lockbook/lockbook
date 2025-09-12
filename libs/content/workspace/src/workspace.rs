@@ -586,9 +586,9 @@ impl Workspace {
         }
     }
 
-    pub fn create_file_at(&mut self, is_drawing: bool, parent: Uuid) {
+    pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
         let file_format = if is_drawing { "svg" } else { "md" };
-        let new_file = NameComponents::from(&format!("untitled.{file_format}"))
+        let new_file = NameComponents::from(&format!("UNTITLED.{file_format}"))
             .next_in_children(self.core.get_children(&parent).unwrap());
 
         let result = self
@@ -600,7 +600,7 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn create_file(&mut self, is_drawing: bool) {
+    pub fn create_doc(&mut self, is_drawing: bool) {
         let focused_parent = self
             .focused_parent
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
@@ -612,7 +612,7 @@ impl Workspace {
             focused_parent.id
         };
 
-        self.create_file_at(is_drawing, focused_parent);
+        self.create_doc_at(is_drawing, focused_parent);
     }
 
     /// Opens or focuses the tab for the mind map

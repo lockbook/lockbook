@@ -949,6 +949,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         open_file(wsHandle, uuid, false)
         setNeedsDisplay(self.frame)
     }
+    
+    func createDocAt(parent: UUID, drawing: Bool) {
+        let parent = CUuid(_0: parent.uuid)
+        create_doc_at(wsHandle, parent, drawing)
+        setNeedsDisplay(self.frame)
+    }
 
     func closeDoc(id: UUID) {
         close_tab(wsHandle, id.uuidString)

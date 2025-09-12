@@ -31,10 +31,11 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
 }
 
 #[no_mangle]
-pub extern "C" fn new_file(obj: *mut c_void, parent: CUuid, drawing: bool) {
+pub extern "C" fn create_doc_at(obj: *mut c_void, parent: CUuid, is_drawing: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let id = id.into();
-    
+    let parent = parent.into();
+
+    obj.workspace.create_doc_at(is_drawing, parent);
 }
 
 #[no_mangle]
