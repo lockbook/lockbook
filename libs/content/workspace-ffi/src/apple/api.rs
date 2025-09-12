@@ -31,6 +31,13 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_file: bool) {
 }
 
 #[no_mangle]
+pub extern "C" fn new_file(obj: *mut c_void, parent: CUuid, drawing: bool) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id = id.into();
+    
+}
+
+#[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.tasks.queue_sync();
