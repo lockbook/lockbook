@@ -13,3 +13,5 @@ Most linux distros require the installation of the following packages:
 
 Steps:
 - In `/clients/linux` run `cargo build`
+
+Nix users can start a `nix-shell` in the `clients/linux` directory which will configure all the dependencies.

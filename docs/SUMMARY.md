@@ -1,4 +1,4 @@
-[Introduction](README.md)
+[Welcome!](book.md)
 [Values](values.md)
 
 # Using Lockbook
@@ -21,6 +21,7 @@
 
 - [How to contribute to Lockbook](contrib-motivation.md)
   - [As a user](contrib-user.md)
+    - [Bug Reporting](bug-reporting.md)
   - [As a hobbyist](contrib-hobbyist.md)
   - [As a programmer]()
 

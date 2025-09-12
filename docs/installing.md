@@ -21,6 +21,7 @@ Being open source, you can always build Lockbook [yourself](building.md).
 - [Snap](https://snapcraft.io/lockbook-desktop): `snap install lockbook-desktop`
 
 ## CLI
+- [Cargo](https://crates.io/crates/lockbook): `cargo install lockbook`
 - [Nix](https://search.nixos.org/packages?channel=25.05&show=lockbook&from=0&size=50&sort=relevance&type=packages&query=lockbook): `nix-shell -p lockbook`
 - [AUR](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`
 - `brew`: `brew tap lockbook/lockbook && brew install lockbook`
