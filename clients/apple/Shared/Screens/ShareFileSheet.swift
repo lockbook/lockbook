@@ -206,7 +206,7 @@ struct ShareFileTextField: ViewModifier {
     Color.accentColor
         .optimizedSheet(
             item: $file,
-            constrainedSheetHeight: $sheetHeight,
+            compactSheetHeight: $sheetHeight,
             width: ShareFileSheet.FORM_WIDTH,
             height: ShareFileSheet.FORM_HEIGHT,
             presentedContent: { item in

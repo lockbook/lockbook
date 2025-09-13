@@ -3,11 +3,11 @@ import SwiftWorkspace
 
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
+    
     @StateObject var homeState = HomeState()
     @StateObject var filesModel = FilesViewModel()
     @StateObject var settingsModel = SettingsViewModel()
-            
+    
     var body: some View {
         Group {
             if horizontalSizeClass == .compact {
@@ -19,7 +19,6 @@ struct HomeView: View {
                             sidebar
                         }
                     })
-                    .environment(\.isConstrainedLayout, true)
                 }
             } else {
                 PathSearchContainerView(filesModel: filesModel) {
@@ -32,7 +31,6 @@ struct HomeView: View {
                             detail
                         }
                     })
-                    .environment(\.isConstrainedLayout, false)
                 }
             }
         }
@@ -85,7 +83,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-        
+    
     var body: some View {
         if let error = filesModel.error {
             Text(error)

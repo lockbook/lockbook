@@ -29,6 +29,7 @@ struct TabsSheet: View {
             ForEach(info, id: \.id) { info in
                 Button(action: {
                     AppState.workspaceState.requestOpenDoc(info.id)
+                    dismiss()
                 }, label: {
                     HStack {
                         Button(action: {
@@ -94,7 +95,7 @@ struct TabsSheet: View {
     Color.accentColor
         .optimizedSheet(
             item: $sheetInfo,
-            constrainedSheetHeight: .constant(100),
+            compactSheetHeight: .constant(100),
             presentedContent: { item in
                 TabsSheet(
                     info: item.info

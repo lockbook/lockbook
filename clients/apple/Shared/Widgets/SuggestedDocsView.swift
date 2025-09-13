@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftWorkspace
 
 struct SuggestedDocsView: View {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @EnvironmentObject var homeState: HomeState
     @StateObject var model: SuggestedDocsViewModel
@@ -23,8 +23,8 @@ struct SuggestedDocsView: View {
                     if let suggestedDocs = model.suggestedDocs {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
-                                if isConstrainedLayout {
-                                    homeState.constrainedSidebarState = .closed
+                                if horizontalSizeClass == .compact {
+                                    homeState.compactSidebarState = .closed
                                 }
                                 
                                 AppState.workspaceState.requestOpenDoc(info.id)
