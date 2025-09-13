@@ -77,6 +77,7 @@ class ShareReceiverActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityShareReceiverBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setUpView()
 
         when (intent?.action) {
             Intent.ACTION_SEND_MULTIPLE -> {
@@ -137,6 +138,10 @@ class ShareReceiverActivity : AppCompatActivity() {
                     }
                 )
             }
+        }
+
+        binding.cancelButton.setOnClickListener{
+            finish()
         }
     }
 
