@@ -4,6 +4,7 @@ import android.app.Application
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -31,7 +32,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
-    private val highlightColor = ResourcesCompat.getColor(getContext().resources, R.color.md_theme_inversePrimary, null)
+    private val highlightColor = ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {

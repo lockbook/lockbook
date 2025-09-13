@@ -201,7 +201,7 @@ class CopyKeyFragment : Fragment() {
 
     private fun createColoredNumberedList(words: List<String>, startIndex: Int = 1): SpannableStringBuilder {
         val builder = SpannableStringBuilder()
-        val numberColor = ContextCompat.getColor(requireContext(), R.color.md_theme_secondary)
+        val numberColor = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
 
         words.forEachIndexed { i, word ->
             val numberText = "${startIndex + i}. "
