@@ -840,7 +840,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     var docHeaderSize: Double {
         get {
-            !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
+            return !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
     }
     
