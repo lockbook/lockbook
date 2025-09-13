@@ -13,7 +13,7 @@ class HomeState: ObservableObject {
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
     
-    @Published var constrainedSidebarState: ConstrainedSidebarState = .closed
+    @Published var compactSidebarState: CompactSidebarState = .closed
     @Published var showTabsSheet: Bool = false
     @Published var showOutOfSpaceAlert: Bool = false
     
@@ -25,7 +25,7 @@ class HomeState: ObservableObject {
     
     func expandSidebarIfNoDocs() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.constrainedSidebarState = .openPartial
+            self.compactSidebarState = .openPartial
         }
     }
     
@@ -36,7 +36,7 @@ class HomeState: ObservableObject {
     }
 }
 
-public enum ConstrainedSidebarState {
+public enum CompactSidebarState {
     case closed
     case openPartial
 }

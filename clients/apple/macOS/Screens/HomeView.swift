@@ -81,7 +81,7 @@ struct SidebarView: View {
             }
             .formStyle(.columns)
             .selectFolderSheets()
-            .fileOpSheets(constrainedSheetHeight: .constant(0))
+            .fileOpSheets(compactSheetHeight: .constant(0))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: {

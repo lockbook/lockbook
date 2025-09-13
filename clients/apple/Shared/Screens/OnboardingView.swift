@@ -276,7 +276,7 @@ private struct ImportAccountView: View {
     @State var showAPIURLSheet: Bool = false
     @State var showQRScanner: Bool = false
     
-    @State var constrainedSheetHeight: CGFloat = 0
+    @State var compactSheetHeight: CGFloat = 0
     
     var body: some View {
         VStack(alignment: .leading) {
@@ -356,7 +356,7 @@ private struct ImportAccountView: View {
     var apiURLSheet: some View {
         #if os(iOS)
         EmptyView()
-            .optimizedSheet(isPresented: $showAPIURLSheet, constrainedSheetHeight: $constrainedSheetHeight, width: 500, height: 160) {
+            .optimizedSheet(isPresented: $showAPIURLSheet, compactSheetHeight: $compactSheetHeight, width: 500, height: 160) {
                 SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
             }
         #else
