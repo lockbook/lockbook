@@ -3,7 +3,7 @@
 buildscript {
     ext {
         test_runner_version = '1.4.0'
-        gradle_version = '8.7.2'
+        gradle_version = '8.12.2'
         core_ktx_version = '1.7.0'
         navigation_version = '2.4.1'
         kotlin_gradle_version = '1.7.1'

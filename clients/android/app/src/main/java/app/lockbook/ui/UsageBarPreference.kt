@@ -53,13 +53,13 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         val roundedProgress = usage.serverUsage.exact / ROUND_DECIMAL_PLACES
 
         usageBar.max = roundedDataCap.toInt()
-        usageBar.progress = roundedProgress.toInt()
+        usageBar.progress = roundedProgress.toInt() * 100
 
         val usageRatio = roundedProgress.toFloat() / roundedDataCap
         val barColorId = when {
-            usageRatio < 0.8 -> R.color.md_theme_primary
-            usageRatio < 0.9 -> R.color.md_theme_progressWarning
-            else -> R.color.md_theme_error
+            usageRatio < 0.8 -> android.R.color.system_accent1_200
+            usageRatio < 0.9 -> android.R.color.system_error_200
+            else -> android.R.color.system_error_500
         }
 
         val usageBarColor = ContextCompat.getColor(context, barColorId)
