@@ -16,7 +16,7 @@ class FilesViewModel: ObservableObject {
     var error: String? = nil
     
     private var cancellables: Set<AnyCancellable> = []
-        
+    
     init() {
         AppState.lb.events.$metadataUpdated.sink { [weak self] status in
             self?.loadFiles()
@@ -48,7 +48,7 @@ class FilesViewModel: ObservableObject {
         
         explicitly.insert(file)
         implicitly.insert(file)
-                
+        
         if file.type == .folder {
             var childrenToAdd = self.childrens[file.id] ?? []
             
@@ -80,7 +80,7 @@ class FilesViewModel: ObservableObject {
         if !implicitly.contains(file) {
             return
         }
-    
+        
         explicitly.remove(file)
         implicitly.remove(file)
         
@@ -168,7 +168,7 @@ class FilesViewModel: ObservableObject {
                 case .success(let files):
                     self.idsToFiles = [:]
                     self.childrens = [:]
-
+                    
                     files.forEach { file in
                         self.idsToFiles[file.id] = file
                         
@@ -199,30 +199,7 @@ class FilesViewModel: ObservableObject {
     }
     
     func createDoc(parent: UUID, isDrawing: Bool) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let ext = isDrawing ? ".svg" : ".md"
-            var attempt = 0
-            var created: File? = nil
-            
-            while created == nil {
-                let name = "untitled\(attempt != 0 ? "-\(attempt)" : "")\(ext)"
-
-                switch AppState.lb.createFile(name: name, parent: parent, fileType: .document) {
-                case .success(let file):
-                    created = file
-                    AppState.workspaceState.requestOpenDoc(file.id)
-                case .failure(let error):
-                    if error.code == .pathTaken {
-                        attempt += 1
-                    } else {
-                        return
-                    }
-                }
-            }
-            
-            // Optimization: Can add the new file to our caches ourselves
-            self.loadFiles()
-        }
+        AppState.workspaceState.createDocAtRequested = (parent, isDrawing)
     }
     
     func deleteFiles(files: [File]) {

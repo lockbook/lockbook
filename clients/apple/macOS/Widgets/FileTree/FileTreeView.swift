@@ -78,8 +78,19 @@ struct FileTreeView: NSViewRepresentable {
                     self?.delegate.supressNextOpenDoc = false
                     return
                 }
-                                
-                self?.selectAndReveal(selected: openDoc, treeView: treeView)
+                
+                guard let openDoc else {
+                    return
+                }
+                
+                guard let file = filesModel.idsToFiles[openDoc] else {
+                    return
+                }
+                
+                DispatchQueue.main.async {
+                    AppState.workspaceState.selectedFolder = file.parent
+                    self?.selectAndReveal(selected: openDoc, treeView: treeView)
+                }
             }
             .store(in: &cancellables)
             
@@ -314,6 +325,7 @@ class FileTreeOutlineView: NSOutlineView {
             
             AppState.workspaceState.selectedFolder = file.id
         } else {
+            AppState.workspaceState.selectedFolder = file.id
             AppState.workspaceState.requestOpenDoc(file.id)
         }
     }
