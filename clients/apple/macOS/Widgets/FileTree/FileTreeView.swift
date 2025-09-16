@@ -78,7 +78,6 @@ struct FileTreeView: NSViewRepresentable {
                     self?.delegate.supressNextOpenDoc = false
                     return
                 }
-                                
                 
                 guard let openDoc else {
                     return
@@ -91,7 +90,6 @@ struct FileTreeView: NSViewRepresentable {
                 DispatchQueue.main.async {
                     AppState.workspaceState.selectedFolder = file.parent
                     self?.selectAndReveal(selected: openDoc, treeView: treeView)
-
                 }
             }
             .store(in: &cancellables)
@@ -327,7 +325,7 @@ class FileTreeOutlineView: NSOutlineView {
             
             AppState.workspaceState.selectedFolder = file.id
         } else {
-            // AppState.workspaceState.selectedFolder = file.id
+            AppState.workspaceState.selectedFolder = file.id
             AppState.workspaceState.requestOpenDoc(file.id)
         }
     }
