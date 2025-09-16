@@ -105,14 +105,7 @@ impl<'ast> Editor {
             self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
         }
         if !pre_children.is_empty() {
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                pre_children,
-                self.text_format(node),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node), false);
         }
         self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
         if !post_children.is_empty() {
