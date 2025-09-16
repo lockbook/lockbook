@@ -8,7 +8,7 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
 
 impl<'ast> Editor {
@@ -77,7 +77,7 @@ impl<'ast> Editor {
             if is_opening_fence || is_closing_fence {
                 if reveal {
                     result += ROW_SPACING;
-                    result += self.height_text_line(
+                    result += self.height_section(
                         &mut Wrap::new(width),
                         node_line,
                         self.text_format_syntax(node),
@@ -124,7 +124,7 @@ impl<'ast> Editor {
                 if reveal {
                     top_left.y += ROW_SPACING;
                     let mut wrap = Wrap::new(width);
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -174,7 +174,7 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                result += self.height_text_line(
+                result += self.height_section(
                     &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
                     node_line,
                     self.text_format_syntax(node),
@@ -217,7 +217,7 @@ impl<'ast> Editor {
             if reveal {
                 let node_line = self.node_line(node, line);
                 let mut wrap = Wrap::new(width);
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -329,11 +329,11 @@ impl<'ast> Editor {
             for (style, region) in regions {
                 text_format.color =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
-                wrap.offset += self.span_text_line(&wrap, region, text_format.clone());
+                wrap.offset += self.span_section(&wrap, region, text_format.clone());
             }
         } else {
             // no syntax highlighting
-            wrap.offset += self.span_text_line(&wrap, code_line, self.text_format(node));
+            wrap.offset += self.span_section(&wrap, code_line, self.text_format(node));
         }
 
         wrap.height()
@@ -407,7 +407,7 @@ impl<'ast> Editor {
 
             let mut text_format = self.text_format(node);
             if regions.is_empty() {
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -420,11 +420,11 @@ impl<'ast> Editor {
                 text_format.color =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
 
-                self.show_text_line(ui, top_left, &mut wrap, region, text_format.clone(), false);
+                self.show_section(ui, top_left, &mut wrap, region, text_format.clone(), false);
             }
         } else {
             // no syntax highlighting
-            self.show_text_line(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);

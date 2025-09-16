@@ -3,7 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING};
 
 impl<'ast> Editor {
@@ -25,18 +25,18 @@ impl<'ast> Editor {
         {
             let reveal = node_line.intersects(&self.buffer.current.selection, true);
             if reveal {
-                wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, pre_node, self.text_format_syntax(node));
                 wrap.offset +=
-                    self.span_text_line(&wrap, pre_children, self.text_format_syntax(node));
+                    self.span_section(&wrap, pre_children, self.text_format_syntax(node));
             }
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
                 wrap.offset +=
-                    self.span_text_line(&wrap, post_children, self.text_format_syntax(node));
-                wrap.offset += self.span_text_line(&wrap, post_node, self.text_format_syntax(node));
+                    self.span_section(&wrap, post_children, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, post_node, self.text_format_syntax(node));
             }
         } else {
-            wrap.offset += self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
+            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
         }
 
         images_height + wrap.height()
@@ -66,7 +66,7 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if reveal {
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -74,7 +74,7 @@ impl<'ast> Editor {
                     self.text_format_syntax(node),
                     false,
                 );
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -85,7 +85,7 @@ impl<'ast> Editor {
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if reveal {
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -93,7 +93,7 @@ impl<'ast> Editor {
                     self.text_format_syntax(node),
                     false,
                 );
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -103,7 +103,7 @@ impl<'ast> Editor {
                 );
             }
         } else {
-            self.show_text_line(ui, top_left, &mut wrap, node_line, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format(node), false);
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);

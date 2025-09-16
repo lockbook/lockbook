@@ -3,7 +3,7 @@ use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 pub(crate) mod code;
 pub(crate) mod emph;
@@ -229,7 +229,7 @@ impl<'ast> Editor {
 
     pub fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(prefix_range) = self.prefix_range(node) {
-            self.span_text_line(wrap, prefix_range, self.text_format_syntax(node))
+            self.span_section(wrap, prefix_range, self.text_format_syntax(node))
         } else {
             0.
         }
@@ -248,7 +248,7 @@ impl<'ast> Editor {
 
     pub fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(postfix_range) = self.postfix_range(node) {
-            self.span_text_line(wrap, postfix_range, self.text_format_syntax(node))
+            self.span_section(wrap, postfix_range, self.text_format_syntax(node))
         } else {
             0.
         }
@@ -292,7 +292,7 @@ impl<'ast> Editor {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
                 tmp_wrap.offset +=
-                    self.span_text_line(wrap, node_range, self.text_format_syntax(node))
+                    self.span_section(wrap, node_range, self.text_format_syntax(node))
             }
         }
 
@@ -310,7 +310,7 @@ impl<'ast> Editor {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
                     if reveal {
-                        self.show_text_line(
+                        self.show_section(
                             ui,
                             top_left,
                             wrap,
@@ -323,7 +323,7 @@ impl<'ast> Editor {
                         // representing the beginning of the prefix, so that clicking
                         // at the start of the circumfix places the cursor before
                         // the syntax
-                        self.show_text_line(
+                        self.show_section(
                             ui,
                             top_left,
                             wrap,
@@ -338,7 +338,7 @@ impl<'ast> Editor {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
                     if reveal {
-                        self.show_text_line(
+                        self.show_section(
                             ui,
                             top_left,
                             wrap,
@@ -351,7 +351,7 @@ impl<'ast> Editor {
                         // representing the end of the postfix, so that clicking
                         // at the end of the circumfix places the cursor after
                         // the syntax
-                        self.show_text_line(
+                        self.show_section(
                             ui,
                             top_left,
                             wrap,
@@ -365,7 +365,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,

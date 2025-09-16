@@ -3,7 +3,7 @@ use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT};
 
 impl<'ast> Editor {
@@ -27,7 +27,7 @@ impl<'ast> Editor {
                 if line_idx != first_line_idx {
                     result += BLOCK_SPACING;
                 }
-                result += self.height_text_line(
+                result += self.height_section(
                     &mut Wrap::new(self.width(node)),
                     line_content,
                     self.text_format_syntax(node),
@@ -65,7 +65,7 @@ impl<'ast> Editor {
                 }
 
                 let mut wrap = Wrap::new(self.width(node));
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
