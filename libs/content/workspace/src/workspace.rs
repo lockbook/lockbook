@@ -590,8 +590,12 @@ impl Workspace {
     pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
         let file_format = if is_drawing { "svg" } else { "md" };
         let date = Local::now().format("%Y-%m-%d");
-        let new_file = NameComponents::from(&format!("{date}.{file_format}"))
-            .next_in_children(self.core.get_children(&parent).unwrap());
+        let mut new_file = NameComponents {
+            name: date.to_string(),
+            variant: None,
+            extension: Some(file_format.into()),
+        };
+        new_file.next_in_children(self.core.get_children(&parent).unwrap());
 
         let result = self
             .core
