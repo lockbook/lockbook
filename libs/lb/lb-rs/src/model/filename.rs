@@ -71,12 +71,12 @@ impl NameComponents {
     }
 
     pub fn next_in_children(&mut self, children: Vec<File>) {
-        if children.iter().find(|f| f.name == self.to_name()).is_none() {
+        if !children.iter().any(|f| f.name == self.to_name()) {
             return;
         }
 
         self.variant = Some(self.variant.unwrap_or_default() + 1);
-        return self.next_in_children(children);
+        self.next_in_children(children);
     }
 
     pub fn to_name(&self) -> String {
@@ -91,10 +91,6 @@ impl NameComponents {
 
 #[cfg(test)]
 mod unit_tests {
-    use uuid::Uuid;
-
-    use crate::model::file::File;
-    use crate::model::file_metadata::FileType;
     use crate::model::filename::NameComponents;
 
     fn from_components(
