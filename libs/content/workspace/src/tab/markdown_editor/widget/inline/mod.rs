@@ -179,7 +179,7 @@ impl<'ast> Editor {
             NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
                 let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
                     || ui.ctx().os() == egui::os::OperatingSystem::IOS;
-                let clickable = if is_mobile { true } else { ui.input(|i| i.modifiers.command) };
+                let clickable = if is_mobile { false } else { ui.input(|i| i.modifiers.command) };
                 Sense { click: clickable, drag: false, focusable: false }
             }
             _ => {

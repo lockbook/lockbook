@@ -727,10 +727,16 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     });
 
     fonts.font_data.insert("material_icons".into(), {
-        let mut font = FontData::from_static(icons);
-        font.tweak.y_offset_factor = -0.1;
-        font.tweak.scale = base_scale;
-        font
+        FontData {
+            tweak: FontTweak { y_offset_factor: -0.1, scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
+    });
+    fonts.font_data.insert("icons".into(), {
+        FontData {
+            tweak: FontTweak { y_offset_factor: 0., scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
     });
 
     fonts
@@ -754,6 +760,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("MonoSub")), vec!["mono_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Icons")), vec!["icons".into()]);
 
     fonts
         .families

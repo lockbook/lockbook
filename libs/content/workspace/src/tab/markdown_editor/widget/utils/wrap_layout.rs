@@ -117,9 +117,7 @@ impl Editor {
     /// Returns the span of a single section that's not from the document's
     /// source text in a wrap layout, which includes space added to the end of a
     /// row when text wraps.
-    pub fn span_override_section(
-        &self, wrap: &mut Wrap, text: &str, text_format: TextFormat,
-    ) -> f32 {
+    pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: TextFormat) -> f32 {
         self.text_mid_span(wrap, Default::default(), text, text_format)
     }
 
@@ -174,7 +172,7 @@ impl Editor {
                 i as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
             ));
 
-            let response = ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), sense);
+            let response = ui.allocate_rect(rect.expand2(Vec2::new(2., 1.)), sense);
 
             hovered |= response.hovered();
             clicked |= response.clicked();
@@ -320,32 +318,6 @@ impl Editor {
         } else {
             0.
         }
-    }
-
-    /// Returns the span of a link button in a wrap layout, which includes
-    /// space added to the end of a row when it wraps.
-    pub fn span_link_button(
-        &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
-    ) -> f32 {
-        self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format) // todo
-    }
-
-    /// Show a link button, a dedicated button to open a link that appears
-    /// inline alongside the link.
-    pub fn show_link_button(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
-    ) -> Response {
-        self.show_override_section(
-            ui,
-            top_left,
-            wrap,
-            range,
-            text_format,
-            spoiler,
-            None,
-            Sense { click: false, drag: false, focusable: false },
-        )
     }
 }
 
