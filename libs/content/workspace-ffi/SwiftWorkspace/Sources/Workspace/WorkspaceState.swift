@@ -19,7 +19,6 @@ public class WorkspaceState: ObservableObject {
     }
      
     // From workspace
-    @Published public var selectedFolder: UUID? = nil
     @Published public var syncing: Bool = false
     @Published public var clientUpgrade: Bool = false
     @Published public var outOfSpace: Bool = false
@@ -34,8 +33,10 @@ public class WorkspaceState: ObservableObject {
     @Published public var urlOpened: URL? = nil
     
     // To workspace
+    @Published public var selectedFolder: UUID? = nil
     @Published public var syncRequested: Bool = false
     @Published public var openDocRequested: UUID? = nil
+    @Published public var createDocAtRequested: (UUID, Bool)? = nil
     @Published public var closeAllTabsRequested: Bool = false
     @Published public var closeDocRequested: UUID? = nil
     @Published public var fileOpCompleted: WSFileOpCompleted? = nil

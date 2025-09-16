@@ -57,6 +57,14 @@ public struct UIWS: UIViewRepresentable {
             }
         }
         
+        
+        if let (parent, drawing) = workspaceState.createDocAtRequested {
+            uiView.mtkView.createDocAt(parent: parent, drawing: drawing)
+            DispatchQueue.main.async {
+                workspaceState.createDocAtRequested = nil
+            }
+        }
+        
         if workspaceState.closeAllTabsRequested {
             DispatchQueue.main.async {
                 workspaceState.closeAllTabsRequested = false
@@ -234,6 +242,13 @@ public struct NSWS: NSViewRepresentable {
         if let id = workspaceState.openDocRequested {
             nsView.openFile(id: id)
             workspaceState.openDocRequested = nil
+        }
+        
+        if let (parent, drawing) = workspaceState.createDocAtRequested {
+            nsView.createDocAt(parent: parent, drawing: drawing)
+            DispatchQueue.main.async {
+                workspaceState.createDocAtRequested = nil
+            }
         }
         
         if workspaceState.shouldFocus {
