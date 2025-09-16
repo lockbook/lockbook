@@ -46,6 +46,34 @@ class SuggestedDocsViewModel: ObservableObject {
             
         }
     }
+    
+    func clearSuggestedDoc(id: UUID) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = AppState.lb.clearSuggestedId(id: id)
+            
+            switch res {
+            case .success:
+                self.loadSuggestedDocs()
+                break
+            case .failure(_):
+                print("FAILURE WHILE CLEARING SUGGESTED DOCS IGNORED")
+            }
+        }
+    }
+    
+    func clearSuggestedDocs() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = AppState.lb.clearSuggestedDocs()
+            
+            switch res {
+            case .success:
+                self.loadSuggestedDocs()
+                break
+            case .failure(_):
+                print("FAILURE WHILE CLEARING SUGGESTED DOCS IGNORED")
+            }
+        }
+    }
 }
 
 struct SuggestedDocInfo: Identifiable {
