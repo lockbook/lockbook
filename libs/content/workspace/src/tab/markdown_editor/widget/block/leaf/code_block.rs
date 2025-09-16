@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
@@ -17,17 +18,23 @@ impl<'ast> Editor {
         let parent_row_height = self
             .ctx
             .fonts(|fonts| fonts.row_height(&parent_text_format.font_id));
+
+        let family =
+            if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSuper")) {
+                FontFamily::Name(Arc::from("MonoSuper"))
+            } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSub")) {
+                FontFamily::Name(Arc::from("MonoSub"))
+            } else {
+                FontFamily::Monospace
+            };
+
         let monospace_row_height = self.ctx.fonts(|fonts| {
-            fonts
-                .row_height(&FontId { family: FontFamily::Monospace, ..parent_text_format.font_id })
+            fonts.row_height(&FontId { family: family.clone(), ..parent_text_format.font_id })
         });
         let monospace_row_height_preserving_size =
             parent_text_format.font_id.size * parent_row_height / monospace_row_height;
         TextFormat {
-            font_id: FontId {
-                size: monospace_row_height_preserving_size,
-                family: FontFamily::Monospace,
-            },
+            font_id: FontId { size: monospace_row_height_preserving_size, family },
             line_height: Some(parent_row_height),
             ..parent_text_format
         }

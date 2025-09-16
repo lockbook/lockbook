@@ -12,11 +12,16 @@ impl<'ast> Editor {
     pub fn text_format_subscript(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
         let parent_row_height = self.row_height(parent);
+
+        let family = if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Bold")) {
+            FontFamily::Name(Arc::from("BoldSub"))
+        } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Mono")) {
+            FontFamily::Name(Arc::from("MonoSub"))
+        } else {
+            FontFamily::Name(Arc::from("SansSub"))
+        };
         TextFormat {
-            font_id: FontId {
-                family: FontFamily::Name(Arc::from("Sub")),
-                ..parent_text_format.font_id
-            },
+            font_id: FontId { family, ..parent_text_format.font_id },
             line_height: Some(parent_row_height),
             ..parent_text_format
         }

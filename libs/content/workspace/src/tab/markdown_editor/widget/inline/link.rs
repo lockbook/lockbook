@@ -16,6 +16,10 @@ impl<'ast> Editor {
         }
     }
 
+    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> TextFormat {
+        todo!()
+    }
+
     pub fn span_link(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
