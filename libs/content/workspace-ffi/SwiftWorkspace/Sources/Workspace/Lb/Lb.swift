@@ -45,6 +45,8 @@ public protocol LbAPI {
     func getLastSyncedHumanString() -> Result<String, LbError>
     func getTimestampHumanString(timestamp: Int64) -> String
     func suggestedDocs() -> Result<[UUID], LbError>
+    func clearSuggestedId(id: UUID) -> Result<Void, LbError>
+    func clearSuggestedDocs() -> Result<Void, LbError>
     func getUsage() -> Result<UsageMetrics, LbError>
     func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError>
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
@@ -513,6 +515,29 @@ public class Lb: LbAPI {
         return .success(Array(UnsafeBufferPointer(start: res.ids, count: Int(res.len))).toUUIDs())
     }
     
+    public func clearSuggestedId(id: UUID) -> Result<Void, LbError> {
+        let err = lb_clear_suggested_id(lb, id.toLbUuid())
+        
+        if let err = err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+    
+    public func clearSuggestedDocs() -> Result<Void, LbError> {
+        let err = lb_clear_suggested(lb)
+        
+        if let err = err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+    
+    
     public func getUsage() -> Result<UsageMetrics, LbError> {
         let res = lb_get_usage(lb)
         defer { lb_free_usage_metrics(res) }
@@ -659,6 +684,7 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
+    
     @Published public var status: Status = Status()
     public var statusPublisher: Published<Status>.Publisher { $status }
     
@@ -728,6 +754,8 @@ public class MockLb: LbAPI {
     public func getLastSyncedHumanString() -> Result<String, LbError> { .success("You synced a second ago.") }
     public func getTimestampHumanString(timestamp: Int64) -> String { "1 second ago." }
     public func suggestedDocs() -> Result<[UUID], LbError> { .success([file1.id, file2.id, file3.id]) }
+    public func clearSuggestedId(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func clearSuggestedDocs() -> Result<Void, LbError> { .success(()) }
     public func getUsage() -> Result<UsageMetrics, LbError> { .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B")) }
     public func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError> { .success(UncompressedUsageMetric(exact: 100, humanMsg: "100B")) }
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
