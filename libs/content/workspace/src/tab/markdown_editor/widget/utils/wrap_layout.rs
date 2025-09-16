@@ -272,6 +272,7 @@ impl Editor {
         Response { clicked, hovered }
     }
 
+    /// Returns the span of pre-text padding for inline code, spoilers, etc.
     pub fn text_pre_span(&self, wrap: &Wrap, text_format: TextFormat) -> f32 {
         let padded = text_format.background != Default::default();
         if padded && wrap.row_offset() > 0.5 {
@@ -281,6 +282,7 @@ impl Editor {
         }
     }
 
+    /// Returns the span from the text itself of a single section.
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: TextFormat,
     ) -> f32 {
@@ -303,6 +305,7 @@ impl Editor {
         tmp_wrap.offset - (wrap.offset + pre_span)
     }
 
+    /// Returns the span of post-text padding for inline code, spoilers, etc.
     pub fn text_post_span(
         &self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: TextFormat,
     ) -> f32 {
