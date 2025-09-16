@@ -14,7 +14,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     // todo this will probably just become us hanging on to the last output
     var currentOpenDoc: UUID? = nil
-    var currentSelectedFolder: UUID? = nil
 
     var redrawTask: DispatchWorkItem? = nil
 
