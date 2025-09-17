@@ -1,6 +1,6 @@
 [package]
 name = "lb-fs"
-version = "0.9.30"
+version = "0.9.31"
 edition = "2024"
 license = "BSD-3-Clause"
 description = "A Virtual file system implementation for lockbook.net."

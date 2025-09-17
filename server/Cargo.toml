@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-server"
-version = "0.9.30"
+version = "0.9.31"
 edition = "2021"
 build = "build.rs"
 description = "Lockbook's server, exposed as a library for testing."
