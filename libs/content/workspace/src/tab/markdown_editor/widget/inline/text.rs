@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn span_text(
@@ -37,7 +37,7 @@ impl<'ast> Editor {
         let sense = self.sense_inline(ui, node);
 
         if !node_range.is_empty() {
-            self.show_override_text_line(
+            self.show_override_section(
                 ui,
                 top_left,
                 wrap,

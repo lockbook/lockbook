@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 
-pub(crate) mod text_layout;
+pub(crate) mod wrap_layout;
 
 impl<'ast> Editor {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time

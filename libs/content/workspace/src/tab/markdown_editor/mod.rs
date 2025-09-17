@@ -627,6 +627,15 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
 
+    let mono_scale = 0.9 * base_scale;
+    let mono_y_offset_factor = 0.1;
+    let mono_baseline_offset_factor = -0.1;
+
+    let super_y_offset_factor = -1. / 4.;
+    let sub_y_offset_factor = 1. / 4.;
+    let super_scale = 3. / 4.;
+    let sub_scale = 3. / 4.;
+
     fonts.font_data.insert(
         "sans".to_string(),
         FontData {
@@ -637,9 +646,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts.font_data.insert("mono".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: 0.1,
-                scale: 0.9 * base_scale,
-                baseline_offset_factor: -0.1,
+                y_offset_factor: mono_y_offset_factor,
+                scale: mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
@@ -652,31 +661,82 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             ..FontData::from_static(bold)
         },
     );
-    fonts.font_data.insert("super".into(), {
+
+    fonts.font_data.insert("sans_super".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: -1. / 4.,
-                scale: (3. / 4.) * base_scale,
+                y_offset_factor: super_y_offset_factor,
+                scale: super_scale * base_scale,
                 ..Default::default()
             },
             ..FontData::from_static(sans)
         }
     });
-    fonts.font_data.insert("sub".into(), {
+    fonts.font_data.insert("bold_super".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: 1. / 4.,
-                scale: (3. / 4.) * base_scale,
+                y_offset_factor: super_y_offset_factor,
+                scale: super_scale * base_scale,
+                ..Default::default()
+            },
+            ..FontData::from_static(bold)
+        }
+    });
+    fonts.font_data.insert("mono_super".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
+                scale: super_scale * mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
+                ..Default::default()
+            },
+            ..FontData::from_static(mono)
+        }
+    });
+
+    fonts.font_data.insert("sans_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor,
+                scale: sub_scale * base_scale,
                 ..Default::default()
             },
             ..FontData::from_static(sans)
         }
     });
+    fonts.font_data.insert("bold_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor,
+                scale: sub_scale * base_scale,
+                ..Default::default()
+            },
+            ..FontData::from_static(bold)
+        }
+    });
+    fonts.font_data.insert("mono_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
+                scale: sub_scale * mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
+                ..Default::default()
+            },
+            ..FontData::from_static(mono)
+        }
+    });
+
     fonts.font_data.insert("material_icons".into(), {
-        let mut font = FontData::from_static(icons);
-        font.tweak.y_offset_factor = -0.1;
-        font.tweak.scale = base_scale;
-        font
+        FontData {
+            tweak: FontTweak { y_offset_factor: -0.1, scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
+    });
+    fonts.font_data.insert("icons".into(), {
+        FontData {
+            tweak: FontTweak { y_offset_factor: 0., scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
     });
 
     fonts
@@ -684,10 +744,25 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("Super")), vec!["super".into()]);
+        .insert(FontFamily::Name(Arc::from("SansSuper")), vec!["sans_super".into()]);
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("Sub")), vec!["sub".into()]);
+        .insert(FontFamily::Name(Arc::from("BoldSuper")), vec!["bold_super".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("MonoSuper")), vec!["mono_super".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("SansSub")), vec!["sans_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("BoldSub")), vec!["bold_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("MonoSub")), vec!["mono_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Icons")), vec!["icons".into()]);
 
     fonts
         .families
