@@ -151,7 +151,7 @@ fn determine_new_version(bump_type: BumpType) -> String {
             current_version[2] = 0;
         }
         BumpType::Patch => current_version[2] += 1,
-        BumpType::Today => return Local::now().format("%y.%m.%d").to_string(),
+        BumpType::Today => return Local::now().format("%y.%-m.%-d").to_string(),
     }
 
     current_version
