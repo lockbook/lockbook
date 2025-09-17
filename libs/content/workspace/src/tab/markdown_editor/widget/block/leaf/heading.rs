@@ -3,7 +3,7 @@ use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, ROW_SPACING};
 
 impl<'ast> Editor {
@@ -53,7 +53,7 @@ impl<'ast> Editor {
                     let mut wrap = Wrap::new(width);
                     wrap.row_height = self.row_height(node);
                     wrap.offset =
-                        self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
+                        self.span_section(&wrap, node_line, self.text_format_syntax(node));
 
                     result += wrap.height();
                     result += ROW_SPACING;
@@ -75,14 +75,12 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if reveal {
-                wrap.offset +=
-                    self.span_text_line(&wrap, indentation, self.text_format_syntax(node));
-                wrap.offset += self.span_text_line(&wrap, prefix, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax(node));
             }
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
-                wrap.offset +=
-                    self.span_text_line(&wrap, postfix_whitespace, self.text_format(node));
+                wrap.offset += self.span_section(&wrap, postfix_whitespace, self.text_format(node));
             }
         } else {
             unreachable!("setext headings never have empty lines");
@@ -122,10 +120,10 @@ impl<'ast> Editor {
             if reveal {
                 if !indentation.is_empty() {
                     wrap.offset +=
-                        self.span_text_line(&wrap, indentation, self.text_format_syntax(node));
+                        self.span_section(&wrap, indentation, self.text_format_syntax(node));
                 }
                 wrap.offset +=
-                    self.span_text_line(&wrap, prefix_range, self.text_format_syntax(node));
+                    self.span_section(&wrap, prefix_range, self.text_format_syntax(node));
             }
 
             if self.infix_range(node).is_some() {
@@ -133,11 +131,11 @@ impl<'ast> Editor {
             }
 
             if reveal && !postfix_range.is_empty() {
-                wrap.offset += self.span_text_line(&wrap, postfix_range, self.text_format(node));
+                wrap.offset += self.span_section(&wrap, postfix_range, self.text_format(node));
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            wrap.offset += self.span_text_line(&wrap, node_line, self.text_format_syntax(node));
+            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
         }
 
         wrap.height()
@@ -178,7 +176,7 @@ impl<'ast> Editor {
                     let mut wrap = Wrap::new(width);
                     wrap.row_height = self.row_height(node);
 
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -214,7 +212,7 @@ impl<'ast> Editor {
         {
             if reveal {
                 if !indentation.is_empty() {
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -224,7 +222,7 @@ impl<'ast> Editor {
                     );
                 }
                 if !prefix.is_empty() {
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -236,7 +234,7 @@ impl<'ast> Editor {
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if reveal && !postfix_whitespace.is_empty() {
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -269,7 +267,7 @@ impl<'ast> Editor {
         {
             if reveal {
                 if !indentation.is_empty() {
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -278,7 +276,7 @@ impl<'ast> Editor {
                         false,
                     );
                 }
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -292,7 +290,7 @@ impl<'ast> Editor {
             }
 
             if reveal && !postfix_range.is_empty() {
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -303,7 +301,7 @@ impl<'ast> Editor {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,

@@ -3,7 +3,7 @@ use egui::{Pos2, Ui};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn block_pre_spacing_height(
@@ -48,11 +48,8 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            result += self.height_text_line(
-                &mut Wrap::new(width),
-                node_line,
-                self.text_format_document(),
-            );
+            result +=
+                self.height_section(&mut Wrap::new(width), node_line, self.text_format_document());
             result += BLOCK_SPACING;
         }
 
@@ -100,7 +97,7 @@ impl<'ast> Editor {
             let node_line = self.node_line(node, line);
 
             let mut wrap = Wrap::new(width);
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,
@@ -145,11 +142,8 @@ impl<'ast> Editor {
 
             result += BLOCK_SPACING;
 
-            result += self.height_text_line(
-                &mut Wrap::new(width),
-                node_line,
-                self.text_format_document(),
-            );
+            result +=
+                self.height_section(&mut Wrap::new(width), node_line, self.text_format_document());
         }
 
         result
@@ -186,7 +180,7 @@ impl<'ast> Editor {
             top_left.y += BLOCK_SPACING;
 
             let mut wrap = Wrap::new(width);
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,

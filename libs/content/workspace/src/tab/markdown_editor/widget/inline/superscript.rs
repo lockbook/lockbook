@@ -6,17 +6,22 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_superscript(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
         let parent_row_height = self.row_height(parent);
+
+        let family = if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Bold")) {
+            FontFamily::Name(Arc::from("BoldSuper"))
+        } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Mono")) {
+            FontFamily::Name(Arc::from("MonoSuper"))
+        } else {
+            FontFamily::Name(Arc::from("SansSuper"))
+        };
         TextFormat {
-            font_id: FontId {
-                family: FontFamily::Name(Arc::from("Super")),
-                ..parent_text_format.font_id
-            },
+            font_id: FontId { family, ..parent_text_format.font_id },
             line_height: Some(parent_row_height),
             ..parent_text_format
         }
@@ -33,7 +38,7 @@ impl<'ast> Editor {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
                     tmp_wrap.offset +=
-                        self.span_text_line(wrap, prefix_range, text_format_syntax.clone());
+                        self.span_section(wrap, prefix_range, text_format_syntax.clone());
                 }
             }
         }
@@ -41,7 +46,7 @@ impl<'ast> Editor {
         if self.node_intersects_selection(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
-                    tmp_wrap.offset += self.span_text_line(wrap, postfix_range, text_format_syntax);
+                    tmp_wrap.offset += self.span_section(wrap, postfix_range, text_format_syntax);
                 }
             }
         }
@@ -60,7 +65,7 @@ impl<'ast> Editor {
         if self.node_intersects_selection(node) {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
-                    response |= self.show_text_line(
+                    response |= self.show_section(
                         ui,
                         top_left,
                         wrap,
@@ -77,7 +82,7 @@ impl<'ast> Editor {
         if self.node_intersects_selection(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
-                    response |= self.show_text_line(
+                    response |= self.show_section(
                         ui,
                         top_left,
                         wrap,

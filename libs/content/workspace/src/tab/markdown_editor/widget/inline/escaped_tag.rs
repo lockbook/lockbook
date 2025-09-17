@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -32,7 +32,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                tmp_wrap.offset += self.span_text_line(wrap, node_range, self.text_format(node))
+                tmp_wrap.offset += self.span_section(wrap, node_range, self.text_format(node))
             }
         }
 
@@ -48,7 +48,7 @@ impl<'ast> Editor {
         if any_children {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
-                    response |= self.show_text_line(
+                    response |= self.show_section(
                         ui,
                         top_left,
                         wrap,
@@ -61,7 +61,7 @@ impl<'ast> Editor {
             response |= self.show_inline_children(ui, node, top_left, wrap, range);
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
-                    response |= self.show_text_line(
+                    response |= self.show_section(
                         ui,
                         top_left,
                         wrap,
@@ -74,7 +74,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,

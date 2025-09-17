@@ -6,7 +6,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
 
 // https://github.github.com/gfm/#list-items
@@ -19,7 +19,7 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            self.height_text_line(
+            self.height_section(
                 &mut Wrap::new(self.width(node) - INDENT),
                 line_content,
                 self.text_format_syntax(node),
@@ -73,7 +73,7 @@ impl<'ast> Editor {
             let line_content = self.line_content(node, line);
 
             let mut wrap = Wrap::new(self.width(node) - INDENT);
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,

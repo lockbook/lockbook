@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT};
 use crate::theme::icons::Icon;
 
@@ -39,7 +39,7 @@ impl<'ast> Editor {
 
                 if line_idx != first_line_idx {
                     result += BLOCK_SPACING;
-                    result += self.height_text_line(
+                    result += self.height_section(
                         &mut Wrap::new(self.width(node)),
                         line_content,
                         self.text_format_syntax(node),
@@ -86,7 +86,7 @@ impl<'ast> Editor {
                     top_left.y += BLOCK_SPACING;
 
                     let mut wrap = Wrap::new(self.width(node) - INDENT);
-                    self.show_text_line(
+                    self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -109,7 +109,7 @@ impl<'ast> Editor {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         if line_content.intersects(&self.buffer.current.selection, true) {
-            result += self.height_text_line(
+            result += self.height_section(
                 &mut Wrap::new(self.width(node) - INDENT),
                 line_content,
                 self.text_format_syntax(node),
@@ -119,11 +119,8 @@ impl<'ast> Editor {
 
             let (_type, title) = self.alert_type_title_ranges(node);
             if node_alert.title.is_some() {
-                result += self.height_text_line(
-                    &mut Wrap::new(title_width),
-                    title,
-                    self.text_format(node),
-                );
+                result +=
+                    self.height_section(&mut Wrap::new(title_width), title, self.text_format(node));
             } else {
                 let type_display_text = match node_alert.alert_type {
                     AlertType::Note => "Note",
@@ -132,7 +129,7 @@ impl<'ast> Editor {
                     AlertType::Warning => "Warning",
                     AlertType::Caution => "Caution",
                 };
-                result += self.height_override_text_line(
+                result += self.height_override_section(
                     &mut Wrap::new(title_width),
                     type_display_text,
                     self.text_format(node),
@@ -152,7 +149,7 @@ impl<'ast> Editor {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             let mut wrap = Wrap::new(self.width(node) - INDENT);
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,
@@ -188,7 +185,7 @@ impl<'ast> Editor {
             let (_type, title) = self.alert_type_title_ranges(node);
             if node_alert.title.is_some() {
                 let mut wrap = Wrap::new(title_width);
-                self.show_text_line(
+                self.show_section(
                     ui,
                     display_text_top_left,
                     &mut wrap,
@@ -205,7 +202,7 @@ impl<'ast> Editor {
                     AlertType::Warning => "Warning",
                     AlertType::Caution => "Caution",
                 };
-                self.show_override_text_line(
+                self.show_override_section(
                     ui,
                     display_text_top_left,
                     &mut Wrap::new(title_width),

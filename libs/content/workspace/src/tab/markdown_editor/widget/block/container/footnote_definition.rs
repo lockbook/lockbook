@@ -25,7 +25,7 @@ impl<'ast> Editor {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         let mut text_format = self.text_format_syntax(node);
-        text_format.font_id.family = FontFamily::Name(Arc::from("Super"));
+        text_format.font_id.family = FontFamily::Name(Arc::from("SansSuper"));
 
         let text = format!("{}.", self.definition_number(node));
         let layout_job = LayoutJob::single_section(text, text_format);

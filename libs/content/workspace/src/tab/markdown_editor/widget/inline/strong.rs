@@ -6,16 +6,22 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_strong(&self, parent: &AstNode<'_>) -> TextFormat {
         let parent_text_format = self.text_format(parent);
+
+        let family =
+            if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSuper")) {
+                FontFamily::Name(Arc::from("BoldSuper"))
+            } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSub")) {
+                FontFamily::Name(Arc::from("BoldSub"))
+            } else {
+                FontFamily::Name(Arc::from("Bold"))
+            };
         TextFormat {
-            font_id: FontId {
-                family: FontFamily::Name(Arc::from("Bold")),
-                ..parent_text_format.font_id
-            },
+            font_id: FontId { family, ..parent_text_format.font_id },
             ..parent_text_format
         }
     }

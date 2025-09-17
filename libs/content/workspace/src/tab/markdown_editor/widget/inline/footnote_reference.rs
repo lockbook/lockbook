@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeEx
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -28,13 +28,13 @@ impl<'ast> Editor {
             let mut span = 0.0;
 
             if range.contains_range(&prefix_range, true, true) {
-                span += self.span_text_line(wrap, prefix_range, self.text_format_syntax(node));
+                span += self.span_section(wrap, prefix_range, self.text_format_syntax(node));
             }
             if range.contains_range(&infix_range, true, true) {
-                span += self.span_text_line(wrap, infix_range, self.text_format(node));
+                span += self.span_section(wrap, infix_range, self.text_format(node));
             }
             if range.contains_range(&postfix_range, true, true) {
-                span += self.span_text_line(wrap, postfix_range, self.text_format_syntax(node));
+                span += self.span_section(wrap, postfix_range, self.text_format_syntax(node));
             }
 
             span
@@ -64,7 +64,7 @@ impl<'ast> Editor {
 
         if self.node_intersects_selection(node) {
             if range.contains_range(&prefix_range, true, true) {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -74,7 +74,7 @@ impl<'ast> Editor {
                 );
             }
             if range.contains_range(&infix_range, true, true) {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -84,7 +84,7 @@ impl<'ast> Editor {
                 );
             }
             if range.contains_range(&postfix_range, true, true) {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -97,7 +97,7 @@ impl<'ast> Editor {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
                 let text = format!("{ix}");
-                response |= self.show_override_text_line(
+                response |= self.show_override_section(
                     ui,
                     top_left,
                     wrap,

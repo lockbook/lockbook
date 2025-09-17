@@ -6,7 +6,7 @@ use lb_rs::model::text::offset_types::RangeExt;
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_PADDING;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> TextFormat {
@@ -30,7 +30,7 @@ impl<'ast> Editor {
                 let line = self.node_first_line(node);
                 let node_line = self.node_line(node, line);
 
-                self.height_text_line(
+                self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
                     self.text_format_syntax(node),
@@ -57,7 +57,7 @@ impl<'ast> Editor {
             let node_line = self.node_line(node, line);
 
             let mut wrap = Wrap::new(self.width(node));
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,

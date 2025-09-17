@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::widget::INDENT;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::{Editor, Event};
 
 impl<'ast> Editor {
@@ -48,7 +48,7 @@ impl<'ast> Editor {
             let line_content = self.line_content(node, line);
 
             let mut wrap = Wrap::new(self.width(node));
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,

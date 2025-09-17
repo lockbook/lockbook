@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -15,7 +15,7 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
 
-                height += self.height_text_line(
+                height += self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
                     self.text_format_syntax(node),
@@ -41,7 +41,7 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 let mut wrap = Wrap::new(self.width(node));
-                self.show_text_line(
+                self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
