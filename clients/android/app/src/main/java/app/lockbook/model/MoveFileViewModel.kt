@@ -16,7 +16,7 @@ import net.lockbook.LbError
 
 class MoveFileViewModel(application: Application, private val startId: String) :
     AndroidViewModel(application) {
-    private lateinit var currentParent: File
+    lateinit var currentParent: File
     lateinit var ids: List<String>
 
     var files = emptyDataSourceTyped<File>()
@@ -64,7 +64,7 @@ class MoveFileViewModel(application: Application, private val startId: String) :
         }
     }
 
-    private fun refreshOverFolder() {
+    fun refreshOverFolder() {
         try {
             val tempFiles = Lb.getChildren(currentParent.id).filter { file ->
                 file.type == FileType.Folder && !ids.contains(file.id)
