@@ -61,16 +61,18 @@ impl<'ast> Editor {
 
         let mut response = self.show_circumfix(ui, node, top_left, wrap, range);
         response.hovered &= self.sense_inline(ui, node).click;
-        response |= self.show_override_section(
-            ui,
-            top_left,
-            wrap,
-            self.node_range(node).end().into_range(),
-            self.text_format_link_button(node.parent().unwrap()),
-            false,
-            Some(Icon::OPEN_IN_NEW.icon),
-            Sense { click: true, drag: false, focusable: false },
-        );
+        if range.contains_inclusive(self.node_range(node).end()) {
+            response |= self.show_override_section(
+                ui,
+                top_left,
+                wrap,
+                self.node_range(node).end().into_range(),
+                self.text_format_link_button(node.parent().unwrap()),
+                false,
+                Some(Icon::OPEN_IN_NEW.icon),
+                Sense { click: true, drag: false, focusable: false },
+            );
+        }
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
