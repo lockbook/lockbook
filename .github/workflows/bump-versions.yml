@@ -3,11 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Bump type (patch, minor, major)'
+        description: 'Bump type (today, patch, minor, major)'
         required: true
-        default: 'patch'
+        default: 'today'
         type: choice
         options:
+          - today
           - patch
           - minor
           - major
