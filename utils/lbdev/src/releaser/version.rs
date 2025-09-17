@@ -42,7 +42,7 @@ impl FromStr for BumpType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
-            "date" => Ok(Self::Today),
+            "today" => Ok(Self::Today),
             "patch" => Ok(Self::Patch),
             "minor" => Ok(Self::Minor),
             "major" => Ok(Self::Major),
