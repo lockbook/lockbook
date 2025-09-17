@@ -45,7 +45,7 @@ fn main() {
                 .description("Lockbook's release automation")
                 .subcommand(
                     Command::name("bump-versions")
-                        .input(Arg::name("bump-type").default(BumpType::Patch))
+                        .input(Arg::name("bump-type").default(BumpType::Today))
                         .handler(|bump| releaser::version::bump(bump.get())),
                     )
                 .subcommand(Command::name("github-release").handler(releaser::github::create_release))
