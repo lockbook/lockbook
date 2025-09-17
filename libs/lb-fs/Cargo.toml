@@ -1,6 +1,6 @@
 [package]
 name = "lb-fs"
-version = "0.9.29"
+version = "25.9.17"
 edition = "2024"
 license = "BSD-3-Clause"
 description = "A Virtual file system implementation for lockbook.net."
@@ -13,6 +13,6 @@ readme = "../../docs/README.md"
 nfs3_server = "0.8"
 tokio = { version = "1.35.1", features = ["signal", "process", "rt-multi-thread"] } 
 cli-rs = "0.1.12"
-lb-rs = { version = "0.9", path = "../lb/lb-rs" }
+lb-rs = { version = "25", path = "../lb/lb-rs" }
 tracing = "0.1"
 tracing-subscriber = "0.3"
