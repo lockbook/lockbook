@@ -18,8 +18,8 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     ensure_clean_start_state();
 
     handle_cargo_tomls(&new_version);
-    // handle_apple(&new_version)?;
-    // handle_android(&new_version);
+    handle_apple(&new_version)?;
+    handle_android(&new_version);
     generate_lockfile()?;
     perform_checks()?;
     push_to_git(&new_version);
