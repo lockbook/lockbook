@@ -18,13 +18,14 @@
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
             app:liftOnScroll="true"
+            android:fitsSystemWindows="true"
             app:liftOnScrollTargetViewId="@id/files_list">
 
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/files_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?android:actionBarSize"
-                app:layout_scrollFlags="scroll|enterAlways|snap"
+                app:layout_scrollFlags="scroll|snap"
                 app:menu="@menu/menu_files_list"
                 app:navigationIcon="@drawable/ic_outline_menu_24"
                 app:title="@string/lockbook_title" />
@@ -32,7 +33,8 @@
             <FrameLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                app:layout_scrollFlags="scroll|exitUntilCollapsed|snap">
+                app:layout_scrollFlags="scroll"
+                app:layout_scrollEffect="compress">
 
                 <include
                     android:id="@+id/suggested_docs_layout"
@@ -45,7 +47,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-                app:text_size="15" />
+                app:text_size="15"
+                android:layout_marginTop="20dp"
+                android:minHeight="20dp"
+                app:layout_scrollFlags="scroll|exitUntilCollapsed"/>
 
         </com.google.android.material.appbar.AppBarLayout>
 
