@@ -127,7 +127,7 @@ struct ShareFileSheet: View {
             shareAndDismiss()
         }
         #else
-        AutoFocusTextField(text: $model.username, placeholder: "Folder name", focusRingType: .none, isBordered: false) {
+        AutoFocusTextField(text: $model.username, placeholder: "Username", focusRingType: .none, isBordered: false) {
             shareAndDismiss()
         }
         #endif
