@@ -527,6 +527,9 @@ impl Workspace {
                                 TabContent::SpaceInspector(sv) => {
                                     sv.show(ui);
                                 }
+                                TabContent::Audio(a) => {
+                                    a.show(ui);
+                                }
                             };
                         }
                     }
