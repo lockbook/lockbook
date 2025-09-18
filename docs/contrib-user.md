@@ -1,5 +1,4 @@
 # As a user
-
 Once you have Lockbook [installed](installing.md), you can contribute to Lockbook by using it and sharing with like minded people who share our [values](values.md).
 
 Finding bugs and [reporting them to us](bug-reporting.md) is a great way to help make Lockbook better.

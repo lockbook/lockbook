@@ -4,18 +4,15 @@
 # Using Lockbook
 
 - [Installing](installing.md)
-- [File Management]()
-- [Editing Markdown]()
-- [Drawing]()
+- [File Management](file-management.md)
+- [Editing Markdown](editor.md)
+- [Drawing](canvas.md)
 - [Multimedia]()
-- [Collaboration & Sync]()
+- [CLI](cli.md)
 
 # Extending Lockbook
 
 - [Extending Lockbook](extending.md)
-- [CLI]()
-- [Programatic Interface]()
-- [Lockbook FS]()
 
 # Contributing To Lockbook
 
@@ -23,7 +20,8 @@
   - [As a user](contrib-user.md)
     - [Bug Reporting](bug-reporting.md)
   - [As a hobbyist](contrib-hobbyist.md)
-  - [As a programmer]()
+  - [As a programmer](contrib-programmer.md)
+    - [lbdev](lbdev.md)
 
 # Technical Documentation
 
@@ -38,5 +36,4 @@
 - [Data Model]()
 - [Sync](sync.md)
 - [Billing](billing.md)
-- [Sharing](sharing.md)
 
