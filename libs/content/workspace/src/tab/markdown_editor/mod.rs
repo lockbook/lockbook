@@ -32,6 +32,7 @@ use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
+pub mod embed;
 mod galleys;
 pub mod input;
 pub mod output;

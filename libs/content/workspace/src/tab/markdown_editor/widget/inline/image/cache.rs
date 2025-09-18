@@ -13,6 +13,7 @@ use std::thread;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
+    pub ctx: Context,
     pub map: HashMap<String, Arc<Mutex<ImageState>>>,
     pub updated: Arc<Mutex<bool>>,
 }
