@@ -113,5 +113,6 @@ clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
 public-site/public
 public-site/templates/base.html 
 public-site/trunk-build
+book/
 
 .vscode

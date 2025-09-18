@@ -1,7 +1,11 @@
-# Lockbook: Encrypted Notebook
+<img align="center" src="graphics/combo-logo-dark.png#gh-dark-mode-only" alt="Lockbook" />
+<img align="center" src="graphics/combo-logo-light.png#gh-light-mode-only" alt="Lockbook" />
+
+---
+
 Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can’t see them, but don’t take our word for it: Lockbook is 100% open-source.
 
-[<img height= "30" src="https://apple-resources.s3.amazonaws.com/media-badges/download-on-the-app-store/black/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png">](https://play.google.com/store/apps/details?id=app.lockbook)
+[<img height= "30" src="https://toolbox.marketingtools.apple.com/api/assets/featured-content/apps/badges/badge-1/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png">](https://play.google.com/store/apps/details?id=app.lockbook)
 
 [![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)](https://discord.gg/lockbook)
 
@@ -18,7 +22,7 @@ Keep your thoughts to yourself! Lockbook uses elliptic curve cryptography (just 
 Be the customer, not the product. We sell a note-taking app, not your data.
 | Storage    | Price         |
 |------------|---------------|
-| Up to 1MB  | Free          |
+| Up to 25MB  | Free          |
 | Up to 30GB | $2.99 / month |
 | Above 30GB | Coming soon   |
 
@@ -27,48 +31,6 @@ Lockbook compresses your files before measuring your usage. Compressed text file
 ## Developer-Friendly
 The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with `fzf`, edit them with `vim`, and schedule backups with `cron`. Our Rust library `lb-rs` has bindings for C and Java. Lockbook creates documents in Markdown and SVG, open formats that lend themselves to extensibility and automation.
 
-## How To Install
-### Mobile
-iOS/iPadOS:
-- [App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
-- [Build From Source](./guides/build/apple.md)
+---
 
-Android:
-- [Play Store](https://play.google.com/store/apps/details?id=app.lockbook)
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/android.md)
-
-### Desktop
-macOS:
-- [App Store](https://apps.apple.com/us/app/lockbook/id1526775001)
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/apple.md)
-
-Linux:
-- [AUR (Arch)](https://aur.archlinux.org/packages/lockbook-desktop): `yay -S lockbook-desktop`
-- [Snap](https://snapcraft.io/lockbook-desktop): `snap install lockbook-desktop` (warning: Snap does not verify package integrity)
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/linux.md)
-
-Windows:
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/windows.md)
-
-### CLI
-macOS:
-- `brew`: `brew tap lockbook/lockbook && brew install lockbook`
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/cli.md)
-
-Linux:
-- [AUR (Arch)](https://aur.archlinux.org/packages/lockbook): `yay -S lockbook`
-- [Snap](https://snapcraft.io/lockbook): `snap install lockbook` (warning: Snap does not verify package integrity)
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/cli.md)
-
-Windows:
-- [Github Releases](https://github.com/lockbook/lockbook/releases)
-- [Build From Source](./guides/build/cli.md)
-
-#### CLI Completions
-- [CLI Completions Guide for macos && (bash || zsh)](./guides/cli-completions.md)
+[**Try Lockbook today!**](installing.md)
