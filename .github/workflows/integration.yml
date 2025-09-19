@@ -29,7 +29,7 @@ jobs:
     - name: Run Rust Tests
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci rust-tests"
     - name: Run Android Lint
-      run: nix-shell client/android --command "cargo run -p lbdev -- ci android-lint"
+      run: nix-shell clients/android --command "cargo run -p lbdev -- ci android-lint"
     - name: Server Logs
       if: always()
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci server-logs"
