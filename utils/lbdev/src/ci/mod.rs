@@ -84,6 +84,15 @@ pub fn print_server_logs() -> CliResult<()> {
     Ok(())
 }
 
+pub fn format_android() -> CliResult<()> {
+    let android_dir = android_dir();
+
+    Command::new(android_dir.join("gradlew"))
+        .arg("formatKotlin")
+        .current_dir(&android_dir)
+        .assert_success()
+}
+
 pub fn lint_android() -> CliResult<()> {
     let android_dir = android_dir();
 
