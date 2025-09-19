@@ -31,7 +31,7 @@ jobs:
       # - name: Run Android Fmt
       #   run: cargo run -p lockbook-dev -- check-android-fmt
     - name: Run Android Lint
-      run: nix-shell -p openjdk17 kotlin gradle android-studio android-tools --command "cargo run -p lbdev -- ci android-lint"
+      run: nix-shell --impure -p openjdk17 kotlin gradle android-studio android-tools --command "cargo run -p lbdev -- ci android-lint"
       # - name: Run Kotlin Tests
       #   run: cargo run -p lockbook-dev -- run-kotlin-tests
     - name: Server Logs
