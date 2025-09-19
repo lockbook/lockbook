@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -270,7 +269,7 @@ class ImportFragment : Fragment() {
         }
 
         importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1 && hasFocus) {
+            if (hasFocus) {
                 requireContext()
                     .getSystemService(AutofillManager::class.java)
                     .requestAutofill(importBinding.onBoardingImportAccountInput)
@@ -308,11 +307,9 @@ class ImportFragment : Fragment() {
     }
 
     private fun forceAutoFillCheckSave() {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-            requireContext()
-                .getSystemService(AutofillManager::class.java)
-                .commit()
-        }
+        requireContext()
+            .getSystemService(AutofillManager::class.java)
+            .commit()
     }
 
     private fun importAccount(account: String, surfaceError: Boolean) {

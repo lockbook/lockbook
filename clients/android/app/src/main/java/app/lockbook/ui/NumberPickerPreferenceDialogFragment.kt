@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.view.View
 import android.widget.NumberPicker
 import androidx.core.os.bundleOf
+import androidx.core.view.isVisible
 import androidx.fragment.app.setFragmentResult
 import androidx.preference.PreferenceDialogFragmentCompat
 import app.lockbook.R
@@ -46,7 +47,7 @@ class NumberPickerPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
         if (durationInMinutes < 15) {
             minuteNumberPicker?.value = 15
             binding.durationError.visibility = View.VISIBLE
-        } else if (binding.durationError.visibility == View.VISIBLE) {
+        } else if (binding.durationError.isVisible) {
             binding.durationError.visibility = View.GONE
         }
     }
