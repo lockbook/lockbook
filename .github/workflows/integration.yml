@@ -17,6 +17,7 @@ jobs:
       CARGO_HOME: /home/parth/lockbook-ci-cache/home
       CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
       NIXPKGS_ALLOW_UNFREE: 1
+      ANDROID_HOME: /nix/store/$(nix-shell -p android-studio --run 'find /nix/store -name "android-sdk" -type d 2>/dev/null | head -1 | cut -d/ -f4')-android-studio/libexec/android-sdk
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
