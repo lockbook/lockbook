@@ -30,8 +30,8 @@ jobs:
       #   run: cargo run -p lockbook-dev -- run-swift-tests
       # - name: Run Android Fmt
       #   run: cargo run -p lockbook-dev -- check-android-fmt
-      # - name: Run Android Lint
-      #   run: cargo run -p lockbook-dev -- check-android-lint
+    - name: Run Android Lint
+      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci android-lint"
       # - name: Run Kotlin Tests
       #   run: cargo run -p lockbook-dev -- run-kotlin-tests
     - name: Server Logs
