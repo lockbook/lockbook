@@ -84,18 +84,16 @@ pub fn print_server_logs() -> CliResult<()> {
     Ok(())
 }
 
-pub fn fmt_android() -> CliResult<()> {
-    let android_dir = android_dir();
-
-    Command::new(android_dir.join("gradlew"))
-        .arg("lintKotlin")
-        .current_dir(android_dir)
-        .assert_success()
-}
-
 pub fn lint_android() -> CliResult<()> {
     let android_dir = android_dir();
 
+    // Kotlin code style, formatting, and simple errors4j.
+    Command::new(android_dir.join("gradlew"))
+        .arg("lintKotlin")
+        .current_dir(&android_dir)
+        .assert_success()?;
+
+    // Android-specific issues, resource problems, API usage, security, performance, etc.
     Command::new(android_dir.join("gradlew"))
         .arg("lint")
         .current_dir(android_dir)

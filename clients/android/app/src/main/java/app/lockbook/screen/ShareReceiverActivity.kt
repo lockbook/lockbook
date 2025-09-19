@@ -140,7 +140,7 @@ class ShareReceiverActivity : AppCompatActivity() {
             }
         }
 
-        binding.cancelButton.setOnClickListener{
+        binding.cancelButton.setOnClickListener {
             finish()
         }
     }
