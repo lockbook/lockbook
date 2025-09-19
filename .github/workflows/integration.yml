@@ -17,7 +17,6 @@ jobs:
       CARGO_HOME: /home/parth/lockbook-ci-cache/home
       CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
       NIXPKGS_ALLOW_UNFREE: 1
-      ANDROID_HOME: /nix/store/$(nix-shell -p android-studio --run 'find /nix/store -name "android-sdk" -type d 2>/dev/null | head -1 | cut -d/ -f4')-android-studio/libexec/android-sdk
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
@@ -27,8 +26,7 @@ jobs:
     - name: Run Server
       run: cargo run -p lbdev -- ci start-server
     - name: Run Rust Tests
-      run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci rust-tests"
-      # - name: Run Swift Tests
+      run: nix-shell -p openjdk17 android-studio android-tools --run 'export ANDROID_HOME=$(find /nix/store -name "android-sdk" -type d 2>/dev/null | head -1) && cargo run -p lbdev -- ci android-lint'
       #   run: cargo run -p lockbook-dev -- run-swift-tests
       # - name: Run Android Fmt
       #   run: cargo run -p lockbook-dev -- check-android-fmt
