@@ -17,6 +17,7 @@ jobs:
       CARGO_HOME: /home/parth/lockbook-ci-cache/home
       CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
       NIXPKGS_ALLOW_UNFREE: 1
+      NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
