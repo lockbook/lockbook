@@ -16,6 +16,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CARGO_HOME: /home/parth/lockbook-ci-cache/home
       CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
+      NIXPKGS_ALLOW_UNFREE: 1
+      NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
     - uses: actions/checkout@v2
     - name: Check Workspace Fmt
@@ -26,14 +28,8 @@ jobs:
       run: cargo run -p lbdev -- ci start-server
     - name: Run Rust Tests
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci rust-tests"
-      # - name: Run Swift Tests
-      #   run: cargo run -p lockbook-dev -- run-swift-tests
-      # - name: Run Android Fmt
-      #   run: cargo run -p lockbook-dev -- check-android-fmt
-      # - name: Run Android Lint
-      #   run: cargo run -p lockbook-dev -- check-android-lint
-      # - name: Run Kotlin Tests
-      #   run: cargo run -p lockbook-dev -- run-kotlin-tests
+    - name: Run Android Lint
+      run: nix-shell clients/android --command "cargo run -p lbdev -- ci android-lint"
     - name: Server Logs
       if: always()
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci server-logs"

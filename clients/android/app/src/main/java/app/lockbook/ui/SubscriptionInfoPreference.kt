@@ -2,11 +2,11 @@ package app.lockbook.ui
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import androidx.core.net.toUri
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
@@ -38,7 +38,7 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
         solvePaymentIssue = holder.itemView.findViewById(R.id.solve_payment_issue)
 
         solvePaymentIssue.setOnClickListener {
-            getSettingsFragment().requireActivity().startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(SUBSCRIPTION_URI)))
+            getSettingsFragment().requireActivity().startActivity(Intent(Intent.ACTION_VIEW, SUBSCRIPTION_URI.toUri()))
         }
 
         getSettingsFragment().model.determineSettingsInfo.observe(getSettingsFragment()) { settingsInfo ->

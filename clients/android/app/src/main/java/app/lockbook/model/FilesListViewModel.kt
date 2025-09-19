@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -74,15 +75,15 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 else -> {
                     if (!showOutOfSpace0_9) {
-                        pref.edit()
-                            .putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
-                            .apply()
+                        pref.edit {
+                            putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
+                        }
                     }
 
                     if (!showOutOfSpace0_8) {
-                        pref.edit()
-                            .putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
-                            .apply()
+                        pref.edit {
+                            putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
+                        }
                     }
 
                     return@launch

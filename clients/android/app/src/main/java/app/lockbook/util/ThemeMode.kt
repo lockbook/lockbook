@@ -2,6 +2,7 @@ package app.lockbook.util
 
 import android.content.Context
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 
@@ -34,8 +35,9 @@ object ThemeMode {
     fun saveAndSetThemeIndex(context: Context, selected: Int) {
         setThemeModeFromIndex(selected)
 
-        PreferenceManager.getDefaultSharedPreferences(context).edit()
-            .putInt(context.getString(R.string.theme_mode_key), selected).apply()
+        PreferenceManager.getDefaultSharedPreferences(context).edit {
+            putInt(context.getString(R.string.theme_mode_key), selected)
+        }
     }
 
     fun affirmThemeModeFromSaved(context: Context) {

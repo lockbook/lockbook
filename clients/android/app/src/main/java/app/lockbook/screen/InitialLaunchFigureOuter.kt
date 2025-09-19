@@ -3,6 +3,7 @@ package app.lockbook.screen
 import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.edit
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.databinding.SplashScreenBinding
@@ -56,9 +57,9 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
                 biometricNoneValue
             ) != biometricNoneValue
         ) {
-            pref.edit()
-                .putString(biometricKey, biometricNoneValue)
-                .apply()
+            pref.edit {
+                putString(biometricKey, biometricNoneValue)
+            }
         }
 
         BiometricModel.verify(this, VerificationItem.OpenApp, ::launchListFilesActivity, ::finish)
