@@ -188,8 +188,8 @@ struct FileRowView: View {
         } else {
             AppState.workspaceState.requestOpenDoc(file.id)
             
-            if horizontalSizeClass == .compact {
-                homeState.compactSidebarState = .closed
+            if homeState.isSidebarFloating {
+                homeState.sidebarState = .closed
             }
         }
     }

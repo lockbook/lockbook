@@ -29,7 +29,8 @@ struct NewDrawerView<Main: View, Side: View>: View {
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button(action: {
-                                    homeState.compactSidebarState = .openPartial
+                                    homeState.sidebarState = .open
+                                    
                                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                                 }) {
                                     Image(systemName: "sidebar.left")
@@ -54,13 +55,13 @@ struct NewDrawerView<Main: View, Side: View>: View {
                             response: 0.5,
                             dampingFraction: 0.8,
                             blendDuration: 0),
-                                   value: homeState.compactSidebarState == .openPartial)
+                                   value: homeState.sidebarState == .open)
                         .onTapGesture {
                             withAnimation {
-                                if homeState.compactSidebarState == .openPartial {
-                                    homeState.compactSidebarState = .closed
+                                if homeState.sidebarState == .open {
+                                    homeState.sidebarState = .closed
                                 } else {
-                                    homeState.compactSidebarState = .openPartial
+                                    homeState.sidebarState = .open
                                 }
                             }
                             
@@ -73,7 +74,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button(action: {
-                                    homeState.compactSidebarState = .closed
+                                    homeState.sidebarState = .closed
                                 }) {
                                     Image(systemName: "sidebar.left")
                                         .imageScale(.large)
@@ -90,9 +91,9 @@ struct NewDrawerView<Main: View, Side: View>: View {
                     )
                     .offset(x: min(-sidebarWidth(width: geometry.size.width) + max(self.offset + self.gestureOffset, 0), 0))
             }
-            .onReceive(homeState.$compactSidebarState) { newValue in
+            .onReceive(homeState.$sidebarState) { newValue in
                 withAnimation {
-                    if newValue == .openPartial {
+                    if newValue == .open {
                         offset = sidebarWidth(width: geometry.size.width)
                     } else {
                         offset = 0
@@ -100,7 +101,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                 }
             }
             
-            if homeState.compactSidebarState == .closed {
+            if homeState.sidebarState == .closed {
                 Rectangle()
                     .fill(Color.clear)
                     .frame(width: dragActivationClosedX)
@@ -116,7 +117,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                     )
             }
             
-            if homeState.compactSidebarState == .openPartial {
+            if homeState.sidebarState == .open {
                 Rectangle()
                     .fill(Color.clear)
                     .frame(width: dragActivationClosedX)
@@ -142,11 +143,11 @@ struct NewDrawerView<Main: View, Side: View>: View {
                 
         if isOpenEnough || isFastEnough {
             offset = sidebarWidth
-            homeState.compactSidebarState = .openPartial
+            homeState.sidebarState = .open
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         } else {
             offset = 0
-            homeState.compactSidebarState = .closed
+            homeState.sidebarState = .closed
         }
     }
     
@@ -159,11 +160,11 @@ struct NewDrawerView<Main: View, Side: View>: View {
                 
         if isOpenEnough || isFastEnough {
             offset = 0
-            homeState.compactSidebarState = .closed
+            homeState.sidebarState = .closed
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         } else {
             offset = sidebarWidth
-            homeState.compactSidebarState = .openPartial
+            homeState.sidebarState = .open
         }
     }
 
