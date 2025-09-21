@@ -18,6 +18,7 @@ impl Icon {
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
     pub const ARROW_DOWN: Self = ic("\u{e5c5}"); // Arrow Down
     pub const ARROW_UP: Self = ic("\u{e5c7}"); // Arrow Up
+    pub const AUDIO: Self = ic("\u{266A}"); // Music note
     pub const BRING_BACK: Self = ic("\u{e5cb}");
     pub const BRING_TO_BACK: Self = ic("\u{e5dc}");
     pub const BRING_TO_FRONT: Self = ic("\u{e5dd}");
