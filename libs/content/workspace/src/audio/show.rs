@@ -1,5 +1,5 @@
 use egui::{Area, Frame, Id, Order, Pos2, Ui};
-use egui_player::{player::Player, InputMode};
+use egui_player::{player::Player};
 use lb_rs::Uuid;
 use tokio::runtime::Runtime;
 
@@ -9,9 +9,10 @@ pub struct Audio {
 }
 
 impl Audio {
-    pub fn new(id: Uuid, bytes: Vec<u8>) -> Self {
-        let mut player = Player::new(InputMode::Bytes(bytes));
+    pub fn new(id: Uuid, bytes: Vec<u8>, model_path: String) -> Self {
+        let mut player = Player::from_bytes(bytes);
         player.set_transcript_settings(egui_player::TranscriptionSettings::TranscriptLabel);
+        player.set_model_download_path(model_path);
 
         Audio { id, player }
     }

@@ -430,7 +430,7 @@ impl Workspace {
                             match self.core.read_document(id, false) {
                                 Ok(bytes) => {
                                     tab.content = {
-                                        ContentState::Open(TabContent::Audio(Audio::new(id, bytes)))
+                                        ContentState::Open(TabContent::Audio(Audio::new(id, bytes, core.get_config().writeable_path)))
                                     }
                                 }
                                 Err(_) => {
