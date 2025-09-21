@@ -13,7 +13,32 @@ class HomeState: ObservableObject {
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
     
-    @Published var compactSidebarState: CompactSidebarState = .closed
+    @Published var sidebarState: SidebarState = .closed
+    @Published var isSidebarFloating: Bool = true
+    
+    var splitViewVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(
+            get: {
+                switch self.sidebarState {
+                case .open:
+                    return .all
+                case .closed:
+                    return .detailOnly
+                }
+            },
+            set: { newVisibility in
+                switch newVisibility {
+                case .all:
+                    self.sidebarState = .open
+                case .detailOnly:
+                    self.sidebarState = .closed
+                default:
+                    break
+                }
+            }
+        )
+    }
+    
     @Published var showTabsSheet: Bool = false
     @Published var showOutOfSpaceAlert: Bool = false
     
@@ -25,7 +50,7 @@ class HomeState: ObservableObject {
     
     func expandSidebarIfNoDocs() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.compactSidebarState = .openPartial
+            self.sidebarState = .open
         }
     }
     
@@ -36,9 +61,9 @@ class HomeState: ObservableObject {
     }
 }
 
-public enum CompactSidebarState {
+public enum SidebarState {
     case closed
-    case openPartial
+    case open
 }
 
 public enum FileAction {
