@@ -23,8 +23,8 @@ struct SuggestedDocsView: View {
                     if let suggestedDocs = model.suggestedDocs {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
-                                if horizontalSizeClass == .compact {
-                                    homeState.compactSidebarState = .closed
+                                if homeState.isSidebarFloating {
+                                    homeState.sidebarState = .closed
                                 }
                                 
                                 AppState.workspaceState.requestOpenDoc(info.id)
@@ -90,7 +90,7 @@ struct SuggestedDocCell: View {
             Button {
                 model.clearSuggestedDocs()
             } label: {
-                Label("Clear Suggestions", systemImage: "xmark.circle.filled")
+                Label("Clear Suggestions", systemImage: "xmark.circle.fill")
             }
         }
     }

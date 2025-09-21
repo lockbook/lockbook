@@ -7,7 +7,8 @@ struct HomeView: View {
 
     var body: some View {
         PathSearchContainerView(filesModel: filesModel) {
-            NavigationSplitView(sidebar: {
+            NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
+                
                 SearchContainerView(filesModel: filesModel) {
                     SidebarView()
                 }

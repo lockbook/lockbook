@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftWorkspace
+import Introspect
 
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -22,9 +23,14 @@ struct HomeView: View {
                 }
             } else {
                 PathSearchContainerView(filesModel: filesModel) {
-                    NavigationSplitView(sidebar: {
+                    NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
                         SearchContainerView(filesModel: filesModel) {
                             sidebar
+                                .introspectSplitViewController(customize: { splitView in
+                                    DispatchQueue.main.async {
+                                        homeState.isSidebarFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
+                                    }
+                                })
                         }
                     }, detail: {
                         NavigationStack {
@@ -34,6 +40,13 @@ struct HomeView: View {
                 }
             }
         }
+        .onChange(of: horizontalSizeClass, perform: { newValue in
+            if newValue == .compact {
+                DispatchQueue.main.async {
+                    homeState.isSidebarFloating = true
+                }
+            }
+        })
         .environmentObject(homeState)
         .environmentObject(filesModel)
         .environmentObject(settingsModel)
