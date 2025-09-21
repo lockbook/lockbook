@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
-import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -201,7 +200,7 @@ class CopyKeyFragment : Fragment() {
 
     private fun createColoredNumberedList(words: List<String>, startIndex: Int = 1): SpannableStringBuilder {
         val builder = SpannableStringBuilder()
-        val numberColor = ContextCompat.getColor(requireContext(), R.color.md_theme_secondary)
+        val numberColor = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
 
         words.forEachIndexed { i, word ->
             val numberText = "${startIndex + i}. "
@@ -270,7 +269,7 @@ class ImportFragment : Fragment() {
         }
 
         importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
-            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1 && hasFocus) {
+            if (hasFocus) {
                 requireContext()
                     .getSystemService(AutofillManager::class.java)
                     .requestAutofill(importBinding.onBoardingImportAccountInput)
@@ -308,11 +307,9 @@ class ImportFragment : Fragment() {
     }
 
     private fun forceAutoFillCheckSave() {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N_MR1) {
-            requireContext()
-                .getSystemService(AutofillManager::class.java)
-                .commit()
-        }
+        requireContext()
+            .getSystemService(AutofillManager::class.java)
+            .commit()
     }
 
     private fun importAccount(account: String, surfaceError: Boolean) {

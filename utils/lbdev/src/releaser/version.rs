@@ -1,4 +1,5 @@
 use cli_rs::cli_error::CliResult;
+use google_androidpublisher3::chrono::Local;
 use regex::{Captures, Regex};
 use std::fmt::{Display, Formatter};
 use std::fs;
@@ -30,9 +31,10 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
 pub enum BumpType {
     Major,
     Minor,
+    Patch,
 
     #[default]
-    Patch,
+    Today,
 }
 
 impl FromStr for BumpType {
@@ -40,6 +42,7 @@ impl FromStr for BumpType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_ref() {
+            "today" => Ok(Self::Today),
             "patch" => Ok(Self::Patch),
             "minor" => Ok(Self::Minor),
             "major" => Ok(Self::Major),
@@ -148,6 +151,7 @@ fn determine_new_version(bump_type: BumpType) -> String {
             current_version[2] = 0;
         }
         BumpType::Patch => current_version[2] += 1,
+        BumpType::Today => return Local::now().format("%y.%-m.%-d").to_string(),
     }
 
     current_version

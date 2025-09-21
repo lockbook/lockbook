@@ -50,14 +50,18 @@ public struct UIWS: UIViewRepresentable {
     }
     
     public func updateUIView(_ uiView: iOSMTKInputManager, context: Context) {
-        if uiView.mtkView.showTabs != workspaceState.showTabs {
-            uiView.mtkView.showHideTabs(show: workspaceState.showTabs)
-        }
-        
         if let id = workspaceState.openDocRequested {
             uiView.mtkView.openFile(id: id)
             DispatchQueue.main.async {
                 workspaceState.openDocRequested = nil
+            }
+        }
+        
+        
+        if let (parent, drawing) = workspaceState.createDocAtRequested {
+            uiView.mtkView.createDocAt(parent: parent, drawing: drawing)
+            DispatchQueue.main.async {
+                workspaceState.createDocAtRequested = nil
             }
         }
         
@@ -116,10 +120,11 @@ public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
     init(_ workspaceState: WorkspaceState, _ coreHandle: UnsafeMutableRawPointer?) {
         mtkView = iOSMTK()
         mtkView.workspaceState = workspaceState
+        
         mtkView.setInitialContent(coreHandle)
         
         super.init(frame: .infinite)
-                        
+
         mtkView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(mtkView)
         NSLayoutConstraint.activate([
@@ -237,6 +242,13 @@ public struct NSWS: NSViewRepresentable {
         if let id = workspaceState.openDocRequested {
             nsView.openFile(id: id)
             workspaceState.openDocRequested = nil
+        }
+        
+        if let (parent, drawing) = workspaceState.createDocAtRequested {
+            nsView.createDocAt(parent: parent, drawing: drawing)
+            DispatchQueue.main.async {
+                workspaceState.createDocAtRequested = nil
+            }
         }
         
         if workspaceState.shouldFocus {

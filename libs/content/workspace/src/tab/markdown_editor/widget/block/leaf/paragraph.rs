@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt as 
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -46,17 +46,17 @@ impl<'ast> Editor {
         };
 
         if !pre_node.is_empty() {
-            wrap.offset += self.span_text_line(&wrap, pre_node, self.text_format(node));
+            wrap.offset += self.span_section(&wrap, pre_node, self.text_format(node));
         }
         if !pre_children.is_empty() {
-            wrap.offset += self.span_text_line(&wrap, pre_children, self.text_format(node));
+            wrap.offset += self.span_section(&wrap, pre_children, self.text_format(node));
         }
         wrap.offset += self.inline_children_span(node, &wrap, node_line);
         if !post_children.is_empty() {
-            wrap.offset += self.span_text_line(&wrap, post_children, self.text_format(node));
+            wrap.offset += self.span_section(&wrap, post_children, self.text_format(node));
         }
         if !post_node.is_empty() {
-            wrap.offset += self.span_text_line(&wrap, post_node, self.text_format(node));
+            wrap.offset += self.span_section(&wrap, post_node, self.text_format(node));
         }
 
         wrap.height()
@@ -69,7 +69,7 @@ impl<'ast> Editor {
 
             for descendant in node.descendants() {
                 if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
-                    if !self.node_range(descendant).trim(&node_line).is_empty() {
+                    if node_line.contains_inclusive(self.node_range(descendant).start()) {
                         self.show_image_block(ui, node, top_left, url);
                         top_left.y += self.height_image(node, url);
                         top_left.y += BLOCK_SPACING;
@@ -102,21 +102,14 @@ impl<'ast> Editor {
         };
 
         if !pre_node.is_empty() {
-            self.show_text_line(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
         }
         if !pre_children.is_empty() {
-            self.show_text_line(
-                ui,
-                top_left,
-                &mut wrap,
-                pre_children,
-                self.text_format(node),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node), false);
         }
         self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
         if !post_children.is_empty() {
-            self.show_text_line(
+            self.show_section(
                 ui,
                 top_left,
                 &mut wrap,
@@ -126,7 +119,7 @@ impl<'ast> Editor {
             );
         }
         if !post_node.is_empty() {
-            self.show_text_line(ui, top_left, &mut wrap, post_node, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, post_node, self.text_format(node), false);
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);

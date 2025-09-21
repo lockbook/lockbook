@@ -462,9 +462,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .bounds
-        .is_position_at_boundary(text_position, at_boundary, backwards)
+    markdown.is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -484,9 +482,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .bounds
-        .is_position_within_text_unit(text_position, at_boundary, backwards)
+    markdown.is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -507,7 +503,6 @@ pub unsafe extern "C" fn bound_from_position(
     let to_boundary = granularity.into();
 
     markdown
-        .bounds
         .position_from(text_position, to_boundary, backwards)
         .into()
 }
@@ -529,10 +524,7 @@ pub unsafe extern "C" fn bound_at_position(
     let text_position = pos.pos.into();
     let with_granularity = granularity.into();
 
-    let result =
-        markdown
-            .bounds
-            .range_enclosing_position(text_position, with_granularity, backwards);
+    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
 
     result.into()
 }

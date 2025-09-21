@@ -127,7 +127,7 @@ struct ShareFileSheet: View {
             shareAndDismiss()
         }
         #else
-        AutoFocusTextField(text: $model.username, placeholder: "Folder name", focusRingType: .none, isBordered: false) {
+        AutoFocusTextField(text: $model.username, placeholder: "Username", focusRingType: .none, isBordered: false) {
             shareAndDismiss()
         }
         #endif
@@ -206,7 +206,7 @@ struct ShareFileTextField: ViewModifier {
     Color.accentColor
         .optimizedSheet(
             item: $file,
-            constrainedSheetHeight: $sheetHeight,
+            compactSheetHeight: $sheetHeight,
             width: ShareFileSheet.FORM_WIDTH,
             height: ShareFileSheet.FORM_HEIGHT,
             presentedContent: { item in

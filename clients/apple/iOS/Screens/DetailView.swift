@@ -3,7 +3,7 @@ import SwiftWorkspace
 
 struct DetailView: View {
     @Environment(\.isPreview) var isPreview
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @EnvironmentObject var workspaceState: WorkspaceState
     @ObservedObject var homeState: HomeState
@@ -27,9 +27,6 @@ struct DetailView: View {
                     .modifier(OnLbLinkViewModifier())
             }
         }
-        .onAppear {
-            toggleTabVisibility()
-        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 HStack(alignment: .lastTextBaseline, spacing: 5) {
@@ -51,7 +48,7 @@ struct DetailView: View {
                         })
                     }
                         
-                    if isConstrainedLayout && workspaceState.tabCount > 0 {
+                    if horizontalSizeClass == .compact && workspaceState.tabCount > 0 {
                         Button(action: {
                             self.showTabsSheet()
                         }, label: {
@@ -69,11 +66,11 @@ struct DetailView: View {
                 }
             }
         }
-        .optimizedSheet(item: $homeState.tabsSheetInfo, constrainedSheetHeight: $sheetHeight) { info in
+        .optimizedSheet(item: $homeState.tabsSheetInfo, compactSheetHeight: $sheetHeight) { info in
             TabsSheet(info: info.info)
         }
-        .fileOpSheets(constrainedSheetHeight: $sheetHeight)
-        .modifier(ConstrainedTitle())
+        .fileOpSheets(compactSheetHeight: $sheetHeight)
+        .modifier(CompactTitle())
     }
     
     func showTabsSheet() {
@@ -84,13 +81,6 @@ struct DetailView: View {
             
             return (name: file.name, id: file.id)
         }).compactMap({ $0 }))
-    }
-    
-    
-    func toggleTabVisibility() {
-        DispatchQueue.main.async {
-            AppState.workspaceState.showTabs = !isConstrainedLayout
-        }
     }
     
     func runOnOpenDoc(f: @escaping (File) -> Void) {
@@ -105,11 +95,11 @@ struct DetailView: View {
 
 }
 
-struct ConstrainedTitle: ViewModifier {
+struct CompactTitle: ViewModifier {
     @EnvironmentObject var workspaceState: WorkspaceState
     @EnvironmentObject var filesModel: FilesViewModel
     
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var title: String {
         get {
@@ -119,7 +109,7 @@ struct ConstrainedTitle: ViewModifier {
     }
     
     func body(content: Content) -> some View {
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {

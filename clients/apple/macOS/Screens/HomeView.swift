@@ -7,7 +7,8 @@ struct HomeView: View {
 
     var body: some View {
         PathSearchContainerView(filesModel: filesModel) {
-            NavigationSplitView(sidebar: {
+            NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
+                
                 SearchContainerView(filesModel: filesModel) {
                     SidebarView()
                 }
@@ -81,7 +82,7 @@ struct SidebarView: View {
             }
             .formStyle(.columns)
             .selectFolderSheets()
-            .fileOpSheets(constrainedSheetHeight: .constant(0))
+            .fileOpSheets(compactSheetHeight: .constant(0))
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(action: {

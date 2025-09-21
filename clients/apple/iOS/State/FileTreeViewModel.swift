@@ -23,7 +23,8 @@ class FileTreeViewModel: ObservableObject {
             guard let file = filesModel.idsToFiles[openDoc] else {
                 return
             }
-            
+            AppState.workspaceState.selectedFolder = file.parent
+
             self?.openDoc = openDoc
             self?.expandToFile(file: file)
         }

@@ -1,13 +1,14 @@
 import SwiftUI
 import SwiftWorkspace
+import Introspect
 
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
+    
     @StateObject var homeState = HomeState()
     @StateObject var filesModel = FilesViewModel()
     @StateObject var settingsModel = SettingsViewModel()
-            
+    
     var body: some View {
         Group {
             if horizontalSizeClass == .compact {
@@ -19,23 +20,33 @@ struct HomeView: View {
                             sidebar
                         }
                     })
-                    .environment(\.isConstrainedLayout, true)
                 }
             } else {
                 PathSearchContainerView(filesModel: filesModel) {
-                    NavigationSplitView(sidebar: {
+                    NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
                         SearchContainerView(filesModel: filesModel) {
                             sidebar
+                                .introspectSplitViewController(customize: { splitView in
+                                    DispatchQueue.main.async {
+                                        homeState.isSidebarFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
+                                    }
+                                })
                         }
                     }, detail: {
                         NavigationStack {
                             detail
                         }
                     })
-                    .environment(\.isConstrainedLayout, false)
                 }
             }
         }
+        .onChange(of: horizontalSizeClass, perform: { newValue in
+            if newValue == .compact {
+                DispatchQueue.main.async {
+                    homeState.isSidebarFloating = true
+                }
+            }
+        })
         .environmentObject(homeState)
         .environmentObject(filesModel)
         .environmentObject(settingsModel)
@@ -85,7 +96,7 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-        
+    
     var body: some View {
         if let error = filesModel.error {
             Text(error)

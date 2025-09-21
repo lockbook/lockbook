@@ -212,6 +212,14 @@ class MainScreenActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        intent.extras?.getString(ShareReceiverActivity.IMPORTED_FILE_KEY)?.let { dest ->
+            workspaceModel._openFile.postValue(Pair(dest, false))
+            intent.removeExtra(ShareReceiverActivity.IMPORTED_FILE_KEY)
+        }
+    }
+
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {

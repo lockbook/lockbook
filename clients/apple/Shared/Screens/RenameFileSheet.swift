@@ -136,7 +136,7 @@ class RenameFileViewModel: ObservableObject {
     Color.accentColor
         .optimizedSheet(
             item: $file,
-            constrainedSheetHeight: .constant(200),
+            compactSheetHeight: .constant(200),
             width: RenameFileSheet.FORM_WIDTH,
             height: RenameFileSheet.FORM_HEIGHT,
             presentedContent: { item in

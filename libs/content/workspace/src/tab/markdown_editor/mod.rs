@@ -102,15 +102,8 @@ pub struct Editor {
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
     height: f32,
-    /// scroll area offset, useful for determining what will actually be drawn
-    scroll_area_offset: f32,
 
-    // response: indicates text, selection, and scroll update. Some of these are
-    // stored here for one frame because sometimes it takes a frame for all
-    // changes to be processed. This is because we process events after
-    // rendering, so that rendering can produce events, but events can also
-    // affect rendering. The cursor may disappear or be misplaced in the
-    // intervening frame.
+    // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
 }
 
@@ -181,7 +174,6 @@ impl Editor {
             scroll_to_cursor: Default::default(),
             width: Default::default(),
             height: Default::default(),
-            scroll_area_offset: Default::default(),
 
             next_resp: Default::default(),
         }
@@ -242,7 +234,7 @@ impl Editor {
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let resp = mem::take(&mut self.next_resp);
+        let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y;
         let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -287,8 +279,7 @@ impl Editor {
         options.render.escaped_char_spans = true;
 
         let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-
-        let root = comrak::parse_document(&arena, &text_with_newline, &options);
+        let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
         let start = std::time::Instant::now();
@@ -304,6 +295,36 @@ impl Editor {
 
         let print_elapsed = start.elapsed();
         let start = std::time::Instant::now();
+
+        // process events
+        let prior_selection = self.buffer.current.selection;
+        let images_updated = {
+            let mut images_updated = self.images.updated.lock().unwrap();
+            let result = *images_updated;
+            *images_updated = false;
+            result
+        };
+        if !self.initialized || self.process_events(ui.ctx(), root) {
+            resp.text_updated = true;
+
+            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
+            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+            root = comrak::parse_document(&arena, &text_with_newline, &options);
+
+            self.bounds.paragraphs.clear();
+            self.bounds.inline_paragraphs.clear();
+            self.layout_cache.clear();
+
+            self.calc_source_lines();
+            self.compute_bounds(root);
+            self.bounds.paragraphs.sort();
+            self.bounds.inline_paragraphs.sort();
+
+            self.calc_words();
+
+            ui.ctx().request_repaint();
+        }
+        resp.selection_updated = prior_selection != self.buffer.current.selection;
 
         self.images = widget::inline::image::cache::calc(
             root,
@@ -339,7 +360,7 @@ impl Editor {
                     egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
                     |ui| {
                         let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                        self.scroll_area_offset = ui.data_mut(|d| {
+                        let scroll_area_offset = ui.data_mut(|d| {
                             d.get_persisted(scroll_area_id)
                                 .map(|s: scroll_area::State| s.offset)
                                 .unwrap_or_default()
@@ -353,7 +374,7 @@ impl Editor {
 
                         let scroll_area_output = self.show_scrollable_editor(ui, root);
                         self.next_resp.scroll_updated =
-                            scroll_area_output.state.offset.y != self.scroll_area_offset;
+                            scroll_area_output.state.offset.y != scroll_area_offset;
                     },
                 );
 
@@ -365,7 +386,7 @@ impl Editor {
                 });
             } else {
                 let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                self.scroll_area_offset = ui.data_mut(|d| {
+                let scroll_area_offset = ui.data_mut(|d| {
                     d.get_persisted(scroll_area_id)
                         .map(|s: scroll_area::State| s.offset)
                         .unwrap_or_default()
@@ -386,7 +407,7 @@ impl Editor {
                 // ...then show editor content
                 let scroll_area_output = self.show_scrollable_editor(ui, root);
                 self.next_resp.scroll_updated =
-                    scroll_area_output.state.offset.y != self.scroll_area_offset;
+                    scroll_area_output.state.offset.y != scroll_area_offset;
             }
         });
 
@@ -417,43 +438,24 @@ impl Editor {
                 "                                                              render: {render_elapsed:?}"
             );
         }
-        let prior_selection = self.buffer.current.selection;
-        let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
-        };
-        if !self.initialized || self.process_events(ui.ctx(), root) {
-            self.next_resp.text_updated = true;
 
-            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-            let root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-            self.bounds.paragraphs.clear();
-            self.bounds.inline_paragraphs.clear();
+        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
+        if resp.selection_updated || images_updated || height_updated || width_updated {
             self.layout_cache.clear();
-
-            self.calc_source_lines();
-            self.compute_bounds(root);
-            self.bounds.paragraphs.sort();
-            self.bounds.inline_paragraphs.sort();
-
-            self.calc_words();
-
             ui.ctx().request_repaint();
         }
-        self.next_resp.selection_updated = prior_selection != self.buffer.current.selection;
-        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if self.next_resp.selection_updated || images_updated || height_updated || width_updated {
-            self.layout_cache.clear();
+        if resp.selection_updated && !all_selected {
+            self.scroll_to_cursor = true;
+            ui.ctx().request_repaint();
         }
-        if self.next_resp.selection_updated && !all_selected {
+        if self.touch_mode && height_updated {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
+            ui.ctx().request_repaint();
+        }
+        if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
         if self.images.any_loading() {
@@ -625,6 +627,15 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
 
+    let mono_scale = 0.9 * base_scale;
+    let mono_y_offset_factor = 0.1;
+    let mono_baseline_offset_factor = -0.1;
+
+    let super_y_offset_factor = -1. / 4.;
+    let sub_y_offset_factor = 1. / 4.;
+    let super_scale = 3. / 4.;
+    let sub_scale = 3. / 4.;
+
     fonts.font_data.insert(
         "sans".to_string(),
         FontData {
@@ -635,9 +646,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts.font_data.insert("mono".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: 0.1,
-                scale: 0.9 * base_scale,
-                baseline_offset_factor: -0.1,
+                y_offset_factor: mono_y_offset_factor,
+                scale: mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
                 ..Default::default()
             },
             ..FontData::from_static(mono)
@@ -650,31 +661,82 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             ..FontData::from_static(bold)
         },
     );
-    fonts.font_data.insert("super".into(), {
+
+    fonts.font_data.insert("sans_super".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: -1. / 4.,
-                scale: (3. / 4.) * base_scale,
+                y_offset_factor: super_y_offset_factor,
+                scale: super_scale * base_scale,
                 ..Default::default()
             },
             ..FontData::from_static(sans)
         }
     });
-    fonts.font_data.insert("sub".into(), {
+    fonts.font_data.insert("bold_super".into(), {
         FontData {
             tweak: FontTweak {
-                y_offset_factor: 1. / 4.,
-                scale: (3. / 4.) * base_scale,
+                y_offset_factor: super_y_offset_factor,
+                scale: super_scale * base_scale,
+                ..Default::default()
+            },
+            ..FontData::from_static(bold)
+        }
+    });
+    fonts.font_data.insert("mono_super".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: super_y_offset_factor + mono_y_offset_factor,
+                scale: super_scale * mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
+                ..Default::default()
+            },
+            ..FontData::from_static(mono)
+        }
+    });
+
+    fonts.font_data.insert("sans_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor,
+                scale: sub_scale * base_scale,
                 ..Default::default()
             },
             ..FontData::from_static(sans)
         }
     });
+    fonts.font_data.insert("bold_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor,
+                scale: sub_scale * base_scale,
+                ..Default::default()
+            },
+            ..FontData::from_static(bold)
+        }
+    });
+    fonts.font_data.insert("mono_sub".into(), {
+        FontData {
+            tweak: FontTweak {
+                y_offset_factor: sub_y_offset_factor + mono_y_offset_factor,
+                scale: sub_scale * mono_scale,
+                baseline_offset_factor: mono_baseline_offset_factor,
+                ..Default::default()
+            },
+            ..FontData::from_static(mono)
+        }
+    });
+
     fonts.font_data.insert("material_icons".into(), {
-        let mut font = FontData::from_static(icons);
-        font.tweak.y_offset_factor = -0.1;
-        font.tweak.scale = base_scale;
-        font
+        FontData {
+            tweak: FontTweak { y_offset_factor: -0.1, scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
+    });
+    fonts.font_data.insert("icons".into(), {
+        FontData {
+            tweak: FontTweak { y_offset_factor: 0., scale: base_scale, ..Default::default() },
+            ..FontData::from_static(icons)
+        }
     });
 
     fonts
@@ -682,10 +744,25 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("Super")), vec!["super".into()]);
+        .insert(FontFamily::Name(Arc::from("SansSuper")), vec!["sans_super".into()]);
     fonts
         .families
-        .insert(FontFamily::Name(Arc::from("Sub")), vec!["sub".into()]);
+        .insert(FontFamily::Name(Arc::from("BoldSuper")), vec!["bold_super".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("MonoSuper")), vec!["mono_super".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("SansSub")), vec!["sans_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("BoldSub")), vec!["bold_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("MonoSub")), vec!["mono_sub".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Icons")), vec!["icons".into()]);
 
     fonts
         .families

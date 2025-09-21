@@ -45,7 +45,7 @@ fn main() {
                 .description("Lockbook's release automation")
                 .subcommand(
                     Command::name("bump-versions")
-                        .input(Arg::name("bump-type").default(BumpType::Patch))
+                        .input(Arg::name("bump-type").default(BumpType::Today))
                         .handler(|bump| releaser::version::bump(bump.get())),
                     )
                 .subcommand(Command::name("github-release").handler(releaser::github::create_release))
@@ -114,8 +114,8 @@ fn main() {
                 .subcommand(Command::name("rust-tests").handler(ci::run_rust_tests))
                 .subcommand(Command::name("kill-server").handler(ci::kill_server))
                 .subcommand(Command::name("server-logs").handler(ci::print_server_logs))
-                .subcommand(Command::name("android-fmt").handler(ci::fmt_android))
-                .subcommand(Command::name("server-logs").handler(ci::lint_android))
+                .subcommand(Command::name("android-lint").handler(ci::lint_android))
+                .subcommand(Command::name("android-format").handler(ci::format_android))
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 .subcommand(Command::name("assert-no-udeps").handler(ci::assert_no_udeps))
         )

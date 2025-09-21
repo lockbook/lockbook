@@ -5,7 +5,6 @@ use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{
     BlockNode, BlockNodeType, InlineNode, InlineNodeType, ListItem, MarkdownNode,
 };
-use crate::tab::markdown_editor::widget::ROW_SPACING;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Pos2, Rangef, Vec2};
@@ -940,34 +939,31 @@ impl<'ast> Editor {
 pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
+    let relative_pos = pos - galley.rect.min;
 
-    let expanded_rect = galley.rect.expand(ROW_SPACING / 2.);
-
-    if pos.y < expanded_rect.min.y {
-        // click position is above galley
+    if galley.range.is_empty() {
+        // empty galley range means every position in the galley maps to
+        // that location
         galley.range.start()
-    } else if pos.y > expanded_rect.max.y {
-        // click position is below galley
+    } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
+        // every position lower than the final galley's bottom maps to its end
         galley.range.end()
     } else {
-        let relative_pos = pos - galley.rect.min;
-
         // clamp y coordinate for forgiving cursor placement clicks
         let relative_pos =
             Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
 
-        if galley.range.is_empty() {
-            // hack: empty galley range means every position in the galley maps to
-            // that location
-            galley.range.start()
-        } else {
-            let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-            galleys.offset_by_galley_and_cursor(galley, new_cursor)
-        }
+        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+        galleys.offset_by_galley_and_cursor(galley, new_cursor)
     }
 }
 
 pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
+    // every position lower than the final galley's bottom maps to it
+    if pos.y >= galleys.galleys.last().unwrap().rect.bottom() {
+        return galleys.galleys.len() - 1;
+    }
+
     let mut closest_galley = None;
     let mut closest_distance = (f32::INFINITY, f32::INFINITY);
     for (galley_idx, galley) in galleys.galleys.iter().enumerate() {

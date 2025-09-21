@@ -3,35 +3,35 @@ import SwiftWorkspace
 
 extension View {
     func fileOpSheets(
-        constrainedSheetHeight: Binding<CGFloat>
+        compactSheetHeight: Binding<CGFloat>
     ) -> some View {
-        modifier(FileOpSheets(constrainedSheetHeight: constrainedSheetHeight))
+        modifier(FileOpSheets(compactSheetHeight: compactSheetHeight))
     }
 }
 
 
 struct FileOpSheets: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var homeState: HomeState
         
-    @Binding var constrainedSheetHeight: CGFloat
+    @Binding var compactSheetHeight: CGFloat
     
     func body(content: Content) -> some View {
         // A little bit odd but not too bad
         #if os(iOS)
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .sheet(item: $homeState.sheetInfo) { info in
                     switch info {
                     case .createFolder(parent: let parent):
                         CreateFolderSheet(homeState: homeState, parentId: parent.id)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .rename(file: let file):
                         RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .share(file: let file):
                         ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
-                            .autoSizeSheet(sheetHeight: $constrainedSheetHeight)
+                            .autoSizeSheet(sheetHeight: $compactSheetHeight)
                     case .importPicker:
                         ImportFilePicker()
                     }
@@ -84,14 +84,14 @@ extension View {
 
 
 struct SelectFolderSheets: ViewModifier {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var homeState: HomeState
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        if isConstrainedLayout {
+        if horizontalSizeClass == .compact {
             content
                 .sheet(item: $homeState.selectSheetInfo) { action in
                     SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)

@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeEx
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::text_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> TextFormat {
@@ -30,7 +30,7 @@ impl<'ast> Editor {
 
         if !prefix_range.is_empty() && reveal {
             tmp_wrap.offset +=
-                self.span_text_line(&tmp_wrap, prefix_range, self.text_format_syntax(node));
+                self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax(node));
         }
         if !infix_range.is_empty() {
             let pre_span = self.text_pre_span(&tmp_wrap, text_format.clone());
@@ -46,7 +46,7 @@ impl<'ast> Editor {
         }
         if !postfix_range.is_empty() && reveal {
             tmp_wrap.offset +=
-                self.span_text_line(&tmp_wrap, postfix_range, self.text_format_syntax(node));
+                self.span_section(&tmp_wrap, postfix_range, self.text_format_syntax(node));
         }
 
         tmp_wrap.offset - wrap.offset
@@ -69,7 +69,7 @@ impl<'ast> Editor {
             // prefix range is empty when it's trimmed to 0 because we're not
             // rendering the line containing the prefix
             if reveal {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -82,7 +82,7 @@ impl<'ast> Editor {
                 // representing the beginning of the prefix, so that clicking
                 // at the start of the circumfix places the cursor before
                 // the syntax
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -94,7 +94,7 @@ impl<'ast> Editor {
         }
         if !infix_range.is_empty() {
             let sense = self.sense_inline(ui, node);
-            response |= self.show_override_text_line(
+            response |= self.show_override_section(
                 ui,
                 top_left,
                 wrap,
@@ -109,7 +109,7 @@ impl<'ast> Editor {
             // postfix range is empty when it's trimmed to 0 because we're not
             // rendering the line containing the postfix
             if reveal {
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,
@@ -122,7 +122,7 @@ impl<'ast> Editor {
                 // representing the end of the postfix, so that clicking
                 // at the end of the circumfix places the cursor after
                 // the syntax
-                response |= self.show_text_line(
+                response |= self.show_section(
                     ui,
                     top_left,
                     wrap,

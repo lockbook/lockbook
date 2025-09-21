@@ -46,7 +46,9 @@ struct SearchContainerSubView<Content: View>: View {
             case .path(let pathResult):
                 Button(action: {
                     model.open(id: pathResult.id)
-                    homeState.constrainedSidebarState = .closed
+                    if homeState.isSidebarFloating {
+                        homeState.sidebarState = .closed
+                    }
                     dismissSearch()
                 }) {
                     SearchPathResultView(name: pathResult.path.nameAndPath().0, path: pathResult.path.nameAndPath().1, matchedIndices: pathResult.matchedIndicies)
@@ -55,7 +57,9 @@ struct SearchContainerSubView<Content: View>: View {
             case .document(let docResult):
                 Button(action: {
                     model.open(id: docResult.id)
-                    homeState.constrainedSidebarState = .closed
+                    if homeState.isSidebarFloating {
+                        homeState.sidebarState = .closed
+                    }
                     dismissSearch()
                 }) {
                     SearchContentResultView(name: docResult.path.nameAndPath().0, path: docResult.path.nameAndPath().1, contentMatches: docResult.contentMatches)

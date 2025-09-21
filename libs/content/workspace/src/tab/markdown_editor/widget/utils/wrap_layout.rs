@@ -69,29 +69,31 @@ impl Wrap {
 }
 
 impl Editor {
-    /// Kinda hacky. You probably mean to pass a fresh Wrap here.
-    pub fn height_text_line(
+    /// Returns the height of a single text section. Pass a fresh wrap initialized with the desired width.
+    pub fn height_section(
         &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
     ) -> f32 {
-        wrap.offset += self.span_text_line(wrap, range, text_format);
+        wrap.offset += self.span_section(wrap, range, text_format);
         wrap.height()
     }
 
-    pub fn span_text_line(
+    /// Returns the span of a text section in a wrap layout, which includes
+    /// space added to the end of a row when text wraps.
+    pub fn span_section(
         &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
     ) -> f32 {
         self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format)
     }
 
-    /// Show the source text specified by the given range.
+    /// Show source text specified by the given range.
     ///
     /// The text must not contain newlines. It doesn't matter if it wraps. It
     /// doesn't have to be a whole line.
-    pub fn show_text_line(
+    pub fn show_section(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
     ) -> Response {
-        self.show_override_text_line(
+        self.show_override_section(
             ui,
             top_left,
             wrap,
@@ -103,22 +105,30 @@ impl Editor {
         )
     }
 
-    /// Kinda hacky. You probably mean to pass a fresh Wrap here.
-    pub fn height_override_text_line(
+    /// Returns the height of a single section that's not from the document's
+    /// source text. Pass a fresh wrap initialized with the desired width.
+    pub fn height_override_section(
         &self, wrap: &mut Wrap, text: &str, text_format: TextFormat,
     ) -> f32 {
-        wrap.offset += self.text_mid_span(wrap, Default::default(), text, text_format);
+        wrap.offset += self.span_override_section(wrap, text, text_format);
         wrap.height()
     }
 
-    /// Show the source text specified by the given range, optionally overriding
-    /// the shown text. In the case of an override, the given range must be
-    /// empty, and clicking the text will place the cursor at the given range.
+    /// Returns the span of a single section that's not from the document's
+    /// source text in a wrap layout, which includes space added to the end of a
+    /// row when text wraps.
+    pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: TextFormat) -> f32 {
+        self.text_mid_span(wrap, Default::default(), text, text_format)
+    }
+
+    /// Show source text specified by the given range or override text. In the
+    /// override case, the given range must be empty, and clicking the text will
+    /// place the cursor at the given range.
     ///
     /// The text must not contain newlines. It doesn't matter if it wraps. It
     /// doesn't have to be a whole line.
     #[allow(clippy::too_many_arguments)]
-    pub fn show_override_text_line(
+    pub fn show_override_section(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
         override_text: Option<&str>, sense: Sense,
@@ -162,7 +172,7 @@ impl Editor {
                 i as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
             ));
 
-            let response = ui.allocate_rect(rect.expand2(Vec2::new(INLINE_PADDING, 1.)), sense);
+            let response = ui.allocate_rect(rect.expand2(Vec2::new(2., 1.)), sense);
 
             hovered |= response.hovered();
             clicked |= response.clicked();
@@ -260,6 +270,7 @@ impl Editor {
         Response { clicked, hovered }
     }
 
+    /// Returns the span of pre-text padding for inline code, spoilers, etc.
     pub fn text_pre_span(&self, wrap: &Wrap, text_format: TextFormat) -> f32 {
         let padded = text_format.background != Default::default();
         if padded && wrap.row_offset() > 0.5 {
@@ -269,6 +280,7 @@ impl Editor {
         }
     }
 
+    /// Returns the span from the text itself of a single section.
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: TextFormat,
     ) -> f32 {
@@ -291,6 +303,7 @@ impl Editor {
         tmp_wrap.offset - (wrap.offset + pre_span)
     }
 
+    /// Returns the span of post-text padding for inline code, spoilers, etc.
     pub fn text_post_span(
         &self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: TextFormat,
     ) -> f32 {

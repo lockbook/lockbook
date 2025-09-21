@@ -12,6 +12,7 @@ import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
 import app.lockbook.billing.BillingClientLifecycle
 import app.lockbook.util.*
 import app.lockbook.workspace.Workspace
+import com.google.android.material.color.DynamicColors
 import net.lockbook.Lb
 import net.lockbook.LbError
 import timber.log.Timber
@@ -29,6 +30,7 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        DynamicColors.applyToActivitiesIfAvailable(this)
         Timber.plant(Timber.DebugTree())
         Workspace.init()
         Lb.init(filesDir.absolutePath)

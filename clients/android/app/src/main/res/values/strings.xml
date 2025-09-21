@@ -86,8 +86,6 @@
     <string name="file">File</string>
 
     <string name="create_file_title_folder">New Folder</string>
-    <string name="create_file_title_document">New Document</string>
-    <string name="create_file_title_drawing">New SVG</string>
 
     <string name="files_list_items_selected">%d Selected</string>
 
@@ -234,7 +232,6 @@
     <string name="search">Search</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
-    <string name="note">note</string>
 
     <string name="running_out_of_space">You are running out of space!</string>
     <string name="out_of_space">You are out of space!</string>
@@ -264,6 +261,8 @@
     <string name="no_access_mode">Please choose an access mode.</string>
     <string name="reject_pending_share">Reject pending share</string>
     <string name="accept_pending_share">Accept pending share</string>
+    <string name="new_folder">New Folder</string>
+    <string name="import_rcv_share_btn">Import</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

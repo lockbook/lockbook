@@ -2,8 +2,8 @@ import SwiftUI
 import SwiftWorkspace
 
 struct SuggestedDocsView: View {
-    @Environment(\.isConstrainedLayout) var isConstrainedLayout
-
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    
     @EnvironmentObject var homeState: HomeState
     @StateObject var model: SuggestedDocsViewModel
     
@@ -23,13 +23,13 @@ struct SuggestedDocsView: View {
                     if let suggestedDocs = model.suggestedDocs {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
-                                if isConstrainedLayout {
-                                    homeState.constrainedSidebarState = .closed
+                                if homeState.isSidebarFloating {
+                                    homeState.sidebarState = .closed
                                 }
                                 
                                 AppState.workspaceState.requestOpenDoc(info.id)
                             }) {
-                                SuggestedDocCell(info: info)
+                                SuggestedDocCell(info: info, model: model)
                             }
                             .buttonStyle(.plain)
                         }
@@ -58,6 +58,8 @@ struct SuggestedDocCell: View {
     
     @Environment(\.colorScheme) var colorScheme
     
+    @StateObject var model: SuggestedDocsViewModel
+    
     var body: some View {
         VStack(alignment: .leading) {
             Text(info.name)
@@ -79,6 +81,18 @@ struct SuggestedDocCell: View {
         .contentShape(Rectangle())
         .frame(maxWidth: 200)
         .modifier(SuggestedDocBackground())
+        .contextMenu {
+            Button {
+                model.clearSuggestedDoc(id: info.id)
+            } label: {
+                Label("Remove", systemImage: "xmark.circle")
+            }
+            Button {
+                model.clearSuggestedDocs()
+            } label: {
+                Label("Clear Suggestions", systemImage: "xmark.circle.fill")
+            }
+        }
     }
 }
 
@@ -123,8 +137,8 @@ struct SuggestedDocBackground: ViewModifier {
         content
             .padding(12)
             .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
-        )
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
+            )
     }
 }

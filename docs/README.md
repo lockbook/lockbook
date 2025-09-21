@@ -22,7 +22,7 @@ Keep your thoughts to yourself! Lockbook uses elliptic curve cryptography (just 
 Be the customer, not the product. We sell a note-taking app, not your data.
 | Storage    | Price         |
 |------------|---------------|
-| Up to 25MB | Free          |
+| Up to 25MB  | Free          |
 | Up to 30GB | $2.99 / month |
 | Above 30GB | Coming soon   |
 

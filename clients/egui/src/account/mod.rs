@@ -76,7 +76,7 @@ impl AccountScreen {
             tree: FileTree::new(files),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone()),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
@@ -444,12 +444,12 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.workspace.create_file(false);
+            self.workspace.create_doc(false);
             ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
-            self.workspace.create_file(true);
+            self.workspace.create_doc(true);
         }
 
         if resp.clear_suggested {

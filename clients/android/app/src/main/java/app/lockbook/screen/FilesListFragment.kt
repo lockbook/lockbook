@@ -10,7 +10,6 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -332,7 +331,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            fileItemHolder.setBackgroundResource(android.R.color.system_accent1_10)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -391,7 +390,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            fileItemHolder.setBackgroundResource(android.R.color.system_accent1_10)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -531,7 +530,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     val usageSection = DonutSection(
                         name = "",
-                        color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                        color = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200),
                         amount = usage
                     )
 
@@ -569,12 +568,12 @@ class FilesListFragment : Fragment(), FilesFragment {
                 val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
 
                 val (usageBarColor, msgId) = if (usageRatio >= 1.0) {
-                    listOf(R.color.md_theme_error, R.string.out_of_space)
+                    listOf(android.R.color.system_error_500, R.string.out_of_space)
                 } else {
                     val usageBarColor = if (usageRatio > 0.9) {
-                        R.color.md_theme_error
+                        android.R.color.system_error_200
                     } else {
-                        R.color.md_theme_progressWarning
+                        android.R.color.system_accent1_100
                     }
 
                     listOf(usageBarColor, R.string.running_out_of_space)

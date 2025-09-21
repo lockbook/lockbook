@@ -9,7 +9,6 @@ import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
-import android.net.Uri
 import android.view.ActionMode
 import android.view.Menu
 import android.view.MenuItem
@@ -19,6 +18,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import androidx.core.content.ContextCompat.startActivity
+import androidx.core.net.toUri
 import app.lockbook.App
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
@@ -245,7 +245,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
 
         if (response.urlOpened.isNotEmpty()) {
-            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(response.urlOpened))
+            val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
             startActivity(context, browserIntent, null)
         }
 
