@@ -6,6 +6,7 @@ use tokio::runtime::Runtime;
 pub struct Audio {
     pub id: Uuid,
     pub player: Player,
+    pub rt: Runtime,
 }
 
 impl Audio {
@@ -14,17 +15,16 @@ impl Audio {
         player.set_transcript_settings(egui_player::TranscriptionSettings::TranscriptLabel);
         player.set_model_download_path(model_path);
 
-        Audio { id, player }
+        Audio { id, player, rt: Runtime::new().unwrap() }
     }
     pub fn show(&mut self, ui: &mut Ui) {
-        let rt = Runtime::new().unwrap();
         Area::new(Id::new(1))
             .order(Order::Background)
             .fixed_pos(Pos2 { x: ui.max_rect().min.x, y: 50.0 })
             .show(ui.ctx(), |ui| {
                 Frame::none().show(ui, |ui| {
-                    let _ = rt.block_on(async {
-                        let _ = self.player.ui(ui);
+                    self.rt.block_on(async {
+                        self.player.ui(ui);
                     });
                 });
             });
