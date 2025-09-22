@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -210,6 +211,23 @@ class MainScreenActivity : AppCompatActivity() {
                 slidingPaneLayout.closePane()
             }
         }
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                        model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+                    } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+                        model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
+                    } else if (maybeGetSearchFilesFragment() != null) {
+                        updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+                    } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        )
     }
 
     override fun onResume() {
@@ -288,18 +306,6 @@ class MainScreenActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
-    }
-
-    override fun onBackPressed() {
-        if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
-            model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-            model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
-        } else if (maybeGetSearchFilesFragment() != null) {
-            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
-            super.onBackPressed()
-        }
     }
 
     fun syncImportAccount() {
