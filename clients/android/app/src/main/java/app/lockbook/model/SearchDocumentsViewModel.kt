@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.os.Build
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
@@ -31,7 +32,11 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
-    private val highlightColor = ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
+    private val highlightColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
+    } else {
+        ContextCompat.getColor(getContext(), R.color.md_theme_inversePrimary)
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {

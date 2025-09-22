@@ -6,10 +6,11 @@ plugins {
 
 android {
     namespace 'app.lockbook.workspace'
-    compileSdk 36
+    compileSdk=36
 
     defaultConfig {
-        minSdk 35
+        minSdkVersion 27
+        targetSdk=36
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"

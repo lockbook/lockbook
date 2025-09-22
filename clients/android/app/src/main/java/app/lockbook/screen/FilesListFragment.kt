@@ -2,6 +2,7 @@ package app.lockbook.screen
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -331,7 +332,12 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(android.R.color.system_accent1_10)
+                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                android.R.color.system_accent1_10
+                            } else {
+                                R.color.md_theme_inverseOnSurface
+                            }
+                            fileItemHolder.setBackgroundResource(background)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -390,7 +396,12 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(android.R.color.system_accent1_10)
+                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                android.R.color.system_accent1_10
+                            } else {
+                                R.color.md_theme_inverseOnSurface
+                            }
+                            fileItemHolder.setBackgroundResource(background)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -528,9 +539,15 @@ class FilesListFragment : Fragment(), FilesFragment {
                     val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
                     donut.cap = dataCap
 
+                    val accentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
+                    } else {
+                        ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+                    }
+
                     val usageSection = DonutSection(
                         name = "",
-                        color = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200),
+                        color = accentColor,
                         amount = usage
                     )
 
@@ -568,15 +585,9 @@ class FilesListFragment : Fragment(), FilesFragment {
                 val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
 
                 val (usageBarColor, msgId) = if (usageRatio >= 1.0) {
-                    listOf(android.R.color.system_error_500, R.string.out_of_space)
+                    listOf(getUsageColor(usageRatio), R.string.out_of_space)
                 } else {
-                    val usageBarColor = if (usageRatio > 0.9) {
-                        android.R.color.system_error_200
-                    } else {
-                        android.R.color.system_accent1_100
-                    }
-
-                    listOf(usageBarColor, R.string.running_out_of_space)
+                    listOf(getUsageColor(usageRatio), R.string.running_out_of_space)
                 }
 
                 binding.outOfSpace.apply {
@@ -601,6 +612,32 @@ class FilesListFragment : Fragment(), FilesFragment {
                             pref.apply()
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private fun getUsageColor(usageRatio: Float): Int {
+        return when {
+            usageRatio >= 1.0 -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    android.R.color.system_error_500
+                } else {
+                    R.color.md_theme_error
+                }
+            }
+            usageRatio > 0.9 -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    android.R.color.system_error_200
+                } else {
+                    R.color.md_theme_error
+                }
+            }
+            else -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    android.R.color.system_accent1_100
+                } else {
+                    R.color.md_theme_primary
                 }
             }
         }
