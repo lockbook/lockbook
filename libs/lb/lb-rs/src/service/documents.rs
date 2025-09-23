@@ -60,14 +60,10 @@ impl Lb {
         tx.end();
 
         self.events.doc_written(id, None);
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await
+            .unwrap();
+        self.cleanup().await.unwrap();
 
         Ok(())
     }
@@ -85,13 +81,9 @@ impl Lb {
         let hmac = tree.find(&id)?.document_hmac().copied();
 
         if user_activity {
-            let bg_lb = self.clone();
-            tokio::spawn(async move {
-                bg_lb
-                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                    .await
-                    .unwrap();
-            });
+            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await
+                .unwrap();
         }
 
         Ok((hmac, doc))
@@ -132,14 +124,10 @@ impl Lb {
         // or it will happen when there are multiple co-operative core processes.
         self.events.doc_written(id, Some(Actor::Workspace));
 
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await
+            .unwrap();
+        self.cleanup().await.unwrap();
 
         Ok(hmac)
     }
@@ -171,7 +159,7 @@ impl Lb {
         Ok(())
     }
 
-    /// This fn is what will fetch the document remotely if it's not present locally
+    /// This fn is what will fetch the document remotely if it's not present locally (in the future)
     pub(crate) async fn read_document_helper<T>(
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>
