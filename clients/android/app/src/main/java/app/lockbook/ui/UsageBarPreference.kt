@@ -2,6 +2,7 @@ package app.lockbook.ui
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
@@ -56,10 +57,17 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         usageBar.progress = roundedProgress.toInt() * 100
 
         val usageRatio = roundedProgress.toFloat() / roundedDataCap
-        val barColorId = when {
-            usageRatio < 0.8 -> android.R.color.system_accent1_200
-            usageRatio < 0.9 -> android.R.color.system_error_200
-            else -> android.R.color.system_error_500
+        val barColorId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+            when {
+                usageRatio < 0.8 -> android.R.color.system_accent1_200
+                usageRatio < 0.9 -> android.R.color.system_error_200
+                else -> android.R.color.system_error_500
+            }
+        } else {
+            when {
+                usageRatio < 0.8 -> R.color.md_theme_secondary
+                else -> R.color.md_theme_error
+            }
         }
 
         val usageBarColor = ContextCompat.getColor(context, barColorId)

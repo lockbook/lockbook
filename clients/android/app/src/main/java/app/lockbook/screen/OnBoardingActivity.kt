@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import android.text.SpannableStringBuilder
 import android.text.style.ForegroundColorSpan
@@ -200,7 +201,11 @@ class CopyKeyFragment : Fragment() {
 
     private fun createColoredNumberedList(words: List<String>, startIndex: Int = 1): SpannableStringBuilder {
         val builder = SpannableStringBuilder()
-        val numberColor = ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
+        val numberColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
+        } else {
+            ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+        }
 
         words.forEachIndexed { i, word ->
             val numberText = "${startIndex + i}. "
