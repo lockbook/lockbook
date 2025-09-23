@@ -1,10 +1,13 @@
 package app.lockbook.screen
 
+import android.Manifest
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Typeface
 import android.os.Build
 import android.os.Bundle
@@ -17,7 +20,10 @@ import android.view.ViewGroup
 import android.view.autofill.AutofillManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
+import android.widget.Toast
 import androidx.activity.addCallback
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.content.ContextCompat
@@ -31,6 +37,8 @@ import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
+import app.lockbook.services.ACCOUNT_IMPORT_KEY
+import app.lockbook.services.InitialSync
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -239,6 +247,17 @@ class ImportFragment : Fragment() {
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
+    private val requestNotificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            if (isGranted) {
+                // Permission granted - start your service
+//                startSyncService()
+            } else {
+                // Permission denied - show explanation or disable feature
+                showPermissionDeniedMessage()
+            }
+        }
+
     private var onQRCodeResult =
         registerForActivityResult(
             ScanContract()
@@ -319,10 +338,14 @@ class ImportFragment : Fragment() {
 
     private fun importAccount(account: String, surfaceError: Boolean) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
+        checkAndRequestNotificationPermission()
+
+        val intent = Intent(context, InitialSync::class.java)
+        intent.putExtra(ACCOUNT_IMPORT_KEY, account)
+        context?.startForegroundService(intent)
 
         uiScope.launch {
             try {
-                Lb.importAccount(account)
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
@@ -340,5 +363,60 @@ class ImportFragment : Fragment() {
             }
         }
     }
+
+    private fun checkAndRequestNotificationPermission() {
+        when {
+            // Android 13+ requires notification permission
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
+                when {
+                    ContextCompat.checkSelfPermission(
+                        requireContext(),
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED -> {
+                        // Permission already granted
+//                        startSyncService()
+                    }
+
+                    shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) -> {
+                        // Show explanation dialog
+                        showPermissionRationaleDialog()
+                    }
+
+                    else -> {
+                        // Request permission directly
+                        requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
+            else -> {
+                // For Android 12 and below, no runtime permission needed
+//                startSyncService()
+            }
+        }
+    }
+
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun showPermissionRationaleDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Notification Permission Required")
+            .setMessage("Lockbook needs notification permission to show sync progress. Would you like to grant it?")
+            .setPositiveButton("Grant") { _, _ ->
+                requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+                // Handle permission denial
+                showPermissionDeniedMessage()
+            }
+            .show()
+    }
+
+    private fun showPermissionDeniedMessage() {
+        Toast.makeText(requireContext(), "Notifications disabled. You won't see sync progress.", Toast.LENGTH_LONG).show()
+        // You might still start the service without notifications, or disable the feature
+    }
+
 }
+
 class CaptureActivityAutoRotate : CaptureActivity()
