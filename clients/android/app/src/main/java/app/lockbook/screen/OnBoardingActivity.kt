@@ -328,6 +328,8 @@ class ImportFragment : Fragment() {
 
         val imm = requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         imm.showSoftInput(importBinding.onBoardingImportAccountInput, InputMethodManager.SHOW_IMPLICIT)
+
+        checkAndRequestNotificationPermission()
     }
 
     private fun forceAutoFillCheckSave() {
@@ -338,14 +340,17 @@ class ImportFragment : Fragment() {
 
     private fun importAccount(account: String, surfaceError: Boolean) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
-        checkAndRequestNotificationPermission()
 
-        val intent = Intent(context, InitialSync::class.java)
-        intent.putExtra(ACCOUNT_IMPORT_KEY, account)
-        context?.startForegroundService(intent)
 
         uiScope.launch {
             try {
+                Lb.importAccount(account)
+
+
+                val intent = Intent(context, InitialSync::class.java)
+                intent.putExtra(ACCOUNT_IMPORT_KEY, account)
+                context?.startForegroundService(intent)
+
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
@@ -395,7 +400,6 @@ class ImportFragment : Fragment() {
         }
     }
 
-
     @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun showPermissionRationaleDialog() {
         AlertDialog.Builder(requireContext())
@@ -416,7 +420,6 @@ class ImportFragment : Fragment() {
         Toast.makeText(requireContext(), "Notifications disabled. You won't see sync progress.", Toast.LENGTH_LONG).show()
         // You might still start the service without notifications, or disable the feature
     }
-
 }
 
 class CaptureActivityAutoRotate : CaptureActivity()

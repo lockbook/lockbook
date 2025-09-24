@@ -3,6 +3,7 @@ package app.lockbook.model
 import androidx.lifecycle.LiveData
 import app.lockbook.util.*
 import net.lockbook.Lb
+import net.lockbook.LbError
 import net.lockbook.SyncProgress
 
 class SyncModel : SyncProgress {
@@ -12,6 +13,10 @@ class SyncModel : SyncProgress {
 
     val notifySyncStepInfo: LiveData<SyncStepInfo>
         get() = _notifySyncStepInfo
+
+    val _notifySyncDone = SingleMutableLiveData<NotifySyncDone>()
+    val notifySyncDone: LiveData<NotifySyncDone>
+        get() = _notifySyncDone
 
     fun trySync() {
         if (syncStatus is SyncStatus.NotSyncing) {
@@ -30,7 +35,6 @@ class SyncModel : SyncProgress {
         val syncProgress = SyncStepInfo(progress, total, msg ?: "")
         val newStatus = SyncStatus.Syncing(syncProgress)
         syncStatus = newStatus
-
         _notifySyncStepInfo.postValue(syncProgress)
     }
 }
@@ -46,3 +50,8 @@ data class SyncStepInfo(
     var total: Int,
     var msg: String
 )
+
+sealed class NotifySyncDone {
+    data class NotifyError(val error: LbError) : NotifySyncDone()
+    object FinishedSync : NotifySyncDone()
+}

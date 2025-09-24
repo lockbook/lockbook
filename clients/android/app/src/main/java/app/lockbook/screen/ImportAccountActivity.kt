@@ -1,22 +1,14 @@
 package app.lockbook.screen
 
-import android.Manifest
-import android.app.AlertDialog
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.view.View
-import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import app.lockbook.databinding.ActivityImportAccountBinding
-import app.lockbook.model.ImportAccountViewModel
-import app.lockbook.model.UpdateImportUI
+import app.lockbook.model.NotifySyncDone
+import app.lockbook.model.SyncModel
 import app.lockbook.util.exhaustive
 import app.lockbook.util.getApp
 
@@ -26,9 +18,7 @@ class ImportAccountActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val model: ImportAccountViewModel by viewModels()
-
-
+    private val syncModel = SyncModel()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,32 +33,32 @@ class ImportAccountActivity : AppCompatActivity() {
             onBackPressed()
         }
 
-        if (model.isErrorVisible) {
-            binding.importAccountProgressBar.visibility = View.GONE
-            binding.importExitApp.visibility = View.VISIBLE
-        }
-
-        model.syncModel.notifySyncStepInfo.observe(
+//        if (model.isErrorVisible) {
+//            binding.importAccountProgressBar.visibility = View.GONE
+//            binding.importExitApp.visibility = View.VISIBLE
+//        }
+        syncModel.notifySyncStepInfo.observe(
             this
         ) { stepInfo ->
+            println("received sync step info")
             binding.importAccountProgressBar.max = stepInfo.total
             binding.importAccountProgressBar.progress = stepInfo.progress
 
             binding.importInfo.text = stepInfo.msg
         }
 
-        model.updateImportUI.observe(
+        syncModel.notifySyncDone.observe(
             this
         ) { updateImportUI ->
             when (updateImportUI) {
-                UpdateImportUI.FinishedSync -> {
+                NotifySyncDone.FinishedSync -> {
                     getApp().isInImportSync = false
 
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
 
                     finishAffinity()
                 }
-                is UpdateImportUI.NotifyError -> {
+                is NotifySyncDone.NotifyError -> {
                     binding.importAccountProgressBar.visibility = View.GONE
                     binding.importExitApp.visibility = View.VISIBLE
 
@@ -88,9 +78,5 @@ class ImportAccountActivity : AppCompatActivity() {
                 }
             }
         )
-
     }
-
-
-
 }
