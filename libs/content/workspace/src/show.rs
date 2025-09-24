@@ -487,11 +487,12 @@ impl Workspace {
                         ContentState::Open(content) => {
                             match content {
                                 TabContent::Markdown(md) => {
+                                    let initialized = md.initialized;
                                     let resp = md.show(ui);
                                     // The editor signals a text change when the buffer is initially
                                     // loaded. Since we use that signal to trigger saves, we need to
                                     // check that this change was not from the initial frame.
-                                    if resp.text_updated && md.initialized {
+                                    if resp.text_updated && initialized {
                                         tab.last_changed = Instant::now();
                                     }
 
