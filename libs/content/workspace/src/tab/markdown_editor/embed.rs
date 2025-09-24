@@ -25,6 +25,12 @@ trait EmbedResolver {
     /// not be in any particular state and any effect on the Ui's cursor will be
     /// ignored.
     fn show(&self, url: &str, rect: Rect, theme: &Theme, ui: &mut Ui);
+
+    /// When did the state of the resolver last change in a way that affects how
+    /// embeds should be layed out? Signals that layout should change e.g. when
+    /// an image has completed loading. The particular value doesn't matter as
+    /// long as it always goes up when the layout should change.
+    fn last_modified(&self) -> u64;
 }
 
 impl EmbedResolver for ImageCache {
@@ -146,6 +152,10 @@ impl EmbedResolver for ImageCache {
                 }
             }
         }
+    }
+
+    fn last_modified(&self) -> u64 {
+        self.last_modified.lock().unwrap().deref().clone()
     }
 }
 

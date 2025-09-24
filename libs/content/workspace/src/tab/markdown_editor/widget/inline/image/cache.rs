@@ -11,11 +11,19 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-#[derive(Clone, Default)]
+/// A read-through cache that fetches an image on the first call to
+/// [`ImageCache::get`]. On a cache miss, a repaint is requested after a short
+/// delay; the caller is expected to retry next frame until the image is loaded.
+#[derive(Clone)]
 pub struct ImageCache {
-    pub ctx: Context,
     pub map: HashMap<String, Arc<Mutex<ImageState>>>,
-    pub updated: Arc<Mutex<bool>>,
+    pub last_modified: Arc<Mutex<u64>>,
+
+    // supporting resources
+    pub ctx: Context,
+    pub client: reqwest::blocking::Client,
+    pub lb: Lb,
+    pub file_id: Uuid, // used as the base for relative links
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -24,6 +32,110 @@ pub enum ImageState {
     Loading,
     Loaded(TextureId),
     Failed(String),
+}
+
+impl ImageCache {
+    pub fn get(&self, url: &str) -> ImageState {
+        if let Some(image_state) = self.map.get(url) {
+            image_state.lock().unwrap().deref().clone()
+        } else {
+            let url = url.clone();
+            let image_state: Arc<Mutex<ImageState>> = Default::default();
+            let client = self.client.clone();
+            let lb = self.lb.clone();
+            let ctx = self.ctx.clone();
+            let last_modified = self.last_modified.clone();
+
+            self.map.insert(url.into(), image_state.clone());
+
+            // fetch image
+            thread::spawn(move || {
+                let texture_manager = ctx.tex_manager();
+
+                let texture_result = (|| -> Result<TextureId, String> {
+                    // use core for lb:// urls and relative paths
+                    let maybe_lb_id = match url.strip_prefix("lb://") {
+                        Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
+                        None => {
+                            let parent_id = lb
+                                .get_file_by_id(self.file_id)
+                                .map_err(|e| e.to_string())?
+                                .parent;
+
+                            tab::core_get_by_relative_path(&lb, parent_id, PathBuf::from(&url))
+                                .map(|f| f.id)
+                                .ok()
+                        }
+                    };
+
+                    let image_bytes = if let Some(id) = maybe_lb_id {
+                        lb.read_document(id, false).map_err(|e| e.to_string())?
+                    } else {
+                        download_image(&client, &url).map_err(|e| e.to_string())?
+                    };
+
+                    // convert lockbook drawings to images
+                    let image_bytes = if let Some(id) = maybe_lb_id {
+                        let file = lb.get_file_by_id(id).map_err(|e| e.to_string())?;
+                        if file.name.ends_with(".svg") {
+                            // todo: check errors
+                            let tree = usvg::Tree::from_data(
+                                &image_bytes,
+                                &Default::default(),
+                                &Default::default(),
+                            )
+                            .map_err(|e| e.to_string())?;
+
+                            let bounding_box = tree.root().abs_bounding_box();
+
+                            // dimensions & transform chosen so that all svg content appears in the result
+                            let mut pix_map =
+                                Pixmap::new(bounding_box.width() as _, bounding_box.height() as _)
+                                    .ok_or("failed to create pixmap")
+                                    .map_err(|e| e.to_string())?;
+                            let transform = Transform::identity()
+                                .post_translate(-bounding_box.left(), -bounding_box.top());
+                            resvg::render(&tree, transform, &mut pix_map.as_mut());
+                            pix_map.encode_png().map_err(|e| e.to_string())?
+                        } else {
+                            // leave non-drawings alone
+                            image_bytes
+                        }
+                    } else {
+                        // leave non-lockbook images alone
+                        image_bytes
+                    };
+
+                    let image = image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
+                    let size_pixels = [image.width() as usize, image.height() as usize];
+
+                    let egui_image = egui::ImageData::Color(
+                        ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()).into(),
+                    );
+
+                    Ok(texture_manager
+                        .write()
+                        .alloc(url.into(), egui_image, Default::default()))
+                })();
+
+                match texture_result {
+                    Ok(texture_id) => {
+                        *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
+                    }
+                    Err(err) => {
+                        *image_state.lock().unwrap() = ImageState::Failed(err);
+                    }
+                }
+
+                *last_modified.lock().unwrap() = self.ctx.frame_nr();
+
+                // request a frame when the image is done loading
+                ctx.request_repaint();
+            });
+
+            image_state.lock().unwrap().deref().clone()
+        }
+    }
 }
 
 pub fn calc<'ast>(
@@ -45,107 +157,7 @@ pub fn calc<'ast>(
                 // re-use image from previous cache (even it if failed to load)
                 result.map.insert(url.clone(), cached);
             } else {
-                let url = url.clone();
-                let image_state: Arc<Mutex<ImageState>> = Default::default();
-                let client = client.clone();
-                let core = core.clone();
-                let ctx = ui.ctx().clone();
-                let updated = result.updated.clone();
-
-                result.map.insert(url.clone(), image_state.clone());
-
-                // fetch image
-                thread::spawn(move || {
-                    let texture_manager = ctx.tex_manager();
-
-                    let texture_result = (|| -> Result<TextureId, String> {
-                        // use core for lb:// urls and relative paths
-                        let maybe_lb_id = match url.strip_prefix("lb://") {
-                            Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => {
-                                let parent_id = core
-                                    .get_file_by_id(file_id)
-                                    .map_err(|e| e.to_string())?
-                                    .parent;
-
-                                tab::core_get_by_relative_path(
-                                    &core,
-                                    parent_id,
-                                    PathBuf::from(&url),
-                                )
-                                .map(|f| f.id)
-                                .ok()
-                            }
-                        };
-
-                        let image_bytes = if let Some(id) = maybe_lb_id {
-                            core.read_document(id, false).map_err(|e| e.to_string())?
-                        } else {
-                            download_image(&client, &url).map_err(|e| e.to_string())?
-                        };
-
-                        // convert lockbook drawings to images
-                        let image_bytes = if let Some(id) = maybe_lb_id {
-                            let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                            if file.name.ends_with(".svg") {
-                                // todo: check errors
-                                let tree = usvg::Tree::from_data(
-                                    &image_bytes,
-                                    &Default::default(),
-                                    &Default::default(),
-                                )
-                                .map_err(|e| e.to_string())?;
-
-                                let bounding_box = tree.root().abs_bounding_box();
-
-                                // dimensions & transform chosen so that all svg content appears in the result
-                                let mut pix_map = Pixmap::new(
-                                    bounding_box.width() as _,
-                                    bounding_box.height() as _,
-                                )
-                                .ok_or("failed to create pixmap")
-                                .map_err(|e| e.to_string())?;
-                                let transform = Transform::identity()
-                                    .post_translate(-bounding_box.left(), -bounding_box.top());
-                                resvg::render(&tree, transform, &mut pix_map.as_mut());
-                                pix_map.encode_png().map_err(|e| e.to_string())?
-                            } else {
-                                // leave non-drawings alone
-                                image_bytes
-                            }
-                        } else {
-                            // leave non-lockbook images alone
-                            image_bytes
-                        };
-
-                        let image =
-                            image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
-                        let size_pixels = [image.width() as usize, image.height() as usize];
-
-                        let egui_image = egui::ImageData::Color(
-                            ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8())
-                                .into(),
-                        );
-
-                        Ok(texture_manager
-                            .write()
-                            .alloc(url, egui_image, Default::default()))
-                    })();
-
-                    match texture_result {
-                        Ok(texture_id) => {
-                            *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
-                        }
-                        Err(err) => {
-                            *image_state.lock().unwrap() = ImageState::Failed(err);
-                        }
-                    }
-
-                    *updated.lock().unwrap() = true;
-
-                    // request a frame when the image is done loading
-                    ctx.request_repaint();
-                });
+                // ...
             }
         }
     }
