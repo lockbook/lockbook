@@ -18,7 +18,6 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     let textInteraction = UITextInteraction(for: .editable)
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -702,7 +701,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     let mtkView: iOSMTK
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
 
@@ -823,8 +821,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     public static let TITLE_BAR_HEIGHT: CGFloat = 33
     public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
+    var workspaceOutput: WorkspaceOutputState?
+    var workspaceInput: WorkspaceInputState?
     public var wsHandle: UnsafeMutableRawPointer?
-    var workspaceState: WorkspaceState?
+    
     var currentOpenDoc: UUID? = nil
     var currentSelectedFolder: UUID? = nil
 
@@ -943,49 +943,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         cursorTracked = false
         mouse_gone(wsHandle)
     }
-    
-    func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func createDocAt(parent: UUID, drawing: Bool) {
-        let parent = CUuid(_0: parent.uuid)
-        create_doc_at(wsHandle, parent, drawing)
-        setNeedsDisplay(self.frame)
-    }
-
-    func closeDoc(id: UUID) {
-        close_tab(wsHandle, id.uuidString)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func closeAllTabs() {
-        close_all_tabs(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    func fileOpCompleted(fileOp: WSFileOpCompleted) {
-        switch fileOp {
-        case .Delete(let id):
-            close_tab(wsHandle, id.uuidString)
-            setNeedsDisplay(self.frame)
-        case .Rename(let id, let newName):
-            tab_renamed(wsHandle, id.uuidString, newName)
-            setNeedsDisplay(self.frame)
-        }
-    }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
-        workspaceState?.wsHandle = wsHandle
+        workspaceInput?.wsHandle = wsHandle
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -1020,24 +982,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         set_scale(wsHandle, Float(self.contentScaleFactor))
         
         let output = ios_frame(wsHandle)
-        
-        if output.status_updated {
-            let status = get_status(wsHandle)
-            let msg = String(cString: status.msg)
-            free_text(status.msg)
-            let syncing = status.syncing
-            workspaceState?.syncing = syncing
-            workspaceState?.statusMsg = msg
-        }
-        
+                
         if output.tabs_changed {
-            workspaceState?.tabCount = Int(tab_count(wsHandle))
+            self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
         }
         
-        workspaceState?.reloadFiles = output.refresh_files
-
         let selectedFile = UUID(uuid: output.selected_file._0)
-
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
                 onSelectionChanged?()
@@ -1046,24 +996,24 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             currentOpenDoc = selectedFile
 
-            if selectedFile != self.workspaceState?.openDoc {
-                self.workspaceState?.openDoc = selectedFile
+            if selectedFile != self.workspaceOutput?.openDoc {
+                self.workspaceOutput?.openDoc = selectedFile
             }
         }
 
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
 
-        if currentTab != self.workspaceState!.currentTab {
+        if currentTab != self.workspaceOutput!.currentTab {
             DispatchQueue.main.async {
                 withAnimation {
-                    self.workspaceState!.currentTab = currentTab
+                    self.workspaceOutput!.currentTab = currentTab
                 }
             }
         }
 
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
-            self.workspaceState?.openDoc = nil
+            self.workspaceOutput?.openDoc = nil
         }
         
         if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
@@ -1089,20 +1039,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
 
         if output.tab_title_clicked {
-            workspaceState!.renameOpenDoc = true
+            self.workspaceOutput?.renameOpenDoc = ()
 
             if !isCompact() {
                 unfocus_title(wsHandle)
             }
         }
 
-        let newFile = UUID(uuid: output.doc_created._0)
-        if !newFile.isNil() {
-            openFile(id: newFile)
-        }
+//        Can this happen in rust?
+//
+//        let newFile = UUID(uuid: output.doc_created._0)
+//        if !newFile.isNil() {
+//            openFile(id: newFile)
+//        }
 
         if output.new_folder_btn_pressed {
-            workspaceState?.newFolderButtonPressed = true
+            self.workspaceOutput?.newFolderButtonPressed = ()
         }
 
         if let openedUrl = output.url_opened {
@@ -1110,7 +1062,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                self.workspaceState?.urlOpened = url
+                self.workspaceOutput?.urlOpened = url
             }
         }
 
@@ -1227,7 +1179,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for press in presses {
             guard let key = press.key else { continue }
 
-            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
+            if workspaceOutput!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
                 return
             }
 
@@ -1263,7 +1215,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         case .text(let text):
             clipboard_paste(wsHandle, text)
-            workspaceState?.pasted = true
         }
     }
     

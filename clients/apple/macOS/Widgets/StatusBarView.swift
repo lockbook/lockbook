@@ -4,7 +4,8 @@ import SwiftWorkspace
 struct StatusBarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     var body: some View {
         HStack {
@@ -22,7 +23,7 @@ struct StatusBarView: View {
         HStack {
             if let root = filesModel.root {
                 Button(action: {
-                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
                 }) {
                     Image(systemName: "doc.badge.plus")
                         .font(.title2)
@@ -31,7 +32,7 @@ struct StatusBarView: View {
                 .padding(.trailing, 5)
                 
                 Button(action: {
-                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
                         .font(.title2)
@@ -54,7 +55,7 @@ struct StatusBarView: View {
     }
 
     func selectedFolderOrRoot(_ root: File) -> File {
-        guard let selectedFolder = AppState.workspaceState.selectedFolder else {
+        guard let selectedFolder = workspaceOutput.selectedFolder else {
             return root
         }
         
@@ -63,12 +64,8 @@ struct StatusBarView: View {
 }
 
 #Preview {
-    let workspaceState = WorkspaceState()
-    workspaceState.statusMsg = "Just synced!"
-    
-    return StatusBarView()
-        .environmentObject(workspaceState)
+    StatusBarView()
         .environmentObject(FilesViewModel())
-        .environmentObject(HomeState())
+        .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
         .padding(.top, 8)
 }

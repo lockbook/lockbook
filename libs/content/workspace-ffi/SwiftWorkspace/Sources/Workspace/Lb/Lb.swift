@@ -70,12 +70,14 @@ public class Lb: LbAPI {
         let res = start(writablePath: writablePath, logs: logs)
         
         subscribe(notify: { event in
-            if event.status_updated {
-                self.events.status = self.getStatus()
-            } else if event.metadata_updated {
-                self.events.metadataUpdated = true
-            } else if event.pending_shares_changed {
-                self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+            DispatchQueue.main.async {
+                if event.status_updated {
+                    self.events.status = self.getStatus()
+                } else if event.metadata_updated {
+                    self.events.metadataUpdated = true
+                } else if event.pending_shares_changed {
+                    self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+                }
             }
         })
     }

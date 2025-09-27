@@ -7,7 +7,6 @@ class PendingSharesViewModel: ObservableObject {
     @Published var error: String? = nil
     
     private var cancellables: Set<AnyCancellable> = []
-
         
     init() {
         self.loadPendingShares()

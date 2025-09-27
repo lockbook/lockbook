@@ -14,8 +14,8 @@ struct PathSearchContainerView<Content: View>: View {
         self.content = content()
     }
     
-    init(filesModel: FilesViewModel, content: @escaping () -> Content) {
-        self._model = StateObject(wrappedValue: PathSearchViewModel(filesModel: filesModel))
+    init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState, content: @escaping () -> Content) {
+        self._model = StateObject(wrappedValue: PathSearchViewModel(filesModel: filesModel, workspaceInput: workspaceInput))
         self.content = content()
     }
     
@@ -148,7 +148,7 @@ struct PathSearchContainerView<Content: View>: View {
 }
 
 #Preview("Path Search") {
-    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel())
+    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel(), workspaceInput: WorkspaceInputState())
     pathSearchModel.isShown = true
     
     return PathSearchContainerView(model: pathSearchModel, content: {
@@ -157,7 +157,7 @@ struct PathSearchContainerView<Content: View>: View {
 }
 
 #Preview("Path Search Single Item") {
-    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel())
+    var pathSearchModel = PathSearchViewModel(filesModel: FilesViewModel(), workspaceInput: WorkspaceInputState())
     pathSearchModel.isShown = true
     pathSearchModel.results = [
         PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: [])

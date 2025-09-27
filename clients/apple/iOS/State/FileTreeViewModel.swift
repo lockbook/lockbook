@@ -12,10 +12,10 @@ class FileTreeViewModel: ObservableObject {
     
     let filesModel: FilesViewModel
         
-    init(filesModel: FilesViewModel) {
+    init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState, workspaceOutput: WorkspaceOutputState) {
         self.filesModel = filesModel
         
-        AppState.workspaceState.$openDoc.sink { [weak self] openDoc in
+        workspaceOutput.$openDoc.sink { [weak self] openDoc in
             guard let openDoc else {
                 return
             }
@@ -23,14 +23,16 @@ class FileTreeViewModel: ObservableObject {
             guard let file = filesModel.idsToFiles[openDoc] else {
                 return
             }
-            AppState.workspaceState.selectedFolder = file.parent
+            DispatchQueue.main.async {
+                workspaceInput.selectFolder(id: file.parent)
+            }
 
             self?.openDoc = openDoc
             self?.expandToFile(file: file)
         }
         .store(in: &cancellables)
         
-        AppState.workspaceState.$selectedFolder.sink { [weak self] selectedFolder in
+        workspaceOutput.$selectedFolder.sink { [weak self] selectedFolder in
             if self?.supressNextOpenFolder == true {
                 self?.supressNextOpenFolder = false
                 return

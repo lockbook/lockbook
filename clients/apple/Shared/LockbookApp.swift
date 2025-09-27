@@ -13,7 +13,7 @@ import SwiftWorkspace
     #if os(macOS)
     @SceneBuilder
     var macOS: some Scene {
-        Window("Lockbook", id: "main") {
+        WindowGroup {
             ContentView()
         }
         .windowToolbarStyle(.unifiedCompact)
@@ -68,10 +68,16 @@ struct ContentView: View {
 }
 
 struct HomeContextWrapper: View {
+    @StateObject var filesModel = FilesViewModel()
+    @StateObject var workspaceInput = WorkspaceInputState()
+    @StateObject var workspaceOutput = WorkspaceOutputState()
+    
     var body: some View {
-        HomeView()
+        HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
             .environmentObject(AppState.billingState)
-            .environmentObject(AppState.workspaceState)
+            .environmentObject(filesModel)
+            .environmentObject(workspaceInput)
+            .environmentObject(workspaceOutput)
     }
 }
 

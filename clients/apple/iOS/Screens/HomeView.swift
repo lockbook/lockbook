@@ -5,9 +5,15 @@ import Introspect
 struct HomeView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
-    @StateObject var homeState = HomeState()
-    @StateObject var filesModel = FilesViewModel()
+    @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    
+    @StateObject var homeState: HomeState
     @StateObject var settingsModel = SettingsViewModel()
+    
+    init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
+        self._homeState = StateObject(wrappedValue: HomeState(workspaceOutput: workspaceOutput, filesModel: filesModel))
+    }
     
     var body: some View {
         Group {
@@ -22,7 +28,7 @@ struct HomeView: View {
                     })
                 }
             } else {
-                PathSearchContainerView(filesModel: filesModel) {
+                PathSearchContainerView(filesModel: filesModel, workspaceInput: workspaceInput) {
                     NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
                         SearchContainerView(filesModel: filesModel) {
                             sidebar
@@ -48,7 +54,6 @@ struct HomeView: View {
             }
         })
         .environmentObject(homeState)
-        .environmentObject(filesModel)
         .environmentObject(settingsModel)
     }
     
@@ -83,7 +88,7 @@ struct HomeView: View {
     
     @ViewBuilder
     var detail: some View {
-        DetailView(homeState: homeState, filesModel: filesModel)
+        DetailView()
             .navigationDestination(isPresented: $homeState.showSettings) {
                 SettingsView(model: settingsModel)
             }
@@ -96,6 +101,8 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     var body: some View {
         if let error = filesModel.error {
@@ -123,7 +130,7 @@ struct SidebarView: View {
                         .font(.headline)
                         .padding(.bottom, 3)
                         .padding(.top, 8)) {
-                            FileTreeView(root: root, filesModel: filesModel)
+                            FileTreeView(root: root, filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput)
                                 .toolbar {
                                     selectionToolbarItem
                                 }
@@ -191,9 +198,6 @@ struct SidebarView: View {
 }
 
 #Preview("Home View") {
-    let workspaceState = WorkspaceState()
-    
-    return HomeView()
+    HomeView(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel())
         .environmentObject(BillingState())
-        .environmentObject(workspaceState)
 }

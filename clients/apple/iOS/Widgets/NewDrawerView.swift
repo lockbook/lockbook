@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftWorkspace
 
 struct NewDrawerView<Main: View, Side: View>: View {
     @ObservedObject var homeState: HomeState
@@ -174,7 +175,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
 }
 
 #Preview {
-    NewDrawerView(homeState: HomeState(), mainView: {
+    NewDrawerView(homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()), mainView: {
         Color.blue
     }, sideView: {
         Color.red

@@ -4,14 +4,15 @@ import SwiftWorkspace
 struct FileTreeView: View {
     
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     @StateObject var fileTreeModel: FileTreeViewModel
     
     var root: File
     
-    init(root: File, filesModel: FilesViewModel) {
+    init(root: File, filesModel: FilesViewModel, workspaceInput: WorkspaceInputState, workspaceOutput: WorkspaceOutputState) {
         self.root = root
-        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(filesModel: filesModel))
+        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput))
     }
 
     var body: some View {
@@ -35,7 +36,7 @@ struct FileTreeView: View {
                     }
                 }
                 
-                AppState.workspaceState.requestSync()
+                workspaceInput.requestSync()
             }
             .padding(.leading)
             .onChange(of: fileTreeModel.openDoc) { newValue in
@@ -52,6 +53,7 @@ struct FileRowView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
@@ -180,13 +182,13 @@ struct FileRowView: View {
         
         if file.isFolder {
             fileTreeModel.supressNextOpenFolder = true
-            AppState.workspaceState.selectedFolder = file.id
+            workspaceInput.selectFolder(id: file.id)
             
             withAnimation {
                 let _ = fileTreeModel.toggleFolder(file.id)
             }
         } else {
-            AppState.workspaceState.requestOpenDoc(file.id)
+            workspaceInput.openFile(id: file.id)
             
             if homeState.isSidebarFloating {
                 homeState.sidebarState = .closed
@@ -201,17 +203,18 @@ struct FileRowContextMenu: View {
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     var body: some View {
         VStack {
             if file.isFolder {
                 Button(action: {
-                    filesModel.createDoc(parent: file.id, isDrawing: false)
+                    workspaceInput.createDocAt(parent: file.id, drawing: false)
                 }) {
                     Label("Create a document", systemImage: "doc.fill")
                 }
                 Button(action: {
-                    filesModel.createDoc(parent: file.id, isDrawing: true)
+                    workspaceInput.createDocAt(parent: file.id, drawing: true)
                 }) {
                     Label("Create a drawing", systemImage: "pencil.tip.crop.circle.badge.plus")
                 }
@@ -293,8 +296,8 @@ struct OpenDocModifier: ViewModifier {
 
 #Preview {
     NavigationView {
-        FileTreeView(root: (AppState.lb as! MockLb).file0, filesModel: FilesViewModel())
+        FileTreeView(root: (AppState.lb as! MockLb).file0, filesModel: FilesViewModel(), workspaceInput: WorkspaceInputState(), workspaceOutput: WorkspaceOutputState())
     }
-    .environmentObject(HomeState())
+    .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
     .environmentObject(FilesViewModel())
 }

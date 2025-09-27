@@ -1,8 +1,11 @@
 import SwiftUI
+import SwiftWorkspace
 
 struct OnLbLinkViewModifier: ViewModifier {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     func body(content: Content) -> some View {
         content
@@ -15,7 +18,7 @@ struct OnLbLinkViewModifier: ViewModifier {
                     }
                 }
             })
-            .onReceive(AppState.workspaceState.$urlOpened, perform: { url in
+            .onReceive(workspaceOutput.$urlOpened, perform: { url in
                 guard let url else {
                     return
                 }
@@ -81,7 +84,7 @@ struct OnLbLinkViewModifier: ViewModifier {
             }
             
             DispatchQueue.main.async {
-                AppState.workspaceState.requestOpenDoc(file.id)
+                workspaceInput.openFile(id: file.id)
             }
         }
     }

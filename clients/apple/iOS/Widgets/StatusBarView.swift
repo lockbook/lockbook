@@ -6,7 +6,8 @@ struct StatusBarView: View {
 
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     var body: some View {
         VStack {
@@ -74,7 +75,7 @@ struct StatusBarView: View {
             if let root = filesModel.root {
                 Button(action: {
                     self.docCreateAction {
-                        filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                        workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
                     }
                 }) {
                     Image(systemName: "doc.badge.plus")
@@ -85,7 +86,7 @@ struct StatusBarView: View {
                 
                 Button(action: {
                     self.docCreateAction {
-                        filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: true)
+                        workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: true)
                     }
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
@@ -116,7 +117,7 @@ struct StatusBarView: View {
     }
     
     func selectedFolderOrRoot(_ root: File) -> File {
-        guard let selectedFolder = AppState.workspaceState.selectedFolder else {
+        guard let selectedFolder = workspaceOutput.selectedFolder else {
             return root
         }
         
@@ -125,15 +126,13 @@ struct StatusBarView: View {
 }
 
 #Preview {
-    let workspaceState = WorkspaceState()
-    workspaceState.statusMsg = "You have 1 unsynced change."
-    
-    return VStack {
+    VStack {
         Spacer()
                 
         StatusBarView()
-            .environmentObject(HomeState())
+            .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
             .environmentObject(FilesViewModel())
-            .environmentObject(workspaceState)
+            .environmentObject(WorkspaceInputState())
+            .environmentObject(WorkspaceOutputState())
     }
 }

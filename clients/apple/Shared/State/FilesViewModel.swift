@@ -197,18 +197,14 @@ class FilesViewModel: ObservableObject {
             }
         }
     }
-    
-    func createDoc(parent: UUID, isDrawing: Bool) {
-        AppState.workspaceState.createDocAtRequested = (parent, isDrawing)
-    }
-    
-    func deleteFiles(files: [File]) {
+        
+    func deleteFiles(files: [File], workspaceInput: WorkspaceInputState) {
         for file in files {
             if case .failure(let err) = AppState.lb.deleteFile(id: file.id) {
                 self.error = err.msg
             }
             
-            AppState.workspaceState.fileOpCompleted = .Delete(id: file.id)
+            workspaceInput.fileOpCompleted(fileOp: .Delete(id: file.id))
         }
         
         self.loadFiles()

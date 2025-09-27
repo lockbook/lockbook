@@ -3,6 +3,9 @@ import SwiftWorkspace
 import Combine
 
 class HomeState: ObservableObject {
+    let workspaceOutput: WorkspaceOutputState
+    let filesModel: FilesViewModel
+    
     @Published var fileActionCompleted: FileAction? = nil
     
     @Published var showSettings: Bool = false
@@ -42,10 +45,41 @@ class HomeState: ObservableObject {
     @Published var showTabsSheet: Bool = false
     @Published var showOutOfSpaceAlert: Bool = false
     
-    init() {
+    var cancellables: Set<AnyCancellable> = []
+    
+    init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
+        self.workspaceOutput = workspaceOutput
+        self.filesModel = filesModel
+        
         #if os(iOS)
         expandSidebarIfNoDocs()
         #endif
+        
+        workspaceOutput.$renameOpenDoc.sink { [weak self] _ in
+            guard let openDoc = workspaceOutput.openDoc else {
+                return
+            }
+            
+            guard let file = filesModel.idsToFiles[openDoc] else {
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self?.sheetInfo = .rename(file: file)
+            }
+        }
+        .store(in: &cancellables)
+        
+        workspaceOutput.$newFolderButtonPressed.sink { [weak self] _ in
+            guard let root = self?.filesModel.root else {
+                return
+            }
+            
+            DispatchQueue.main.async {
+                self?.sheetInfo = .createFolder(parent: root)
+            }
+        }
+        .store(in: &cancellables)
     }
     
     func expandSidebarIfNoDocs() {
