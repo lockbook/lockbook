@@ -378,7 +378,10 @@ impl TaskManager {
 
         for load in mem::take(&mut tasks.queued_loads) {
             if ids_to_load.contains(&load.request.id) {
-                loads_to_launch.insert(load.request.id, load); // use latest of duplicate ids
+                // use earliest of duplicate ids
+                // this supports opening the same file twice in the same frame,
+                // which requires the `tab_created` value from the first request
+                loads_to_launch.entry(load.request.id).or_insert(load);
             } else {
                 tasks.queued_loads.push(load); // put back the ones we're not launching
             }
