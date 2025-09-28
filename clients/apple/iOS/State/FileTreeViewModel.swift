@@ -46,9 +46,7 @@ class FileTreeViewModel: ObservableObject {
                 return
             }
             
-            print("expanding to folder... \(file.name)")
             self?.expandToFile(file: file)
-            // go to it
         }
         .store(in: &cancellables)
     }
@@ -70,7 +68,6 @@ class FileTreeViewModel: ObservableObject {
             expandToFile(file: parent)
         }
         
-        print("opening \(file.name)")
         openFolders.insert(file.id)
     }
 }

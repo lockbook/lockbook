@@ -12,6 +12,7 @@ import SwiftUI
     public struct WorkspaceView: UIViewControllerRepresentable {
         @EnvironmentObject public var workspaceInput: WorkspaceInputState
         @EnvironmentObject public var workspaceOutput: WorkspaceOutputState
+        @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
         public init() {}
 
@@ -56,7 +57,6 @@ import SwiftUI
                         objc_getAssociatedObject(UIApplication.shared, wsHandle)
                         as! WorkspaceController
                 } else {
-                    // Create once per scene
                     let new = WorkspaceController(
                         workspaceInput: workspaceInput,
                         workspaceOutput: workspaceOutput
@@ -83,6 +83,11 @@ import SwiftUI
                 ]
                 view.addSubview(workspaceController.view)
                 workspaceController.didMove(toParent: self)
+
+                workspaceController.inputManager.updateCurrentTab(
+                    newCurrentTab: workspaceOutput.currentTab,
+                    newTabCount: workspaceOutput.tabCount
+                )
             }
         }
     }
@@ -190,12 +195,13 @@ import SwiftUI
         ) {
             mtkView.tabSwitchTask = { [weak self] in
                 if let inputManager = self {
-                    inputManager.currentWrapper?.removeFromSuperview()
-
+                    print("UPDATING TO \(newCurrentTab) \(newTabCount)")
                     inputManager.mtkView.onSelectionChanged = nil
                     inputManager.mtkView.onTextChanged = nil
 
                     inputManager.tabCount = newTabCount
+                    
+                    let headerSize = inputManager.mtkView.docHeaderSize
 
                     switch newCurrentTab {
                     case .Welcome, .Pdf, .Loading, .SpaceInspector:
@@ -203,14 +209,23 @@ import SwiftUI
                             return
                         }
 
+                        inputManager.currentWrapper?.removeFromSuperview()
                         inputManager.mtkView.currentWrapper = nil
                     case .Svg, .Image, .Graph:
-                        if self?.currentWrapper is iOSMTKDrawingWrapper {
+                        if let currentWrapper = self?.currentWrapper
+                            as? iOSMTKDrawingWrapper,
+                            currentWrapper.currentHeaderSize
+                                == headerSize
+                        {
                             return
                         }
 
+                        inputManager.currentWrapper?.removeFromSuperview()
+
                         let drawingWrapper = iOSMTKDrawingWrapper(
-                            mtkView: inputManager.mtkView
+                            mtkView: inputManager.mtkView,
+                            headerSize: headerSize
+
                         )
                         inputManager.currentWrapper = drawingWrapper
                         inputManager.mtkView.currentWrapper = drawingWrapper
@@ -221,7 +236,7 @@ import SwiftUI
                         NSLayoutConstraint.activate([
                             drawingWrapper.topAnchor.constraint(
                                 equalTo: inputManager.topAnchor,
-                                constant: inputManager.mtkView.docHeaderSize
+                                constant: headerSize
                             ),
                             drawingWrapper.leftAnchor.constraint(
                                 equalTo: inputManager.leftAnchor
@@ -234,12 +249,19 @@ import SwiftUI
                             ),
                         ])
                     case .PlainText, .Markdown:
-                        if self?.currentWrapper is iOSMTKTextInputWrapper {
+                        if let currentWrapper = self?.currentWrapper
+                            as? iOSMTKTextInputWrapper,
+                            currentWrapper.currentHeaderSize
+                                == headerSize
+                        {
                             return
                         }
 
+                        inputManager.currentWrapper?.removeFromSuperview()
+
                         let textWrapper = iOSMTKTextInputWrapper(
-                            mtkView: inputManager.mtkView
+                            mtkView: inputManager.mtkView,
+                            headerSize: headerSize
                         )
                         inputManager.currentWrapper = textWrapper
                         inputManager.mtkView.currentWrapper = textWrapper
@@ -250,7 +272,7 @@ import SwiftUI
                         NSLayoutConstraint.activate([
                             textWrapper.topAnchor.constraint(
                                 equalTo: inputManager.topAnchor,
-                                constant: inputManager.mtkView.docHeaderSize
+                                constant: headerSize
                             ),
                             textWrapper.leftAnchor.constraint(
                                 equalTo: inputManager.leftAnchor

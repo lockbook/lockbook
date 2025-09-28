@@ -13,6 +13,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var textUndoManager = iOSUndoManager()
     let textInteraction = UITextInteraction(for: .editable)
@@ -34,8 +35,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
     var isLongPressCursorDrag = false
     
-    init(mtkView: iOSMTK) {
+    init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -699,13 +701,15 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
     
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
     
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
-
-    init(mtkView: iOSMTK) {
+    
+    init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -1005,7 +1009,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
         if currentTab != self.workspaceOutput!.currentTab {
             DispatchQueue.main.async {
-                print("setting the current tab to \(currentTab)")
                 self.workspaceOutput!.currentTab = currentTab
             }
         }
@@ -1060,7 +1063,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                print("OPENING A LINK")
                 self.workspaceOutput?.urlOpened = url
             }
         }
