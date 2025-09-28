@@ -69,7 +69,7 @@ struct ContentView: View {
 
 struct HomeContextWrapper: View {
     @StateObject var filesModel = FilesViewModel()
-    @StateObject var workspaceInput = WorkspaceInputState()
+    @StateObject var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
     @StateObject var workspaceOutput = WorkspaceOutputState()
     
     var body: some View {
@@ -82,9 +82,13 @@ struct HomeContextWrapper: View {
 }
 
 #Preview("Logged In") {
-    ContentView()
+    AppState.shared.isLoggedIn = true
+    
+    return ContentView()
 }
 
 #Preview("Onboarding") {
-    ContentView()
+    AppState.shared.isLoggedIn = false
+    
+    return ContentView()
 }

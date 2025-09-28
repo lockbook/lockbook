@@ -36,7 +36,7 @@ class PathSearchViewModel: ObservableObject {
             workspaceInput.openFile(id: file.id)
         }
         
-        self.isShown = false
+        self.endSearch()
     }
     
     func search() {
@@ -75,7 +75,16 @@ class PathSearchViewModel: ObservableObject {
         self.selected = max(0, selected - 1)
     }
     
+    func toggleSearch() {
+        if self.isShown {
+            self.endSearch()
+        } else {
+            self.isShown = true
+        }
+    }
+    
     func endSearch() {
         self.isShown = false
+        workspaceInput.focus.send(())
     }
 }

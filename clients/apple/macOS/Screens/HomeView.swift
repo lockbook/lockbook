@@ -123,5 +123,7 @@ struct DetailView: View {
 
 #Preview("Home View") {
     return HomeView(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel())
+        .environmentObject(WorkspaceInputState())
         .environmentObject(WorkspaceOutputState())
+        .environmentObject(FilesViewModel())
 }

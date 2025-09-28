@@ -1005,9 +1005,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
         if currentTab != self.workspaceOutput!.currentTab {
             DispatchQueue.main.async {
-                withAnimation {
-                    self.workspaceOutput!.currentTab = currentTab
-                }
+                print("setting the current tab to \(currentTab)")
+                self.workspaceOutput!.currentTab = currentTab
             }
         }
 
@@ -1046,12 +1045,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         }
 
-//        Can this happen in rust?
-//
-//        let newFile = UUID(uuid: output.doc_created._0)
-//        if !newFile.isNil() {
-//            openFile(id: newFile)
-//        }
+//      FIXME:  Can we just do this in rust?
+        let newFile = UUID(uuid: output.doc_created._0)
+        if !newFile.isNil() {
+            workspaceInput?.openFile(id: newFile)
+        }
 
         if output.new_folder_btn_pressed {
             self.workspaceOutput?.newFolderButtonPressed = ()
@@ -1062,6 +1060,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
+                print("OPENING A LINK")
                 self.workspaceOutput?.urlOpened = url
             }
         }

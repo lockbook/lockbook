@@ -32,7 +32,7 @@ struct StatusBarView: View {
                 .padding(.trailing, 5)
                 
                 Button(action: {
-                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
+                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: true)
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
                         .font(.title2)

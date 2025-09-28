@@ -304,12 +304,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
             self.workspaceOutput?.openDoc = nil
         }
 
-//        Can we just do this in rust?
-//
-//        let newFile = UUID(uuid: output.doc_created._0)
-//        if !newFile.isNil() {
-//            openFile(id: newFile)
-//        }
+//      FIXME:  Can we just do this in rust?
+        let newFile = UUID(uuid: output.doc_created._0)
+        if !newFile.isNil() {
+            workspaceInput?.openFile(id: newFile)
+        }
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)

@@ -22,12 +22,18 @@ public class WorkspaceOutputState: ObservableObject {
 }
 
 public class WorkspaceInputState: ObservableObject {
+    public var coreHandle: UnsafeMutableRawPointer? = nil
     public var wsHandle: UnsafeMutableRawPointer? = nil
     
-    var redraw = PassthroughSubject<(), Never>()
-    var focus = PassthroughSubject<(), Never>()
+    public var redraw = PassthroughSubject<(), Never>()
+    public var focus = PassthroughSubject<(), Never>()
 //    maybe make unfocus variable
     
+    public init(coreHandle: UnsafeMutableRawPointer?) {
+        self.coreHandle = coreHandle
+    }
+    
+    // ONLY USE CONSTRUCTOR FOR PREVIEWS
     public init() {}
     
     public func openFile(id: UUID) {
