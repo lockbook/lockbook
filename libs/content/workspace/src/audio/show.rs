@@ -1,5 +1,5 @@
 use egui::{Area, Frame, Id, Order, Pos2, Ui};
-use egui_player::{player::Player};
+use egui_player::player::Player;
 use lb_rs::Uuid;
 use tokio::runtime::Runtime;
 

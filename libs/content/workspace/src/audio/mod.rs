@@ -1,7 +1,11 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use chrono::DateTime;
-use lb_rs::{blocking::Lb, model::{file::File, file_metadata::FileType}, Uuid};
+use lb_rs::{
+    Uuid,
+    blocking::Lb,
+    model::{file::File, file_metadata::FileType},
+};
 
 pub mod show;
 
@@ -12,6 +16,8 @@ pub fn import_transcription(lb: &Lb, file_id: Uuid, data: &[u8]) -> File {
     let siblings = lb
         .get_children(&file.parent)
         .expect("get lockbook siblings for transcription");
+
+    let file_name = file.name;
 
     let imports_folder = {
         let mut imports_folder = None;
@@ -33,12 +39,12 @@ pub fn import_transcription(lb: &Lb, file_id: Uuid, data: &[u8]) -> File {
         .expect("invalid system time")
         .format("%Y-%m-%d_%H-%M-%S")
         .to_string();
-    
+
     let file_extension = ".txt";
 
     let file = lb
         .create_file(
-            &format!("transcription_performed_{human_readable_time}.{file_extension}"),
+            &format!("{file_name} {human_readable_time}.{file_extension}"),
             &imports_folder.id,
             FileType::Document,
         )
