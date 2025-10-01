@@ -4,7 +4,7 @@ use chrono::Local;
 use std::backtrace::Backtrace;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::{env, fs, panic};
+use std::{env, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::prelude::*;
