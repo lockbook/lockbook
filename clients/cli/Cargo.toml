@@ -12,7 +12,7 @@ name = "lockbook"
 path = "src/main.rs"
 
 [dependencies]
-cli-rs = "0.1.12"
+cli-rs = { version = "0.2.0" }
 lb-rs = { version = "25", path = "../../libs/lb/lb-rs" }
 is-terminal = "0.4.7"
 hotwatch = "0.5.0"

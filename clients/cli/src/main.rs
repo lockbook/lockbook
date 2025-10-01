@@ -214,9 +214,7 @@ fn run() -> CliResult<()> {
                 .handler(sync)
         )
         .with_completions()
-        .parse();
-
-    Ok(())
+        .parse()
 }
 
 fn main() {
