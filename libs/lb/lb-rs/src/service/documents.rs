@@ -45,15 +45,13 @@ impl Lb {
             .local_metadata
             .get()
             .get(&id)
-            .map(|m| m.document_hmac())
-            .flatten()
+            .and_then(|m| m.document_hmac())
             .copied();
         let base_hmac = db
             .base_metadata
             .get()
             .get(&id)
-            .map(|m| m.document_hmac())
-            .flatten()
+            .and_then(|m| m.document_hmac())
             .copied();
 
         let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
@@ -113,15 +111,13 @@ impl Lb {
             .local_metadata
             .get()
             .get(&id)
-            .map(|m| m.document_hmac())
-            .flatten()
+            .and_then(|m| m.document_hmac())
             .copied();
         let base_hmac = db
             .base_metadata
             .get()
             .get(&id)
-            .map(|m| m.document_hmac())
-            .flatten()
+            .and_then(|m| m.document_hmac())
             .copied();
 
         let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
