@@ -28,6 +28,8 @@ impl Lb {
 
         let doc = self.read_document_helper(id, &mut tree).await?;
 
+        drop(tx);
+
         if user_activity {
             self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
                 .await?;
