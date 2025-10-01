@@ -2,6 +2,8 @@ use crate::Config;
 use crate::model::errors::{LbResult, core_err_unexpected};
 use chrono::Local;
 use std::backtrace::Backtrace;
+use std::fs::OpenOptions;
+use std::io::Write;
 use std::{env, fs, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
@@ -91,7 +93,14 @@ fn panic_capture(config: &Config) {
         eprintln!("panic detected and logged: {panic_info} {bt}");
         let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
         let file_name = format!("{path}/panic---{timestamp}.log");
-        let file = format!("INFO: {panic_info}\nBT: {bt}");
-        fs::write(file_name, file).unwrap();
+        let content = format!("INFO: {panic_info}\nBT: {bt}");
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_name)
+            .unwrap();
+
+        file.write_all(content.as_bytes()).unwrap();
     }));
 }
