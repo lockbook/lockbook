@@ -1,4 +1,4 @@
-use cli_rs::cli_error::CliResult;
+use cli_rs::cli_error::{CliResult, Exit};
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use lb_fs::fs_impl::Drive;
@@ -18,7 +18,8 @@ fn main() {
                 .description("start an NFS server and mount it to /tmp/lockbook")
                 .handler(mount),
         )
-        .parse();
+        .parse()
+        .exit()
 }
 
 #[tokio::main]
