@@ -94,7 +94,9 @@ impl Lb {
             self.collect_panics()
         );
 
-        let status = format!("{:?}", self.status().await);
+        let mut status = self.status().await;
+        status.space_used = None;
+        let status = format!("{status:?}");
         let is_syncing = self.syncing.load(Ordering::Relaxed);
 
         Ok(serde_json::to_string_pretty(&DebugInfo {

@@ -110,6 +110,10 @@ impl AsyncDocs {
                 .and_then(|name| name.to_str())
                 .ok_or(LbErrKind::Unexpected("could not get filename from os".to_string()))?;
 
+            if file_name.contains("pending") {
+                continue;
+            }
+
             let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
 
             let id = Uuid::parse_str(id_str).map_err(|err| {
