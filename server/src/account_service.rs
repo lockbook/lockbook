@@ -67,6 +67,8 @@ where
         context.request.username = context.request.username.to_lowercase();
         let request = &context.request;
 
+        tracing::info!("new-account attempt username: {}", request.username);
+
         if !username_is_valid(&request.username) {
             return Err(ClientError(NewAccountError::InvalidUsername));
         }

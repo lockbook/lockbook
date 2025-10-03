@@ -30,4 +30,8 @@ pub struct ServerV5 {
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
     pub file_children: LookupSet<Uuid, Uuid>,
+    pub bandwidth_egress: LookupTable<Owner, BandwidthReport>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BandwidthReport {}
