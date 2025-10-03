@@ -234,7 +234,10 @@ impl Lb {
                 continue;
             };
 
-            let doc = String::from_utf8(self.read_document(file.id, false).await.unwrap()).unwrap();
+            let Ok(doc) = String::from_utf8(self.read_document(file.id, false).await.unwrap())
+            else {
+                continue;
+            };
 
             if doc.len() > CONTENT_MAX_LEN_BYTES {
                 continue;
