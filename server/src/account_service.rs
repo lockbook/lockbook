@@ -54,8 +54,12 @@ where
             root_folder: SignedMeta::from(request.root_folder),
         };
 
-        self.new_account_v2(RequestContext { request, public_key: context.public_key })
-            .await
+        self.new_account_v2(RequestContext {
+            request,
+            public_key: context.public_key,
+            ip: context.ip,
+        })
+        .await
     }
 
     /// Create a new account given a username, public_key, and root folder.
@@ -66,6 +70,8 @@ where
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
         context.request.username = context.request.username.to_lowercase();
         let request = &context.request;
+
+        tracing::info!("new-account attempt username: {}", request.username);
 
         if !username_is_valid(&request.username) {
             return Err(ClientError(NewAccountError::InvalidUsername));

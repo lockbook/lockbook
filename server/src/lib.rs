@@ -7,6 +7,7 @@ use lb_rs::model::errors::LbResult;
 use schema::ServerDb;
 use std::env;
 use std::fmt::Debug;
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -39,12 +40,14 @@ where
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
+    pub recent_ips: Vec<SocketAddr>,
 }
 
 #[derive(Clone)]
 pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
+    pub ip: Option<SocketAddr>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,6 +100,7 @@ where
 pub mod account_service;
 pub mod billing;
 pub mod config;
+pub mod defense;
 pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
