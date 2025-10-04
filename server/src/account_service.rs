@@ -54,8 +54,12 @@ where
             root_folder: SignedMeta::from(request.root_folder),
         };
 
-        self.new_account_v2(RequestContext { request, public_key: context.public_key })
-            .await
+        self.new_account_v2(RequestContext {
+            request,
+            public_key: context.public_key,
+            ip: context.ip,
+        })
+        .await
     }
 
     /// Create a new account given a username, public_key, and root folder.

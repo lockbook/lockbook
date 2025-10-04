@@ -59,6 +59,9 @@ macro_rules! core_req {
                  request: Bytes,
                  version: Option<String>,
                  ip: Option<SocketAddr>| {
+                    if ip.is_none() {
+                        tracing::error!("ip not present in request");
+                    }
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
@@ -113,9 +116,13 @@ macro_rules! core_req {
                             username = username.as_str(),
                             public_key = req_pk.as_str()
                         );
+                        if ip.is_none() {
+                            tracing::error!("ip not present in request");
+                        }
                         let rc: RequestContext<$Req> = RequestContext {
                             request: request.signed_request.timestamped_value.value,
                             public_key: request.signed_request.public_key,
+                            ip,
                         };
 
                         async move {
