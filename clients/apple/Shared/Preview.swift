@@ -2,11 +2,10 @@
     import SwiftUI
     import SwiftWorkspace
 
+    // !!!: ADD NEW OBSERVABLE OBJECTS TO THIS
     extension View {
         func withCommonPreviewEnvironment() -> some View {
-            var preview =
-                self
-                // !!!: ADD NEW OBSERVABLE OBJECTS TO THIS LIST
+            self
                 .environmentObject(BillingState.preview)
                 .environmentObject(FilesViewModel.preview)
                 .environmentObject(HomeState.preview)
@@ -17,14 +16,17 @@
                 .environmentObject(SuggestedDocsViewModel.preview)
                 .environmentObject(WorkspaceInputState.preview)
                 .environmentObject(WorkspaceOutputState.preview)
+                .withPlatformSpecificPreviewEnvironment()
+        }
 
+        private func withPlatformSpecificPreviewEnvironment() -> some View {
             #if os(iOS)
-                preview = preview.environmentObject(FileTreeViewModel.preview)
+                return
+                    self
+                    .environmentObject(FileTreeViewModel.preview)
             #else
-                // do nothing... for now
+                return self
             #endif
-
-            return preview
         }
     }
 

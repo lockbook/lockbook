@@ -23,6 +23,8 @@ struct OnLbLinkViewModifier: ViewModifier {
                     return
                 }
                 
+                print("just got URL \(url)")
+                
                 if AppState.isInternalLink(url) {
                     handleOpenLink(url: url)
                 } else {

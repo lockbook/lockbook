@@ -34,7 +34,7 @@ public class WorkspaceInputState: ObservableObject {
     }
 
     #if DEBUG
-    public init() {}
+        public init() {}
     #endif
 
     public func openFile(id: UUID) {

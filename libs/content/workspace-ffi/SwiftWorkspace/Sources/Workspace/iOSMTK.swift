@@ -1057,10 +1057,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         if output.new_folder_btn_pressed {
             self.workspaceOutput?.newFolderButtonPressed = ()
         }
+        
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)
-
+            
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
                 self.workspaceOutput?.urlOpened = url
