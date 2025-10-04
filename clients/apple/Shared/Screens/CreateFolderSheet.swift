@@ -140,7 +140,7 @@ class CreateFolderViewModel: ObservableObject {
             height: CreateFolderSheet.FORM_HEIGHT,
             presentedContent: { item in
                 CreateFolderSheet(
-                    homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()),
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                     parentId: item.id
                 )
             }
@@ -148,7 +148,7 @@ class CreateFolderViewModel: ObservableObject {
 }
 #else
 #Preview {
-    CreateFolderSheet(homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()), parentId: (AppState.lb as! MockLb).file1.id)
+    CreateFolderSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), parentId: (AppState.lb as! MockLb).file1.id)
         .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT
         )
 }

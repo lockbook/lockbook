@@ -130,9 +130,6 @@ struct StatusBarView: View {
         Spacer()
                 
         StatusBarView()
-            .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-            .environmentObject(FilesViewModel())
-            .environmentObject(WorkspaceInputState())
-            .environmentObject(WorkspaceOutputState())
+            .withCommonPreviewEnvironment()
     }
 }

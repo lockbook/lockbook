@@ -147,8 +147,7 @@ struct FileTreeView: NSViewRepresentable {
 
 #Preview {
     FileTreeView()
-        .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-        .environmentObject(FilesViewModel())
+        .withCommonPreviewEnvironment()
 }
 
 class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {

@@ -198,6 +198,6 @@ struct SidebarView: View {
 }
 
 #Preview("Home View") {
-    HomeView(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel())
-        .environmentObject(BillingState())
+    HomeView(workspaceOutput: .preview, filesModel: .preview)
+        .withCommonPreviewEnvironment()
 }

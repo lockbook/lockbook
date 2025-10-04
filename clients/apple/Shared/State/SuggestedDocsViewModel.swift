@@ -82,3 +82,11 @@ struct SuggestedDocInfo: Identifiable {
     let parentName: String
     let lastModified: String
 }
+
+#if DEBUG
+extension SuggestedDocsViewModel {
+    static var preview: SuggestedDocsViewModel {
+        return SuggestedDocsViewModel(filesModel: .preview)
+    }
+}
+#endif

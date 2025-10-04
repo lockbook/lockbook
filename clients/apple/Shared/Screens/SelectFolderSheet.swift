@@ -251,12 +251,13 @@ struct HighlightedText: View {
     }
 }
 
+#if os(iOS)
 #Preview("Select Folder - Move") {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()),
-                filesModel: FilesViewModel(),
+                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                filesModel: .preview,
                 action: .move(files: [(AppState.lb as! MockLb).file1])
             )
         }
@@ -266,8 +267,8 @@ struct HighlightedText: View {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()),
-                filesModel: FilesViewModel(),
+                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                filesModel: .preview,
                 action: .acceptShare(name: "work.md", id: UUID())
             )
         }
@@ -277,9 +278,37 @@ struct HighlightedText: View {
     Color.accentColor
         .sheet(isPresented: .constant(true)) {
             SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()),
-                filesModel: FilesViewModel(),
+                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                filesModel: .preview,
                 action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")])
             )
         }
 }
+#else
+#Preview("Select Folder - Move") {
+    SelectFolderSheet(
+        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+        filesModel: .preview,
+        action: .move(files: [(AppState.lb as! MockLb).file1])
+    )
+    .withMacPreviewSize(height: 300)
+}
+
+#Preview("Select Folder - Accept Share") {
+    SelectFolderSheet(
+        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+        filesModel: .preview,
+        action: .acceptShare(name: "work.md", id: UUID())
+    )
+    .withMacPreviewSize(height: 300)
+}
+
+#Preview("Select Folder - Import Files") {
+    SelectFolderSheet(
+        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+        filesModel: .preview,
+        action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")])
+    )
+    .withMacPreviewSize(height: 300)
+}
+#endif

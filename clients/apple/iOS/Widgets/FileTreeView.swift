@@ -296,8 +296,7 @@ struct OpenDocModifier: ViewModifier {
 
 #Preview {
     NavigationView {
-        FileTreeView(root: (AppState.lb as! MockLb).file0, filesModel: FilesViewModel(), workspaceInput: WorkspaceInputState(), workspaceOutput: WorkspaceOutputState())
+        FileTreeView(root: (AppState.lb as! MockLb).file0, filesModel: .preview, workspaceInput: .preview, workspaceOutput: .preview)
     }
-    .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-    .environmentObject(FilesViewModel())
+    .withCommonPreviewEnvironment()
 }

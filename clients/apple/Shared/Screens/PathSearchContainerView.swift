@@ -177,32 +177,26 @@ struct PathSearchContainerView<Content: View>: View {
 }
 
 #Preview("Path Search") {
-    var pathSearchModel = PathSearchViewModel(
-        filesModel: FilesViewModel(),
-        workspaceInput: WorkspaceInputState()
-    )
-    pathSearchModel.isShown = true
+    let preview = PathSearchViewModel.preview
+    preview.isShown = true
 
     return PathSearchContainerView(
-        model: pathSearchModel,
+        model: preview,
         content: {
-            Color.red
+            Color.clear
         }
     )
 }
 
 #Preview("Path Search Single Item") {
-    var pathSearchModel = PathSearchViewModel(
-        filesModel: FilesViewModel(),
-        workspaceInput: WorkspaceInputState()
-    )
-    pathSearchModel.isShown = true
-    pathSearchModel.results = [
+    let preview = PathSearchViewModel.preview
+    preview.isShown = true
+    preview.results = [
         PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: [])
     ]
 
-    return PathSearchContainerView(model: pathSearchModel) {
-        Color.red
+    return PathSearchContainerView(model: preview) {
+        Color.clear
     }
 
 }

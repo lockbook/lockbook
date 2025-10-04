@@ -146,9 +146,6 @@ struct CompactTitle: ViewModifier {
     
     return NavigationStack {
         DetailView()
-            .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-            .environmentObject(FilesViewModel())
-            .environmentObject(WorkspaceInputState())
-            .environmentObject(WorkspaceOutputState())
+            .withCommonPreviewEnvironment()
     }
 }

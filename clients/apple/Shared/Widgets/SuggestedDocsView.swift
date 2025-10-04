@@ -52,11 +52,6 @@ struct SuggestedDocsView: View {
     }
 }
 
-#Preview {
-    SuggestedDocsView(filesModel: FilesViewModel())
-        .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-}
-
 struct SuggestedDocCell: View {
     let info: SuggestedDocInfo
     
@@ -145,4 +140,9 @@ struct SuggestedDocBackground: ViewModifier {
                     .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
             )
     }
+}
+
+#Preview {
+    SuggestedDocsView(filesModel: .preview)
+        .withCommonPreviewEnvironment()
 }

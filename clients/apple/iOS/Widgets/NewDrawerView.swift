@@ -175,7 +175,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
 }
 
 #Preview {
-    NewDrawerView(homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()), mainView: {
+    NewDrawerView(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), mainView: {
         Color.blue
     }, sideView: {
         Color.red

@@ -85,10 +85,12 @@ struct HomeContextWrapper: View {
     AppState.shared.isLoggedIn = true
     
     return ContentView()
+        .withCommonPreviewEnvironment()
 }
 
 #Preview("Onboarding") {
     AppState.shared.isLoggedIn = false
     
     return ContentView()
+        .withCommonPreviewEnvironment()
 }

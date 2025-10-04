@@ -103,7 +103,6 @@ struct TabsSheet: View {
                 )
             }
         )
-        .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
-        .environmentObject(WorkspaceInputState())
+        .withCommonPreviewEnvironment()
 }
 #endif

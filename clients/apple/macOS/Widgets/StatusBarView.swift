@@ -65,7 +65,6 @@ struct StatusBarView: View {
 
 #Preview {
     StatusBarView()
-        .environmentObject(FilesViewModel())
-        .environmentObject(HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()))
+        .withCommonPreviewEnvironment()
         .padding(.top, 8)
 }

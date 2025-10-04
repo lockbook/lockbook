@@ -192,7 +192,7 @@ struct AccountKeysView: View {
     NavigationStack {
         SettingsView()
     }
-    .environmentObject(BillingState())
+    .withCommonPreviewEnvironment()
 }
 
 

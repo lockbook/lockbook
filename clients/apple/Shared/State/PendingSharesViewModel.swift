@@ -41,3 +41,11 @@ class PendingSharesViewModel: ObservableObject {
         }
     }
 }
+
+#if DEBUG
+extension PendingSharesViewModel {
+    static var preview: PendingSharesViewModel {
+        return PendingSharesViewModel()
+    }
+}
+#endif

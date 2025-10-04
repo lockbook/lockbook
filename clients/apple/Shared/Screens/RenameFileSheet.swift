@@ -143,7 +143,7 @@ class RenameFileViewModel: ObservableObject {
             height: RenameFileSheet.FORM_HEIGHT,
             presentedContent: { item in
                 RenameFileSheet(
-                    homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()),
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                     id: item.id,
                     name: item.name
                 )
@@ -152,7 +152,7 @@ class RenameFileViewModel: ObservableObject {
 }
 #else
 #Preview {
-    RenameFileSheet(homeState: HomeState(workspaceOutput: WorkspaceOutputState(), filesModel: FilesViewModel()), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
+    RenameFileSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
         .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT
         )
 }

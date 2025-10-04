@@ -9,6 +9,8 @@
 /* Begin PBXBuildFile section */
 		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
 		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
+		4726A7892E918D6D0001107F /* Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726A7882E918D6C0001107F /* Preview.swift */; };
+		4726A78A2E918D6D0001107F /* Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726A7882E918D6C0001107F /* Preview.swift */; };
 		47323C472CD696710086A934 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47323C462CD696710086A934 /* workspace */; };
 		473DD14F2DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
 		473DD1502DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
@@ -69,6 +71,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		4726A7882E918D6C0001107F /* Preview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preview.swift; sourceTree = "<group>"; };
 		472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
 		473DD14E2DEBA60C00E50ADC /* logo.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = logo.svg; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
@@ -196,6 +199,7 @@
 		EA5C7D672516605F00F7F358 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				4726A7882E918D6C0001107F /* Preview.swift */,
 				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 				4731981A2D2AE88E00FBCD5F /* Widgets */,
 				471CD92B2D249FA200D9320B /* State */,
@@ -463,6 +467,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4726A7892E918D6D0001107F /* Preview.swift in Sources */,
 				47BC31CA2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -471,6 +476,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4726A78A2E918D6D0001107F /* Preview.swift in Sources */,
 				47BC31CB2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

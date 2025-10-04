@@ -88,3 +88,11 @@ class PathSearchViewModel: ObservableObject {
         workspaceInput.focus.send(())
     }
 }
+
+#if DEBUG
+extension PathSearchViewModel {
+    static var preview: PathSearchViewModel {
+        return PathSearchViewModel(filesModel: .preview, workspaceInput: .preview)
+    }
+}
+#endif
