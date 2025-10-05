@@ -19,6 +19,13 @@ import SwiftWorkspace
         .windowToolbarStyle(.unifiedCompact)
         .commands {
             SidebarCommands()
+            
+            CommandGroup(replacing: .newItem) {
+                Button("New Window") {
+                    NSApp.sendAction(#selector(NSApplication.newWindowForTab(_:)), to: nil, from: nil)
+                }
+                .keyboardShortcut("N", modifiers: [.command, .shift])
+            }
         }
         
         Settings {
@@ -39,6 +46,13 @@ import SwiftWorkspace
         }
         .commands {
             SidebarCommands()
+            
+            CommandGroup(replacing: .newItem) {
+                Button("New Window") {
+                    UIApplication.shared.requestSceneSessionActivation(nil, userActivity: nil, options: nil, errorHandler: nil)
+                }
+                .keyboardShortcut("N", modifiers: [.command, .shift])
+            }
         }
     }
     #endif
