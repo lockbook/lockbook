@@ -1,7 +1,22 @@
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    net::SocketAddr,
+    ops::Deref,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use google_androidpublisher3::chrono::{Datelike, Local};
 use serde::{Deserialize, Serialize};
+use time::Duration;
+
+use crate::{
+    ServerState,
+    billing::{
+        app_store_client::AppStoreClient, google_play_client::GooglePlayClient,
+        stripe_client::StripeClient,
+    },
+    document_service::DocumentService,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BandwidthReport {
@@ -37,5 +52,64 @@ impl BandwidthReport {
                 self.monthly_agg.insert(now, inc);
             }
         }
+    }
+}
+
+/// This struct helps us ensure that a given IP isn't making too many accounts
+/// this could be expanded upon as a broader rate limit, for now we're just going
+/// to apply the pattern where it's needed (new-account).
+#[derive(Copy, Debug, Clone, Serialize, Deserialize)]
+pub struct IpData {
+    ip: SocketAddr,
+    time: u64,
+}
+static MAX_IPS: u16 = 1000;
+
+impl<S, A, G, D> ServerState<S, A, G, D>
+where
+    S: StripeClient,
+    A: AppStoreClient,
+    G: GooglePlayClient,
+    D: DocumentService,
+{
+    /// Checks whether the server is configured to rate limit, and if so it will make sure that
+    /// this IP has not created an account within the last 1 minute
+    pub async fn can_create_account(&self, ip: SocketAddr) -> bool {
+        if !self.config.features.new_account_rate_limit {
+            return true;
+        }
+
+        let ips = self.recent_new_account_ips.lock().await;
+        for visitor in ips.deref() {
+            if visitor.ip == ip {
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis() as u64;
+                if now - visitor.time > Duration::minutes(1).whole_milliseconds() as u64 {
+                    return true;
+                } else {
+                    tracing::warn!("account creation not permitted due to rate limit");
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    pub async fn did_create_account(&self, ip: SocketAddr) {
+        let mut ips = self.recent_new_account_ips.lock().await;
+        ips.retain(|visitor| visitor.ip != ip);
+        if ips.len() > MAX_IPS as usize {
+            ips.pop_front();
+        }
+
+        ips.push_back(IpData {
+            ip,
+            time: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as u64,
+        });
     }
 }

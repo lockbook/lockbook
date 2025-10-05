@@ -1,13 +1,15 @@
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
+use defense::IpData;
 use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
 use schema::ServerDb;
+use std::collections::VecDeque;
 use std::env;
 use std::fmt::Debug;
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -40,7 +42,7 @@ where
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
-    pub recent_ips: Vec<SocketAddr>,
+    pub recent_new_account_ips: Arc<Mutex<VecDeque<IpData>>>,
 }
 
 #[derive(Clone)]
