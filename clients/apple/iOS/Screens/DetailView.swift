@@ -141,9 +141,6 @@ struct CompactTitle: ViewModifier {
 }
 
 #Preview {
-    let workspaceOutput = WorkspaceOutputState()
-    workspaceOutput.tabCount = 5
-    
     return NavigationStack {
         DetailView()
             .withCommonPreviewEnvironment()
