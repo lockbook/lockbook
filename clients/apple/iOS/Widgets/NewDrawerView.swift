@@ -34,8 +34,9 @@ struct NewDrawerView<Main: View, Side: View>: View {
                                     
                                     UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
                                 }) {
-                                    Image(systemName: "sidebar.left")
+                                    Label("Sidebar", systemImage: "sidebar.left")
                                         .imageScale(.large)
+                                        .labelStyle(.iconOnly)
                                 }
                             }
                         }
