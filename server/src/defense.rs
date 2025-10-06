@@ -95,7 +95,7 @@ where
                 if now - visitor.time > Duration::minutes(1).whole_milliseconds() as u64 {
                     return true;
                 } else {
-                    tracing::warn!("account creation not permitted due to rate limit");
+                    tracing::error!("account creation not permitted due to rate limit");
                     return false;
                 }
             }
