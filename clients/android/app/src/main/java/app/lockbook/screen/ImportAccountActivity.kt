@@ -8,7 +8,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.databinding.ActivityImportAccountBinding
 import app.lockbook.model.NotifySyncDone
-import app.lockbook.model.SyncModel
+import app.lockbook.model.SyncRepository
+import app.lockbook.services.ImportAccountViewModel
 import app.lockbook.util.exhaustive
 import app.lockbook.util.getApp
 
@@ -18,7 +19,7 @@ class ImportAccountActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val syncModel = SyncModel()
+    private val syncRepository = SyncRepository.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +38,7 @@ class ImportAccountActivity : AppCompatActivity() {
 //            binding.importAccountProgressBar.visibility = View.GONE
 //            binding.importExitApp.visibility = View.VISIBLE
 //        }
-        syncModel.notifySyncStepInfo.observe(
+        syncRepository.notifySyncStepInfo.observe(
             this
         ) { stepInfo ->
             println("received sync step info")
@@ -47,7 +48,7 @@ class ImportAccountActivity : AppCompatActivity() {
             binding.importInfo.text = stepInfo.msg
         }
 
-        syncModel.notifySyncDone.observe(
+        syncRepository.notifySyncDone.observe(
             this
         ) { updateImportUI ->
             when (updateImportUI) {

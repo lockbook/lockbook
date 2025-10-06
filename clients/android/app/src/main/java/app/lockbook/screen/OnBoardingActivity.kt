@@ -346,7 +346,6 @@ class ImportFragment : Fragment() {
             try {
                 Lb.importAccount(account)
 
-
                 val intent = Intent(context, InitialSync::class.java)
                 intent.putExtra(ACCOUNT_IMPORT_KEY, account)
                 context?.startForegroundService(intent)

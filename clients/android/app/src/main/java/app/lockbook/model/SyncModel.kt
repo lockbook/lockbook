@@ -1,29 +1,35 @@
 package app.lockbook.model
 
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.ViewModel
 import app.lockbook.util.*
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SyncProgress
 
-class SyncModel : SyncProgress {
+class SyncRepository private constructor() : SyncProgress {
     var syncStatus: SyncStatus = SyncStatus.NotSyncing
+        private set
 
     private val _notifySyncStepInfo = SingleMutableLiveData<SyncStepInfo>()
+    val notifySyncStepInfo: LiveData<SyncStepInfo> = _notifySyncStepInfo
 
-    val notifySyncStepInfo: LiveData<SyncStepInfo>
-        get() = _notifySyncStepInfo
-
-    val _notifySyncDone = SingleMutableLiveData<NotifySyncDone>()
-    val notifySyncDone: LiveData<NotifySyncDone>
-        get() = _notifySyncDone
+    private val _notifySyncDone = SingleMutableLiveData<NotifySyncDone>()
+    val notifySyncDone: LiveData<NotifySyncDone> = _notifySyncDone
 
     fun trySync() {
         if (syncStatus is SyncStatus.NotSyncing) {
             syncStatus = SyncStatus.StartingSync
-            Lb.sync(this)
 
-            syncStatus = SyncStatus.NotSyncing
+            try {
+                _notifySyncStepInfo.postValue(SyncStepInfo(-1, 100, "loading"))
+                Lb.sync(this)
+                _notifySyncDone.postValue(NotifySyncDone.FinishedSync)
+            } catch (error: LbError) {
+                _notifySyncDone.postValue(NotifySyncDone.NotifyError(error))
+            } finally {
+                syncStatus = SyncStatus.NotSyncing
+            }
         }
     }
 
@@ -33,9 +39,19 @@ class SyncModel : SyncProgress {
         msg: String?
     ) {
         val syncProgress = SyncStepInfo(progress, total, msg ?: "")
-        val newStatus = SyncStatus.Syncing(syncProgress)
-        syncStatus = newStatus
+        syncStatus = SyncStatus.Syncing(syncProgress)
         _notifySyncStepInfo.postValue(syncProgress)
+    }
+
+    companion object {
+        @Volatile
+        private var INSTANCE: SyncRepository? = null
+
+        fun getInstance(): SyncRepository {
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: SyncRepository().also { INSTANCE = it }
+            }
+        }
     }
 }
 
