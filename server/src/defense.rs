@@ -18,7 +18,7 @@ use crate::{
     document_service::DocumentService,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BandwidthReport {
     monthly_agg: HashMap<YearMonth, usize>,
 }
@@ -36,12 +36,18 @@ impl YearMonth {
     }
 }
 
+pub static SERVER_BANDWIDTH_CAP: usize = 1_000_000_000_000; // 1tb = $120
+
 impl BandwidthReport {
     pub fn current_bandwidth(&self) -> usize {
         self.monthly_agg
             .get(&YearMonth::current())
             .copied()
             .unwrap_or_default()
+    }
+
+    pub fn all_bandwidth(&self) -> usize {
+        self.monthly_agg.values().sum()
     }
 
     pub fn increase_by(&mut self, inc: usize) {

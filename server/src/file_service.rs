@@ -3,6 +3,7 @@ use crate::ServerError::ClientError;
 use crate::billing::app_store_client::AppStoreClient;
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
+use crate::defense::SERVER_BANDWIDTH_CAP;
 use crate::document_service::DocumentService;
 use crate::schema::ServerDb;
 
@@ -647,11 +648,12 @@ where
             let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
+            let requester = Owner(context.public_key);
 
             let meta_exists = db.metas.get().get(&request.id).is_some();
 
             let mut tree = ServerTree::new(
-                Owner(context.public_key),
+                requester,
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
@@ -675,9 +677,45 @@ where
             if request.hmac != *hmac {
                 return Err(ClientError(GetDocumentError::DocumentNotFound));
             }
+            let doc_size = meta
+                .file
+                .timestamped_value
+                .value
+                .doc_size()
+                .unwrap_or_default();
 
             if tree.calculate_deleted(&request.id)? {
                 return Err(ClientError(GetDocumentError::DocumentNotFound));
+            }
+
+            if self.config.features.bandwidth_controls {
+                let mut server_wide = db.server_egress.get().cloned().unwrap_or_default();
+                let mut account_bandwidth = db
+                    .egress_by_owner
+                    .get()
+                    .get(&requester)
+                    .cloned()
+                    .unwrap_or_default();
+                let bandwidth_cap = db
+                    .accounts
+                    .get()
+                    .get(&requester)
+                    .map(|account| account.billing_info.bandwidth_cap())
+                    .unwrap_or_default();
+
+                if server_wide.current_bandwidth() > SERVER_BANDWIDTH_CAP {
+                    error!("Bandwidth caps are now being enforced");
+                    if account_bandwidth.current_bandwidth() > bandwidth_cap {
+                        error!("User bandwidth cap exceeded");
+                        return Err(ClientError(GetDocumentError::BandwidthExceeded));
+                    }
+                }
+
+                server_wide.increase_by(doc_size);
+                account_bandwidth.increase_by(doc_size);
+
+                db.server_egress.insert(server_wide)?;
+                db.egress_by_owner.insert(requester, account_bandwidth)?;
             }
 
             tx.drop_safely()?;

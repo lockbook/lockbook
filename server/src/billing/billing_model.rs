@@ -47,11 +47,13 @@ impl SubscriptionProfile {
         }
     }
 
-    pub fn bandwidth_cap(&self) -> u64 {
-        match self.is_premium() {
+    pub fn bandwidth_cap(&self) -> usize {
+        let cap = match self.is_premium() {
             true => self.data_cap() * 4, // $0.012
             false => self.data_cap(),    // $3.60
-        }
+        };
+
+        cap as usize
     }
 
     pub fn is_premium(&self) -> bool {

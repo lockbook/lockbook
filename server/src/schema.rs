@@ -1,4 +1,4 @@
-use db_rs::{LookupSet, LookupTable};
+use db_rs::{LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::ServerMeta;
@@ -31,5 +31,6 @@ pub struct ServerV5 {
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
     pub file_children: LookupSet<Uuid, Uuid>,
-    pub bandwidth_egress: LookupTable<Owner, BandwidthReport>,
+    pub server_egress: Single<BandwidthReport>,
+    pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
 }

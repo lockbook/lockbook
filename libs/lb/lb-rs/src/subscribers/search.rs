@@ -57,7 +57,7 @@ impl Lb {
     /// Additionally if a path search contains a string, greater than 8 characters long that is
     /// contained within any of the paths in the search index, that result is returned with the
     /// highest score. lb:// style ids are also supported.
-    #[instrument(level = "debug", skip(self), err(Debug))]
+    #[instrument(level = "debug", skip(self, input), err(Debug))]
     pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         // show suggested docs if the input string is empty
         if input.is_empty() {

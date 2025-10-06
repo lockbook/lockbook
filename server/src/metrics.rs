@@ -19,7 +19,9 @@ use tracing::*;
 pub struct UserInfo {
     total_documents: i64,
     total_bytes: i64,
+    total_egress: i64,
     is_user_active: bool,
+    is_user_active_v2: bool,
     is_user_sharer_or_sharee: bool,
 }
 
@@ -33,6 +35,7 @@ make_static_metric! {
             deleted_users,
             total_documents,
             total_document_bytes,
+            total_egress_bytes,
         },
     }
 }
@@ -49,6 +52,18 @@ lazy_static! {
     pub static ref METRICS_USAGE_BY_USER_VEC: IntGaugeVec = register_int_gauge_vec!(
         "lockbook_metrics_usage_by_user",
         "Lockbook's total usage by user",
+        &["username"]
+    )
+    .unwrap();
+    pub static ref ACTIVITY_BY_USER: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_activity_by_user",
+        "Lockbook's active users",
+        &["username"]
+    )
+    .unwrap();
+    pub static ref EGRESS_BY_USER: IntGaugeVec = register_int_gauge_vec!(
+        "lockbook_egress_by_user",
+        "Lockbook's egress by user",
         &["username"]
     )
     .unwrap();
@@ -69,6 +84,7 @@ const APP_STORE_LABEL_NAME: &str = "app-store";
 pub enum MetricsError {}
 
 pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
+pub const TWO_HOURS_IN_MILLIS: u128 = 1000 * 60 * 60;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -94,6 +110,14 @@ where
             info!("Metrics refresh started");
 
             let public_keys_and_usernames = self.index_db.lock().await.usernames.get().clone();
+            let server_wide_egress = self
+                .index_db
+                .lock()
+                .await
+                .server_egress
+                .get()
+                .map(|total| total.all_bandwidth())
+                .unwrap_or_default();
 
             let total_users_ever = public_keys_and_usernames.len() as i64;
             let mut total_documents = 0;
@@ -130,9 +154,21 @@ where
                     total_documents += user_info.total_documents;
                     total_bytes += user_info.total_bytes;
 
-                    METRICS_USAGE_BY_USER_VEC
+                    if user_info.total_bytes > 50_000 {
+                        METRICS_USAGE_BY_USER_VEC
+                            .with_label_values(&[&username])
+                            .set(user_info.total_bytes);
+                    }
+
+                    if user_info.total_egress > 100_000 {
+                        EGRESS_BY_USER
+                            .with_label_values(&[&username])
+                            .set(user_info.total_egress);
+                    }
+
+                    ACTIVITY_BY_USER
                         .with_label_values(&[&username])
-                        .set(user_info.total_bytes);
+                        .set(if user_info.is_user_active_v2 { 1 } else { 0 });
 
                     let billing_info = Self::get_user_billing_info(&db, &owner)?;
 
@@ -168,6 +204,9 @@ where
             METRICS_STATISTICS.active_users.set(active_users);
             METRICS_STATISTICS.deleted_users.set(deleted_users);
             METRICS_STATISTICS.total_document_bytes.set(total_bytes);
+            METRICS_STATISTICS
+                .total_document_bytes
+                .set(server_wide_egress as i64);
             METRICS_STATISTICS
                 .share_feature_users
                 .set(share_feature_users);
@@ -240,11 +279,21 @@ where
             .get(&owner)
             .unwrap_or(&(root_creation_timestamp as u64));
 
+        let total_egress = db
+            .egress_by_owner
+            .get()
+            .get(&owner)
+            .cloned()
+            .unwrap_or_default()
+            .all_bandwidth() as i64;
+
         let time_two_days_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
         let last_seen_since_account_creation = last_seen as i64 - root_creation_timestamp;
         let delay_buffer_time = 5000;
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
+        let time_one_hour_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+        let is_user_active_v2 = not_the_welcome_doc && last_seen > time_one_hour_ago;
 
         let total_bytes: u64 = Self::get_usage_helper(&mut tree)
             .unwrap_or_default()
@@ -263,6 +312,8 @@ where
             total_bytes: total_bytes as i64,
             is_user_active,
             is_user_sharer_or_sharee,
+            is_user_active_v2,
+            total_egress,
         }))
     }
 }

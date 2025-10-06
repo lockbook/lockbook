@@ -88,6 +88,14 @@ where
         let mut db = self.index_db.lock().await;
         let handle = db.begin_transaction()?;
 
+        if self.config.features.new_account_rate_limit {
+            if let Some(ip) = context.ip {
+                if !self.can_create_account(ip).await {
+                    return Err(ClientError(NewAccountError::RateLimited));
+                }
+            }
+        }
+
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
             return Err(ClientError(PublicKeyTaken));
         }
@@ -98,6 +106,12 @@ where
 
         if db.metas.get().contains_key(root.id()) {
             return Err(ClientError(FileIdTaken));
+        }
+
+        if self.config.features.new_account_rate_limit {
+            if let Some(ip) = context.ip {
+                self.did_create_account(ip).await;
+            }
         }
 
         let username = &request.username;
