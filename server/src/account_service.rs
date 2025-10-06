@@ -54,8 +54,12 @@ where
             root_folder: SignedMeta::from(request.root_folder),
         };
 
-        self.new_account_v2(RequestContext { request, public_key: context.public_key })
-            .await
+        self.new_account_v2(RequestContext {
+            request,
+            public_key: context.public_key,
+            ip: context.ip,
+        })
+        .await
     }
 
     /// Create a new account given a username, public_key, and root folder.
@@ -66,6 +70,8 @@ where
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
         context.request.username = context.request.username.to_lowercase();
         let request = &context.request;
+
+        tracing::info!("new-account attempt username: {}", request.username);
 
         if !username_is_valid(&request.username) {
             return Err(ClientError(NewAccountError::InvalidUsername));
@@ -82,6 +88,12 @@ where
         let mut db = self.index_db.lock().await;
         let handle = db.begin_transaction()?;
 
+        if let Some(ip) = context.ip {
+            if !self.can_create_account(ip).await {
+                return Err(ClientError(NewAccountError::RateLimited));
+            }
+        }
+
         if db.accounts.get().contains_key(&Owner(request.public_key)) {
             return Err(ClientError(PublicKeyTaken));
         }
@@ -92,6 +104,12 @@ where
 
         if db.metas.get().contains_key(root.id()) {
             return Err(ClientError(FileIdTaken));
+        }
+
+        if self.config.features.new_account_rate_limit {
+            if let Some(ip) = context.ip {
+                self.did_create_account(ip).await;
+            }
         }
 
         let username = &request.username;
