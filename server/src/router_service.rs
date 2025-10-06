@@ -59,6 +59,9 @@ macro_rules! core_req {
                  request: Bytes,
                  version: Option<String>,
                  ip: Option<SocketAddr>| {
+                    if ip.is_none() {
+                        tracing::error!("ip not present in request");
+                    }
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
@@ -92,7 +95,6 @@ macro_rules! core_req {
                                 }
                             };
 
-                        debug!("request verified successfully");
                         let req_pk = request.signed_request.public_key;
                         let username = {
                             let db = state.index_db.lock().await;
@@ -114,37 +116,38 @@ macro_rules! core_req {
                             username = username.as_str(),
                             public_key = req_pk.as_str()
                         );
+                        if ip.is_none() {
+                            tracing::error!("ip not present in request");
+                        }
                         let rc: RequestContext<$Req> = RequestContext {
                             request: request.signed_request.timestamped_value.value,
                             public_key: request.signed_request.public_key,
+                            ip,
                         };
 
                         async move {
                             let status;
-                            let log;
                             let mut level = tracing::Level::INFO;
                             let to_serialize = match $handler(state, rc).await {
                                 Ok(response) => {
                                     status = warp::http::StatusCode::OK;
-                                    log = "request processed successfully".to_string();
                                     Ok(response)
                                 }
                                 Err(ServerError::ClientError(e)) => {
                                     status = warp::http::StatusCode::BAD_REQUEST;
                                     level = tracing::Level::WARN;
-                                    log =
-                                        format!("request rejected due to a client error: {:?}", e);
                                     Err(ErrorWrapper::Endpoint(e))
                                 }
                                 Err(ServerError::InternalError(e)) => {
                                     status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
                                     level = tracing::Level::ERROR;
-                                    log = format!("Internal error {}: {}", <$Req>::ROUTE, e);
+                                    tracing::error!("internal: {e}");
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
                             let response =
                                 warp::reply::with_status(warp::reply::json(&to_serialize), status);
+                            let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
                             match level {
                                 tracing::Level::INFO => {

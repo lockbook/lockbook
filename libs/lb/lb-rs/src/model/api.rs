@@ -159,6 +159,7 @@ pub struct GetDocumentResponse {
 pub enum GetDocumentError {
     DocumentNotFound,
     NotPermissioned,
+    BandwidthExceeded,
 }
 
 impl Request for GetDocRequest {
@@ -351,6 +352,7 @@ pub enum NewAccountError {
     InvalidUsername,
     FileIdTaken,
     Disabled,
+    RateLimited,
 }
 
 impl Request for NewAccountRequest {
