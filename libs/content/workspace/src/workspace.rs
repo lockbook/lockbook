@@ -216,6 +216,10 @@ impl Workspace {
             self.ctx
                 .send_viewport_cmd(ViewportCommand::Title(self.tab_title(&self.tabs[i])));
 
+            if let Some(md) = self.current_tab_markdown() {
+                md.focus(&self.ctx);
+            }
+
             true
         } else {
             false
