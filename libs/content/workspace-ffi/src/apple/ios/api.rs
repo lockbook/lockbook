@@ -368,6 +368,17 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     obj.workspace.tabs.len() as i64
 }
 
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+///
+/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
+#[no_mangle]
+pub unsafe extern "C" fn canvas_has_islands_interaction(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace.canvas_has_islands_interaction
+}
+
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {

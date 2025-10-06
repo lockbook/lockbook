@@ -245,7 +245,8 @@ impl Toolbar {
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+        has_islands_interaction: &mut bool,
     ) -> bool {
         let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
 
@@ -272,7 +273,7 @@ impl Toolbar {
                 || overlay_toggle_res.clicked()
                 || overlay_toggle_res.contains_pointer()
             {
-                *skip_frame = true;
+                *has_islands_interaction = true;
             }
             return res;
         }
@@ -305,7 +306,7 @@ impl Toolbar {
             .union(overlay_toggle_res);
 
         if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
-            *skip_frame = true;
+            *has_islands_interaction = true;
         }
         res
     }

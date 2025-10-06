@@ -717,7 +717,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
-        
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
@@ -730,23 +729,28 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         let pointerInteraction = UIPointerInteraction(delegate: mtkView)
         self.addInteraction(pointerInteraction)
         
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
-        longPress.cancelsTouchesInView = false
-        self.addGestureRecognizer(longPress)
-        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+        tap.cancelsTouchesInView = false
+        // can only paste with your finger
+        tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        tap.numberOfTapsRequired = 1
+        self.addGestureRecognizer(tap)
+
         self.isMultipleTouchEnabled = true
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+            let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+            
+            return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
         }
 
         return false
@@ -952,7 +956,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     func createDocAt(parent: UUID, drawing: Bool) {
         let parent = CUuid(_0: parent.uuid)
-        create_doc_at(wsHandle, parent, drawing)
+//        create_doc_at(wsHandle, parent, drawing)
         setNeedsDisplay(self.frame)
     }
 
