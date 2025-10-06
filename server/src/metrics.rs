@@ -205,7 +205,7 @@ where
             METRICS_STATISTICS.deleted_users.set(deleted_users);
             METRICS_STATISTICS.total_document_bytes.set(total_bytes);
             METRICS_STATISTICS
-                .total_document_bytes
+                .total_egress_bytes
                 .set(server_wide_egress as i64);
             METRICS_STATISTICS
                 .share_feature_users

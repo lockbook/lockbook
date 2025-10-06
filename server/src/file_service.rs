@@ -696,7 +696,7 @@ where
                     .get(&requester)
                     .cloned()
                     .unwrap_or_default();
-                let bandwidth_cap = db
+                let account_bandwidth_cap = db
                     .accounts
                     .get()
                     .get(&requester)
@@ -705,7 +705,7 @@ where
 
                 if server_wide.current_bandwidth() > SERVER_BANDWIDTH_CAP {
                     error!("Bandwidth caps are now being enforced");
-                    if account_bandwidth.current_bandwidth() > bandwidth_cap {
+                    if account_bandwidth.current_bandwidth() > account_bandwidth_cap {
                         error!("User bandwidth cap exceeded");
                         return Err(ClientError(GetDocumentError::BandwidthExceeded));
                     }
