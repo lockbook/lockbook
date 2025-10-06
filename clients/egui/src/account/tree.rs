@@ -973,7 +973,7 @@ impl FileTree {
                 });
 
                 if file_resp.clicked() {
-                    ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+                    ui.memory_mut(|m| m.surrender_focus(suggested_docs_id));
                     self.selected.clear();
                     self.cut.clear();
                     self.cursor = Some(self.suggested_docs_folder_id);
@@ -1177,10 +1177,13 @@ impl FileTree {
                 } else {
                     self.collapse(&[id]);
                 }
+
+                ui.memory_mut(|m| m.surrender_focus(file_tree_id));
+            } else {
+                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             self.cut.clear();
-            ui.memory_mut(|m| m.request_focus(file_tree_id));
             self.cursor = Some(id);
             ui.ctx().request_repaint();
         }
