@@ -748,12 +748,13 @@ impl Workspace {
                 0
             }
         });
-
-        let old = self.current_tab as i32;
-        let new = old + change;
-        if new >= 0 && new < self.tabs.len() as i32 {
-            self.tabs.swap(old as usize, new as usize);
-            self.make_current(new as usize);
+        if change != 0 {
+            let old = self.current_tab as i32;
+            let new = old + change;
+            if new >= 0 && new < self.tabs.len() as i32 {
+                self.tabs.swap(old as usize, new as usize);
+                self.make_current(new as usize);
+            }
         }
 
         // tab navigation
