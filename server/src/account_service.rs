@@ -88,11 +88,9 @@ where
         let mut db = self.index_db.lock().await;
         let handle = db.begin_transaction()?;
 
-        if self.config.features.new_account_rate_limit {
-            if let Some(ip) = context.ip {
-                if !self.can_create_account(ip).await {
-                    return Err(ClientError(NewAccountError::RateLimited));
-                }
+        if let Some(ip) = context.ip {
+            if !self.can_create_account(ip).await {
+                return Err(ClientError(NewAccountError::RateLimited));
             }
         }
 

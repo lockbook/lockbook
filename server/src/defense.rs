@@ -53,7 +53,7 @@ impl BandwidthReport {
     pub fn increase_by(&mut self, inc: usize) {
         let now = YearMonth::current();
         match self.monthly_agg.get_mut(&YearMonth::current()) {
-            Some(new) => *new = *new + inc,
+            Some(new) => *new += inc,
             None => {
                 self.monthly_agg.insert(now, inc);
             }
@@ -100,7 +100,7 @@ where
                 }
             }
         }
-        return true;
+        true
     }
 
     pub async fn did_create_account(&self, ip: SocketAddr) {
