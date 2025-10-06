@@ -1053,13 +1053,11 @@ impl FileTree {
             if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 resp.rename_request = Some((id, self.rename_buffer.clone()));
                 self.rename_target = None;
-                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             // release focus to cancel ('esc' or click elsewhere)
             if rename_resp.lost_focus() {
                 self.rename_target = None;
-                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             return resp; // note: early return
