@@ -102,10 +102,7 @@ impl Workspace {
         });
         if let Some(current_tab) = current_tab {
             info!(id = ?current_tab, "setting persisted current tab");
-            ws.current_tab = open_tabs
-                .iter()
-                .position(|&id| id == current_tab)
-                .unwrap_or_default();
+            ws.make_current_by_id(current_tab);
         }
 
         ws
@@ -117,7 +114,7 @@ impl Workspace {
         self.core = core.clone();
 
         let ids: Vec<Uuid> = self.tabs.iter().flat_map(|tab| tab.id()).collect();
-        let maybe_current_tab_id = self.current_tab().map(|tab| tab.id());
+        let maybe_current_tab_id = self.current_tab().and_then(|tab| tab.id());
 
         while self.current_tab != 0 {
             self.close_tab(self.tabs.len() - 1);
@@ -128,35 +125,26 @@ impl Workspace {
         }
 
         if let Some(current_tab_id) = maybe_current_tab_id {
-            self.current_tab = self
-                .tabs
-                .iter()
-                .position(|tab| tab.id() == current_tab_id)
-                .unwrap_or(0);
-            self.current_tab_changed = true;
+            self.make_current_by_id(current_tab_id);
         }
     }
 
     /// Creates a loading-state tab for a file if needed and returns true if a tab was created
-    pub fn upsert_loading_tab(&mut self, id: Uuid, make_current: bool) -> bool {
+    pub fn upsert_loading_tab(&mut self, id: Uuid) -> bool {
         let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
         if !tab_exists {
-            self.create_tab(ContentState::Loading(id), make_current);
-        } else if make_current {
-            self.make_current_by_id(id);
+            self.create_tab(ContentState::Loading(id));
         }
         !tab_exists
     }
 
-    pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
+    /// Creates a tab and returns the index for the created tab
+    pub fn create_tab(&mut self, content: ContentState) -> usize {
         let now = Instant::now();
         let new_tab =
             Tab { content, last_changed: now, last_saved: now, rename: None, is_closing: false };
         self.tabs.push(new_tab);
-        if make_current {
-            self.current_tab = self.tabs.len() - 1;
-            self.current_tab_changed = true;
-        }
+        self.tabs.len() - 1
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
@@ -253,9 +241,9 @@ impl Workspace {
     }
 
     pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        let tab_created = self.upsert_loading_tab(id, make_current);
+        let tab_created = self.upsert_loading_tab(id);
         self.tasks
-            .queue_load(LoadRequest { id, is_new_file, tab_created });
+            .queue_load(LoadRequest { id, is_new_file, tab_created, make_current });
     }
 
     pub fn close_tab(&mut self, i: usize) {
@@ -330,16 +318,10 @@ impl Workspace {
             {
                 {
                     let CompletedLoad {
-                        request: LoadRequest { id, is_new_file, tab_created },
+                        request: LoadRequest { id, is_new_file, tab_created, make_current },
                         content_result,
                         timing: _,
                     } = load;
-
-                    if let Some(tab) = self.current_tab() {
-                        self.ctx
-                            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
-                        self.out.selected_file = tab.id();
-                    };
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
@@ -439,6 +421,10 @@ impl Workspace {
                     } else {
                         error!("failed to load file: tab not found");
                     };
+
+                    if make_current {
+                        self.make_current_by_id(id);
+                    }
                 }
             }
         }
@@ -630,22 +616,20 @@ impl Workspace {
         if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
             self.make_current(i);
         } else {
-            self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
+            let i = self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))));
+            self.make_current(i);
         };
     }
 
+    /// Opens the tab for space inspector, closing any existing space inspectors (?)
     pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
         if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
             self.close_tab(i);
         }
-        self.create_tab(
-            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
-                &core,
-                folder,
-                self.ctx.clone(),
-            ))),
-            true,
-        );
+        let i = self.create_tab(ContentState::Open(TabContent::SpaceInspector(
+            SpaceInspector::new(&core, folder, self.ctx.clone()),
+        )));
+        self.make_current(i);
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
