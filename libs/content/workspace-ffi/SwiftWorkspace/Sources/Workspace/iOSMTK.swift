@@ -956,7 +956,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     func createDocAt(parent: UUID, drawing: Bool) {
         let parent = CUuid(_0: parent.uuid)
-//        create_doc_at(wsHandle, parent, drawing)
+        create_doc_at(wsHandle, parent, drawing)
         setNeedsDisplay(self.frame)
     }
 
