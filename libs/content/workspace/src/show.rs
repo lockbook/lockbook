@@ -518,6 +518,9 @@ impl Workspace {
                                     if res.request_save {
                                         tab.last_changed = Instant::now();
                                     }
+
+                                    self.canvas_has_islands_interaction =
+                                        res.has_islands_interaction;
                                 }
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
