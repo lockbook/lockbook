@@ -83,8 +83,8 @@ const APP_STORE_LABEL_NAME: &str = "app-store";
 #[derive(Debug)]
 pub enum MetricsError {}
 
-pub const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
-pub const TWO_HOURS_IN_MILLIS: u128 = 1000 * 60 * 60;
+const TWO_DAYS_IN_MILLIS: u128 = 1000 * 60 * 60 * 24 * 2;
+const TWO_HOURS_IN_MILLIS: u128 = 1000 * 60 * 60;
 
 impl<S, A, G, D> ServerState<S, A, G, D>
 where
@@ -292,7 +292,7 @@ where
         let delay_buffer_time = 5000;
         let not_the_welcome_doc = last_seen_since_account_creation > delay_buffer_time;
         let is_user_active = not_the_welcome_doc && last_seen > time_two_days_ago;
-        let time_one_hour_ago = get_time().0 as u64 - TWO_DAYS_IN_MILLIS as u64;
+        let time_one_hour_ago = get_time().0 as u64 - TWO_HOURS_IN_MILLIS as u64;
         let is_user_active_v2 = not_the_welcome_doc && last_seen > time_one_hour_ago;
 
         let total_bytes: u64 = Self::get_usage_helper(&mut tree)

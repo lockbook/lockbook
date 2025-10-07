@@ -89,7 +89,7 @@ where
         let handle = db.begin_transaction()?;
 
         if let Some(ip) = context.ip {
-            if !self.can_create_account(ip).await {
+            if !self.can_create_account(ip.ip()).await {
                 return Err(ClientError(NewAccountError::RateLimited));
             }
         }
@@ -108,7 +108,7 @@ where
 
         if self.config.features.new_account_rate_limit {
             if let Some(ip) = context.ip {
-                self.did_create_account(ip).await;
+                self.did_create_account(ip.ip()).await;
             }
         }
 
