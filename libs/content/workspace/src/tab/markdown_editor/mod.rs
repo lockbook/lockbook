@@ -203,7 +203,7 @@ impl Editor {
         Id::new(self.file_id)
     }
 
-    pub fn focus(&mut self, ctx: &Context) {
+    pub fn focus(&self, ctx: &Context) {
         ctx.memory_mut(|m| {
             m.request_focus(self.id());
         });

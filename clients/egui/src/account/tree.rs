@@ -973,7 +973,7 @@ impl FileTree {
                 });
 
                 if file_resp.clicked() {
-                    ui.memory_mut(|m| m.request_focus(suggested_docs_id));
+                    ui.memory_mut(|m| m.surrender_focus(suggested_docs_id));
                     self.selected.clear();
                     self.cut.clear();
                     self.cursor = Some(self.suggested_docs_folder_id);
@@ -1053,13 +1053,11 @@ impl FileTree {
             if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                 resp.rename_request = Some((id, self.rename_buffer.clone()));
                 self.rename_target = None;
-                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             // release focus to cancel ('esc' or click elsewhere)
             if rename_resp.lost_focus() {
                 self.rename_target = None;
-                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             return resp; // note: early return
@@ -1177,10 +1175,13 @@ impl FileTree {
                 } else {
                     self.collapse(&[id]);
                 }
+
+                ui.memory_mut(|m| m.surrender_focus(file_tree_id));
+            } else {
+                ui.memory_mut(|m| m.request_focus(file_tree_id));
             }
 
             self.cut.clear();
-            ui.memory_mut(|m| m.request_focus(file_tree_id));
             self.cursor = Some(id);
             ui.ctx().request_repaint();
         }

@@ -84,7 +84,15 @@ pub struct Response {
 pub struct LoadRequest {
     pub id: Uuid,
     pub is_new_file: bool,
+
+    // indicates whether the completed load should replace a tab or be merged
+    // into one; unclear if we can just check for existing tabs when complete
     pub tab_created: bool,
+
+    // indicates whether the completed load should make the tab current; this is
+    // what focuses the tab and the tab must be shown every frame to hold focus
+    // todo: hold focus for loading tabs and all the rest in one proper place
+    pub make_current: bool,
 }
 
 #[derive(Clone, Debug)]
