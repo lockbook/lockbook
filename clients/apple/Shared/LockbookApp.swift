@@ -13,12 +13,14 @@ import SwiftWorkspace
     #if os(macOS)
     @SceneBuilder
     var macOS: some Scene {
-        Window("Lockbook", id: "main") {
+        WindowGroup {
             ContentView()
         }
         .windowToolbarStyle(.unifiedCompact)
         .commands {
             SidebarCommands()
+            
+            NewWindowCommand()
         }
         
         Settings {
@@ -39,6 +41,8 @@ import SwiftWorkspace
         }
         .commands {
             SidebarCommands()
+            
+            NewWindowCommand()
         }
     }
     #endif
@@ -68,17 +72,29 @@ struct ContentView: View {
 }
 
 struct HomeContextWrapper: View {
+    @StateObject var filesModel = FilesViewModel()
+    @StateObject var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
+    @StateObject var workspaceOutput = WorkspaceOutputState()
+    
     var body: some View {
-        HomeView()
+        HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
             .environmentObject(AppState.billingState)
-            .environmentObject(AppState.workspaceState)
+            .environmentObject(filesModel)
+            .environmentObject(workspaceInput)
+            .environmentObject(workspaceOutput)
     }
 }
 
 #Preview("Logged In") {
-    ContentView()
+    AppState.shared.isLoggedIn = true
+    
+    return ContentView()
+        .withCommonPreviewEnvironment()
 }
 
 #Preview("Onboarding") {
-    ContentView()
+    AppState.shared.isLoggedIn = false
+    
+    return ContentView()
+        .withCommonPreviewEnvironment()
 }

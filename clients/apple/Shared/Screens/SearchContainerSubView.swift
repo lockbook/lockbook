@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 struct SearchContainerSubView<Content: View>: View {
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     @Binding var isSearching: Bool
     @ObservedObject var model: SearchContainerViewModel
@@ -45,7 +46,7 @@ struct SearchContainerSubView<Content: View>: View {
             switch result {
             case .path(let pathResult):
                 Button(action: {
-                    model.open(id: pathResult.id)
+                    model.open(id: pathResult.id, workspaceInput: workspaceInput)
                     if homeState.isSidebarFloating {
                         homeState.sidebarState = .closed
                     }
@@ -56,7 +57,7 @@ struct SearchContainerSubView<Content: View>: View {
                 .buttonStyle(.plain)
             case .document(let docResult):
                 Button(action: {
-                    model.open(id: docResult.id)
+                    model.open(id: docResult.id, workspaceInput: workspaceInput)
                     if homeState.isSidebarFloating {
                         homeState.sidebarState = .closed
                     }
@@ -106,15 +107,15 @@ class SearchContainerViewModel: ObservableObject {
         self.filesModel = filesModel
     }
     
-    func open(id: UUID) {
+    func open(id: UUID, workspaceInput: WorkspaceInputState) {
         guard let file = filesModel.idsToFiles[id] else {
             return
         }
         
         if(file.type == .folder) {
-            AppState.workspaceState.selectedFolder = id
+            workspaceInput.selectFolder(id: id)
         } else {
-            AppState.workspaceState.requestOpenDoc(id)
+            workspaceInput.openFile(id: id)
         }
     }
     

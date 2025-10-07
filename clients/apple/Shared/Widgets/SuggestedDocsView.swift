@@ -5,6 +5,8 @@ struct SuggestedDocsView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    
     @StateObject var model: SuggestedDocsViewModel
     
     init(filesModel: FilesViewModel) {
@@ -23,11 +25,13 @@ struct SuggestedDocsView: View {
                     if let suggestedDocs = model.suggestedDocs {
                         ForEach(suggestedDocs) { info in
                             Button(action: {
-                                if homeState.isSidebarFloating {
-                                    homeState.sidebarState = .closed
+                                DispatchQueue.main.async {
+                                    if homeState.isSidebarFloating {
+                                        homeState.sidebarState = .closed
+                                    }
+                                    
+                                    workspaceInput.openFile(id: info.id)
                                 }
-                                
-                                AppState.workspaceState.requestOpenDoc(info.id)
                             }) {
                                 SuggestedDocCell(info: info, model: model)
                             }
@@ -46,11 +50,6 @@ struct SuggestedDocsView: View {
             .listRowInsets(EdgeInsets())
         }
     }
-}
-
-#Preview {
-    SuggestedDocsView(filesModel: FilesViewModel())
-        .environmentObject(HomeState())
 }
 
 struct SuggestedDocCell: View {
@@ -141,4 +140,9 @@ struct SuggestedDocBackground: ViewModifier {
                     .fill(colorScheme == .light ? Color.accentColor.opacity(0.08) : Color.accentColor.opacity(0.19))
             )
     }
+}
+
+#Preview {
+    SuggestedDocsView(filesModel: .preview)
+        .withCommonPreviewEnvironment()
 }
