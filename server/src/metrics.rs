@@ -125,6 +125,8 @@ where
             let mut active_users = 0;
             let mut deleted_users = 0;
             let mut share_feature_users = 0;
+            let mut other_usage = 0;
+            let mut other_egress = 0;
 
             let mut premium_users = 0;
             let mut premium_stripe_users = 0;
@@ -158,12 +160,16 @@ where
                         METRICS_USAGE_BY_USER_VEC
                             .with_label_values(&[&username])
                             .set(user_info.total_bytes);
+                    } else {
+                        other_usage += user_info.total_bytes;
                     }
 
                     if user_info.total_egress > 100_000 {
                         EGRESS_BY_USER
                             .with_label_values(&[&username])
                             .set(user_info.total_egress);
+                    } else {
+                        other_egress += user_info.total_egress;
                     }
 
                     ACTIVITY_BY_USER
@@ -195,6 +201,12 @@ where
 
                 tokio::time::sleep(self.config.metrics.time_between_metrics).await;
             }
+            METRICS_USAGE_BY_USER_VEC
+                .with_label_values(&["OTHER"])
+                .set(other_usage);
+            EGRESS_BY_USER
+                .with_label_values(&["OTHER"])
+                .set(other_egress);
 
             METRICS_STATISTICS
                 .total_users
