@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    net::SocketAddr,
+    net::IpAddr,
     ops::Deref,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -66,7 +66,7 @@ impl BandwidthReport {
 /// to apply the pattern where it's needed (new-account).
 #[derive(Copy, Debug, Clone, Serialize, Deserialize)]
 pub struct IpData {
-    ip: SocketAddr,
+    ip: IpAddr,
     time: u64,
 }
 static MAX_IPS: u16 = 1000;
@@ -80,7 +80,7 @@ where
 {
     /// Checks whether the server is configured to rate limit, and if so it will make sure that
     /// this IP has not created an account within the last 1 minute
-    pub async fn can_create_account(&self, ip: SocketAddr) -> bool {
+    pub async fn can_create_account(&self, ip: IpAddr) -> bool {
         if !self.config.features.new_account_rate_limit {
             return true;
         }
@@ -103,7 +103,7 @@ where
         true
     }
 
-    pub async fn did_create_account(&self, ip: SocketAddr) {
+    pub async fn did_create_account(&self, ip: IpAddr) {
         let mut ips = self.recent_new_account_ips.lock().await;
         ips.retain(|visitor| visitor.ip != ip);
         if ips.len() > MAX_IPS as usize {
