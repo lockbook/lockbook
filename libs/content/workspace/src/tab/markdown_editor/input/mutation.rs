@@ -3,7 +3,7 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{
-    BlockNode, BlockNodeType, InlineNode, InlineNodeType, ListItem, MarkdownNode,
+    BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
@@ -52,15 +52,10 @@ impl<'ast> Editor {
                 self.toggle_style(
                     root,
                     region,
-                    MarkdownNode::Inline(InlineNode::Link(
-                        LinkType::Autolink,
-                        "".into(),
-                        "".into(),
-                    )),
+                    MarkdownNode::Inline(InlineNode::Link(LinkType::Autolink, url, "".into())),
                     current_selection,
                     operations,
                 );
-                // ...insert the url, but where?
             }
             Event::Newline { shift } => {
                 // insert/extend/terminate container blocks
@@ -1045,16 +1040,25 @@ impl<'ast> Editor {
         &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
     ) {
         let text = style.node_type().tail().to_string();
-        if style.node_type() == InlineNodeType::Link {
+        if let InlineNode::Link(_, url, _) = style {
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
             }));
-            operations.push(Operation::Select(offset.to_range()));
+            let url_empty = url.is_empty();
+            if url_empty {
+                operations.push(Operation::Select(offset.to_range()));
+            } else {
+                operations
+                    .push(Operation::Replace(Replace { range: offset.to_range(), text: url }));
+            }
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[2..].into(),
             }));
+            if !url_empty {
+                operations.push(Operation::Select(offset.to_range()));
+            }
         } else {
             operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
         }
