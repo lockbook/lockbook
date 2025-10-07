@@ -81,7 +81,7 @@ impl Drive {
         tokio::spawn(async move {
             loop {
                 info!("will sync in 5 minutes");
-                tokio::time::sleep(Duration::from_secs(300)).await;
+                tokio::time::sleep(Duration::from_secs(3)).await;
                 info!("syncing");
                 syncer.sync().await;
             }
