@@ -3,12 +3,12 @@ import SwiftWorkspace
 import SwiftUI
 
 class CreateDocumentMenuItem: NSMenuItem {
-    @ObservedObject var filesModel: FilesViewModel
+    @ObservedObject var workspaceInput: WorkspaceInputState
     
     let file: File
     
-    init(filesModel: FilesViewModel, file: File) {
-        self.filesModel = filesModel
+    init(workspaceInput: WorkspaceInputState, file: File) {
+        self.workspaceInput = workspaceInput
         self.file = file
         
         super.init(title: "Create document", action: #selector(create(_:)), keyEquivalent: "")
@@ -20,17 +20,17 @@ class CreateDocumentMenuItem: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        filesModel.createDoc(parent: file.id, isDrawing: false)
+        workspaceInput.createDocAt(parent: file.id, drawing: false)
     }
 }
 
 class CreateDrawingMenuItem: NSMenuItem {
-    @ObservedObject var filesModel: FilesViewModel
-
+    @ObservedObject var workspaceInput: WorkspaceInputState
+    
     let file: File
     
-    init(filesModel: FilesViewModel, file: File) {
-        self.filesModel = filesModel
+    init(workspaceInput: WorkspaceInputState, file: File) {
+        self.workspaceInput = workspaceInput
         self.file = file
         
         super.init(title: "Create drawing", action: #selector(create(_:)), keyEquivalent: "")
@@ -42,7 +42,7 @@ class CreateDrawingMenuItem: NSMenuItem {
     }
 
     @objc func create(_ sender: AnyObject) {
-        filesModel.createDoc(parent: file.id, isDrawing: true)
+        workspaceInput.createDocAt(parent: file.id, drawing: true)
     }
 }
 

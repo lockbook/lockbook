@@ -6,11 +6,12 @@ import AppKit
 struct FileTreeView: NSViewRepresentable {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     let treeView = FileTreeOutlineView()
         
     func makeCoordinator() -> Coordinator {
-        Coordinator(treeView: treeView, homeState: homeState, filesModel: filesModel)
+        Coordinator(treeView: treeView, homeState: homeState, filesModel: filesModel, workspaceInput: workspaceInput)
     }
     
     func makeNSView(context: Context) -> some NSView {
@@ -58,12 +59,12 @@ struct FileTreeView: NSViewRepresentable {
         
         private var cancellables: Set<AnyCancellable> = []
         
-        init(treeView: FileTreeOutlineView, homeState: HomeState, filesModel: FilesViewModel) {
+        init(treeView: FileTreeOutlineView, homeState: HomeState, filesModel: FilesViewModel, workspaceInput: WorkspaceInputState) {
             self.filesModel = filesModel
             self.dataSource = FileTreeDataSource(homeState: homeState, filesModel: filesModel)
-            self.delegate = FileTreeDelegate(homeState: homeState, filesModel: filesModel)
+            self.delegate = FileTreeDelegate(homeState: homeState, filesModel: filesModel, workspaceInput: workspaceInput)
             
-            AppState.workspaceState.$selectedFolder.sink { [weak self, weak treeView] selectedFolder in
+            homeState.workspaceOutput.$selectedFolder.sink { [weak self, weak treeView] selectedFolder in
                 if self?.delegate.supressnextOpenFolder == true {
                     self?.delegate.supressnextOpenFolder = false
                     return
@@ -73,7 +74,7 @@ struct FileTreeView: NSViewRepresentable {
             }
             .store(in: &cancellables)
             
-            AppState.workspaceState.$openDoc.sink { [weak self, weak treeView] openDoc in
+            homeState.workspaceOutput.$openDoc.sink { [weak self, weak treeView] openDoc in
                 if self?.delegate.supressNextOpenDoc == true {
                     self?.delegate.supressNextOpenDoc = false
                     return
@@ -88,7 +89,7 @@ struct FileTreeView: NSViewRepresentable {
                 }
                 
                 DispatchQueue.main.async {
-                    AppState.workspaceState.selectedFolder = file.parent
+                    workspaceInput.selectFolder(id: file.parent)
                     self?.selectAndReveal(selected: openDoc, treeView: treeView)
                 }
             }
@@ -146,8 +147,7 @@ struct FileTreeView: NSViewRepresentable {
 
 #Preview {
     FileTreeView()
-        .environmentObject(HomeState())
-        .environmentObject(FilesViewModel())
+        .withCommonPreviewEnvironment()
 }
 
 class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
@@ -323,10 +323,10 @@ class FileTreeOutlineView: NSOutlineView {
                 animator().expandItem(file)
             }
             
-            AppState.workspaceState.selectedFolder = file.id
+            delegate.workspaceInput.selectFolder(id: file.id)
         } else {
-            AppState.workspaceState.selectedFolder = file.id
-            AppState.workspaceState.requestOpenDoc(file.id)
+            delegate.workspaceInput.selectFolder(id: file.parent)
+            delegate.workspaceInput.openFile(id: file.id)
         }
     }
 
@@ -352,13 +352,15 @@ class FileTreeOutlineView: NSOutlineView {
 class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
     @ObservedObject var homeState: HomeState
     @ObservedObject var filesModel: FilesViewModel
+    @ObservedObject var workspaceInput: WorkspaceInputState
     
     var supressNextOpenDoc = false
     var supressnextOpenFolder = false
     
-    init(homeState: HomeState, filesModel: FilesViewModel) {
+    init(homeState: HomeState, filesModel: FilesViewModel, workspaceInput: WorkspaceInputState) {
         self.homeState = homeState
         self.filesModel = filesModel
+        self.workspaceInput = workspaceInput
     }
 
     func outlineView(_ outlineView: NSOutlineView, menuForItem item: Any?) -> NSMenu? {
@@ -375,8 +377,8 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
         }
         
         if parent.type == .folder {
-            menu.addItem(CreateDocumentMenuItem(filesModel: filesModel, file: parent))
-            menu.addItem(CreateDrawingMenuItem(filesModel: filesModel, file: parent))
+            menu.addItem(CreateDocumentMenuItem(workspaceInput: workspaceInput, file: parent))
+            menu.addItem(CreateDrawingMenuItem(workspaceInput: workspaceInput, file: parent))
             menu.addItem(CreateFolderMenuItem(homeState: homeState, file: parent))
         }
 

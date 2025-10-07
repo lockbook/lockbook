@@ -12,10 +12,10 @@ class FileTreeViewModel: ObservableObject {
     
     let filesModel: FilesViewModel
         
-    init(filesModel: FilesViewModel) {
+    init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState, workspaceOutput: WorkspaceOutputState) {
         self.filesModel = filesModel
         
-        AppState.workspaceState.$openDoc.sink { [weak self] openDoc in
+        workspaceOutput.$openDoc.sink { [weak self] openDoc in
             guard let openDoc else {
                 return
             }
@@ -24,7 +24,7 @@ class FileTreeViewModel: ObservableObject {
                 return
             }
             DispatchQueue.main.async {
-                AppState.workspaceState.selectedFolder = file.parent
+                workspaceInput.selectFolder(id: file.parent)
             }
 
             self?.openDoc = openDoc
@@ -32,7 +32,7 @@ class FileTreeViewModel: ObservableObject {
         }
         .store(in: &cancellables)
         
-        AppState.workspaceState.$selectedFolder.sink { [weak self] selectedFolder in
+        workspaceOutput.$selectedFolder.sink { [weak self] selectedFolder in
             if self?.supressNextOpenFolder == true {
                 self?.supressNextOpenFolder = false
                 return
@@ -46,9 +46,7 @@ class FileTreeViewModel: ObservableObject {
                 return
             }
             
-            print("expanding to folder... \(file.name)")
             self?.expandToFile(file: file)
-            // go to it
         }
         .store(in: &cancellables)
     }
@@ -70,7 +68,14 @@ class FileTreeViewModel: ObservableObject {
             expandToFile(file: parent)
         }
         
-        print("opening \(file.name)")
         openFolders.insert(file.id)
     }
 }
+
+#if DEBUG
+extension FileTreeViewModel {
+    static var preview: FileTreeViewModel {
+        return FileTreeViewModel(filesModel: .preview, workspaceInput: .preview, workspaceOutput: .preview)
+    }
+}
+#endif

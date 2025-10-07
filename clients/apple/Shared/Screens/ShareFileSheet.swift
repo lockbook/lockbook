@@ -12,10 +12,11 @@ struct ShareFileSheet: View {
     static let FORM_WIDTH: CGFloat = 500
     static let FORM_HEIGHT: CGFloat = 300
     #endif
-    
+        
     @Environment(\.colorScheme) var colorScheme
     @Environment(\.dismiss) private var dismiss
     
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     @StateObject var model: ShareFileViewModel
     
     init(id: UUID, name: String, shares: [Share]) {
@@ -142,7 +143,7 @@ struct ShareFileSheet: View {
     }
     
     func shareAndDismiss() {
-        if model.shareFile() {
+        if model.shareFile(workspaceInput: workspaceInput) {
             dismiss()
         }
     }
@@ -167,7 +168,7 @@ class ShareFileViewModel: ObservableObject {
         self.writeAccessUsers = shares.filter({ $0.mode == .write }).map({ $0.with })
     }
 
-    func shareFile() -> Bool {
+    func shareFile(workspaceInput: WorkspaceInputState) -> Bool {
         guard !name.isEmpty else {
             return false
         }
@@ -176,7 +177,7 @@ class ShareFileViewModel: ObservableObject {
         
         switch res {
         case .success():
-            AppState.workspaceState.syncRequested = true
+            workspaceInput.requestSync()
             return true
         case .failure(let err):
             error = err.msg

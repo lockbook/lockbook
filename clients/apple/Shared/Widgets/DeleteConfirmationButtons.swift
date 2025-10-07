@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 struct DeleteConfirmationButtons: View {
     @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
     
     var files: [File]
     var deletedFilesMsg: String {
@@ -14,7 +15,7 @@ struct DeleteConfirmationButtons: View {
     var body: some View {
         Group {
             Button("Delete \(deletedFilesMsg)", role: .destructive) {
-                filesModel.deleteFiles(files: files)
+                filesModel.deleteFiles(files: files, workspaceInput: workspaceInput)
             }
             
             Button("Cancel", role: .cancel) {}

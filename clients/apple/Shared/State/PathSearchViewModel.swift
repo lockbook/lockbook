@@ -10,9 +10,11 @@ class PathSearchViewModel: ObservableObject {
     @Published var selected = 0
     
     let filesModel: FilesViewModel
+    let workspaceInput: WorkspaceInputState
     
-    init(filesModel: FilesViewModel) {
+    init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState) {
         self.filesModel = filesModel
+        self.workspaceInput = workspaceInput
     }
     
     func openSelected() {
@@ -29,12 +31,12 @@ class PathSearchViewModel: ObservableObject {
         }
         
         if(file.type == .folder) {
-            AppState.workspaceState.selectedFolder = file.id
+            workspaceInput.selectFolder(id: file.id)
         } else {
-            AppState.workspaceState.requestOpenDoc(file.id)
+            workspaceInput.openFile(id: file.id)
         }
         
-        self.isShown = false
+        self.endSearch()
     }
     
     func search() {
@@ -73,7 +75,24 @@ class PathSearchViewModel: ObservableObject {
         self.selected = max(0, selected - 1)
     }
     
+    func toggleSearch() {
+        if self.isShown {
+            self.endSearch()
+        } else {
+            self.isShown = true
+        }
+    }
+    
     func endSearch() {
         self.isShown = false
+        workspaceInput.focus.send(())
     }
 }
+
+#if DEBUG
+extension PathSearchViewModel {
+    static var preview: PathSearchViewModel {
+        return PathSearchViewModel(filesModel: .preview, workspaceInput: .preview)
+    }
+}
+#endif

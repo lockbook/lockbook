@@ -9,8 +9,9 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
     var pasteboardString: String?
-
-    var workspaceState: WorkspaceState?
+    
+    var workspaceInput: WorkspaceInputState?
+    var workspaceOutput: WorkspaceOutputState?
 
     // todo this will probably just become us hanging on to the last output
     var currentOpenDoc: UUID? = nil
@@ -28,41 +29,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.delegate = self
         self.isPaused = true
         self.enableSetNeedsDisplay = true
-    }
-
-    func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        drawImmediately()
-    }
-    
-    func createDocAt(parent: UUID, drawing: Bool) {
-        let parent = CUuid(_0: parent.uuid)
-        create_doc_at(wsHandle, parent, drawing)
-        setNeedsDisplay(self.frame)
-    }
-
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func closeDoc(id: UUID) {
-        close_tab(wsHandle, id.uuidString)
-        setNeedsDisplay(self.frame)
-    }
-
-    func fileOpCompleted(fileOp: WSFileOpCompleted) {
-        switch fileOp {
-        case .Delete(let id):
-            workspaceState?.openDoc = nil
-            currentOpenDoc = nil
-            close_tab(wsHandle, id.uuidString)
-            setNeedsDisplay(self.frame)
-        case .Rename(let id, let newName):
-            tab_renamed(wsHandle, id.uuidString, newName)
-            setNeedsDisplay(self.frame)
-        }
     }
 
     func modifiersChanged(event: NSEvent) -> NSEvent {
@@ -97,6 +63,7 @@ public class MacMTK: MTKView, MTKViewDelegate {
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
+        workspaceInput?.wsHandle = wsHandle
 
         modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
@@ -236,7 +203,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     func pasteText(text: String) {
         clipboard_paste(wsHandle, text)
-        workspaceState?.pasted = true
     }
 
     func importFromPasteboard(_ pasteBoard: NSPasteboard, isPaste: Bool) -> Bool {
@@ -319,58 +285,41 @@ public class MacMTK: MTKView, MTKViewDelegate {
             setClipboard()
         }
 
-        switch self.workspaceState?.selectedFolder{
-        case .none:
-            no_folder_selected(wsHandle)
-        case .some(let f):
-            folder_selected(wsHandle, CUuid(_0: f.uuid))
-        }
-
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
         let output = macos_frame(wsHandle)
 
-        if output.status_updated {
-            let status = get_status(wsHandle)
-            let msg = String(cString: status.msg)
-            free_text(status.msg)
-            let syncing = status.syncing
-            workspaceState?.syncing = syncing
-            workspaceState?.statusMsg = msg
-        }
-
-        workspaceState?.reloadFiles = output.refresh_files
-
         let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
-            if selectedFile != self.workspaceState?.openDoc {
-                self.workspaceState?.openDoc = selectedFile
+            if selectedFile != self.workspaceOutput?.openDoc {
+                self.workspaceOutput?.openDoc = selectedFile
             }
         }
 
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
-            self.workspaceState?.openDoc = nil
+            self.workspaceOutput?.openDoc = nil
         }
 
+//      FIXME:  Can we just do this in rust?
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            openFile(id: newFile)
+            workspaceInput?.openFile(id: newFile)
         }
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)
 
             if let url = URL(string: url) {
-                self.workspaceState?.urlOpened = url
+                self.workspaceOutput?.urlOpened = url
             }
         }
 
         if output.new_folder_btn_pressed {
-            workspaceState?.newFolderButtonPressed = true
+            self.workspaceOutput?.newFolderButtonPressed = ()
         }
 
         if let text = output.copied_text {

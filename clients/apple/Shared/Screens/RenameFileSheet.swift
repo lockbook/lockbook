@@ -14,6 +14,8 @@ struct RenameFileSheet: View {
     @StateObject var model: RenameFileViewModel
     @Environment(\.dismiss) private var dismiss
     
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    
     init(homeState: HomeState, id: UUID, name: String) {
         self._model = StateObject(wrappedValue: RenameFileViewModel(homeState: homeState, id: id, name: name))
     }
@@ -77,7 +79,7 @@ struct RenameFileSheet: View {
     }
     
     func renameAndDismiss() {
-        if model.renameFile() {
+        if model.renameFile(workspaceInput: workspaceInput) {
             dismiss()
         }
     }
@@ -110,7 +112,7 @@ class RenameFileViewModel: ObservableObject {
         }
     }
     
-    func renameFile() -> Bool {
+    func renameFile(workspaceInput: WorkspaceInputState) -> Bool {
         guard name != newName else {
             return true
         }
@@ -119,7 +121,7 @@ class RenameFileViewModel: ObservableObject {
         
         switch res {
         case .success(_):
-            AppState.workspaceState.fileOpCompleted = .Rename(id: id, newName: newName)
+            workspaceInput.fileOpCompleted(fileOp: .Rename(id: id, newName: newName))
             return true
         case .failure(let err):
             error = err.msg
@@ -141,7 +143,7 @@ class RenameFileViewModel: ObservableObject {
             height: RenameFileSheet.FORM_HEIGHT,
             presentedContent: { item in
                 RenameFileSheet(
-                    homeState: HomeState(),
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                     id: item.id,
                     name: item.name
                 )
@@ -150,7 +152,7 @@ class RenameFileViewModel: ObservableObject {
 }
 #else
 #Preview {
-    RenameFileSheet(homeState: HomeState(), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
+    RenameFileSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
         .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT
         )
 }

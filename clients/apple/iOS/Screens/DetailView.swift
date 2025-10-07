@@ -5,32 +5,27 @@ struct DetailView: View {
     @Environment(\.isPreview) var isPreview
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
-    @EnvironmentObject var workspaceState: WorkspaceState
-    @ObservedObject var homeState: HomeState
-    @ObservedObject var filesModel: FilesViewModel
-    @StateObject var wrappedWorkspaceState: WrappedWorkspaceState
-        
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
+    
+    @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var filesModel: FilesViewModel
+            
     @State var sheetHeight: CGFloat = 0
     
-    init(homeState: HomeState, filesModel: FilesViewModel) {
-        self._wrappedWorkspaceState = StateObject(wrappedValue: WrappedWorkspaceState(homeState: homeState, filesModel: filesModel))
-        self.homeState = homeState
-        self.filesModel = filesModel
-    }
-
     var body: some View {
         Group {
             if isPreview {
                 Text("This is a preview.")
             } else {
-                WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
+                WorkspaceView()
                     .modifier(OnLbLinkViewModifier())
             }
         }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 HStack(alignment: .lastTextBaseline, spacing: 5) {
-                    if workspaceState.openDoc != nil {
+                    if workspaceOutput.openDoc != nil {
                         Button(action: {
                             runOnOpenDoc { file in
                                 homeState.sheetInfo = .share(file: file)
@@ -48,7 +43,7 @@ struct DetailView: View {
                         })
                     }
                         
-                    if horizontalSizeClass == .compact && workspaceState.tabCount > 0 {
+                    if horizontalSizeClass == .compact && workspaceOutput.tabCount > 0 {
                         Button(action: {
                             self.showTabsSheet()
                         }, label: {
@@ -57,7 +52,7 @@ struct DetailView: View {
                                     .stroke(Color.accentColor, lineWidth: 2)
                                     .frame(width: 20, height: 20)
                                     
-                                Text(workspaceState.tabCount < 100 ? String(workspaceState.tabCount) : ":D")
+                                Text(workspaceOutput.tabCount < 100 ? String(workspaceOutput.tabCount) : ":D")
                                     .font(.footnote)
                                     .foregroundColor(.accentColor)
                             }
@@ -74,7 +69,7 @@ struct DetailView: View {
     }
     
     func showTabsSheet() {
-        homeState.tabsSheetInfo = TabSheetInfo(info: workspaceState.getTabsIds().map({ id in
+        homeState.tabsSheetInfo = TabSheetInfo(info: workspaceInput.getTabsIds().map({ id in
             guard let file = filesModel.idsToFiles[id] else {
                 return nil
             }
@@ -84,7 +79,7 @@ struct DetailView: View {
     }
     
     func runOnOpenDoc(f: @escaping (File) -> Void) {
-        guard let id = AppState.workspaceState.openDoc else {
+        guard let id = workspaceOutput.openDoc else {
             return
         }
         
@@ -96,14 +91,15 @@ struct DetailView: View {
 }
 
 struct CompactTitle: ViewModifier {
-    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     @EnvironmentObject var filesModel: FilesViewModel
     
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var title: String {
         get {
-            guard let id = workspaceState.openDoc else { return "" }
+            guard let id = workspaceOutput.openDoc else { return "" }
             return filesModel.idsToFiles[id]?.name ?? "Unknown file"
         }
     }
@@ -114,7 +110,7 @@ struct CompactTitle: ViewModifier {
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
                         Button(action: {
-                            workspaceState.renameOpenDoc = true
+                            openRenameSheet()
                         }, label: {
                             Text(title)
                                 .foregroundStyle(.foreground)
@@ -128,15 +124,25 @@ struct CompactTitle: ViewModifier {
             content
         }
     }
+    
+    func openRenameSheet() {
+        guard let id = workspaceOutput.openDoc else {
+            return
+        }
+        
+        guard let file = filesModel.idsToFiles[id] else {
+            return
+        }
+        
+        DispatchQueue.main.async {
+            homeState.sheetInfo = .rename(file: file)
+        }
+    }
 }
 
 #Preview {
-    let workspaceState = WorkspaceState()
-    workspaceState.tabCount = 5
-    
     return NavigationStack {
-        DetailView(homeState: HomeState(), filesModel: FilesViewModel())
-            .environmentObject(workspaceState)
-            .environmentObject(HomeState())
+        DetailView()
+            .withCommonPreviewEnvironment()
     }
 }
