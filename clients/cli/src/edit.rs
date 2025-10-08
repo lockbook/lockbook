@@ -8,6 +8,7 @@ use cli_rs::cli_error::{CliError, CliResult};
 use cli_rs::flag::Flag;
 use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
+use tokio::runtime::Handle;
 
 use crate::input::FileInput;
 use crate::{core, ensure_account_and_root};
@@ -187,11 +188,12 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotw
         Ok(mut watcher) => {
             let core = core.clone();
             let path = PathBuf::from(path.as_ref());
+            let handle = Handle::current();
 
             watcher
                 .watch(path.clone(), move |event: Event| {
                     if let EventKind::Modify(_) = event.kind {
-                        tokio::spawn(save_temp_file_contents(core.clone(), id, path.clone()));
+                        handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
                     }
                 })
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {err:#?}"));

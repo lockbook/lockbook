@@ -10,7 +10,8 @@ use std::io::IsTerminal;
 use std::process::exit;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::info;
+use tokio::time;
+use tracing::{error, info};
 
 pub mod cache;
 pub(crate) mod file_handle;
@@ -71,7 +72,12 @@ impl Drive {
         // capture ctrl_c and try to cleanup
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.unwrap();
-            umount().await;
+            let mut unmount_success = umount().await;
+            while !unmount_success {
+                error!("unmount failed, please close any apps using lb-fs! Retrying in 1s.");
+                time::sleep(Duration::from_secs(1)).await;
+                unmount_success = umount().await;
+            }
             info!("cleaned up, goodbye!");
             exit(0);
         });
@@ -80,8 +86,8 @@ impl Drive {
         let syncer = drive.clone();
         tokio::spawn(async move {
             loop {
-                info!("will sync in 5 minutes");
-                tokio::time::sleep(Duration::from_secs(300)).await;
+                info!("will sync in 30 seconds");
+                tokio::time::sleep(Duration::from_secs(30)).await;
                 info!("syncing");
                 syncer.sync().await;
             }

@@ -42,11 +42,15 @@ linux is 7/10 stable, and windows is largely untested at the moment.
 
 This version will cp your your CLI's data directory and create a dedicated one for lb-fs. Future
 iterations will be more tightly integrated into host programs. lb-fs will sync changes to our server
-on startup and then every 5 minutes.
+on startup and then every 30 seconds.
 
 This command will not return and print out logs from the NFS server. Once the server starts it will
 mount a virtual file system to /tmp/lockbook. Ctrl-C'ing this process will shut down the server and
-unmount the file system. For now, a clean umount is critical to not requiring a restart.
+unmount the file system. Each Ctrl-C will attempt to unmount, you must close all apps that are using
+the mount before an unmount will succeed.
+
+Programs that depend on file watching for updates may not see the latest changes from syncs. See #2783
+for more info.
 
 Press Y to proceed.
 "#;
