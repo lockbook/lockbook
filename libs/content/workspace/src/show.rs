@@ -518,6 +518,9 @@ impl Workspace {
                                     if res.request_save {
                                         tab.last_changed = Instant::now();
                                     }
+
+                                    self.canvas_has_islands_interaction =
+                                        res.has_islands_interaction;
                                 }
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
@@ -615,12 +618,7 @@ impl Workspace {
                                         self.tabs[i].rename = Some(active_name);
                                     } else {
                                         self.tabs[i].rename = None;
-                                        self.current_tab = i;
-                                        self.current_tab_changed = true;
-                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tab_title(&self.tabs[i]),
-                                        ));
-                                        self.out.selected_file = self.tabs[i].id();
+                                        self.make_current(i);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
@@ -753,12 +751,13 @@ impl Workspace {
                 0
             }
         });
-
-        let old = self.current_tab as i32;
-        let new = old + change;
-        if new >= 0 && new < self.tabs.len() as i32 {
-            self.tabs.swap(old as usize, new as usize);
-            self.current_tab = new as usize;
+        if change != 0 {
+            let old = self.current_tab as i32;
+            let new = old + change;
+            if new >= 0 && new < self.tabs.len() as i32 {
+                self.tabs.swap(old as usize, new as usize);
+                self.make_current(new as usize);
+            }
         }
 
         // tab navigation

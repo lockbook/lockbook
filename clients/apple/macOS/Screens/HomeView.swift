@@ -2,11 +2,16 @@ import SwiftUI
 import SwiftWorkspace
 
 struct HomeView: View {
-    @StateObject var homeState = HomeState()
-    @StateObject var filesModel = FilesViewModel()
+    @StateObject var homeState: HomeState
+    @EnvironmentObject var filesModel: FilesViewModel
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    
+    init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
+        self._homeState = StateObject(wrappedValue: HomeState(workspaceOutput: workspaceOutput, filesModel: filesModel))
+    }
 
     var body: some View {
-        PathSearchContainerView(filesModel: filesModel) {
+        PathSearchContainerView(filesModel: filesModel, workspaceInput: workspaceInput) {
             NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
                 
                 SearchContainerView(filesModel: filesModel) {
@@ -14,7 +19,7 @@ struct HomeView: View {
                 }
             }, detail: {
                 NavigationStack {
-                    DetailView(homeState: homeState, filesModel: filesModel)
+                    DetailView()
                         .navigationDestination(isPresented: $homeState.showPendingShares) {
                             PendingSharesView()
                         }
@@ -43,7 +48,9 @@ struct HomeView: View {
 struct SidebarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
+    
     @StateObject var settingsModel = SettingsViewModel()
+    
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
@@ -101,24 +108,20 @@ struct DetailView: View {
     @Environment(\.isPreview) var isPreview
     
     @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var workspaceState: WorkspaceState
-    @State var wrappedWorkspaceState: WrappedWorkspaceState
-    
-    init(homeState: HomeState, filesModel: FilesViewModel) {
-        wrappedWorkspaceState = WrappedWorkspaceState(homeState: homeState, filesModel: filesModel)
-    }
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     var body: some View {
         if isPreview {
             Text("This is a preview.")
         } else {
-            WorkspaceView(AppState.workspaceState, AppState.lb.lbUnsafeRawPtr)
+            WorkspaceView(workspaceInput, workspaceOutput, AppState.lb.lbUnsafeRawPtr)
                 .modifier(OnLbLinkViewModifier())
         }
     }
 }
 
 #Preview("Home View") {
-    return HomeView()
-        .environmentObject(AppState.workspaceState)
+    return HomeView(workspaceOutput: .preview, filesModel: .preview)
+        .withCommonPreviewEnvironment()
 }

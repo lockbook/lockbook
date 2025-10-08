@@ -77,8 +77,8 @@ struct UpgradeAccountView: View {
 
 #Preview("Upgrade Account") {
     NavigationStack {
-        UpgradeAccountView(settingsModel: SettingsViewModel())
-            .environmentObject(BillingState())
+        UpgradeAccountView(settingsModel: .preview)
+            .withCommonPreviewEnvironment()
     }
 }
 
@@ -87,8 +87,8 @@ struct UpgradeAccountView: View {
     billingState.purchaseState = .failure
     
     return NavigationStack {
-        UpgradeAccountView(settingsModel: SettingsViewModel())
+        UpgradeAccountView(settingsModel: .preview)
             .environmentObject(billingState)
+            .withCommonPreviewEnvironment()
     }
-
 }

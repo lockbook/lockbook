@@ -13,12 +13,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var textUndoManager = iOSUndoManager()
     let textInteraction = UITextInteraction(for: .editable)
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -35,8 +35,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
     var isLongPressCursorDrag = false
     
-    init(mtkView: iOSMTK) {
+    init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -700,17 +701,18 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
     
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
-
-    init(mtkView: iOSMTK) {
+    
+    init(mtkView: iOSMTK, headerSize: Double) {
         mtkView.cursorTracked = true;
         mtkView.scrollSensitivity = 100;
         self.mtkView = mtkView
-        
+                self.currentHeaderSize = headerSize
+
         super.init(frame: .infinite)
 
         isMultipleTouchEnabled = true
@@ -720,6 +722,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         addInteraction(pencilInteraction)
         
         
+        // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         
@@ -749,15 +752,17 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+            let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+            
+            return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
         }
 
         return false
@@ -838,8 +843,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     public static let TITLE_BAR_HEIGHT: CGFloat = 33
     public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
+    var workspaceOutput: WorkspaceOutputState?
+    var workspaceInput: WorkspaceInputState?
     public var wsHandle: UnsafeMutableRawPointer?
-    var workspaceState: WorkspaceState?
+    
     var currentOpenDoc: UUID? = nil
     var currentSelectedFolder: UUID? = nil
 
@@ -1008,7 +1015,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
-        workspaceState?.wsHandle = wsHandle
+        workspaceInput?.wsHandle = wsHandle
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -1043,24 +1050,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         set_scale(wsHandle, Float(self.contentScaleFactor))
         
         let output = ios_frame(wsHandle)
-        
-        if output.status_updated {
-            let status = get_status(wsHandle)
-            let msg = String(cString: status.msg)
-            free_text(status.msg)
-            let syncing = status.syncing
-            workspaceState?.syncing = syncing
-            workspaceState?.statusMsg = msg
-        }
-        
+                
         if output.tabs_changed {
-            workspaceState?.tabCount = Int(tab_count(wsHandle))
+            self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
         }
         
-        workspaceState?.reloadFiles = output.refresh_files
-
         let selectedFile = UUID(uuid: output.selected_file._0)
-
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
                 onSelectionChanged?()
@@ -1069,24 +1064,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             currentOpenDoc = selectedFile
 
-            if selectedFile != self.workspaceState?.openDoc {
-                self.workspaceState?.openDoc = selectedFile
+            if selectedFile != self.workspaceOutput?.openDoc {
+                self.workspaceOutput?.openDoc = selectedFile
             }
         }
 
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
 
-        if currentTab != self.workspaceState!.currentTab {
+        if currentTab != self.workspaceOutput!.currentTab {
             DispatchQueue.main.async {
-                withAnimation {
-                    self.workspaceState!.currentTab = currentTab
-                }
+                self.workspaceOutput!.currentTab = currentTab
             }
         }
 
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
-            self.workspaceState?.openDoc = nil
+            self.workspaceOutput?.openDoc = nil
         }
         
         if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
@@ -1112,28 +1105,30 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
 
         if output.tab_title_clicked {
-            workspaceState!.renameOpenDoc = true
+            self.workspaceOutput?.renameOpenDoc = ()
 
             if !isCompact() {
                 unfocus_title(wsHandle)
             }
         }
 
+//      FIXME:  Can we just do this in rust?
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            openFile(id: newFile)
+            workspaceInput?.openFile(id: newFile)
         }
 
         if output.new_folder_btn_pressed {
-            workspaceState?.newFolderButtonPressed = true
+            self.workspaceOutput?.newFolderButtonPressed = ()
         }
+        
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)
-
+            
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                self.workspaceState?.urlOpened = url
+                self.workspaceOutput?.urlOpened = url
             }
         }
 
@@ -1250,7 +1245,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for press in presses {
             guard let key = press.key else { continue }
 
-            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
+            if workspaceOutput!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
                 return
             }
 
@@ -1286,7 +1281,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         case .text(let text):
             clipboard_paste(wsHandle, text)
-            workspaceState?.pasted = true
         }
     }
     
