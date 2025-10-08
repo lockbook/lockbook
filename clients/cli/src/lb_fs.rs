@@ -1,13 +1,19 @@
-use crate::{core, ensure_account, input};
-use cli_rs::cli_error::CliResult;
+use crate::{ensure_account, input};
+use cli_rs::cli_error::{CliError, CliResult};
 use fs_extra::dir::CopyOptions;
 use lb_fs::fs_impl::Drive;
-use lb_rs::model::core_config::Config;
+use lb_rs::{Lb, model::core_config::Config};
 
 #[tokio::main]
 pub async fn mount() -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account(lb)?;
+    let mut cfg = Config::cli_config("cli");
+    cfg.logs = false;
+    let lb = Lb::init(cfg)
+        .await
+        .map_err(|err| CliError::from(err.to_string()))?;
+    ensure_account(&lb)?;
+    drop(lb);
+
     warning()?;
     copy_data()?;
     Drive::mount().await?;

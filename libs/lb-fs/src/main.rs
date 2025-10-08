@@ -2,10 +2,8 @@ use cli_rs::cli_error::{CliResult, Exit};
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use lb_fs::fs_impl::Drive;
-use lb_fs::logger;
 
 fn main() {
-    logger::init();
     Command::name("lb-fs")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
