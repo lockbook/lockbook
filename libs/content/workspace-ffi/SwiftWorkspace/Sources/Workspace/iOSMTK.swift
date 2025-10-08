@@ -972,45 +972,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         cursorTracked = false
         mouse_gone(wsHandle)
     }
-    
-    func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func createDocAt(parent: UUID, drawing: Bool) {
-        let parent = CUuid(_0: parent.uuid)
-        create_doc_at(wsHandle, parent, drawing)
-        create_doc_at(wsHandle, parent, drawing)
-        setNeedsDisplay(self.frame)
-    }
-
-    func closeDoc(id: UUID) {
-        close_tab(wsHandle, id.uuidString)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func closeAllTabs() {
-        close_all_tabs(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    func fileOpCompleted(fileOp: WSFileOpCompleted) {
-        switch fileOp {
-        case .Delete(let id):
-            close_tab(wsHandle, id.uuidString)
-            setNeedsDisplay(self.frame)
-        case .Rename(let id, let newName):
-            tab_renamed(wsHandle, id.uuidString, newName)
-            setNeedsDisplay(self.frame)
-        }
-    }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
