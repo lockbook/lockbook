@@ -17,6 +17,7 @@ use std::fmt::Debug;
 use tracing::*;
 
 pub struct UserInfo {
+    account_age: i64,
     total_documents: i64,
     total_bytes: i64,
     total_egress: i64,
@@ -67,6 +68,9 @@ lazy_static! {
         &["username"]
     )
     .unwrap();
+    pub static ref AGE_BY_USER: IntGaugeVec =
+        register_int_gauge_vec!("lockbook_age_by_user", "Lockbook's account ages", &["username"])
+            .unwrap();
     pub static ref METRICS_PREMIUM_USERS_BY_PAYMENT_PLATFORM_VEC: IntGaugeVec =
         register_int_gauge_vec!(
             "lockbook_premium_users_by_payment_platform",
@@ -175,6 +179,10 @@ where
                     ACTIVITY_BY_USER
                         .with_label_values(&[&username])
                         .set(if user_info.is_user_active_v2 { 1 } else { 0 });
+
+                    AGE_BY_USER
+                        .with_label_values(&[&username])
+                        .set(user_info.account_age);
 
                     let billing_info = Self::get_user_billing_info(&db, &owner)?;
 
@@ -285,6 +293,8 @@ where
                 return Ok(None);
             };
 
+        let account_age = get_time().0 - root_creation_timestamp;
+
         let last_seen = *db
             .last_seen
             .get()
@@ -326,6 +336,7 @@ where
             is_user_sharer_or_sharee,
             is_user_active_v2,
             total_egress,
+            account_age,
         }))
     }
 }

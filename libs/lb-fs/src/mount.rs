@@ -45,9 +45,9 @@ pub fn mount() {
 }
 
 #[cfg(target_os = "linux")]
-pub async fn umount() {
+pub async fn umount() -> bool {
     info!("umounting");
-    Command::new("sudo")
+    let wait_result = Command::new("sudo")
         .arg("umount")
         .arg("/tmp/lockbook")
         .spawn()
@@ -55,18 +55,22 @@ pub async fn umount() {
         .wait()
         .await
         .unwrap();
+
+    wait_result.success()
 }
 
 #[cfg(target_os = "macos")]
-pub async fn umount() {
+pub async fn umount() -> bool {
     info!("umounting");
-    Command::new("umount")
+    let wait_result = Command::new("umount")
         .arg("/tmp/lockbook")
         .spawn()
         .unwrap()
         .wait()
         .await
         .unwrap();
+
+    wait_result.success()
 }
 
 #[cfg(target_os = "windows")]
