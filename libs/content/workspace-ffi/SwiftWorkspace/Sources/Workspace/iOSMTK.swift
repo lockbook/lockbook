@@ -711,7 +711,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         mtkView.cursorTracked = true;
         mtkView.scrollSensitivity = 100;
         self.mtkView = mtkView
-                self.currentHeaderSize = headerSize
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -721,9 +721,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
-        
         // ipad trackpad support
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleScroll(_:)))
         pan.allowedScrollTypesMask = .all
         
         if (prefersPencilOnlyDrawing){
@@ -768,11 +767,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         return false
     }
     
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        mtkView.handleTrackpadScroll(sender)
-    }
-    
-    @objc public func handleScroll(_ sender: UIPanGestureRecognizer) {
+    @objc func handleScroll(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handleTrackpadScroll(sender)
     }
     
