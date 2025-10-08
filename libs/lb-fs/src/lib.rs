@@ -32,6 +32,8 @@ impl Drive {
         .await
         .unwrap();
 
+        logger::init();
+
         let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
 
         let data = Arc::default();
