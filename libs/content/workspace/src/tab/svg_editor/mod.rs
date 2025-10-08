@@ -47,7 +47,7 @@ pub struct SVGEditor {
     pub toolbar: Toolbar,
     lb: Lb,
     pub open_file: Uuid,
-    has_islands_interaction: bool,
+    skip_frame: bool,
     last_render: Instant,
     renderer: Renderer,
     painter: egui::Painter,
@@ -92,7 +92,6 @@ impl Default for ViewportSettings {
 
 pub struct Response {
     pub request_save: bool,
-    pub has_islands_interaction: bool,
 }
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct CanvasSettings {
@@ -178,7 +177,7 @@ impl SVGEditor {
             toolbar,
             lb,
             open_file,
-            has_islands_interaction: false,
+            skip_frame: false,
             last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
@@ -221,6 +220,7 @@ impl SVGEditor {
                 }
             }
         }
+
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
@@ -262,11 +262,8 @@ impl SVGEditor {
                 false
             };
 
-        let has_islands_interaction = self.has_islands_interaction;
-        self.has_islands_interaction = false;
-
         self.buffer.master_transform_changed = false;
-        Response { request_save: needs_save_and_frame_is_cheap, has_islands_interaction }
+        Response { request_save: needs_save_and_frame_is_cheap }
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {
@@ -287,7 +284,7 @@ impl SVGEditor {
                     ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
 
                 self.toolbar
-                    .show(&mut ui, &mut toolbar_context, &mut self.has_islands_interaction)
+                    .show(&mut ui, &mut toolbar_context, &mut self.skip_frame)
             },
         )
         .inner
@@ -328,7 +325,8 @@ impl SVGEditor {
             viewport_settings: &mut self.viewport_settings,
         };
 
-        if self.has_islands_interaction {
+        if self.skip_frame {
+            self.skip_frame = false;
             self.toolbar.pen.end_path(&mut tool_context, false);
             return;
         }

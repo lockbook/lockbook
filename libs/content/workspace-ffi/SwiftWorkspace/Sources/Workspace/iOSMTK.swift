@@ -719,6 +719,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
+        
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
         pan.allowedScrollTypesMask = .all
         
@@ -748,17 +749,15 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
-    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-        guard gesture.state == .ended else { return }
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
-            
-            return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
         }
 
         return false
@@ -975,6 +974,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     
     func createDocAt(parent: UUID, drawing: Bool) {
         let parent = CUuid(_0: parent.uuid)
+        create_doc_at(wsHandle, parent, drawing)
         create_doc_at(wsHandle, parent, drawing)
         setNeedsDisplay(self.frame)
     }
