@@ -89,8 +89,6 @@ impl Drive {
                     0
                 };
 
-                tracing::error!("File Updated!");
-
                 let mut entry = FileEntry::from_file(file, size as u64);
 
                 let now = FileEntry::now();
