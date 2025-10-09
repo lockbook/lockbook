@@ -723,16 +723,13 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleScroll(_:)))
-        pan.allowedScrollTypesMask = .all
-        
-        if (prefersPencilOnlyDrawing){
-            pan.maximumNumberOfTouches = 0
-        }else{
-            pan.maximumNumberOfTouches = 1
-        }
-        
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
-        self.addGestureRecognizer(pan)
+        pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
+
+        if (prefersPencilOnlyDrawing){
+            self.addGestureRecognizer(pan)
+        }
+    
         
         // edit menu support
         self.addInteraction(editMenuInteraction)
@@ -753,18 +750,25 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
+        
+        // Check if we have any valid actions before presenting
+        guard canPaste() else { return }
+        
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
-            
-            return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
+            return canPaste()
         }
 
         return false
+    }
+    
+    private func canPaste() -> Bool {
+        let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+        return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
     }
     
     @objc func handleScroll(_ sender: UIPanGestureRecognizer? = nil) {
