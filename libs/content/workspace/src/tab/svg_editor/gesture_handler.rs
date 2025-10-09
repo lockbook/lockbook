@@ -149,10 +149,13 @@ impl GestureHandler {
             sum_pos.y += pos.y;
         }
 
-        let maybe_pos = if pos_cardinality != 0 {
-            Some(sum_pos / pos_cardinality as f32)
+        let pos = if pos_cardinality != 0 {
+            sum_pos / pos_cardinality as f32
         } else {
-            ui.ctx().pointer_hover_pos()
+            match ui.ctx().pointer_hover_pos() {
+                Some(cp) => cp,
+                None => egui::Pos2::ZERO,
+            }
         };
 
         let container_rect_with_mini_map = if gesture_ctx.settings.show_mini_map {
@@ -167,7 +170,7 @@ impl GestureHandler {
             gesture_ctx.viewport_settings.container_rect
         };
 
-        if maybe_pos.is_some() && !container_rect_with_mini_map.contains(maybe_pos.unwrap()) {
+        if !container_rect_with_mini_map.contains(pos) {
             return;
         }
 
@@ -183,9 +186,7 @@ impl GestureHandler {
             t = t.post_scale(zoom_delta, zoom_delta);
 
             // correct the zoom to center
-            if let Some(pos) = maybe_pos {
-                t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
-            }
+            t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
         }
 
         if pan.is_some() || is_zooming {
