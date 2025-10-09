@@ -348,9 +348,11 @@ impl SVGEditor {
             }
         }
 
-        self.toolbar
-            .gesture_handler
-            .handle_input(ui, &mut tool_context);
+        if !self.has_islands_interaction {
+            self.toolbar
+                .gesture_handler
+                .handle_input(ui, &mut tool_context);
+        }
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {
