@@ -112,6 +112,19 @@ pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     custom_multi_touch
 }
 
+pub fn is_scroll(ui: &mut egui::Ui) -> bool {
+    let mut is_scroll = false;
+
+    ui.input(|r| {
+        for e in r.events.iter() {
+            if let egui::Event::MouseWheel { unit: _, delta: _, modifiers: _ } = *e {
+                is_scroll = true;
+            }
+        }
+    });
+    is_scroll
+}
+
 pub fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }

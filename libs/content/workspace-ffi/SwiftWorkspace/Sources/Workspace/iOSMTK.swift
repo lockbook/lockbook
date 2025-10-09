@@ -708,6 +708,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
     
     init(mtkView: iOSMTK, headerSize: Double) {
+        mtkView.cursorTracked = true;
+        mtkView.scrollSensitivity = 100;
         self.mtkView = mtkView
         self.currentHeaderSize = headerSize
 
@@ -720,10 +722,14 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         addInteraction(pencilInteraction)
         
         // ipad trackpad support
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches = 0
-        self.addGestureRecognizer(pan)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleScroll(_:)))
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
+
+        if (prefersPencilOnlyDrawing){
+            self.addGestureRecognizer(pan)
+        }
+    
         
         // edit menu support
         self.addInteraction(editMenuInteraction)
@@ -737,28 +743,35 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         tap.numberOfTapsRequired = 1
         self.addGestureRecognizer(tap)
-
+        
         self.isMultipleTouchEnabled = true
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
+        
+        // Check if we have any valid actions before presenting
+        guard canPaste() else { return }
+        
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
-            
-            return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
+            return canPaste()
         }
 
         return false
     }
     
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+    private func canPaste() -> Bool {
+        let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+        return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
+    }
+    
+    @objc func handleScroll(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handleTrackpadScroll(sender)
     }
     
@@ -856,7 +869,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreTextUpdate = false
     
     var cursorTracked = false
+    var scrollSensitivity = 50.0
     var scrollId = 0
+    private var kineticTimer: Timer?
         
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -886,17 +901,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             return
         }
 
+        if event.state == .began {
+            kineticTimer?.invalidate()
+            kineticTimer = nil
+        }
+        
         var velocity = event.velocity(in: self)
         
-        velocity.x /= 50
-        velocity.y /= 50
-                        
+        velocity.x /= scrollSensitivity
+        velocity.y /= scrollSensitivity
+
         if event.state == .ended {
             let currentScrollId = Int(Date().timeIntervalSince1970)
             scrollId = currentScrollId
             
-            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
-                if currentScrollId != scrollId {
+            kineticTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] timer in
+                guard let self = self else {
                     timer.invalidate()
                     return
                 }
