@@ -3,9 +3,9 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align, Align2, CursorIcon, EventFilter, FontSelection, Galley, Id, Image, Key, Label,
-    Modifiers, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2,
-    ViewportCommand, Widget as _, WidgetText, include_image, vec2,
+    Align, Align2, CursorIcon, DragAndDrop, EventFilter, FontSelection, Galley, Id, Image, Key,
+    Label, LayerId, Modifiers, Order, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle,
+    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText, include_image, vec2,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -633,6 +633,9 @@ impl Workspace {
                                         self.rename_file((id, name.clone()), true);
                                     }
                                 }
+                                TabLabelResponse::Reordered(new) => {
+                                    self.tabs.swap(i, new);
+                                }
                             }
                             ui.ctx().request_repaint();
                         }
@@ -914,8 +917,64 @@ impl Workspace {
                     let text_resp = ui.interact(
                         text_rect,
                         Id::new("tab label").with(t),
-                        Sense { click: true, drag: false, focusable: false },
+                        Sense { click: true, drag: true, focusable: false },
                     );
+
+                    // drag 'n' drop
+                    let drag_started = text_resp.dragged()
+                        && ui.input(|i| {
+                            let (Some(pos), Some(origin)) =
+                                (i.pointer.interact_pos(), i.pointer.press_origin())
+                            else {
+                                return false;
+                            };
+
+                            pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
+                        })
+                        // must not be already dragging something else
+                        && !DragAndDrop::has_any_payload(ui.ctx());
+                    {
+                        // when drag starts, dragged tab sets dnd payload
+                        if drag_started {
+                            println!("Drag started");
+                            DragAndDrop::set_payload(ui.ctx(), t);
+                        }
+
+                        // during drag, drop target renders indicator
+                        if let (Some(pointer), true) = (
+                            ui.input(|i| i.pointer.interact_pos()),
+                            DragAndDrop::has_any_payload(ui.ctx()),
+                        ) {
+                            let contains_pointer = text_resp.rect.contains(pointer);
+                            if contains_pointer
+                            // ^ you'd think this would always be true
+                            {
+                                // stroke is drawn on whichever side is closer to the pointer
+                                let stroke = ui.style().visuals.widgets.active.fg_stroke;
+                                let x = if pointer.x < text_resp.rect.center().x {
+                                    text_resp.rect.min.x
+                                } else {
+                                    text_resp.rect.max.x
+                                };
+                                let y_range = text_resp.rect.y_range();
+
+                                ui.with_layer_id(
+                                    LayerId::new(
+                                        Order::PanelResizeLine,
+                                        Id::from("file_tree_drop_indicator"),
+                                    ),
+                                    |ui| {
+                                        ui.painter().vline(x, y_range, stroke);
+                                    },
+                                );
+                            }
+                        }
+
+                        // when drag ends, dropped-on file consumes dnd payload
+                        if let Some(tab_index) = text_resp.dnd_release_payload::<usize>() {
+                            result = Some(TabLabelResponse::Reordered(*tab_index));
+                        }
+                    }
 
                     let close_button_resp = ui.interact(
                         close_button_rect,
@@ -969,7 +1028,7 @@ impl Workspace {
                     }
 
                     // drag started makes it easier to click on touch screens
-                    if text_resp.clicked() || text_resp.drag_started() {
+                    if text_resp.clicked() || (text_resp.drag_started() && !drag_started) {
                         result = Some(TabLabelResponse::Clicked);
                     }
 
@@ -1098,6 +1157,7 @@ enum TabLabelResponse {
     Clicked,
     Closed,
     Renamed(String),
+    Reordered(usize),
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
