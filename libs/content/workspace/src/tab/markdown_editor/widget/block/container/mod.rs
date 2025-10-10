@@ -88,6 +88,13 @@ impl<'ast> Editor {
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        // use this flag to toggle the optimization where only visible things
+        // are drawn; this saves work but prevents galleys from populating:
+        // * causes occassional crashes ("the len is 0 but the index is 18446744073709551615")
+        // * cursor sometimes rendered at doc end when it's off screen
+        // * scrolling to the cursor sometimes only works for one frame
+        const OPTIMIZATION: bool = false;
+
         let mut children: Vec<_> = node.children().collect();
         children.sort_by_key(|c| c.data.borrow().sourcepos);
 
@@ -99,10 +106,10 @@ impl<'ast> Editor {
             let pre_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + pre_spacing;
             let pre_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            if pre_spacing_visible || self.scroll_to_cursor {
+            if !OPTIMIZATION || pre_spacing_visible || self.scroll_to_cursor {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
             }
-            if pre_spacing_below_viewport && !self.scroll_to_cursor {
+            if OPTIMIZATION && (pre_spacing_below_viewport && !self.scroll_to_cursor) {
                 break;
             }
             top_left.y += pre_spacing;
@@ -128,10 +135,10 @@ impl<'ast> Editor {
             let block_above_viewport = 2. * MARGIN > tolerance + top_left.y + child_height;
             let block_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let block_visible = !block_above_viewport && !block_below_viewport;
-            if block_visible || self.scroll_to_cursor {
+            if !OPTIMIZATION || block_visible || self.scroll_to_cursor {
                 self.show_block(ui, child, top_left);
             }
-            if block_below_viewport && !self.scroll_to_cursor {
+            if OPTIMIZATION && (block_below_viewport && !self.scroll_to_cursor) {
                 break;
             }
             top_left.y += child_height;
@@ -141,10 +148,10 @@ impl<'ast> Editor {
             let post_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + post_spacing;
             let post_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            if post_spacing_visible || self.scroll_to_cursor {
+            if !OPTIMIZATION || post_spacing_visible || self.scroll_to_cursor {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
-            if post_spacing_below_viewport && !self.scroll_to_cursor {
+            if OPTIMIZATION && (post_spacing_below_viewport && !self.scroll_to_cursor) {
                 break;
             }
             top_left.y += post_spacing;
