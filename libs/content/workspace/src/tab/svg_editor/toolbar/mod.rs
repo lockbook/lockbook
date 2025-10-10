@@ -278,7 +278,7 @@ impl Toolbar {
             return res;
         }
 
-        let mini_map_res = self.show_mini_map(ui, tlbr_ctx);
+        let (mini_map_dirty, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
@@ -294,6 +294,10 @@ impl Toolbar {
             overlay_res = overlay_res.union(res);
         }
 
+        if mini_map_dirty {
+            res = true;
+        }
+
         if let Some(res) = tool_controls_res {
             overlay_res = overlay_res.union(res);
         }
@@ -307,6 +311,7 @@ impl Toolbar {
 
         if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
             *has_islands_interaction = true;
+            println!("has islands interaction");
         }
         res
     }

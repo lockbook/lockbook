@@ -9,12 +9,12 @@ const SCROLLBAR_WIDTH: f32 = 15.0;
 impl Toolbar {
     pub fn show_mini_map(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> Option<egui::Response> {
+    ) -> (bool, Option<egui::Response>) {
         if !tlbr_ctx.settings.show_mini_map
             || !tlbr_ctx.viewport_settings.is_scroll_mode()
             || tlbr_ctx.viewport_settings.bounded_rect.is_none()
         {
-            return None;
+            return (false, None);
         }
         let bounded_rect = tlbr_ctx.viewport_settings.bounded_rect.unwrap();
 
@@ -109,33 +109,36 @@ impl Toolbar {
             egui::Sense::click_and_drag(),
         );
 
+        let mut has_transformed_canvas = false;
         if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
-            let maybe_delta =
-                if (res.clicked() || res.drag_started()) && !viewport_rect.contains(click_pos) {
-                    Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
-                } else if res.dragged() {
-                    let delta_factor = if mini_map_full_height > mini_map_rect.height() {
-                        mini_map_rect.height() / mini_map_full_height
-                    } else {
-                        1.0
-                    };
-                    Some(-res.drag_delta() / out.absolute_transform.sx / delta_factor)
+            let maybe_delta = if (res.clicked() || res.drag_started())
+                && !viewport_rect.contains(click_pos)
+            {
+                Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
+            } else if res.dragged() {
+                let delta_factor = if mini_map_full_height > mini_map_rect.height() {
+                    mini_map_rect.height() / mini_map_full_height
                 } else {
-                    None
+                    1.0
                 };
+                Some(-ui.input(|r| r.raw_scroll_delta) / out.absolute_transform.sx / delta_factor)
+            } else {
+                None
+            };
 
             let transform =
                 maybe_delta.map(|delta| Transform::default().post_translate(delta.x, delta.y));
 
             if let Some(transform) = transform {
                 transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+                has_transformed_canvas = true;
             }
         }
 
         ui.painter()
             .extend([shadow, scroll_bar_line_sep, mini_map_line_sep]);
 
-        None
+        (has_transformed_canvas, Some(res))
     }
 
     fn show_scroll_bar(
