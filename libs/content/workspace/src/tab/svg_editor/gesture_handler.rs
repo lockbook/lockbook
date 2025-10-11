@@ -139,7 +139,7 @@ impl GestureHandler {
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = self.get_pan(ui, gesture_ctx);
+        let pan = self.get_pan(ui);
 
         let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
@@ -223,26 +223,10 @@ impl GestureHandler {
         trace!(num_touches, "applied gesture");
     }
 
-    fn get_pan(&self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) -> Option<egui::Vec2> {
-        if let Some(current_gesture) = &self.current_gesture {
-            let mut active_touches = current_gesture.touch_infos.values().filter(|v| v.is_active);
-
-            if active_touches.clone().count() == 1 && gesture_ctx.settings.pencil_only_drawing {
-                let touch = active_touches.next().unwrap();
-                return Some(touch.frame_delta);
-            }
-        }
+    fn get_pan(&self, ui: &mut egui::Ui) -> Option<egui::Vec2> {
         ui.input(|r| {
             if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
                 Some(r.raw_scroll_delta)
-            } else if let Some(touch_gesture) = r.multi_touch() {
-                if touch_gesture.translation_delta.x.abs() > 0.0
-                    || touch_gesture.translation_delta.y.abs() > 0.0
-                {
-                    Some(touch_gesture.translation_delta)
-                } else {
-                    None
-                }
             } else {
                 None
             }

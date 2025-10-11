@@ -943,7 +943,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             if !cursorTracked {
                 mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
             }
-            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+            let translation = event.translation(in: self)
+
+            scroll_wheel(self.wsHandle, Float(translation.x), Float(translation.y), false, false, false, false)
+            event.setTranslation(.zero, in: self)
             if !cursorTracked {
                 mouse_gone(wsHandle)
             }
