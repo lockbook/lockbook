@@ -633,9 +633,15 @@ impl Workspace {
                                         self.rename_file((id, name.clone()), true);
                                     }
                                 }
-                                TabLabelResponse::Reordered(new) => {
+                                TabLabelResponse::Reordered { src, mut dst } => {
                                     let current = self.current_tab_id();
-                                    self.tabs.swap(i, new);
+
+                                    let tab = self.tabs.remove(src);
+                                    if src < dst {
+                                        dst -= 1;
+                                    }
+                                    self.tabs.insert(dst, tab);
+
                                     if let Some(current) = current {
                                         self.make_current_by_id(current);
                                     }
@@ -1016,7 +1022,6 @@ impl Workspace {
                             DragAndDrop::set_payload(ui.ctx(), t);
                         }
 
-                        // during drag, drop target renders indicator
                         if let (Some(pointer), true) = (
                             ui.input(|i| i.pointer.interact_pos()),
                             DragAndDrop::has_any_payload(ui.ctx()),
@@ -1025,10 +1030,10 @@ impl Workspace {
                             if contains_pointer
                             // ^ you'd think this would always be true
                             {
-                                // stroke is drawn on whichever side is closer to the pointer
+                                // during drag, drop target renders indicator
+                                let drop_left_side = pointer.x < tab_label_resp.rect.center().x;
                                 let stroke = ui.style().visuals.widgets.active.fg_stroke;
-
-                                let x = if pointer.x < tab_label_resp.rect.center().x {
+                                let x = if drop_left_side {
                                     tab_label_rect.min.x
                                 } else {
                                     tab_label_rect.max.x
@@ -1044,12 +1049,18 @@ impl Workspace {
                                         ui.painter().vline(x, y_range, stroke);
                                     },
                                 );
-                            }
-                        }
 
-                        // when drag ends, dropped-on tab consumes dnd payload
-                        if let Some(tab_index) = tab_label_resp.dnd_release_payload::<usize>() {
-                            result = Some(TabLabelResponse::Reordered(*tab_index));
+                                // when drag ends, dropped-on tab consumes dnd payload
+                                if let Some(drag_index) =
+                                    tab_label_resp.dnd_release_payload::<usize>()
+                                {
+                                    let drop_index = if drop_left_side { t } else { t + 1 };
+                                    result = Some(TabLabelResponse::Reordered {
+                                        src: *drag_index,
+                                        dst: drop_index,
+                                    });
+                                }
+                            }
                         }
                     }
 
@@ -1176,7 +1187,7 @@ enum TabLabelResponse {
     Clicked,
     Closed,
     Renamed(String),
-    Reordered(usize),
+    Reordered { src: usize, dst: usize },
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
