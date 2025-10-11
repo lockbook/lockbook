@@ -634,7 +634,11 @@ impl Workspace {
                                     }
                                 }
                                 TabLabelResponse::Reordered(new) => {
+                                    let current = self.current_tab_id();
                                     self.tabs.swap(i, new);
+                                    if let Some(current) = current {
+                                        self.make_current_by_id(current);
+                                    }
                                 }
                             }
                             ui.ctx().request_repaint();
@@ -899,13 +903,19 @@ impl Workspace {
                     // uncomment to see geometry debug views
                     // ui.painter().rect_filled(
                     //     marker_rect,
-                    //     Rounding::default(),
-                    //     Color32::RED.linear_multiply(0.5),
+                    //     egui::Rounding::default(),
+                    //     egui::Color32::RED.linear_multiply(0.5),
                     // );
-                    // ui.painter()
-                    //     .rect_filled(text_rect, Rounding::default(), Color32::RED);
-                    // ui.painter()
-                    //     .rect_filled(close_button_rect, Rounding::default(), Color32::RED);
+                    // ui.painter().rect_filled(
+                    //     text_rect,
+                    //     egui::Rounding::default(),
+                    //     egui::Color32::RED,
+                    // );
+                    // ui.painter().rect_filled(
+                    //     close_button_rect,
+                    //     egui::Rounding::default(),
+                    //     egui::Color32::RED,
+                    // );
 
                     // render & process input
                     ui.painter().galley(
@@ -916,65 +926,9 @@ impl Workspace {
 
                     let text_resp = ui.interact(
                         text_rect,
-                        Id::new("tab label").with(t),
+                        Id::new("tab label text").with(t),
                         Sense { click: true, drag: true, focusable: false },
                     );
-
-                    // drag 'n' drop
-                    let drag_started = text_resp.dragged()
-                        && ui.input(|i| {
-                            let (Some(pos), Some(origin)) =
-                                (i.pointer.interact_pos(), i.pointer.press_origin())
-                            else {
-                                return false;
-                            };
-
-                            pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
-                        })
-                        // must not be already dragging something else
-                        && !DragAndDrop::has_any_payload(ui.ctx());
-                    {
-                        // when drag starts, dragged tab sets dnd payload
-                        if drag_started {
-                            println!("Drag started");
-                            DragAndDrop::set_payload(ui.ctx(), t);
-                        }
-
-                        // during drag, drop target renders indicator
-                        if let (Some(pointer), true) = (
-                            ui.input(|i| i.pointer.interact_pos()),
-                            DragAndDrop::has_any_payload(ui.ctx()),
-                        ) {
-                            let contains_pointer = text_resp.rect.contains(pointer);
-                            if contains_pointer
-                            // ^ you'd think this would always be true
-                            {
-                                // stroke is drawn on whichever side is closer to the pointer
-                                let stroke = ui.style().visuals.widgets.active.fg_stroke;
-                                let x = if pointer.x < text_resp.rect.center().x {
-                                    text_resp.rect.min.x
-                                } else {
-                                    text_resp.rect.max.x
-                                };
-                                let y_range = text_resp.rect.y_range();
-
-                                ui.with_layer_id(
-                                    LayerId::new(
-                                        Order::PanelResizeLine,
-                                        Id::from("file_tree_drop_indicator"),
-                                    ),
-                                    |ui| {
-                                        ui.painter().vline(x, y_range, stroke);
-                                    },
-                                );
-                            }
-                        }
-
-                        // when drag ends, dropped-on file consumes dnd payload
-                        if let Some(tab_index) = text_resp.dnd_release_payload::<usize>() {
-                            result = Some(TabLabelResponse::Reordered(*tab_index));
-                        }
-                    }
 
                     let close_button_resp = ui.interact(
                         close_button_rect,
@@ -1027,12 +981,77 @@ impl Workspace {
                         );
                     }
 
-                    // drag started makes it easier to click on touch screens
-                    if text_resp.clicked() || (text_resp.drag_started() && !drag_started) {
+                    if text_resp.clicked() {
                         result = Some(TabLabelResponse::Clicked);
                     }
 
                     ui.advance_cursor_after_rect(estimated_tab_label_resp.rect);
+
+                    // drag 'n' drop
+                    {
+                        let left_top = start - tab_padding.left_top();
+                        let right_bottom = estimated_tab_label_resp.rect.right_bottom()
+                            + tab_padding.right_bottom();
+                        let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
+                        let tab_label_resp = ui.interact(
+                            tab_label_rect,
+                            Id::new("tab label").with(t),
+                            Sense::drag(),
+                        );
+
+                        // when drag starts, dragged tab sets dnd payload
+                        if tab_label_resp.dragged()
+                            && ui.input(|i| {
+                                let (Some(pos), Some(origin)) =
+                                    (i.pointer.interact_pos(), i.pointer.press_origin())
+                                else {
+                                    return false;
+                                };
+
+                                pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
+                            })
+                            // must not be already dragging something else
+                            && !DragAndDrop::has_any_payload(ui.ctx())
+                        {
+                            DragAndDrop::set_payload(ui.ctx(), t);
+                        }
+
+                        // during drag, drop target renders indicator
+                        if let (Some(pointer), true) = (
+                            ui.input(|i| i.pointer.interact_pos()),
+                            DragAndDrop::has_any_payload(ui.ctx()),
+                        ) {
+                            let contains_pointer = tab_label_resp.rect.contains(pointer);
+                            if contains_pointer
+                            // ^ you'd think this would always be true
+                            {
+                                // stroke is drawn on whichever side is closer to the pointer
+                                let stroke = ui.style().visuals.widgets.active.fg_stroke;
+
+                                let x = if pointer.x < tab_label_resp.rect.center().x {
+                                    tab_label_rect.min.x
+                                } else {
+                                    tab_label_rect.max.x
+                                };
+                                let y_range = tab_label_rect.y_range();
+
+                                ui.with_layer_id(
+                                    LayerId::new(
+                                        Order::PanelResizeLine,
+                                        Id::from("tab_reorder_drop_indicator"),
+                                    ),
+                                    |ui| {
+                                        ui.painter().vline(x, y_range, stroke);
+                                    },
+                                );
+                            }
+                        }
+
+                        // when drag ends, dropped-on tab consumes dnd payload
+                        if let Some(tab_index) = tab_label_resp.dnd_release_payload::<usize>() {
+                            result = Some(TabLabelResponse::Reordered(*tab_index));
+                        }
+                    }
 
                     text_resp
                 })
