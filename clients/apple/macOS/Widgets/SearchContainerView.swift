@@ -15,7 +15,6 @@ struct SearchContainerView<Content: View>: View {
     var body: some View {
         VStack {
             SearchBar(searchContainerModel: model, isFocused: $isFocused)
-                .padding(.top)
             
             SearchContainerSubView(isSearching: $isSearching, model: model, dismissSearch: { isFocused = false }, content: content)
                 .onChange(of: model.input) { _ in

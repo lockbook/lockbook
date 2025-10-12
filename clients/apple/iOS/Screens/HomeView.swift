@@ -85,40 +85,29 @@ struct HomeView: View {
     var sidebar: some View {
         SidebarView()
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(
-                        action: {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    HStack(spacing: 0) {
+                        Button {
                             homeState.sheetInfo = .importPicker
-                        },
-                        label: {
-                            Label(
-                                "Import",
-                                systemImage: "square.and.arrow.down.fill"
-                            )
+                        } label: {
+                            Label("Import", systemImage: "square.and.arrow.down.fill")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    )
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(
-                        action: {
+                        
+                        Button {
                             homeState.showPendingShares = true
-                        },
-                        label: {
+                        } label: {
                             PendingSharesIcon(homeState: homeState)
+                                .foregroundStyle(Color.accentColor)
                         }
-                    )
-                }
-                
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(
-                        action: {
+                        
+                        Button {
                             homeState.showSettings = true
-                        },
-                        label: {
+                        } label: {
                             Label("Settings", systemImage: "gearshape.fill")
+                                .foregroundStyle(Color.accentColor)
                         }
-                    )
+                    }
                 }
             }
             .modifier(OutOfSpaceAlert())
@@ -141,6 +130,8 @@ struct SidebarView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
+    
+    @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
         if let error = filesModel.error {
@@ -218,6 +209,7 @@ struct SidebarView: View {
                 .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
+                .navigationBarTitleDisplayMode(.large)
             }
         } else {
             ProgressView()

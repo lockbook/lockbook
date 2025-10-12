@@ -16,7 +16,6 @@ import SwiftWorkspace
         WindowGroup {
             ContentView()
         }
-        .windowToolbarStyle(.unifiedCompact)
         .commands {
             SidebarCommands()
             
