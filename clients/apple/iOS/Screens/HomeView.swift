@@ -32,11 +32,9 @@ struct HomeView: View {
                     NavigationSplitView(columnVisibility: homeState.splitViewVisibility, sidebar: {
                         SearchContainerView(filesModel: filesModel) {
                             sidebar
-                                .introspectSplitViewController(customize: { splitView in
-                                    DispatchQueue.main.async {
-                                        homeState.isSidebarFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
-                                    }
-                                })
+                                .introspectSplitViewController { splitView in
+                                    self.syncFloatingState(splitView: splitView)
+                                }
                         }
                     }, detail: {
                         NavigationStack {
@@ -95,6 +93,16 @@ struct HomeView: View {
             .navigationDestination(isPresented: $homeState.showPendingShares) {
                 PendingSharesView()
             }
+    }
+    
+    func syncFloatingState(splitView: UISplitViewController) {
+        let isFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
+                
+        if homeState.isSidebarFloating != isFloating {
+            DispatchQueue.main.async {
+                homeState.isSidebarFloating = isFloating
+            }
+        }
     }
 }
 
