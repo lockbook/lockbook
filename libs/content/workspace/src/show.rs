@@ -914,8 +914,7 @@ impl Workspace {
                     // let s = egui::Stroke::new(1., egui::Color32::RED);
                     // ui.painter().rect_stroke(marker_rect, 1., s);
                     // ui.painter().rect_stroke(text_rect, 1., s);
-                    // ui.painter()
-                    //     .rect_stroke(close_button_rect.expand(5.), 1., s);
+                    // ui.painter().rect_stroke(close_button_rect, 1., s);
                     // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
