@@ -90,22 +90,22 @@ struct HomeView: View {
                         Button {
                             homeState.sheetInfo = .importPicker
                         } label: {
-                            Label("Import", systemImage: "square.and.arrow.down.fill")
-                                .foregroundStyle(Color.accentColor)
+                            Label(
+                                "Import",
+                                systemImage: "square.and.arrow.down.fill"
+                            )
                         }
-                        
+
                         Button {
                             homeState.showPendingShares = true
                         } label: {
                             PendingSharesIcon(homeState: homeState)
-                                .foregroundStyle(Color.accentColor)
                         }
-                        
+
                         Button {
                             homeState.showSettings = true
                         } label: {
                             Label("Settings", systemImage: "gearshape.fill")
-                                .foregroundStyle(Color.accentColor)
                         }
                     }
                 }
@@ -123,10 +123,12 @@ struct HomeView: View {
                 PendingSharesView()
             }
     }
-    
+
     func syncFloatingState(splitView: UISplitViewController) {
-        let isFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
-                
+        let isFloating =
+            splitView.displayMode == .oneOverSecondary
+            || splitView.displayMode == .twoOverSecondary
+
         if homeState.isSidebarFloating != isFloating {
             DispatchQueue.main.async {
                 homeState.isSidebarFloating = isFloating
@@ -140,7 +142,7 @@ struct SidebarView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-    
+
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     var body: some View {
@@ -226,7 +228,7 @@ struct SidebarView: View {
         }
     }
 
-    var selectionToolbarItem: ToolbarItem<(), Button<some View>> {
+    var selectionToolbarItem: ToolbarItem<(), Button<AnyView>> {
         switch filesModel.selectedFilesState {
         case .selected(explicitly: _, implicitly: _):
             ToolbarItem(placement: .topBarLeading) {
@@ -237,8 +239,9 @@ struct SidebarView: View {
                         }
                     },
                     label: {
-                        Text("Done")
-                            .foregroundStyle(Color.accentColor)
+                        AnyView(
+                            Text("Done")
+                        )
                     }
                 )
             }
@@ -254,8 +257,9 @@ struct SidebarView: View {
                         }
                     },
                     label: {
-                        Text("Edit")
-                            .foregroundStyle(Color.accentColor)
+                        AnyView(
+                            Label("Edit", image: "filemenu.and.selection")
+                        )
                     }
                 )
             }
