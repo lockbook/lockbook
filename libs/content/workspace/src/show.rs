@@ -914,10 +914,14 @@ impl Workspace {
                     // let s = egui::Stroke::new(1., egui::Color32::RED);
                     // ui.painter().rect_stroke(marker_rect, 1., s);
                     // ui.painter().rect_stroke(text_rect, 1., s);
-                    // ui.painter().rect_stroke(close_button_rect, 1., s);
+                    // ui.painter()
+                    //     .rect_stroke(close_button_rect.expand(5.), 1., s);
                     // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
+                    let touch_mode =
+                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+
                     ui.painter().galley(
                         marker_rect.left_top(),
                         tab_marker.clone(),
@@ -930,8 +934,10 @@ impl Workspace {
                         Sense { click: true, drag: true, focusable: false },
                     );
 
-                    let pointer_pos = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
-                    let close_button_pointed = close_button_rect.contains(pointer_pos);
+                    let pointer_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default());
+                    let close_button_interact_rect =
+                        close_button_rect.expand(if touch_mode { 4. } else { 2. });
+                    let close_button_pointed = close_button_interact_rect.contains(pointer_pos);
                     let close_button_hovered = tab_label_resp.hovered() && close_button_pointed;
                     let close_button_clicked = tab_label_resp.clicked() && close_button_pointed;
 
@@ -951,14 +957,12 @@ impl Workspace {
                     // draw the tab text
                     ui.painter().galley(text_rect.min, text, text_color);
 
-                    let touch_mode =
-                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
                     if close_button_clicked || tab_label_resp.middle_clicked() {
                         result = Some(TabLabelResponse::Closed);
                     }
                     if close_button_hovered {
                         ui.painter().rect(
-                            close_button_rect.expand(2.0),
+                            close_button_interact_rect,
                             2.0,
                             ui.visuals().code_bg_color,
                             egui::Stroke::NONE,
