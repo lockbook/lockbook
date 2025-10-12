@@ -855,16 +855,14 @@ impl Workspace {
                     } else {
                         "*".to_string()
                     };
-
                     let tab_marker: egui::WidgetText = egui::RichText::new(tab_marker)
                         .font(egui::FontId::monospace(12.0))
                         .color(if status == TabStatus::Clean {
-                            ui.style().visuals.hyperlink_color
+                            ui.style().visuals.weak_text_color()
                         } else {
                             ui.style().visuals.warn_fg_color
                         })
                         .into();
-
                     let tab_marker = tab_marker.into_galley(
                         ui,
                         Some(TextWrapMode::Extend),
@@ -906,22 +904,18 @@ impl Workspace {
                         close_button_rect.size(),
                     );
 
+                    // tab label rect represents the whole tab label
+                    let left_top = start - tab_padding.left_top();
+                    let right_bottom =
+                        close_button_rect.right_bottom() + tab_padding.right_bottom();
+                    let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
+
                     // uncomment to see geometry debug views
-                    // ui.painter().rect_filled(
-                    //     marker_rect,
-                    //     egui::Rounding::default(),
-                    //     egui::Color32::RED.linear_multiply(0.5),
-                    // );
-                    // ui.painter().rect_filled(
-                    //     text_rect,
-                    //     egui::Rounding::default(),
-                    //     egui::Color32::RED,
-                    // );
-                    // ui.painter().rect_filled(
-                    //     close_button_rect,
-                    //     egui::Rounding::default(),
-                    //     egui::Color32::RED,
-                    // );
+                    // let s = egui::Stroke::new(1., egui::Color32::RED);
+                    // ui.painter().rect_stroke(marker_rect, 1., s);
+                    // ui.painter().rect_stroke(text_rect, 1., s);
+                    // ui.painter().rect_stroke(close_button_rect, 1., s);
+                    // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
                     ui.painter().galley(
@@ -930,17 +924,18 @@ impl Workspace {
                         ui.visuals().text_color(),
                     );
 
-                    let text_resp = ui.interact(
-                        text_rect,
-                        Id::new("tab label text").with(t),
+                    let mut tab_label_resp = ui.interact(
+                        tab_label_rect,
+                        Id::new("tab label").with(t),
                         Sense { click: true, drag: true, focusable: false },
                     );
 
-                    let close_button_resp = ui.interact(
-                        close_button_rect,
-                        Id::new("tab label close button").with(t),
-                        Sense { click: true, drag: false, focusable: false },
-                    );
+                    let pointer_pos = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+                    let close_button_pointed = close_button_rect.contains(pointer_pos);
+                    let close_button_hovered = tab_label_resp.hovered() && close_button_pointed;
+                    let close_button_clicked = tab_label_resp.clicked() && close_button_pointed;
+
+                    tab_label_resp.clicked &= !close_button_clicked;
 
                     let text_color = if is_active {
                         ui.visuals().text_color()
@@ -958,14 +953,10 @@ impl Workspace {
 
                     let touch_mode =
                         matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-
-                    if close_button_resp.clicked()
-                        || close_button_resp.drag_started()
-                        || text_resp.middle_clicked()
-                    {
+                    if close_button_clicked || tab_label_resp.middle_clicked() {
                         result = Some(TabLabelResponse::Closed);
                     }
-                    if close_button_resp.hovered() {
+                    if close_button_hovered {
                         ui.painter().rect(
                             close_button_rect.expand(2.0),
                             2.0,
@@ -974,11 +965,7 @@ impl Workspace {
                         );
                     }
 
-                    let estimated_tab_label_resp = text_resp.union(close_button_resp);
-
-                    let show_close_button =
-                        touch_mode || estimated_tab_label_resp.hovered() || is_active;
-
+                    let show_close_button = touch_mode || tab_label_resp.hovered() || is_active;
                     if show_close_button {
                         ui.painter().galley(
                             close_button_rect.min,
@@ -986,39 +973,15 @@ impl Workspace {
                             ui.visuals().text_color(),
                         );
                     }
-
-                    if text_resp.clicked() {
+                    if tab_label_resp.clicked() {
                         result = Some(TabLabelResponse::Clicked);
                     }
-
-                    ui.advance_cursor_after_rect(estimated_tab_label_resp.rect);
+                    ui.advance_cursor_after_rect(close_button_rect);
 
                     // drag 'n' drop
                     {
-                        let left_top = start - tab_padding.left_top();
-                        let right_bottom = estimated_tab_label_resp.rect.right_bottom()
-                            + tab_padding.right_bottom();
-                        let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
-                        let tab_label_resp = ui.interact(
-                            tab_label_rect,
-                            Id::new("tab label").with(t),
-                            Sense::drag(),
-                        );
-
                         // when drag starts, dragged tab sets dnd payload
-                        if tab_label_resp.dragged()
-                            && ui.input(|i| {
-                                let (Some(pos), Some(origin)) =
-                                    (i.pointer.interact_pos(), i.pointer.press_origin())
-                                else {
-                                    return false;
-                                };
-
-                                pos.distance(origin) > 8. // egui's drag detection is too sensitive and not configurable
-                            })
-                            // must not be already dragging something else
-                            && !DragAndDrop::has_any_payload(ui.ctx())
-                        {
+                        if tab_label_resp.dragged() && !DragAndDrop::has_any_payload(ui.ctx()) {
                             DragAndDrop::set_payload(ui.ctx(), t);
                         }
 
@@ -1026,12 +989,10 @@ impl Workspace {
                             ui.input(|i| i.pointer.interact_pos()),
                             DragAndDrop::has_any_payload(ui.ctx()),
                         ) {
-                            let contains_pointer = tab_label_resp.rect.contains(pointer);
-                            if contains_pointer
-                            // ^ you'd think this would always be true
-                            {
+                            let contains_pointer = tab_label_rect.contains(pointer);
+                            if contains_pointer {
                                 // during drag, drop target renders indicator
-                                let drop_left_side = pointer.x < tab_label_resp.rect.center().x;
+                                let drop_left_side = pointer.x < tab_label_rect.center().x;
                                 let stroke = ui.style().visuals.widgets.active.fg_stroke;
                                 let x = if drop_left_side {
                                     tab_label_rect.min.x
@@ -1064,7 +1025,7 @@ impl Workspace {
                         }
                     }
 
-                    text_resp
+                    tab_label_resp
                 })
             });
 
