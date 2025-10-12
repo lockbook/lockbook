@@ -137,7 +137,7 @@ impl Buffer {
                         }
                     }
                 } else {
-                    // this was deletd remotly
+                    // this was deleted remotely
                     local_elements.shift_remove(id);
                     local_weak_pressures.remove(id);
                 }
@@ -160,7 +160,7 @@ impl Buffer {
                     transformed_path.diff_state.transformed = None;
 
                     local_elements.insert_before(i, *id, Element::Path(transformed_path));
-                    if let Some(base_pressure) = base_buffer.weak_path_pressures.get(id) {
+                    if let Some(base_pressure) = remote_buffer.weak_path_pressures.get(id) {
                         local_weak_pressures.insert(*id, base_pressure.clone());
                     }
                 }

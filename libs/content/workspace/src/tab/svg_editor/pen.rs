@@ -12,6 +12,7 @@ use tracing::{Level, event, trace};
 use tracing_test::traced_test;
 
 use crate::tab::ExtendedInput;
+use crate::tab::svg_editor::util::is_scroll;
 use crate::theme::palette::ThemePalette;
 
 use super::toolbar::ToolContext;
@@ -106,7 +107,8 @@ impl Pen {
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
+        let input_state =
+            PenPointerInput { is_multi_touch: is_multi_touch(ui), is_scroll: is_scroll(ui) };
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches
@@ -456,7 +458,7 @@ impl Pen {
             *pen_ctx.allow_viewport_changes = true;
             // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
             if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
-                if is_current_path_empty {
+                if is_current_path_empty && !input_state.is_scroll {
                     return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
                 } else {
                     *pen_ctx.allow_viewport_changes = false;
@@ -547,6 +549,7 @@ fn get_event_touch_id(event: &IntegrationEvent) -> Option<egui::TouchId> {
 #[derive(Clone, Copy)]
 struct PenPointerInput {
     is_multi_touch: bool,
+    is_scroll: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -640,7 +643,7 @@ fn cancel_touch_ui_event() {
         viewport_settings: &mut Default::default(),
     };
 
-    let input_state = PenPointerInput { is_multi_touch: false };
+    let input_state = PenPointerInput { is_multi_touch: false, is_scroll: false };
 
     events.iter().for_each(|e| {
         if let Some(path_event) =

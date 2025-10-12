@@ -3,7 +3,7 @@ use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::style::{
-    BlockNode, BlockNodeType, InlineNode, InlineNodeType, ListItem, MarkdownNode,
+    BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
@@ -14,7 +14,7 @@ use lb_rs::model::text::offset_types::{
     ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
-use pulldown_cmark::HeadingLevel;
+use pulldown_cmark::{HeadingLevel, LinkType};
 
 use super::advance::AdvanceExt as _;
 use super::{Bound, Location, Offset, Region};
@@ -46,259 +46,16 @@ impl<'ast> Editor {
                 }
             }
             Event::ToggleStyle { region, style } => {
-                let range = self.region_to_range(region);
-
-                match style {
-                    MarkdownNode::Document | MarkdownNode::Paragraph => {}
-                    MarkdownNode::Inline(inline_style) => {
-                        let unapply = self.unapply_inline(root, range, &inline_style);
-
-                        for inline_paragraph in &self.bounds.inline_paragraphs {
-                            if inline_paragraph.intersects(&range, true) {
-                                let paragraph_range = (
-                                    range.start().max(inline_paragraph.start()),
-                                    range.end().min(inline_paragraph.end()),
-                                );
-
-                                self.apply_inline_style(
-                                    root,
-                                    paragraph_range,
-                                    inline_style.clone(),
-                                    unapply,
-                                    operations,
-                                );
-                            }
-                        }
-
-                        // todo: advance cursor
-                    }
-                    MarkdownNode::Block(block_style) => {
-                        let unapply = self.unapply_block(root, &block_style);
-
-                        let mut handled = false;
-                        for node in root.descendants() {
-                            if self.selected_block(node) {
-                                handled = true;
-
-                                // apply heading to ATX heading: replace existing heading
-                                if let BlockNodeType::Heading(style_level) = block_style.node_type()
-                                {
-                                    if let NodeValue::Heading(NodeHeading {
-                                        level: node_level,
-                                        setext: false,
-                                    }) = node.data.borrow().value
-                                    {
-                                        for line_idx in self.node_lines(node).iter() {
-                                            let line = self.bounds.source_lines[line_idx];
-                                            let node_line = self.node_line(node, line);
-
-                                            let style_level = match style_level {
-                                                HeadingLevel::H1 => 1,
-                                                HeadingLevel::H2 => 2,
-                                                HeadingLevel::H3 => 3,
-                                                HeadingLevel::H4 => 4,
-                                                HeadingLevel::H5 => 5,
-                                                HeadingLevel::H6 => 6,
-                                            };
-                                            if style_level > node_level {
-                                                let add_levels = style_level - node_level;
-                                                operations.push(Operation::Replace(Replace {
-                                                    range: node_line.start().into_range(),
-                                                    text: "#".repeat(add_levels as _),
-                                                }));
-                                            } else if style_level == node_level {
-                                                // remove heading
-                                                let mut range = (
-                                                    node_line.start(),
-                                                    node_line.start()
-                                                        + RelCharOffset(node_level as _),
-                                                );
-                                                if self.buffer.current.segs.last_cursor_position()
-                                                    > range.end()
-                                                    && &self.buffer[(range.end(), range.end() + 1)]
-                                                        == " "
-                                                {
-                                                    range.1 += 1;
-                                                }
-
-                                                operations.push(Operation::Replace(Replace {
-                                                    range,
-                                                    text: "".into(),
-                                                }));
-                                            } else {
-                                                let remove_levels = node_level - style_level;
-                                                operations.push(Operation::Replace(Replace {
-                                                    range: (
-                                                        node_line.start(),
-                                                        node_line.start()
-                                                            + RelCharOffset(remove_levels as _),
-                                                    ),
-                                                    text: "".into(),
-                                                }));
-                                            }
-                                        }
-                                    } else if NodeValue::Paragraph == node.data.borrow().value {
-                                        for line_idx in self.node_lines(node).iter() {
-                                            let line = self.bounds.source_lines[line_idx];
-                                            let node_line = self.node_line(node, line);
-
-                                            // count paragraph soft breaks as node breaks
-                                            if node.data.borrow().value == NodeValue::Paragraph
-                                                && !line.intersects(
-                                                    &self.buffer.current.selection,
-                                                    true,
-                                                )
-                                            {
-                                                continue;
-                                            }
-
-                                            operations.push(Operation::Replace(Replace {
-                                                range: node_line.start().into_range(),
-                                                text: "#".repeat(style_level as _) + " ",
-                                            }));
-                                        }
-                                    }
-                                } else {
-                                    // remove target prefix regardless (will often be empty / supports replacements)
-                                    // todo: space between selected nodes?
-                                    let target_node = if node.is_container_block() {
-                                        node
-                                    } else {
-                                        node.parent().unwrap()
-                                    };
-                                    for line_idx in self.node_lines(node).iter() {
-                                        let line = self.bounds.source_lines[line_idx];
-
-                                        let prefix = self.line_own_prefix(target_node, line);
-
-                                        operations.push(Operation::Replace(Replace {
-                                            range: prefix,
-                                            text: "".into(),
-                                        }));
-                                    }
-
-                                    if !unapply {
-                                        let mut first_line = true;
-                                        for line_idx in self.node_lines(node).iter() {
-                                            let line = self.bounds.source_lines[line_idx];
-
-                                            // count paragraph soft breaks as node breaks
-                                            if node.data.borrow().value == NodeValue::Paragraph
-                                                && !line.intersects(
-                                                    &self.buffer.current.selection,
-                                                    true,
-                                                )
-                                            {
-                                                continue;
-                                            }
-
-                                            let range = self
-                                                .line_ancestors_prefix(node, line)
-                                                .end()
-                                                .into_range();
-                                            let text = match block_style {
-                                                BlockNode::Heading(_) => unreachable!(),
-                                                BlockNode::Quote => "> ",
-                                                BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
-                                                BlockNode::ListItem(ListItem::Bulleted, _) => {
-                                                    if first_line {
-                                                        "* "
-                                                    } else {
-                                                        "  "
-                                                    }
-                                                }
-                                                BlockNode::ListItem(ListItem::Numbered(_), _) => {
-                                                    if first_line {
-                                                        "1. "
-                                                    } else {
-                                                        "   "
-                                                    }
-                                                }
-                                                BlockNode::ListItem(ListItem::Todo(true), _) => {
-                                                    if first_line {
-                                                        "* [x] "
-                                                    } else {
-                                                        "  "
-                                                    }
-                                                }
-                                                BlockNode::ListItem(ListItem::Todo(false), _) => {
-                                                    if first_line {
-                                                        "* [ ] "
-                                                    } else {
-                                                        "  "
-                                                    }
-                                                }
-                                                BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
-                                            }
-                                            .into();
-
-                                            operations
-                                                .push(Operation::Replace(Replace { range, text }));
-
-                                            // count paragraph soft breaks as node breaks
-                                            if node.data.borrow().value != NodeValue::Paragraph {
-                                                first_line = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        if !handled {
-                            // selecting sequence of contiguous empty/whitespace-only lines:
-                            // insert or remove matching prefix
-                            if !unapply {
-                                let range = current_selection.start().into_range();
-                                let text = match block_style {
-                                    BlockNode::Heading(heading_level) => {
-                                        // todo: technically this makes a bunch of separate headings
-                                        match heading_level {
-                                            HeadingLevel::H1 => "# ",
-                                            HeadingLevel::H2 => "## ",
-                                            HeadingLevel::H3 => "### ",
-                                            HeadingLevel::H4 => "#### ",
-                                            HeadingLevel::H5 => "##### ",
-                                            HeadingLevel::H6 => "###### ",
-                                        }
-                                    }
-                                    BlockNode::Quote => "> ",
-                                    BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
-                                    BlockNode::ListItem(ListItem::Bulleted, _) => "* ",
-                                    BlockNode::ListItem(ListItem::Numbered(_), _) => "1. ",
-                                    BlockNode::ListItem(ListItem::Todo(true), _) => "* [x] ",
-                                    BlockNode::ListItem(ListItem::Todo(false), _) => "* [ ] ",
-                                    BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
-                                }
-                                .into();
-
-                                operations.push(Operation::Replace(Replace { range, text }));
-                                operations.push(Operation::Select(current_selection));
-                            } else {
-                                let target_node = self.deepest_container_block_at_offset(
-                                    root,
-                                    self.buffer.current.selection.start(),
-                                );
-                                if block_style
-                                    .node_type()
-                                    .matches(&target_node.data.borrow().value)
-                                {
-                                    let line_idx = self
-                                        .range_lines(current_selection.start().into_range())
-                                        .start();
-                                    let line = self.bounds.source_lines[line_idx];
-
-                                    let prefix = self.line_own_prefix(target_node, line);
-
-                                    operations.push(Operation::Replace(Replace {
-                                        range: prefix,
-                                        text: "".into(),
-                                    }));
-                                }
-                            }
-                        }
-                    }
-                }
+                self.toggle_style(root, region, style, current_selection, operations);
+            }
+            Event::Link { region, url } => {
+                self.toggle_style(
+                    root,
+                    region,
+                    MarkdownNode::Inline(InlineNode::Link(LinkType::Autolink, url, "".into())),
+                    current_selection,
+                    operations,
+                );
             }
             Event::Newline { shift } => {
                 // insert/extend/terminate container blocks
@@ -654,6 +411,249 @@ impl<'ast> Editor {
         }
 
         response
+    }
+
+    fn toggle_style(
+        &mut self, root: &'ast AstNode<'ast>, region: Region, style: MarkdownNode,
+        current_selection: (DocCharOffset, DocCharOffset), operations: &mut Vec<Operation>,
+    ) {
+        let range = self.region_to_range(region);
+
+        match style {
+            MarkdownNode::Document | MarkdownNode::Paragraph => {}
+            MarkdownNode::Inline(inline_style) => {
+                let unapply = self.unapply_inline(root, range, &inline_style);
+
+                for inline_paragraph in &self.bounds.inline_paragraphs {
+                    if inline_paragraph.intersects(&range, true) {
+                        let paragraph_range = (
+                            range.start().max(inline_paragraph.start()),
+                            range.end().min(inline_paragraph.end()),
+                        );
+
+                        self.apply_inline_style(
+                            root,
+                            paragraph_range,
+                            inline_style.clone(),
+                            unapply,
+                            operations,
+                        );
+                    }
+                }
+
+                // todo: advance cursor
+            }
+            MarkdownNode::Block(block_style) => {
+                let unapply = self.unapply_block(root, &block_style);
+
+                let mut handled = false;
+                for node in root.descendants() {
+                    if self.selected_block(node) {
+                        handled = true;
+
+                        // apply heading to ATX heading: replace existing heading
+                        if let BlockNodeType::Heading(style_level) = block_style.node_type() {
+                            if let NodeValue::Heading(NodeHeading {
+                                level: node_level,
+                                setext: false,
+                            }) = node.data.borrow().value
+                            {
+                                for line_idx in self.node_lines(node).iter() {
+                                    let line = self.bounds.source_lines[line_idx];
+                                    let node_line = self.node_line(node, line);
+
+                                    let style_level = match style_level {
+                                        HeadingLevel::H1 => 1,
+                                        HeadingLevel::H2 => 2,
+                                        HeadingLevel::H3 => 3,
+                                        HeadingLevel::H4 => 4,
+                                        HeadingLevel::H5 => 5,
+                                        HeadingLevel::H6 => 6,
+                                    };
+                                    if style_level > node_level {
+                                        let add_levels = style_level - node_level;
+                                        operations.push(Operation::Replace(Replace {
+                                            range: node_line.start().into_range(),
+                                            text: "#".repeat(add_levels as _),
+                                        }));
+                                    } else if style_level == node_level {
+                                        // remove heading
+                                        let mut range = (
+                                            node_line.start(),
+                                            node_line.start() + RelCharOffset(node_level as _),
+                                        );
+                                        if self.buffer.current.segs.last_cursor_position()
+                                            > range.end()
+                                            && &self.buffer[(range.end(), range.end() + 1)] == " "
+                                        {
+                                            range.1 += 1;
+                                        }
+
+                                        operations.push(Operation::Replace(Replace {
+                                            range,
+                                            text: "".into(),
+                                        }));
+                                    } else {
+                                        let remove_levels = node_level - style_level;
+                                        operations.push(Operation::Replace(Replace {
+                                            range: (
+                                                node_line.start(),
+                                                node_line.start()
+                                                    + RelCharOffset(remove_levels as _),
+                                            ),
+                                            text: "".into(),
+                                        }));
+                                    }
+                                }
+                            } else if NodeValue::Paragraph == node.data.borrow().value {
+                                for line_idx in self.node_lines(node).iter() {
+                                    let line = self.bounds.source_lines[line_idx];
+                                    let node_line = self.node_line(node, line);
+
+                                    // count paragraph soft breaks as node breaks
+                                    if node.data.borrow().value == NodeValue::Paragraph
+                                        && !line.intersects(&self.buffer.current.selection, true)
+                                    {
+                                        continue;
+                                    }
+
+                                    operations.push(Operation::Replace(Replace {
+                                        range: node_line.start().into_range(),
+                                        text: "#".repeat(style_level as _) + " ",
+                                    }));
+                                }
+                            }
+                        } else {
+                            // remove target prefix regardless (will often be empty / supports replacements)
+                            // todo: space between selected nodes?
+                            let target_node = if node.is_container_block() {
+                                node
+                            } else {
+                                node.parent().unwrap()
+                            };
+                            for line_idx in self.node_lines(node).iter() {
+                                let line = self.bounds.source_lines[line_idx];
+
+                                let prefix = self.line_own_prefix(target_node, line);
+
+                                operations.push(Operation::Replace(Replace {
+                                    range: prefix,
+                                    text: "".into(),
+                                }));
+                            }
+
+                            if !unapply {
+                                let mut first_line = true;
+                                for line_idx in self.node_lines(node).iter() {
+                                    let line = self.bounds.source_lines[line_idx];
+
+                                    // count paragraph soft breaks as node breaks
+                                    if node.data.borrow().value == NodeValue::Paragraph
+                                        && !line.intersects(&self.buffer.current.selection, true)
+                                    {
+                                        continue;
+                                    }
+
+                                    let range =
+                                        self.line_ancestors_prefix(node, line).end().into_range();
+                                    let text = match block_style {
+                                        BlockNode::Heading(_) => unreachable!(),
+                                        BlockNode::Quote => "> ",
+                                        BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
+                                        BlockNode::ListItem(ListItem::Bulleted, _) => {
+                                            if first_line { "* " } else { "  " }
+                                        }
+                                        BlockNode::ListItem(ListItem::Numbered(_), _) => {
+                                            if first_line {
+                                                "1. "
+                                            } else {
+                                                "   "
+                                            }
+                                        }
+                                        BlockNode::ListItem(ListItem::Todo(true), _) => {
+                                            if first_line {
+                                                "* [x] "
+                                            } else {
+                                                "  "
+                                            }
+                                        }
+                                        BlockNode::ListItem(ListItem::Todo(false), _) => {
+                                            if first_line {
+                                                "* [ ] "
+                                            } else {
+                                                "  "
+                                            }
+                                        }
+                                        BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                                    }
+                                    .into();
+
+                                    operations.push(Operation::Replace(Replace { range, text }));
+
+                                    // count paragraph soft breaks as node breaks
+                                    if node.data.borrow().value != NodeValue::Paragraph {
+                                        first_line = false;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if !handled {
+                    // selecting sequence of contiguous empty/whitespace-only lines:
+                    // insert or remove matching prefix
+                    if !unapply {
+                        let range = current_selection.start().into_range();
+                        let text = match block_style {
+                            BlockNode::Heading(heading_level) => {
+                                // todo: technically this makes a bunch of separate headings
+                                match heading_level {
+                                    HeadingLevel::H1 => "# ",
+                                    HeadingLevel::H2 => "## ",
+                                    HeadingLevel::H3 => "### ",
+                                    HeadingLevel::H4 => "#### ",
+                                    HeadingLevel::H5 => "##### ",
+                                    HeadingLevel::H6 => "###### ",
+                                }
+                            }
+                            BlockNode::Quote => "> ",
+                            BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
+                            BlockNode::ListItem(ListItem::Bulleted, _) => "* ",
+                            BlockNode::ListItem(ListItem::Numbered(_), _) => "1. ",
+                            BlockNode::ListItem(ListItem::Todo(true), _) => "* [x] ",
+                            BlockNode::ListItem(ListItem::Todo(false), _) => "* [ ] ",
+                            BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                        }
+                        .into();
+
+                        operations.push(Operation::Replace(Replace { range, text }));
+                        operations.push(Operation::Select(current_selection));
+                    } else {
+                        let target_node = self.deepest_container_block_at_offset(
+                            root,
+                            self.buffer.current.selection.start(),
+                        );
+                        if block_style
+                            .node_type()
+                            .matches(&target_node.data.borrow().value)
+                        {
+                            let line_idx = self
+                                .range_lines(current_selection.start().into_range())
+                                .start();
+                            let line = self.bounds.source_lines[line_idx];
+
+                            let prefix = self.line_own_prefix(target_node, line);
+
+                            operations.push(Operation::Replace(Replace {
+                                range: prefix,
+                                text: "".into(),
+                            }));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Returns true if all text in the given range has style `style`
@@ -1040,16 +1040,25 @@ impl<'ast> Editor {
         &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
     ) {
         let text = style.node_type().tail().to_string();
-        if style.node_type() == InlineNodeType::Link {
+        if let InlineNode::Link(_, url, _) = style {
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
             }));
-            operations.push(Operation::Select(offset.to_range()));
+            let url_empty = url.is_empty();
+            if url_empty {
+                operations.push(Operation::Select(offset.to_range()));
+            } else {
+                operations
+                    .push(Operation::Replace(Replace { range: offset.to_range(), text: url }));
+            }
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[2..].into(),
             }));
+            if !url_empty {
+                operations.push(Operation::Select(offset.to_range()));
+            }
         } else {
             operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
         }

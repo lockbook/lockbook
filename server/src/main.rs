@@ -43,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         google_play_client,
         app_store_client,
         document_service,
+        recent_new_account_ips: Default::default(),
     });
 
     let routes = core_routes(&server_state)

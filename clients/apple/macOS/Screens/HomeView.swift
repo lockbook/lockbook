@@ -132,7 +132,6 @@ struct DetailView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-
     var body: some View {
         if isPreview {
             Text("This is a preview.")

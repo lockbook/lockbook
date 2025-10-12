@@ -123,6 +123,16 @@ struct HomeView: View {
                 PendingSharesView()
             }
     }
+    
+    func syncFloatingState(splitView: UISplitViewController) {
+        let isFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
+                
+        if homeState.isSidebarFloating != isFloating {
+            DispatchQueue.main.async {
+                homeState.isSidebarFloating = isFloating
+            }
+        }
+    }
 }
 
 struct SidebarView: View {

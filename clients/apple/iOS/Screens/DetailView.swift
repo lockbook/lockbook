@@ -7,12 +7,12 @@ struct DetailView: View {
 
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-
+    
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-
+            
     @State var sheetHeight: CGFloat = 0
-
+    
     var body: some View {
         Group {
             if isPreview {
@@ -130,7 +130,6 @@ struct CompactTitle: ViewModifier {
             content
         }
     }
-
     func openRenameSheet() {
         guard let id = workspaceOutput.openDoc else {
             return
