@@ -980,7 +980,7 @@ impl Workspace {
                     if tab_label_resp.clicked() {
                         result = Some(TabLabelResponse::Clicked);
                     }
-                    ui.advance_cursor_after_rect(close_button_rect);
+                    ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
 
                     // drag 'n' drop
                     {
