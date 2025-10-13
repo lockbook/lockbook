@@ -20,7 +20,7 @@ struct StatusBarView: View {
     }
     
     var fileActionButtons: some View {
-        HStack {
+        HStack(spacing: 0) {
             if let root = filesModel.root {
                 Button(action: {
                     workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
@@ -29,7 +29,7 @@ struct StatusBarView: View {
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
-                .padding(.trailing, 5)
+                .modifier(GlassButtonViewModifier())
                 
                 Button(action: {
                     workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: true)
@@ -38,7 +38,7 @@ struct StatusBarView: View {
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
-                .padding(.trailing, 2)
+                .modifier(GlassButtonViewModifier())
                 
                 Button(action: {
                     homeState.sheetInfo = .createFolder(parent: selectedFolderOrRoot(root))
@@ -47,6 +47,7 @@ struct StatusBarView: View {
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
+                .modifier(GlassButtonViewModifier())
             } else {
                 ProgressView()
             }
@@ -60,6 +61,16 @@ struct StatusBarView: View {
         }
         
         return filesModel.idsToFiles[selectedFolder] ?? root
+    }
+}
+
+struct GlassButtonViewModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.buttonStyle(.accessoryBar)
+        } else {
+            content
+        }
     }
 }
 
