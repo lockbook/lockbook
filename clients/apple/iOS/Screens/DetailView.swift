@@ -23,38 +23,19 @@ struct DetailView: View {
             }
         }
         .toolbar {
-            if workspaceOutput.openDoc != nil {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        runOnOpenDoc { file in
-                            homeState.sheetInfo = .share(file: file)
-                        }
-                    } label: {
-                        Label("Share", systemImage: "person.wave.2.fill")
-                    }
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        runOnOpenDoc { file in
-                            exportFiles(homeState: homeState, files: [file])
-                        }
-                    } label: {
-                        Label("Export", systemImage: "square.and.arrow.up.fill")
-                    }
-                }
-            }
-
             if horizontalSizeClass == .compact && workspaceOutput.tabCount > 0 {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         self.showTabsSheet()
                     } label: {
-                        Label(
-                            "\(workspaceOutput.tabCount) Tabs",
-                            systemImage: "square.on.square"
-                        )
-                        .labelStyle(.iconOnly)
+                        ZStack(alignment: .center) {
+                            RoundedRectangle(cornerSize: .init(width: 4, height: 4))
+                                .stroke(lineWidth: 2)
+                                .frame(width: 20, height: 20)
+                            
+                            Text(workspaceOutput.tabCount < 100 ? String(workspaceOutput.tabCount) : ":D")
+                                .font(.footnote)
+                        }
                     }
                 }
             }
