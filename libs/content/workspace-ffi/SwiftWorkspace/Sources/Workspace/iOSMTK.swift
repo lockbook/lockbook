@@ -727,7 +727,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
 
         if (prefersPencilOnlyDrawing){
-            self.addGestureRecognizer(pan)
+//            self.addGestureRecognizer(pan)
         }
     
         

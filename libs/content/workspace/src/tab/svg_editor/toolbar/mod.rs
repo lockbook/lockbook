@@ -286,12 +286,23 @@ impl Toolbar {
         let tools_island = self.show_tools_island(ui);
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
 
-        let mut overlay_res = history_island;
+        if is_pointer_over_res(ui, &history_island) {
+            println!("hover history");
+            *has_islands_interaction = true;
+        }
+
         if let Some(res) = tool_popover_at_cursor {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                println!("hover tool popover");
+                *has_islands_interaction = true;
+            }
         }
         if let Some(res) = mini_map_res {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                println!("hover mini map");
+
+                *has_islands_interaction = true;
+            }
         }
 
         if mini_map_dirty {
@@ -299,20 +310,32 @@ impl Toolbar {
         }
 
         if let Some(res) = tool_controls_res {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                println!("hover tool controls");
+
+                *has_islands_interaction = true;
+            }
         }
         if let Some(res) = viewport_controls {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                println!("hover viewport controls");
+
+                *has_islands_interaction = true;
+            }
         }
 
-        overlay_res = overlay_res
-            .union(tools_island.inner.response)
-            .union(overlay_toggle_res);
+        if is_pointer_over_res(ui, &tools_island.inner.response) {
+            println!("hover tools island");
 
-        if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
             *has_islands_interaction = true;
-            println!("has islands interaction");
         }
+
+        if is_pointer_over_res(ui, &overlay_toggle_res) {
+            println!("hover overlay toggle");
+
+            *has_islands_interaction = true;
+        }
+
         res
     }
 
@@ -403,4 +426,21 @@ impl Toolbar {
         self.layout.overlay_toggle = Some(overlay_toggle.response.rect);
         overlay_toggle.response
     }
+}
+
+fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool {
+    ui.input(|r| {
+        for ev in r.events.iter() {
+            let temp = match ev {
+                egui::Event::PointerMoved(pos2) => overlay_res.rect.contains(*pos2),
+                egui::Event::PointerButton { pos, .. } => overlay_res.rect.contains(*pos),
+                egui::Event::Touch { pos, .. } => overlay_res.rect.contains(*pos),
+                _ => false,
+            };
+            if temp {
+                return true;
+            }
+        }
+        false
+    })
 }
