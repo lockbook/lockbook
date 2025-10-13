@@ -67,6 +67,7 @@ struct TabsSheet: View {
                 })
             }
         }
+        .padding(.top)
     }
     
     func closeTab(id: UUID) {
