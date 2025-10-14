@@ -266,7 +266,6 @@ impl Toolbar {
             min: egui::pos2(tool_popover_x_start, tool_popover_y_start),
             max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
-
         if self.show_tool_popover {
             let tool_popover = ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {

@@ -5,6 +5,7 @@ use resvg::usvg::Transform;
 use tracing::trace;
 
 use crate::tab::svg_editor::toolbar::MINI_MAP_WIDTH;
+use crate::tab::svg_editor::util::get_pan;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
@@ -139,7 +140,7 @@ impl GestureHandler {
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = self.get_pan(ui);
+        let pan: Option<egui::Vec2> = get_pan(ui);
 
         let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
@@ -221,16 +222,6 @@ impl GestureHandler {
             Shortcut::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
         };
         trace!(num_touches, "applied gesture");
-    }
-
-    fn get_pan(&self, ui: &mut egui::Ui) -> Option<egui::Vec2> {
-        ui.input(|r| {
-            if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
-                Some(r.raw_scroll_delta)
-            } else {
-                None
-            }
-        })
     }
 
     // todo: tech debt lol, should refactor the eraser instead of doing this

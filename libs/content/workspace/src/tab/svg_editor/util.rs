@@ -1,5 +1,8 @@
 use std::collections::HashSet;
 
+use crate::Event;
+use crate::tab::ExtendedInput;
+
 use super::element::BoundedElement;
 use super::{CanvasSettings, ViewportSettings};
 
@@ -123,6 +126,30 @@ pub fn is_scroll(ui: &mut egui::Ui) -> bool {
         }
     });
     is_scroll
+}
+
+pub fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
+    for event in ui.ctx().read_events() {
+        if let Event::KineticPan { x, y } = event {
+            return Some(egui::vec2(x, y));
+        }
+    }
+
+    ui.input(|r| {
+        if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {
+            Some(r.smooth_scroll_delta)
+        } else if let Some(touch_gesture) = r.multi_touch() {
+            if touch_gesture.translation_delta.x.abs() > 0.0
+                || touch_gesture.translation_delta.y.abs() > 0.0
+            {
+                Some(touch_gesture.translation_delta)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    })
 }
 
 pub fn devc_to_point(dvec: DVec2) -> Point {

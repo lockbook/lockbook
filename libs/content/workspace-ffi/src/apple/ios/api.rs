@@ -373,10 +373,27 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-pub unsafe extern "C" fn canvas_has_islands_interaction(obj: *mut c_void) -> bool {
+pub unsafe extern "C" fn canvas_detect_islands_interaction(
+    obj: *mut c_void, x: f32, y: f32,
+) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.canvas_has_islands_interaction
+    let mut has_islands_interaction = false;
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
+            has_islands_interaction = svg.detect_islands_interaction(egui::pos2(x, y));
+        }
+    }
+    has_islands_interaction
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn pan(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.context
+        .push_event(workspace_rs::Event::KineticPan { x: scroll_x, y: scroll_y });
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan

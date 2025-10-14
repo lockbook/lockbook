@@ -37,7 +37,6 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub user_last_seen: Instant,
-    pub canvas_has_islands_interaction: bool,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -91,7 +90,6 @@ impl Workspace {
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
             lb_rx: core.subscribe(),
-            canvas_has_islands_interaction: false,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();

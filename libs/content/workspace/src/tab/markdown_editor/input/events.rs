@@ -63,7 +63,7 @@ impl<'ast> Editor {
                         }
                     }
                 }
-                crate::Event::PredictedTouch { .. } => {}
+                _ => {}
             }
         }
         result
