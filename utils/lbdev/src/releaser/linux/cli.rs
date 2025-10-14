@@ -102,7 +102,7 @@ Build-Depends: debhelper (>=10), git, ca-certificates
 
 Package: lockbook
 Architecture: any
-Depends: ${{shlibs:Depends}}, ${{misc:Depends}}
+Depends: ${{shlibs:Depends}}, ${{misc:Depends}}, nfs-common
 Description: The private, polished note-taking platform.
 "#
     );
@@ -189,6 +189,7 @@ source=("git+https://github.com/lockbook/lockbook.git#tag=$pkgver")
 sha256sums=('SKIP')
 groups=('lockbook')
 options=(!lto)
+depends=('nfs-utils')
 
 pkgver() {{
   cd $srcdir/lockbook/clients/cli
@@ -227,6 +228,7 @@ pkgbase = lockbook
 	license = BSD-3-Clause
 	makedepends = cargo
 	makedepends = git
+	depends = nfs-utils
 	provides = lockbook
 	conflicts = lockbook
 	source = git+https://github.com/lockbook/lockbook.git#tag=v{version}
