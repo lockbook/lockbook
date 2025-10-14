@@ -288,20 +288,16 @@ impl Toolbar {
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
 
         if is_pointer_over_res(ui, &history_island) {
-            println!("hover history");
             *has_islands_interaction = true;
         }
 
         if let Some(res) = tool_popover_at_cursor {
             if is_pointer_over_res(ui, &res) {
-                println!("hover tool popover");
                 *has_islands_interaction = true;
             }
         }
         if let Some(res) = mini_map_res {
             if is_pointer_over_res(ui, &res) {
-                println!("hover mini map");
-
                 *has_islands_interaction = true;
             }
         }
@@ -313,28 +309,20 @@ impl Toolbar {
 
         if let Some(res) = tool_controls_res {
             if is_pointer_over_res(ui, &res) {
-                println!("hover tool controls");
-
                 *has_islands_interaction = true;
             }
         }
         if let Some(res) = viewport_controls {
             if is_pointer_over_res(ui, &res) {
-                println!("hover viewport controls");
-
                 *has_islands_interaction = true;
             }
         }
 
         if is_pointer_over_res(ui, &tools_island.inner.response) {
-            println!("hover tools island");
-
             *has_islands_interaction = true;
         }
 
         if is_pointer_over_res(ui, &overlay_toggle_res) {
-            println!("hover overlay toggle");
-
             *has_islands_interaction = true;
         }
         res
