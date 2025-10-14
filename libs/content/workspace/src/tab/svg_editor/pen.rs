@@ -132,7 +132,7 @@ impl Pen {
         });
 
         // handle custom input events
-        ui.ctx().pop_events().iter().for_each(|e| {
+        ui.ctx().read_events().iter().for_each(|e| {
             if let Some(path_event) =
                 self.map_ui_event(IntegrationEvent::Custom(e), pen_ctx, &input_state)
             {
