@@ -708,8 +708,6 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
     
     init(mtkView: iOSMTK, headerSize: Double) {
-        mtkView.cursorTracked = false;
-        mtkView.scrollSensitivity = 100;
         self.mtkView = mtkView
         self.currentHeaderSize = headerSize
 
