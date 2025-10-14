@@ -69,10 +69,11 @@ impl Lb {
         let encrypted_document = tree.update_document(&id, content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac().copied();
         self.docs.insert(id, hmac, &encrypted_document).await?;
+        tx.end();
+
         if hmac != hmac_to_cleanup {
             self.docs.delete(id, hmac_to_cleanup).await?;
         }
-        tx.end();
 
         self.events.doc_written(id, None);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
@@ -145,10 +146,11 @@ impl Lb {
         self.docs
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
+        tx.end();
+
         if Some(hmac) != hmac_to_cleanup {
             self.docs.delete(id, hmac_to_cleanup).await?;
         }
-        tx.end();
 
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
