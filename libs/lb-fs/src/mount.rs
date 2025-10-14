@@ -74,7 +74,7 @@ pub async fn umount() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-pub async fn umount() {
+pub async fn umount() -> bool {
     info!("todo");
     todo!()
 }
