@@ -3,8 +3,8 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::tab::svg_editor::InputContext;
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
+use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
@@ -51,6 +51,7 @@ struct ToolbarLayout {
     zoom_pct_btn: Option<egui::Rect>,
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
+    mini_map: Option<egui::Rect>,
 }
 #[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
 pub enum Tool {
@@ -307,6 +308,7 @@ impl Toolbar {
 
         if mini_map_dirty {
             res = true;
+            *has_islands_interaction = true;
         }
 
         if let Some(res) = tool_controls_res {
@@ -335,7 +337,6 @@ impl Toolbar {
 
             *has_islands_interaction = true;
         }
-
         res
     }
 
@@ -425,6 +426,29 @@ impl Toolbar {
 
         self.layout.overlay_toggle = Some(overlay_toggle.response.rect);
         overlay_toggle.response
+    }
+}
+
+impl SVGEditor {
+    pub fn detect_islands_interaction(&self, pointer: egui::Pos2) -> bool {
+        let islands = [
+            self.toolbar.layout.history_island,
+            self.toolbar.layout.overlay_toggle,
+            self.toolbar.layout.tool_popover,
+            self.toolbar.layout.tools_island,
+            self.toolbar.layout.zoom_pct_btn,
+            self.toolbar.layout.zoom_stops_popover,
+            self.toolbar.layout.viewport_island,
+            self.toolbar.layout.viewport_popover,
+            self.toolbar.layout.mini_map,
+        ];
+        for island in islands.iter() {
+            if island.unwrap_or(egui::Rect::ZERO).contains(pointer) {
+                return true;
+            }
+        }
+
+        false
     }
 }
 

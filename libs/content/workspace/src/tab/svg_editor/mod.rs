@@ -14,6 +14,7 @@ mod util;
 use std::time::Instant;
 
 use self::history::History;
+use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::workspace::WsPersistentStore;
 
@@ -92,7 +93,6 @@ impl Default for ViewportSettings {
 
 pub struct Response {
     pub request_save: bool,
-    pub has_islands_interaction: bool,
 }
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub struct CanvasSettings {
@@ -262,11 +262,10 @@ impl SVGEditor {
                 false
             };
 
-        let has_islands_interaction = self.has_islands_interaction;
         self.has_islands_interaction = false;
-
         self.buffer.master_transform_changed = false;
-        Response { request_save: needs_save_and_frame_is_cheap, has_islands_interaction }
+        ui.ctx().pop_events();
+        Response { request_save: needs_save_and_frame_is_cheap }
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {

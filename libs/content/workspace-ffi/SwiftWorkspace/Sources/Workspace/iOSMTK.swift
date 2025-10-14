@@ -708,7 +708,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
     
     init(mtkView: iOSMTK, headerSize: Double) {
-        mtkView.cursorTracked = true;
+        mtkView.cursorTracked = false;
         mtkView.scrollSensitivity = 100;
         self.mtkView = mtkView
         self.currentHeaderSize = headerSize
@@ -722,15 +722,14 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         addInteraction(pencilInteraction)
         
         // ipad trackpad support
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleScroll(_:)))
-        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
 
         if (prefersPencilOnlyDrawing){
-//            self.addGestureRecognizer(pan)
+            self.addGestureRecognizer(pan)
         }
     
-        
         // edit menu support
         self.addInteraction(editMenuInteraction)
         
@@ -740,7 +739,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
         tap.cancelsTouchesInView = false
         // can only paste with your finger
-        tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        pan.allowedScrollTypesMask = .all
         tap.numberOfTapsRequired = 1
         self.addGestureRecognizer(tap)
         
@@ -752,7 +752,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         guard gesture.state == .ended else { return }
         
         // Check if we have any valid actions before presenting
-        guard canPaste() else { return }
+        let location = gesture.location(in: self)
+        if canvas_detect_islands_interaction(self.wsHandle, Float(location.x), Float(location.y+iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT)) || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages) { return }
         
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
@@ -760,19 +761,14 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     
     public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
         if action == #selector(paste(_:)) {
-            return canPaste()
+            return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
         }
 
         return false
     }
     
-    private func canPaste() -> Bool {
-        let clipboardPopulated = UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
-        return !canvas_has_islands_interaction(wsHandle) && clipboardPopulated
-    }
-    
-    @objc func handleScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        mtkView.handleTrackpadScroll(sender)
+    @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handlePan(sender)
     }
     
     @available(iOS 17.5, *)
@@ -897,6 +893,59 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+            guard let event = sender, event.state != .cancelled, event.state != .failed else {
+                return
+            }
+
+            var velocity = event.velocity(in: self)
+            
+            velocity.x /= 50
+            velocity.y /= 50
+                            
+            if event.state == .ended {
+                let currentScrollId = Int(Date().timeIntervalSince1970)
+                scrollId = currentScrollId
+                
+                Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                    if currentScrollId != scrollId {
+                        timer.invalidate()
+                        return
+                    }
+                    
+                    velocity.x *= Self.POINTER_DECELERATION_RATE
+                    velocity.y *= Self.POINTER_DECELERATION_RATE
+                    
+                    if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                        timer.invalidate()
+                        return
+                    }
+                    
+                    if !cursorTracked {
+                        mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                    }
+                    scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+                    if !cursorTracked {
+                        mouse_gone(wsHandle)
+                    }
+                    
+                    self.setNeedsDisplay()
+                }
+            } else {
+                if !cursorTracked {
+                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                }
+                scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+                if !cursorTracked {
+                    mouse_gone(wsHandle)
+                }
+            }
+            
+            self.setNeedsDisplay()
+    }
+
+    
+    // used in canvas
+    @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
         }
@@ -914,7 +963,8 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         if event.state == .ended {
             let currentScrollId = Int(Date().timeIntervalSince1970)
             scrollId = currentScrollId
-            
+            touches_ended(wsHandle, UInt64.random(in: UInt64.min...UInt64.max), 0.0, 0.0, 0.0)
+
             kineticTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] timer in
                 guard let self = self else {
                     timer.invalidate()
@@ -928,33 +978,25 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                     timer.invalidate()
                     return
                 }
-                
-                if !cursorTracked {
-                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-                }
-                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
-                if !cursorTracked {
-                    mouse_gone(wsHandle)
-                }
+
+                pan(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                mouse_gone(self.wsHandle)
                 
                 self.setNeedsDisplay()
             }
         } else {
-            if !cursorTracked {
-                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-            }
             let translation = event.translation(in: self)
+            
+            pan(self.wsHandle, Float(translation.x), Float(translation.y))
+            mouse_moved(wsHandle, Float(event.location(in: self).x), Float(event.location(in: self).y))
 
-            scroll_wheel(self.wsHandle, Float(translation.x), Float(translation.y), false, false, false, false)
             event.setTranslation(.zero, in: self)
-            if !cursorTracked {
-                mouse_gone(wsHandle)
-            }
+
         }
         
         self.setNeedsDisplay()
     }
-
+    
     public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
         let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper || interaction.view is iOSMTKDrawingWrapper {
             docHeaderSize

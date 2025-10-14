@@ -3,7 +3,7 @@ use resvg::usvg::Transform;
 use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::renderer::RenderOptions;
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar, ToolbarContext};
-use crate::tab::svg_editor::util::transform_rect;
+use crate::tab::svg_editor::util::{get_pan, transform_rect};
 const SCROLLBAR_WIDTH: f32 = 15.0;
 
 impl Toolbar {
@@ -26,6 +26,8 @@ impl Toolbar {
                 - egui::vec2(mini_map_size.x, 0.0),
             mini_map_size,
         );
+
+        self.layout.mini_map = Some(mini_map_rect);
 
         let shadow: egui::Shape = egui::Shadow {
             offset: egui::vec2(0.0, 0.0),
@@ -110,6 +112,7 @@ impl Toolbar {
         );
 
         let mut has_transformed_canvas = false;
+
         if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
             let maybe_delta = if (res.clicked() || res.drag_started())
                 && !viewport_rect.contains(click_pos)
@@ -121,7 +124,8 @@ impl Toolbar {
                 } else {
                     1.0
                 };
-                Some(-ui.input(|r| r.raw_scroll_delta) / out.absolute_transform.sx / delta_factor)
+
+                Some(-get_pan(ui).unwrap_or_default() / out.absolute_transform.sx / delta_factor)
             } else {
                 None
             };
