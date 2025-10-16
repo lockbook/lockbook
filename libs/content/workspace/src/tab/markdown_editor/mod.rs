@@ -29,6 +29,7 @@ use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
+
 pub mod embed;
 mod galleys;
 pub mod input;
@@ -61,8 +62,7 @@ pub struct Editor {
     dark_mode: bool, // supports change detection
     theme: Theme,
     syntax_set: SyntaxSet,
-    syntax_light_theme: syntect::highlighting::Theme,
-    syntax_dark_theme: syntect::highlighting::Theme,
+    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
@@ -115,20 +115,16 @@ impl Editor {
         ctx: Context, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, needs_name: bool,
         plaintext_mode: bool, embed_resolver: E,
     ) -> Self {
-        let theme = Theme::new(ctx.clone());
+        let theme = Theme::default(ctx.clone());
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let syntax_set = SyntaxSet::load_defaults_newlines();
 
-        let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
-        let cursor = Cursor::new(light_theme_bytes);
+        // Regenerate theme
+        let xml = theme.generate_tmtheme();
+        let cursor = Cursor::new(xml.as_bytes());
         let mut buffer = BufReader::new(cursor);
-        let syntax_light_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
-        let dark_theme_bytes = include_bytes!("assets/mnemonic-dark.tmTheme").as_ref();
-        let cursor = Cursor::new(dark_theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
@@ -138,8 +134,7 @@ impl Editor {
             dark_mode,
             theme,
             syntax_set,
-            syntax_light_theme,
-            syntax_dark_theme,
+            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -213,6 +208,20 @@ impl Editor {
         });
     }
 
+    /// Update syntax themes when theme colors change at runtime
+    pub fn update_theme_colors(&mut self, new_theme: Theme) {
+        self.theme = new_theme;
+
+        // Regenerate theme
+        let xml = self.theme.generate_tmtheme();
+        let cursor = Cursor::new(xml.as_bytes());
+        let mut buffer = BufReader::new(cursor);
+        self.syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+
+        // Clear syntax cache to force re-highlighting with new colors
+        self.syntax.clear();
+    }
+
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
@@ -229,6 +238,12 @@ impl Editor {
         if dark_mode != self.dark_mode {
             self.syntax.clear();
             self.dark_mode = dark_mode;
+
+            // Regenerate theme
+            let xml = self.theme.generate_tmtheme();
+            let cursor = Cursor::new(xml.as_bytes());
+            let mut buffer = BufReader::new(cursor);
+            self.syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
         }
 
         self.calc_source_lines();

@@ -301,12 +301,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
@@ -381,12 +379,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 

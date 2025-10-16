@@ -12,6 +12,10 @@ macro_rules! hex_color {
     }};
 }
 
+fn to_hex(color: Color32) -> String {
+    format!("#{:02X}{:02X}{:02X}", color.r(), color.g(), color.b())
+}
+
 #[derive(Clone)]
 pub struct Theme {
     dim: ColorSet,
@@ -20,19 +24,19 @@ pub struct Theme {
 }
 
 impl Theme {
-    pub fn new(ctx: Context) -> Self {
+    pub fn default(ctx: Context) -> Self {
         Self {
             dim: ColorSet {
                 neutral_primary: hex_color!("#101010"),
                 neutral_secondary: hex_color!("#222222"),
                 neutral_tertiary: hex_color!("#555555"),
-                neutral_quarternary: hex_color!("#777777"),
 
                 red: hex_color!("#DF2040"),
                 green: hex_color!("#00B371"),
                 yellow: hex_color!("#E6AC00"),
                 blue: hex_color!("#207FDF"),
                 magenta: hex_color!("#7855AA"),
+                cyan: hex_color!("#00BBCC"),
 
                 accent_primary: hex_color!("#7855AA"),
                 accent_secondary: hex_color!("#207FDF"),
@@ -41,16 +45,16 @@ impl Theme {
             bright: ColorSet {
                 neutral_primary: hex_color!("#FFFFFF"),
                 neutral_secondary: hex_color!("#FCFCFC"),
-                neutral_tertiary: hex_color!("#EEEEEE"),
-                neutral_quarternary: hex_color!("#777777"),
+                neutral_tertiary: hex_color!("#BBBBBB"),
 
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
                 yellow: hex_color!("#FFDB70"),
                 blue: hex_color!("#66B2FF"),
                 magenta: hex_color!("#AC8CD9"),
+                cyan: hex_color!("#6EECF7"),
 
-                accent_primary: hex_color!("#207FDF"),
+                accent_primary: hex_color!("#66B2FF"),
                 accent_secondary: hex_color!("#67E4B6"),
                 accent_tertiary: hex_color!("#FFDB70"),
             },
@@ -123,15 +127,33 @@ pub struct ColorSet {
     pub neutral_primary: Color32,
     pub neutral_secondary: Color32,
     pub neutral_tertiary: Color32,
-    pub neutral_quarternary: Color32,
 
     pub red: Color32,
     pub green: Color32,
     pub yellow: Color32,
     pub blue: Color32,
     pub magenta: Color32,
-    // todo: cyan?
+    pub cyan: Color32,
     pub accent_primary: Color32,
     pub accent_secondary: Color32,
     pub accent_tertiary: Color32,
+}
+
+impl Theme {
+    pub fn generate_tmtheme(&self) -> String {
+        include_str!("assets/template.tmTheme")
+            .replace("{neutral_primary}", &to_hex(self.fg().neutral_primary))
+            .replace("{neutral_secondary}", &to_hex(self.fg().neutral_secondary))
+            .replace("{neutral_tertiary}", &to_hex(self.fg().neutral_tertiary))
+            .replace("{red}", &to_hex(self.fg().red))
+            .replace("{green}", &to_hex(self.fg().green))
+            .replace("{yellow}", &to_hex(self.fg().yellow))
+            .replace("{blue}", &to_hex(self.fg().blue))
+            .replace("{magenta}", &to_hex(self.fg().magenta))
+            .replace("{cyan}", &to_hex(self.fg().cyan))
+            .replace("{accent_primary}", &to_hex(self.fg().accent_primary))
+            .replace("{accent_secondary}", &to_hex(self.fg().accent_secondary))
+            .replace("{accent_tertiary}", &to_hex(self.fg().accent_tertiary))
+            .to_string()
+    }
 }

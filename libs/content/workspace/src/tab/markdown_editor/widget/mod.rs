@@ -198,7 +198,7 @@ impl<'ast> Editor {
             color: if self.plaintext_mode {
                 self.theme.fg().neutral_primary
             } else {
-                self.theme.fg().neutral_quarternary
+                self.theme.fg().neutral_tertiary
             },
             background: Default::default(),
             underline: Default::default(),
