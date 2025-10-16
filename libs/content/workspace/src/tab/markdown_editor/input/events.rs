@@ -1,7 +1,7 @@
 use std::mem;
 
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::{self, ClipContent, ExtendedInput as _, ExtendedOutput as _, markdown_editor};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _, markdown_editor};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use comrak::nodes::AstNode;
@@ -38,33 +38,8 @@ impl<'ast> Editor {
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
         let mut result = Vec::new();
         for event in ctx.pop_events() {
-            match event {
-                crate::Event::Markdown(modification) => result.push(modification),
-                crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
-                    for clip in content {
-                        match clip {
-                            ClipContent::Image(data) => {
-                                let file = tab::import_image(&self.core, self.file_id, &data);
-                                let parent = self.core.get_file_by_id(self.file_id).unwrap().parent;
-
-                                let rel_path =
-                                    tab::core_get_relative_path(&self.core, parent, file.id);
-                                let markdown_image_link = format!("![{}]({})", file.name, rel_path);
-
-                                result.push(Event::Replace {
-                                    region: Region::Selection, // todo: more thoughtful location
-                                    text: markdown_image_link,
-                                    advance_cursor: true,
-                                });
-                            }
-                            ClipContent::Files(..) => {
-                                // todo: support file drop & paste
-                                println!("unimplemented: editor file drop & paste");
-                            }
-                        }
-                    }
-                }
-                crate::Event::PredictedTouch { .. } => {}
+            if let crate::Event::Markdown(modification) = event {
+                result.push(modification)
             }
         }
         result

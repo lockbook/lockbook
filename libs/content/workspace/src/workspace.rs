@@ -413,7 +413,6 @@ impl Workspace {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         self.ctx.clone(),
-                                        core.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,

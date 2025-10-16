@@ -16,7 +16,6 @@ use galleys::Galleys;
 use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::Uuid;
-use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
@@ -56,7 +55,6 @@ pub struct Response {
 
 pub struct Editor {
     // dependencies
-    core: Lb,
     ctx: Context,
 
     // theme
@@ -112,10 +110,16 @@ pub struct Editor {
 
 static PRINT: bool = false;
 
+impl Drop for Editor {
+    fn drop(&mut self) {
+        println!("DROP editor");
+    }
+}
+
 impl Editor {
     pub fn new<E: EmbedResolver + 'static>(
-        ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool, embed_resolver: E,
+        ctx: Context, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, needs_name: bool,
+        plaintext_mode: bool, embed_resolver: E,
     ) -> Self {
         let theme = Theme::new(ctx.clone());
 
@@ -135,7 +139,6 @@ impl Editor {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
         Self {
-            core,
             ctx,
 
             dark_mode,
@@ -179,23 +182,7 @@ impl Editor {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
-        Self::new(
-            Context::default(),
-            Lb::init(lb_rs::model::core_config::Config {
-                writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                logs: false,
-                stdout_logs: false,
-                colored_logs: false,
-                background_work: false,
-            })
-            .unwrap(),
-            md,
-            Uuid::new_v4(),
-            None,
-            false,
-            false,
-            (),
-        )
+        Self::new(Context::default(), md, Uuid::new_v4(), None, false, false, ())
     }
 
     pub fn id(&self) -> Id {
@@ -463,6 +450,8 @@ impl Editor {
         }
 
         self.initialized = true;
+
+        self.embed_resolver.end_frame();
 
         resp
     }

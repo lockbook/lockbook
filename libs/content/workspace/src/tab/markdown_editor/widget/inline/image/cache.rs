@@ -21,7 +21,6 @@ use tracing::instrument;
 /// A read-through cache that fetches an image on the first call to
 /// [`ImageCache::get`]. On a cache miss, a repaint is requested after a short
 /// delay; the caller is expected to retry next frame until the image is loaded.
-#[derive(Clone)]
 pub struct ImageCache {
     images: HashMap<String, Arc<Mutex<ImageState>>>,
     used_this_frame: HashSet<String>, // images cached until first frame unused
@@ -42,6 +41,16 @@ pub enum ImageState {
     Failed(String),
 }
 
+/// Wraps the required resources for a background load in a type that doesn't
+/// free all the textures when dropped (otherwise would just clone ImageCache)
+pub struct BackgroundFetchContext {
+    ctx: Context,
+    client: Client,
+    lb: Lb,
+    file_id: Uuid,
+    last_modified: Arc<Mutex<u64>>,
+}
+
 impl ImageCache {
     pub fn new(ctx: Context, client: Client, lb: Lb, file_id: Uuid) -> Self {
         Self {
@@ -55,6 +64,16 @@ impl ImageCache {
         }
     }
 
+    fn background_load_context(&self) -> BackgroundFetchContext {
+        BackgroundFetchContext {
+            ctx: self.ctx.clone(),
+            client: self.client.clone(),
+            lb: self.lb.clone(),
+            file_id: self.file_id,
+            last_modified: self.last_modified.clone(),
+        }
+    }
+
     pub fn get(&mut self, url: &str) -> ImageState {
         if let Some(image_state) = self.images.get(url) {
             image_state.lock().unwrap().deref().clone()
@@ -64,19 +83,21 @@ impl ImageCache {
             self.images.insert(url.into(), image_state.clone());
 
             // launch image fetch
-            let self_clone = self.clone();
+            let background_ctx = self.background_load_context();
             let url_clone = url.to_string();
             let image_state_clone = image_state.clone();
-            thread::spawn(move || self_clone.background_fetch(url_clone, image_state_clone));
+            thread::spawn(move || background_ctx.background_fetch(url_clone, image_state_clone));
 
             let result = image_state.lock().unwrap().deref().clone();
             result
         }
     }
+}
 
+impl BackgroundFetchContext {
     /// Runs on a background thread to fetch an image from lb_rs or the web. On
-    /// completion, updates the cache, requests a new frame, and updates
-    /// self.last_modified.
+    /// completion, updates the cache, updates self.last_modified, and requests
+    /// a new frame.
     #[instrument(level = "debug", skip(self, image_state), fields(thread = format!("{:?}", thread::current().id())))]
     fn background_fetch(&self, url: String, image_state: Arc<Mutex<ImageState>>) {
         let texture_manager = self.ctx.tex_manager();
@@ -103,7 +124,7 @@ impl ImageCache {
                     .read_document(id, false)
                     .map_err(|e| e.to_string())?
             } else {
-                self.download_image(&url).map_err(|e| e.to_string())?
+                self.download(&url).map_err(|e| e.to_string())?
             };
 
             // convert lockbook drawings to images
@@ -145,9 +166,10 @@ impl ImageCache {
                 ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8()).into(),
             );
 
-            Ok(texture_manager
+            let texture_id = texture_manager
                 .write()
-                .alloc(url, egui_image, Default::default()))
+                .alloc(url, egui_image, Default::default());
+            Ok(texture_id)
         })();
 
         match texture_result {
@@ -158,14 +180,11 @@ impl ImageCache {
                 *image_state.lock().unwrap() = ImageState::Failed(err);
             }
         }
-
         *self.last_modified.lock().unwrap() = self.ctx.frame_nr();
-
-        // request a frame when the image is done loading
         self.ctx.request_repaint();
     }
 
-    fn download_image(&self, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    fn download(&self, url: &str) -> Result<Vec<u8>, reqwest::Error> {
         let response = self.client.get(url).send()?.bytes()?.to_vec();
         Ok(response)
     }
@@ -206,22 +225,19 @@ impl EmbedResolver for ImageCache {
     }
 
     fn height(&self, url: &str, max_size: Vec2) -> f32 {
+        // height checks self.images directly which does not trigger an initial fetch
+        // todo: interior mutability; use self.get(url) which currently takes &mut self
         if let Some(image_state) = self.images.get(url) {
-            let image_state = image_state.lock().unwrap().deref().clone();
-            match image_state {
-                ImageState::Loading => image_size(Vec2::splat(200.), max_size).y,
-                ImageState::Loaded(texture_id) => {
-                    let [image_width, image_height] =
-                        self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
-                    let size = image_size(Vec2::new(image_width as _, image_height as _), max_size);
+            if let ImageState::Loaded(texture_id) = image_state.lock().unwrap().deref().clone() {
+                let [image_width, image_height] =
+                    self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
+                let size = image_size(Vec2::new(image_width as _, image_height as _), max_size);
 
-                    size.y
-                }
-                ImageState::Failed(_) => image_size(Vec2::splat(200.), max_size).y,
+                return size.y;
             }
-        } else {
-            0.
         }
+
+        image_size(Vec2::splat(200.), max_size).y
     }
 
     fn show(&mut self, url: &str, rect: Rect, theme: &Theme, ui: &mut Ui) {
@@ -230,99 +246,96 @@ impl EmbedResolver for ImageCache {
         let top_left = rect.left_top();
         let width = rect.size().x;
 
-        if let Some(image_state) = self.images.get(url) {
-            let image_state = image_state.lock().unwrap().deref().clone();
-            match image_state {
-                ImageState::Loading => {
-                    let icon = "\u{e410}";
-                    let caption = "Loading image...";
+        let image_state = self.get(url);
+        match image_state {
+            ImageState::Loading => {
+                let icon = "\u{e410}";
+                let caption = "Loading image...";
 
-                    let size = image_size(Vec2::splat(200.), rect.size());
-                    let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
+                let size = image_size(Vec2::splat(200.), rect.size());
+                let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
-                        let rect = ui.max_rect();
-                        ui.painter().text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            icon,
-                            FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            theme.fg().neutral_tertiary,
-                        );
-                        ui.painter().text(
-                            rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
-                            Align2::CENTER_BOTTOM,
-                            caption,
-                            FontId::default(),
-                            theme.fg().neutral_tertiary,
-                        );
-                        ui.painter().rect_stroke(
-                            rect,
-                            2.,
-                            Stroke { width: 1., color: theme.bg().neutral_tertiary },
-                        );
-                    });
+                ui.allocate_ui_at_rect(rect, |ui| {
+                    let rect = ui.max_rect();
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        icon,
+                        FontId { size: 48.0, family: egui::FontFamily::Monospace },
+                        theme.fg().neutral_tertiary,
+                    );
+                    ui.painter().text(
+                        rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
+                        Align2::CENTER_BOTTOM,
+                        caption,
+                        FontId::default(),
+                        theme.fg().neutral_tertiary,
+                    );
+                    ui.painter().rect_stroke(
+                        rect,
+                        2.,
+                        Stroke { width: 1., color: theme.bg().neutral_tertiary },
+                    );
+                });
+            }
+            ImageState::Loaded(texture_id) => {
+                let [image_width, image_height] =
+                    self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
+
+                let size = image_size(Vec2::new(image_width as _, image_height as _), rect.size());
+                let padding = (width - size.x) / 2.0;
+                let image_top_left = top_left + Vec2::new(padding, 0.);
+                let rect = Rect::from_min_size(image_top_left, size);
+
+                let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
+                if resp.hovered() {
+                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                 }
-                ImageState::Loaded(texture_id) => {
-                    let [image_width, image_height] =
-                        self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
-
-                    let size =
-                        image_size(Vec2::new(image_width as _, image_height as _), rect.size());
-                    let padding = (width - size.x) / 2.0;
-                    let image_top_left = top_left + Vec2::new(padding, 0.);
-                    let rect = Rect::from_min_size(image_top_left, size);
-
-                    let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
-                    if resp.hovered() {
-                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-                    }
-                    if resp.clicked() {
-                        ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
-                    }
-
-                    ui.allocate_ui_at_rect(rect, |ui| {
-                        ui.painter().add(RectShape {
-                            rect,
-                            rounding: (2.).into(),
-                            fill: Color32::WHITE,
-                            stroke: Stroke::NONE,
-                            blur_width: 0.0,
-                            fill_texture_id: texture_id,
-                            uv: Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
-                        });
-                    });
+                if resp.clicked() {
+                    ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
                 }
-                ImageState::Failed(message) => {
-                    let icon = "\u{f116}";
-                    let caption = format!("Could not show image: {message}");
 
-                    let size = image_size(Vec2::splat(200.), rect.size());
-                    let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
-
-                    ui.allocate_ui_at_rect(rect, |ui| {
-                        let rect = ui.max_rect();
-                        ui.painter().text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            icon,
-                            FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            theme.fg().neutral_tertiary,
-                        );
-                        ui.painter().text(
-                            rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
-                            Align2::CENTER_BOTTOM,
-                            caption,
-                            FontId::default(),
-                            theme.fg().neutral_tertiary,
-                        );
-                        ui.painter().rect_stroke(
-                            rect,
-                            2.,
-                            Stroke { width: 1., color: theme.bg().neutral_tertiary },
-                        );
+                ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.painter().add(RectShape {
+                        rect,
+                        rounding: (2.).into(),
+                        fill: Color32::WHITE,
+                        stroke: Stroke::NONE,
+                        blur_width: 0.0,
+                        fill_texture_id: texture_id,
+                        uv: Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
                     });
-                }
+                });
+            }
+            ImageState::Failed(message) => {
+                let icon = "\u{f116}";
+                let caption = format!("Could not show image: {message}");
+
+                let size = image_size(Vec2::splat(200.), rect.size());
+                let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
+
+                ui.allocate_ui_at_rect(rect, |ui| {
+                    let rect = ui.max_rect();
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        icon,
+                        FontId { size: 48.0, family: egui::FontFamily::Monospace },
+                        theme.fg().neutral_tertiary,
+                    );
+                    ui.painter().text(
+                        rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
+                        Align2::CENTER_BOTTOM,
+                        caption,
+                        FontId::default(),
+                        theme.fg().neutral_tertiary,
+                    );
+                    ui.painter().rect_stroke(
+                        rect,
+                        2.,
+                        Stroke { width: 1., color: theme.bg().neutral_tertiary },
+                    );
+                });
             }
         }
     }

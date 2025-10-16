@@ -14,7 +14,12 @@ use std::time::{Duration, Instant};
 use tracing::instrument;
 
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
+use crate::tab::markdown_editor::Event;
+use crate::tab::markdown_editor::input::Region;
+use crate::tab::{
+    self, ClipContent, ContentState, ExtendedInput, TabContent, TabStatus,
+    core_get_by_relative_path, image_viewer,
+};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::Workspace;
@@ -31,6 +36,7 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
+        self.process_events();
         self.status.message = self.status_message();
 
         if self.is_empty() {
@@ -798,6 +804,53 @@ impl Workspace {
 
         if let Some(goto_tab) = goto_tab {
             self.make_current(goto_tab);
+        }
+    }
+
+    fn process_events(&mut self) {
+        let events = self.ctx.pop_events();
+        for event in events {
+            // markdown: handle image imports on editor's behalf
+            let mut consumed = false;
+            if self.current_tab_markdown().is_some() {
+                if let Some(file_id) = self.current_tab_id() {
+                    if let crate::Event::Drop { content, .. }
+                    | crate::Event::Paste { content, .. } = &event
+                    {
+                        for clip in content {
+                            match clip {
+                                ClipContent::Image(data) => {
+                                    // import the image data
+                                    let file = tab::import_image(&self.core, file_id, data);
+                                    let parent = self.core.get_file_by_id(file_id).unwrap().parent;
+
+                                    let rel_path =
+                                        tab::core_get_relative_path(&self.core, parent, file.id);
+                                    let markdown_image_link =
+                                        format!("![{}]({})", file.name, rel_path);
+
+                                    self.ctx.push_markdown_event(Event::Replace {
+                                        region: Region::Selection, // todo: more thoughtful location
+                                        text: markdown_image_link,
+                                        advance_cursor: true,
+                                    });
+                                }
+                                ClipContent::Files(..) => {
+                                    // todo: support file drop & paste
+                                    println!("unimplemented: editor file drop & paste");
+                                }
+                            }
+                        }
+
+                        consumed = true;
+                    }
+                }
+            }
+
+            if !consumed {
+                // put that thing back where it came from or so help me
+                self.ctx.push_event(event);
+            }
         }
     }
 
