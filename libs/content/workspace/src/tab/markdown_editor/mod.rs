@@ -6,7 +6,6 @@ use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
-use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
@@ -27,7 +26,6 @@ use theme::Theme;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
-use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 use widget::{MARGIN, MAX_WIDTH};
 
@@ -41,6 +39,9 @@ mod theme;
 mod widget;
 
 pub use input::Event;
+pub use widget::inline::image::cache::ImageCache;
+
+use crate::tab::markdown_editor::embed::EmbedResolver;
 
 #[derive(Debug, Default)]
 pub struct Response {
@@ -55,9 +56,8 @@ pub struct Response {
 
 pub struct Editor {
     // dependencies
-    pub core: Lb,
-    pub client: reqwest::blocking::Client,
-    pub ctx: Context,
+    core: Lb,
+    ctx: Context,
 
     // theme
     dark_mode: bool, // supports change detection
@@ -80,10 +80,12 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
-    pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
+
+    pub embed_resolver: Box<dyn EmbedResolver>,
+    pub embed_resolver_last_processed: u64,
 
     // widgets
     pub toolbar: Toolbar,
@@ -108,18 +110,12 @@ pub struct Editor {
     next_resp: Response,
 }
 
-impl Drop for Editor {
-    fn drop(&mut self) {
-        self.images.free(&self.ctx);
-    }
-}
-
 static PRINT: bool = false;
 
 impl Editor {
-    pub fn new(
+    pub fn new<E: EmbedResolver + 'static>(
         ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool,
+        needs_name: bool, plaintext_mode: bool, embed_resolver: E,
     ) -> Self {
         let theme = Theme::new(ctx.clone());
 
@@ -140,7 +136,6 @@ impl Editor {
 
         Self {
             core,
-            client: Default::default(),
             ctx,
 
             dark_mode,
@@ -164,10 +159,12 @@ impl Editor {
             cursor: Default::default(),
             event: Default::default(),
             galleys: Default::default(),
-            images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
+
+            embed_resolver: Box::new(embed_resolver),
+            embed_resolver_last_processed: 0,
 
             in_progress_selection: None,
 
@@ -197,6 +194,7 @@ impl Editor {
             None,
             false,
             false,
+            (),
         )
     }
 
@@ -236,6 +234,8 @@ impl Editor {
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
+
+        self.embed_resolver.begin_frame();
 
         let height = ui.available_size().y;
         let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
@@ -300,10 +300,13 @@ impl Editor {
         // process events
         let prior_selection = self.buffer.current.selection;
         let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
+            let last_modified = self.embed_resolver.last_modified();
+            if last_modified > self.embed_resolver_last_processed {
+                self.embed_resolver_last_processed = last_modified;
+                true
+            } else {
+                false
+            }
         };
         if !self.initialized || self.process_events(ui.ctx(), root) {
             resp.text_updated = true;
@@ -326,15 +329,6 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection != self.buffer.current.selection;
-
-        self.images = widget::inline::image::cache::calc(
-            root,
-            &self.images,
-            &self.client,
-            &self.core,
-            self.file_id,
-            ui,
-        );
 
         ui.painter()
             .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
@@ -458,9 +452,6 @@ impl Editor {
         }
         if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
-        }
-        if self.images.any_loading() {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
         }
 
         // focus editor by default

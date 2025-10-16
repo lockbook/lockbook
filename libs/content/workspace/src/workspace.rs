@@ -23,7 +23,7 @@ use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
-use crate::tab::markdown_editor::Editor as Markdown;
+use crate::tab::markdown_editor::{Editor as Markdown, ImageCache};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -419,6 +419,12 @@ impl Workspace {
                                         maybe_hmac,
                                         is_new_file,
                                         ext != "md",
+                                        ImageCache::new(
+                                            self.ctx.clone(),
+                                            reqwest::blocking::Client::new(),
+                                            self.core.clone(),
+                                            id,
+                                        ),
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
