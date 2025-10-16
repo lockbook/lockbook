@@ -728,6 +728,11 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
             self.addGestureRecognizer(pan)
         }
     
+        // minimal zoom support, just cancel pans for now but don't send zoom events
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
+        pinch.cancelsTouchesInView = false
+        self.addGestureRecognizer(pinch)
+        
         // edit menu support
         self.addInteraction(editMenuInteraction)
         
@@ -749,6 +754,12 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
         
+        if self.mtkView.kineticTimer != nil{
+            self.mtkView.kineticTimer?.invalidate()
+            self.mtkView.kineticTimer = nil
+            return
+        }
+        
         // Check if we have any valid actions before presenting
         let location = gesture.location(in: self)
         if canvas_detect_islands_interaction(self.wsHandle, Float(location.x), Float(location.y+iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT)) || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages) { return }
@@ -767,6 +778,17 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     
     @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handlePan(sender)
+    }
+    @objc func handlePinch(_ sender: UIPinchGestureRecognizer? = nil) {
+        guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            return
+        }
+        
+        if self.mtkView.kineticTimer != nil{
+            self.mtkView.kineticTimer?.invalidate()
+            self.mtkView.kineticTimer = nil
+            return
+        }
     }
     
     @available(iOS 17.5, *)
@@ -865,7 +887,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var cursorTracked = false
     var scrollSensitivity = 50.0
     var scrollId = 0
-    private var kineticTimer: Timer?
+    var kineticTimer: Timer?
         
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -966,6 +988,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             kineticTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] timer in
                 guard let self = self else {
                     timer.invalidate()
+                    self?.kineticTimer = nil
                     return
                 }
                 
@@ -974,6 +997,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 
                 if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
                     timer.invalidate()
+                    self.kineticTimer = nil
                     return
                 }
 
