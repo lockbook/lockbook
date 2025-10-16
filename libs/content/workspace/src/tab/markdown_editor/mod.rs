@@ -110,12 +110,6 @@ pub struct Editor {
 
 static PRINT: bool = false;
 
-impl Drop for Editor {
-    fn drop(&mut self) {
-        println!("DROP editor");
-    }
-}
-
 impl Editor {
     pub fn new<E: EmbedResolver + 'static>(
         ctx: Context, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, needs_name: bool,
