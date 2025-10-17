@@ -78,6 +78,7 @@ impl Icon {
     pub const SEARCH: Self = ic("\u{e8b6}"); // Search
     pub const SYNC: Self = ic("\u{e863}"); // Auto-renew
     pub const SHARED_FOLDER: Self = ic("\u{e2c9}"); // Shared Folder
+    pub const SHAPES: Self = ic("\u{e574}"); // Shapes 
     pub const OFFLINE: Self = ic("\u{e2c1}"); // Sync Disabled
     pub const UPDATE_REQ: Self = ic("\u{e629}"); // Sync Problem
     pub const SYNC_PROBLEM: Self = ic("\u{e000}"); // Sync Problem
@@ -99,6 +100,7 @@ impl Icon {
     pub const BUG: Self = ic("\u{e868}");
     pub const LANGUAGE: Self = ic("\u{e894}");
     pub const LIGHT_BULB: Self = ic("\u{e0f0}");
+    pub const LINE: Self = ic("\u{f108}");
     pub const WARNING_2: Self = ic("\u{e002}");
     pub const FEEDBACK: Self = ic("\u{e87f}");
     pub const REPORT: Self = ic("\u{e160}");

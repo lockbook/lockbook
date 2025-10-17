@@ -156,6 +156,10 @@ pub fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
 
+pub fn pos_to_dvec(pos: egui::Pos2) -> DVec2 {
+    DVec2 { x: pos.x.into(), y: pos.y.into() }
+}
+
 pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {
     egui::Rect {
         min: egui::pos2(bb[0].x as f32, bb[0].y as f32),

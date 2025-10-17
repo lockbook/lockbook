@@ -8,6 +8,7 @@ mod path_builder;
 mod pen;
 mod renderer;
 mod selection;
+mod shapes;
 mod toolbar;
 mod util;
 
@@ -345,6 +346,7 @@ impl SVGEditor {
             Tool::Selection => {
                 self.toolbar.selection.handle_input(ui, &mut tool_context);
             }
+            Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
         }
 
         if !self.has_islands_interaction {
