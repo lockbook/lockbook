@@ -40,7 +40,7 @@ impl Theme {
 
                 accent_primary: hex_color!("#7855AA"),
                 accent_secondary: hex_color!("#207FDF"),
-                accent_tertiary: hex_color!("#00B371"),
+                accent_tertiary: hex_color!("#FF6680"),
             },
             bright: ColorSet {
                 neutral_primary: hex_color!("#FFFFFF"),
