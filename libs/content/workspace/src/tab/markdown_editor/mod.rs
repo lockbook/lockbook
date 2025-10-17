@@ -9,8 +9,8 @@ use comrak::{Arena, Options};
 use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
-    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
-    ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    Color32, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id,
+    Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -65,12 +65,12 @@ pub struct Editor {
     syntax_theme: syntect::highlighting::Theme,
 
     // input
-    pub file_id: Uuid,
-    pub hmac: Option<DocumentHmac>,
-    pub needs_name: bool,
+    pub file_id: Uuid,              // todo: move to wrapper
+    pub hmac: Option<DocumentHmac>, // todo: move to wrapper
+    pub needs_name: bool,           // todo: move to wrapper
     pub initialized: bool,
-    pub plaintext_mode: bool,
-    pub touch_mode: bool,
+    pub plaintext_mode: bool, // todo: more expressive
+    pub touch_mode: bool,     // todo: can be a fn
 
     // internal systems
     pub bounds: Bounds,
@@ -83,7 +83,7 @@ pub struct Editor {
     pub debug: bool,
 
     pub embed_resolver: Box<dyn EmbedResolver>,
-    pub embed_resolver_last_processed: u64,
+    pub embed_resolver_last_processed: u64, // supports change detection
 
     // widgets
     pub toolbar: Toolbar,
@@ -326,8 +326,6 @@ impl Editor {
         }
         resp.selection_updated = prior_selection != self.buffer.current.selection;
 
-        ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
         self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
@@ -481,7 +479,7 @@ impl Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(MARGIN)
                         .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
+                        .fill(Color32::TRANSPARENT)
                         .show(ui, |ui| {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });

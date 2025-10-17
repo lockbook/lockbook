@@ -30,6 +30,7 @@ impl Default for Toolbar {
 impl<'ast> Editor {
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
+            .fill(self.theme.bg().neutral_secondary)
             .stroke(Stroke::NONE)
             .inner_margin(Margin::symmetric(10., 10.))
             .show(ui, |ui| self.show_toolbar_inner(root, ui))

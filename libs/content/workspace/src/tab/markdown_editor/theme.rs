@@ -27,7 +27,7 @@ impl Theme {
     pub fn default(ctx: Context) -> Self {
         Self {
             dim: ColorSet {
-                neutral_primary: hex_color!("#101010"),
+                neutral_primary: hex_color!("#000000"),
                 neutral_secondary: hex_color!("#222222"),
                 neutral_tertiary: hex_color!("#555555"),
 
