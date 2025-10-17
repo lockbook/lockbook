@@ -4,6 +4,7 @@ mod tools_island;
 mod viewport_island;
 
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
+use crate::tab::svg_editor::shapes::ShapesTool;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
@@ -30,6 +31,7 @@ pub struct Toolbar {
     pub highlighter: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
+    pub shapes_tool: ShapesTool,
     pub previous_tool: Option<Tool>,
     pub gesture_handler: GestureHandler,
 
@@ -60,6 +62,7 @@ pub enum Tool {
     Eraser,
     Selection,
     Highlighter,
+    Shapes,
 }
 
 pub struct ToolContext<'a> {
@@ -242,6 +245,7 @@ impl Toolbar {
             layout: Default::default(),
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
+            shapes_tool: Default::default(),
         }
     }
 

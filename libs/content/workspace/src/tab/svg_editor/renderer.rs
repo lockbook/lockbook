@@ -371,8 +371,9 @@ fn tesselate_path<'a>(
             if first.is_none() {
                 first = Some(start);
                 builder.begin(start, &[thickness]);
-                builder.line_to(start, &[thickness]);
-            } else if seg.handle_end().is_some() && seg.handle_start().is_some() {
+            }
+
+            if seg.handle_end().is_some() && seg.handle_start().is_some() {
                 let handle_start = devc_to_point(seg.handle_start().unwrap());
                 let handle_end = devc_to_point(seg.handle_end().unwrap());
 

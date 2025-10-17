@@ -69,8 +69,6 @@ impl Eraser {
     pub fn map_ui_event(
         &mut self, event: &egui::Event, eraser_ctx: &mut ToolContext, is_multi_touch: bool,
     ) -> Option<EraseEvent> {
-        // let inner_rect = eraser_ctx.painter.clip_rect();
-
         match *event {
             egui::Event::PointerMoved(pos) => {
                 if self.is_building && !eraser_ctx.is_touch_frame {
