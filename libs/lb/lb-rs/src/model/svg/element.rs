@@ -36,6 +36,12 @@ pub struct Stroke {
     pub width: f32,
 }
 
+impl Default for Stroke {
+    fn default() -> Self {
+        Self { color: Default::default(), opacity: 1.0, width: 1.0 }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq)]
 pub struct DynamicColor {
     pub light: usvg::Color,
