@@ -70,7 +70,6 @@ pub struct Editor {
     pub needs_name: bool,           // todo: move to wrapper
     pub initialized: bool,
     pub plaintext_mode: bool, // todo: more expressive
-    pub touch_mode: bool,     // todo: can be a fn
 
     // internal systems
     pub bounds: Bounds,
@@ -126,8 +125,6 @@ impl Editor {
         let mut buffer = BufReader::new(cursor);
         let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
-        let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
-
         Self {
             ctx,
 
@@ -144,7 +141,6 @@ impl Editor {
             needs_name,
             initialized: Default::default(),
             plaintext_mode,
-            touch_mode,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -220,6 +216,10 @@ impl Editor {
 
         // Clear syntax cache to force re-highlighting with new colors
         self.syntax.clear();
+    }
+
+    fn touch_mode(&self) -> bool {
+        matches!(self.ctx.os(), OperatingSystem::Android | OperatingSystem::IOS)
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -334,7 +334,7 @@ impl Editor {
         self.bounds.wrap_lines.clear();
 
         ui.vertical(|ui| {
-            if self.touch_mode {
+            if self.touch_mode() {
                 // touch devices: show find...
                 let find_resp = self.find.show(&self.buffer, ui);
                 if let Some(term) = find_resp.term {
@@ -437,7 +437,7 @@ impl Editor {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if self.touch_mode && height_updated {
+        if self.touch_mode() && height_updated {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
@@ -467,9 +467,9 @@ impl Editor {
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
         ScrollArea::vertical()
-            .drag_to_scroll(self.touch_mode)
+            .drag_to_scroll(self.touch_mode())
             .id_source(self.file_id)
-            .scroll_bar_visibility(if self.touch_mode {
+            .scroll_bar_visibility(if self.touch_mode() {
                 ScrollBarVisibility::AlwaysVisible
             } else {
                 ScrollBarVisibility::VisibleWhenNeeded
@@ -505,7 +505,7 @@ impl Editor {
                             let response = ui.interact(
                                 rect,
                                 self.id(),
-                                Sense { click: true, drag: !self.touch_mode, focusable: true },
+                                Sense { click: true, drag: !self.touch_mode(), focusable: true },
                             );
                             if response.hovered() || response.clicked() {
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
