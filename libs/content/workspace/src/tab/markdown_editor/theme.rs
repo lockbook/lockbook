@@ -45,7 +45,7 @@ impl Theme {
             bright: ColorSet {
                 neutral_primary: hex_color!("#FFFFFF"),
                 neutral_secondary: hex_color!("#FCFCFC"),
-                neutral_tertiary: hex_color!("#BBBBBB"),
+                neutral_tertiary: hex_color!("#EEEEEE"),
 
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
