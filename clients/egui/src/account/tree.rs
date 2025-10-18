@@ -1000,6 +1000,9 @@ impl FileTree {
         let is_renaming = self.rename_target == Some(id);
         let indent = depth as f32 * 15.;
 
+        let btn_margin = egui::vec2(10.0, 0.0);
+        let btn_rounding = 5.0;
+
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
@@ -1028,11 +1031,17 @@ impl FileTree {
                     ui.add(
                         TextEdit::singleline(&mut self.rename_buffer)
                             .frame(false)
-                            .margin(ui.spacing().button_padding)
+                            .margin(ui.spacing().button_padding + btn_margin)
                             .id(Id::new("rename_file")),
                     )
                 })
                 .inner;
+
+            ui.painter().rect_stroke(
+                rename_resp.rect.expand(5.0),
+                btn_rounding,
+                egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill),
+            );
 
             if !rename_resp.has_focus() && !rename_resp.lost_focus() {
                 // request focus on the first frame (todo: wrong but works)
@@ -1066,9 +1075,6 @@ impl FileTree {
 
             return resp; // note: early return
         }
-
-        let btn_margin = egui::vec2(10.0, 0.0);
-        let btn_rounding = 5.0;
 
         // render
         let file_resp = if file.is_document() {
