@@ -229,10 +229,8 @@ class FilesViewModel: ObservableObject {
     }
 }
 
-#if DEBUG
-    extension FilesViewModel {
-        static var preview: FilesViewModel {
-            return FilesViewModel()
-        }
+extension FilesViewModel {
+    static var preview: FilesViewModel {
+        return FilesViewModel()
     }
-#endif
+}

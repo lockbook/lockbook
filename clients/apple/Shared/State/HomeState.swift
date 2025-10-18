@@ -130,10 +130,8 @@ enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-#if DEBUG
 extension HomeState {
     static var preview: HomeState {
         return HomeState(workspaceOutput: .preview, filesModel: .preview)
     }
 }
-#endif

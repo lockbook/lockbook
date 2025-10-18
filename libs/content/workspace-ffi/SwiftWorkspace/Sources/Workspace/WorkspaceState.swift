@@ -33,9 +33,7 @@ public class WorkspaceInputState: ObservableObject {
         self.coreHandle = coreHandle
     }
 
-    #if DEBUG
-        public init() {}
-    #endif
+    public init() {}
 
     public func openFile(id: UUID) {
         guard let wsHandle else {
@@ -146,16 +144,14 @@ func createTempDir() -> URL? {
     return tempTempURL
 }
 
-#if DEBUG
-    extension WorkspaceInputState {
-        public static var preview: WorkspaceInputState {
-            return WorkspaceInputState()
-        }
+extension WorkspaceInputState {
+    public static var preview: WorkspaceInputState {
+        return WorkspaceInputState()
     }
+}
 
-    extension WorkspaceOutputState {
-        public static var preview: WorkspaceOutputState {
-            return WorkspaceOutputState()
-        }
+extension WorkspaceOutputState {
+    public static var preview: WorkspaceOutputState {
+        return WorkspaceOutputState()
     }
-#endif
+}

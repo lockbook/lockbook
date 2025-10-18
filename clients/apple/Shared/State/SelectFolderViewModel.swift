@@ -121,10 +121,8 @@ enum SelectFolderMode {
 }
 
 
-#if DEBUG
 extension SelectFolderViewModel {
     static var preview: SelectFolderViewModel {
         return SelectFolderViewModel(homeState: .preview, filesModel: .preview)
     }
 }
-#endif
