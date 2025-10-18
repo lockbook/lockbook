@@ -89,10 +89,8 @@ class PathSearchViewModel: ObservableObject {
     }
 }
 
-#if DEBUG
 extension PathSearchViewModel {
     static var preview: PathSearchViewModel {
         return PathSearchViewModel(filesModel: .preview, workspaceInput: .preview)
     }
 }
-#endif

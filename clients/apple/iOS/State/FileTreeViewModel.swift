@@ -72,10 +72,8 @@ class FileTreeViewModel: ObservableObject {
     }
 }
 
-#if DEBUG
 extension FileTreeViewModel {
     static var preview: FileTreeViewModel {
         return FileTreeViewModel(filesModel: .preview, workspaceInput: .preview, workspaceOutput: .preview)
     }
 }
-#endif

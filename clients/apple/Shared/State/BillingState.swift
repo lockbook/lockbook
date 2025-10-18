@@ -136,10 +136,8 @@ enum PurchaseState {
     case failure
 }
 
-#if DEBUG
-    extension BillingState {
-        static var preview: BillingState {
-            return BillingState()
-        }
+extension BillingState {
+    static var preview: BillingState {
+        return BillingState()
     }
-#endif
+}
