@@ -222,7 +222,7 @@ impl FullDocSearch {
     fn show_content_match(&self, ui: &mut egui::Ui, content_match: &ContentMatch, font_size: f32) {
         let matched_indices = &content_match.matched_indices;
         let str = content_match.paragraph.clone();
-        let highlight_color = ui.visuals().widgets.active.bg_fill.linear_multiply(0.5);
+        let highlight_color = ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5);
 
         let mut curr = 0;
         let mut next;

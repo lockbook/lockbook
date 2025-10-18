@@ -1000,14 +1000,26 @@ impl FileTree {
         let is_renaming = self.rename_target == Some(id);
         let indent = depth as f32 * 15.;
 
+        let btn_margin = egui::vec2(10.0, 0.0);
+        let btn_rounding = 5.0;
+
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
         if is_selected {
-            default_fill = ui.visuals().widgets.hovered.bg_fill;
+            default_fill = ui.visuals().code_bg_color;
+
+            ui.visuals_mut().widgets.hovered.bg_fill =
+                default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
+        } else {
+            ui.visuals_mut().widgets.hovered.bg_fill = ui
+                .visuals()
+                .code_bg_color
+                .linear_multiply(if ui.visuals().dark_mode { 0.1 } else { 0.9 });
         }
+
         if is_cursored && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
@@ -1024,11 +1036,17 @@ impl FileTree {
                     ui.add(
                         TextEdit::singleline(&mut self.rename_buffer)
                             .frame(false)
-                            .margin(ui.spacing().button_padding)
+                            .margin(ui.spacing().button_padding + btn_margin)
                             .id(Id::new("rename_file")),
                     )
                 })
                 .inner;
+
+            ui.painter().rect_stroke(
+                rename_resp.rect.expand(5.0),
+                btn_rounding,
+                egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill),
+            );
 
             if !rename_resp.has_focus() && !rename_resp.lost_focus() {
                 // request focus on the first frame (todo: wrong but works)
@@ -1070,6 +1088,8 @@ impl FileTree {
                 .icon(&icon)
                 .text(text)
                 .default_fill(default_fill)
+                .rounding(btn_rounding)
+                .margin(btn_margin)
                 .frame(true)
                 .hexpand(true)
                 .indent(indent)
@@ -1092,6 +1112,8 @@ impl FileTree {
                 .icon_color(ui.style().visuals.widgets.active.bg_fill)
                 .text(text)
                 .default_fill(default_fill)
+                .margin(btn_margin)
+                .rounding(btn_rounding)
                 .frame(true)
                 .hexpand(true)
                 .indent(indent)
