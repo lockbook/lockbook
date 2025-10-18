@@ -1013,6 +1013,11 @@ impl FileTree {
 
             ui.visuals_mut().widgets.hovered.bg_fill =
                 default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
+        } else {
+            ui.visuals_mut().widgets.hovered.bg_fill = ui
+                .visuals()
+                .code_bg_color
+                .linear_multiply(if ui.visuals().dark_mode { 0.1 } else { 0.9 });
         }
 
         if is_cursored && focused {
