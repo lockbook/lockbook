@@ -1006,8 +1006,12 @@ impl FileTree {
         let mut text = WidgetText::from(&file.name);
         let mut default_fill = ui.style().visuals.extreme_bg_color;
         if is_selected {
-            default_fill = ui.visuals().widgets.hovered.bg_fill;
+            default_fill = ui.visuals().code_bg_color;
+
+            ui.visuals_mut().widgets.hovered.bg_fill =
+                default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
         }
+
         if is_cursored && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
@@ -1063,6 +1067,9 @@ impl FileTree {
             return resp; // note: early return
         }
 
+        let btn_margin = egui::vec2(10.0, 0.0);
+        let btn_rounding = 5.0;
+
         // render
         let file_resp = if file.is_document() {
             let icon = DocType::from_name(&file.name).to_icon();
@@ -1070,6 +1077,8 @@ impl FileTree {
                 .icon(&icon)
                 .text(text)
                 .default_fill(default_fill)
+                .rounding(btn_rounding)
+                .margin(btn_margin)
                 .frame(true)
                 .hexpand(true)
                 .indent(indent)
@@ -1092,6 +1101,8 @@ impl FileTree {
                 .icon_color(ui.style().visuals.widgets.active.bg_fill)
                 .text(text)
                 .default_fill(default_fill)
+                .margin(btn_margin)
+                .rounding(btn_rounding)
                 .frame(true)
                 .hexpand(true)
                 .indent(indent)
