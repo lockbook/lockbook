@@ -145,7 +145,7 @@ impl SearchModal {
                             .widgets
                             .active
                             .bg_fill
-                            .linear_multiply(0.1),
+                            .gamma_multiply(0.1),
                     )
                 } else {
                     None
