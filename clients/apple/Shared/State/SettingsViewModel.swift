@@ -81,10 +81,8 @@ class SettingsViewModel: ObservableObject {
     }
 }
 
-#if DEBUG
 extension SettingsViewModel {
     static var preview: SettingsViewModel {
         return SettingsViewModel()
     }
 }
-#endif
