@@ -2765,7 +2765,7 @@ dependencies = [
 [[package]]
 name = "egui_player"
 version = "0.1.2"
-source = "git+https://github.com/AravDesai/egui-player.git?branch=2021-rust-edition#e5486af7466d987f269865e9f0526a76f1426c66"
+source = "git+https://github.com/AravDesai/egui-player.git?branch=lockbook-development#fa5e984bf48c990d9d521c72d0c220b76f04b386"
 dependencies = [
  "eframe",
  "futures-util",
@@ -10010,26 +10010,6 @@ dependencies = [
  "pin-project",
  "thiserror 1.0.64",
  "typed-builder",
-]
-
-[[package]]
-name = "vte"
-version = "0.11.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5022b5fbf9407086c180e9557be968742d839e68346af7792b8592489732197"
-dependencies = [
- "utf8parse",
- "vte_generate_state_changes",
-]
-
-[[package]]
-name = "vte_generate_state_changes"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e369bee1b05d510a7b4ed645f5faa90619e05437111783ea5848f28d97d3c2e"
-dependencies = [
- "proc-macro2",
- "quote",
 ]
 
 [[package]]
