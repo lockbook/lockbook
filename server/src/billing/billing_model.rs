@@ -47,6 +47,16 @@ impl SubscriptionProfile {
         }
     }
 
+    // the rate was $0.12 / gb when this was written
+    pub fn bandwidth_cap(&self) -> usize {
+        let cap = match self.is_premium() {
+            true => self.data_cap(),      // $0.012
+            false => self.data_cap() * 4, // $3.60
+        };
+
+        cap as usize
+    }
+
     pub fn is_premium(&self) -> bool {
         self.data_cap() == PREMIUM_TIER_USAGE_SIZE
     }

@@ -11,7 +11,6 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterEx
 use markdown_editor::Editor;
 use markdown_editor::input::{Event, Region};
 
-use super::canonical::translate_egui_keyboard_event;
 use super::{Bound, Location, mutation};
 
 impl<'ast> Editor {
@@ -64,7 +63,7 @@ impl<'ast> Editor {
                         }
                     }
                 }
-                crate::Event::PredictedTouch { .. } => {}
+                _ => {}
             }
         }
         result
@@ -81,7 +80,7 @@ impl<'ast> Editor {
                 })
             })
             .into_iter()
-            .filter_map(translate_egui_keyboard_event)
+            .filter_map(|e| self.translate_egui_keyboard_event(e))
             .collect::<Vec<_>>()
         } else {
             Vec::new()

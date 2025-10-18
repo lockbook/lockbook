@@ -4,7 +4,8 @@ import SwiftWorkspace
 struct StatusBarView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     var body: some View {
         HStack {
@@ -19,25 +20,25 @@ struct StatusBarView: View {
     }
     
     var fileActionButtons: some View {
-        HStack {
+        HStack(spacing: 0) {
             if let root = filesModel.root {
                 Button(action: {
-                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: false)
                 }) {
                     Image(systemName: "doc.badge.plus")
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
-                .padding(.trailing, 5)
+                .modifier(GlassButtonViewModifier())
                 
                 Button(action: {
-                    filesModel.createDoc(parent: selectedFolderOrRoot(root).id, isDrawing: false)
+                    workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: true)
                 }) {
                     Image(systemName: "pencil.tip.crop.circle.badge.plus")
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
-                .padding(.trailing, 2)
+                .modifier(GlassButtonViewModifier())
                 
                 Button(action: {
                     homeState.sheetInfo = .createFolder(parent: selectedFolderOrRoot(root))
@@ -46,6 +47,7 @@ struct StatusBarView: View {
                         .font(.title2)
                         .foregroundColor(.accentColor)
                 }
+                .modifier(GlassButtonViewModifier())
             } else {
                 ProgressView()
             }
@@ -54,7 +56,7 @@ struct StatusBarView: View {
     }
 
     func selectedFolderOrRoot(_ root: File) -> File {
-        guard let selectedFolder = AppState.workspaceState.selectedFolder else {
+        guard let selectedFolder = workspaceOutput.selectedFolder else {
             return root
         }
         
@@ -62,13 +64,18 @@ struct StatusBarView: View {
     }
 }
 
+struct GlassButtonViewModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.buttonStyle(.accessoryBar)
+        } else {
+            content
+        }
+    }
+}
+
 #Preview {
-    let workspaceState = WorkspaceState()
-    workspaceState.statusMsg = "Just synced!"
-    
-    return StatusBarView()
-        .environmentObject(workspaceState)
-        .environmentObject(FilesViewModel())
-        .environmentObject(HomeState())
+    StatusBarView()
+        .withCommonPreviewEnvironment()
         .padding(.top, 8)
 }

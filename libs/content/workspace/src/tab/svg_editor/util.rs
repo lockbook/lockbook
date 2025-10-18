@@ -1,5 +1,8 @@
 use std::collections::HashSet;
 
+use crate::Event;
+use crate::tab::ExtendedInput;
+
 use super::element::BoundedElement;
 use super::{CanvasSettings, ViewportSettings};
 
@@ -112,8 +115,49 @@ pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
     custom_multi_touch
 }
 
+pub fn is_scroll(ui: &mut egui::Ui) -> bool {
+    let mut is_scroll = false;
+
+    ui.input(|r| {
+        for e in r.events.iter() {
+            if let egui::Event::MouseWheel { unit: _, delta: _, modifiers: _ } = *e {
+                is_scroll = true;
+            }
+        }
+    });
+    is_scroll
+}
+
+pub fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
+    for event in ui.ctx().read_events() {
+        if let Event::KineticPan { x, y } = event {
+            return Some(egui::vec2(x, y));
+        }
+    }
+
+    ui.input(|r| {
+        if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {
+            Some(r.smooth_scroll_delta)
+        } else if let Some(touch_gesture) = r.multi_touch() {
+            if touch_gesture.translation_delta.x.abs() > 0.0
+                || touch_gesture.translation_delta.y.abs() > 0.0
+            {
+                Some(touch_gesture.translation_delta)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    })
+}
+
 pub fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
+}
+
+pub fn pos_to_dvec(pos: egui::Pos2) -> DVec2 {
+    DVec2 { x: pos.x.into(), y: pos.y.into() }
 }
 
 pub fn bb_to_rect(bb: [DVec2; 2]) -> egui::Rect {

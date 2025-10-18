@@ -5,6 +5,7 @@ use resvg::usvg::Transform;
 use tracing::trace;
 
 use crate::tab::svg_editor::toolbar::MINI_MAP_WIDTH;
+use crate::tab::svg_editor::util::get_pan;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
@@ -139,7 +140,7 @@ impl GestureHandler {
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = self.get_pan(ui, gesture_ctx);
+        let pan: Option<egui::Vec2> = get_pan(ui);
 
         let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
@@ -149,13 +150,10 @@ impl GestureHandler {
             sum_pos.y += pos.y;
         }
 
-        let pos = if pos_cardinality != 0 {
-            sum_pos / pos_cardinality as f32
+        let maybe_pos = if pos_cardinality != 0 {
+            Some(sum_pos / pos_cardinality as f32)
         } else {
-            match ui.ctx().pointer_hover_pos() {
-                Some(cp) => cp,
-                None => egui::Pos2::ZERO,
-            }
+            ui.ctx().pointer_hover_pos()
         };
 
         let container_rect_with_mini_map = if gesture_ctx.settings.show_mini_map {
@@ -170,7 +168,7 @@ impl GestureHandler {
             gesture_ctx.viewport_settings.container_rect
         };
 
-        if !container_rect_with_mini_map.contains(pos) {
+        if maybe_pos.is_some() && !container_rect_with_mini_map.contains(maybe_pos.unwrap()) {
             return;
         }
 
@@ -186,7 +184,9 @@ impl GestureHandler {
             t = t.post_scale(zoom_delta, zoom_delta);
 
             // correct the zoom to center
-            t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+            if let Some(pos) = maybe_pos {
+                t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+            }
         }
 
         if pan.is_some() || is_zooming {
@@ -222,32 +222,6 @@ impl GestureHandler {
             Shortcut::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
         };
         trace!(num_touches, "applied gesture");
-    }
-
-    fn get_pan(&self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) -> Option<egui::Vec2> {
-        if let Some(current_gesture) = &self.current_gesture {
-            let mut active_touches = current_gesture.touch_infos.values().filter(|v| v.is_active);
-
-            if active_touches.clone().count() == 1 && gesture_ctx.settings.pencil_only_drawing {
-                let touch = active_touches.next().unwrap();
-                return Some(touch.frame_delta);
-            }
-        }
-        ui.input(|r| {
-            if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
-                Some(r.raw_scroll_delta)
-            } else if let Some(touch_gesture) = r.multi_touch() {
-                if touch_gesture.translation_delta.x.abs() > 0.0
-                    || touch_gesture.translation_delta.y.abs() > 0.0
-                {
-                    Some(touch_gesture.translation_delta)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
     }
 
     // todo: tech debt lol, should refactor the eraser instead of doing this

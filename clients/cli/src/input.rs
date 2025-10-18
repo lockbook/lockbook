@@ -28,7 +28,7 @@ impl FileInput {
     pub async fn find(&self, lb: &Lb) -> CliResult<File> {
         let f = match self {
             FileInput::Id(id) => lb.get_file_by_id(*id).await?,
-            FileInput::Path(path) => lb.get_by_path(path).await?,
+            FileInput::Path(path) => lb.get_by_path(path.trim()).await?,
         };
 
         Ok(f)

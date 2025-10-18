@@ -1,10 +1,11 @@
-use crate::billing::billing_model::SubscriptionProfile;
-use db_rs::{LookupSet, LookupTable};
+use db_rs::{LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::server_meta::ServerMeta;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::{billing::billing_model::SubscriptionProfile, defense::BandwidthReport};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OneKey;
@@ -30,4 +31,6 @@ pub struct ServerV5 {
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
     pub file_children: LookupSet<Uuid, Uuid>,
+    pub server_egress: Single<BandwidthReport>,
+    pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
 }

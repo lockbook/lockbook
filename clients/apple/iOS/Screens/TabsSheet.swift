@@ -3,7 +3,8 @@ import SwiftWorkspace
 
 struct TabsSheet: View {
     @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var workspaceState: WorkspaceState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
     
     @Environment(\.dismiss) private var dismiss
     
@@ -28,7 +29,7 @@ struct TabsSheet: View {
             
             ForEach(info, id: \.id) { info in
                 Button(action: {
-                    AppState.workspaceState.requestOpenDoc(info.id)
+                    workspaceInput.openFile(id: info.id)
                     dismiss()
                 }, label: {
                     HStack {
@@ -55,7 +56,7 @@ struct TabsSheet: View {
                         
                         Spacer()
                         
-                        if info.id == workspaceState.openDoc {
+                        if info.id == workspaceOutput.openDoc {
                             Image(systemName: "checkmark.circle")
                                 .foregroundColor(.primary)
                                 .font(.headline)
@@ -66,10 +67,11 @@ struct TabsSheet: View {
                 })
             }
         }
+        .padding(.top)
     }
     
     func closeTab(id: UUID) {
-        AppState.workspaceState.requestCloseDoc(id: id)
+        workspaceInput.closeDoc(id: id)
         let i = self.info.firstIndex(where: {  $0.id == id })
         
         if let i {
@@ -82,7 +84,7 @@ struct TabsSheet: View {
     }
     
     func closeAllTabs() {
-        AppState.workspaceState.requestCloseAllTabs()
+        workspaceInput.closeAllTabs()
         dismiss()
     }
 }
@@ -102,7 +104,6 @@ struct TabsSheet: View {
                 )
             }
         )
-        .environmentObject(HomeState())
-        .environmentObject(WorkspaceState())
+        .withCommonPreviewEnvironment()
 }
 #endif

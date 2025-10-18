@@ -15,6 +15,7 @@ use crate::tab::svg_editor::pen::{
     DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PenSettings,
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
+use crate::tab::svg_editor::shapes::ShapeType;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
 use crate::theme::icons::Icon;
@@ -78,11 +79,19 @@ impl Toolbar {
                         set_tool!(self, Tool::Eraser);
                     }
 
+                    let shapes_btn = Button::default()
+                        .icon(&Icon::SHAPES.size(tool_icon_size))
+                        .show(ui);
+                    if shapes_btn.clicked() || shapes_btn.drag_started() {
+                        set_tool!(self, Tool::Shapes);
+                    }
+
                     let active_rect = match self.active_tool {
                         Tool::Pen => pen_btn.rect,
                         Tool::Eraser => eraser_btn.rect,
                         Tool::Selection => selection_btn.rect,
                         Tool::Highlighter => highlighter_btn.rect,
+                        Tool::Shapes => shapes_btn.rect,
                     };
 
                     let min_x = animate_eased(
@@ -233,6 +242,7 @@ impl Toolbar {
                         show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                     }
                     Tool::Selection => {}
+                    Tool::Shapes => self.show_shapes_popover(ui),
                 })
             })
         });
@@ -266,7 +276,6 @@ impl Toolbar {
             min: egui::pos2(tool_popover_x_start, tool_popover_y_start),
             max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
-
         if self.show_tool_popover {
             let tool_popover = ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| {
@@ -277,6 +286,7 @@ impl Toolbar {
                             show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                         }
                         Tool::Selection => {}
+                        Tool::Shapes => self.show_shapes_popover(ui),
                     };
                 })
             });
@@ -325,7 +335,78 @@ impl Toolbar {
         );
         ui.add_space(10.0);
     }
+
+    fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {
+        let width = 220.0;
+        ui.style_mut().spacing.slider_width = width;
+        ui.set_width(width);
+
+        ui.add_space(10.0);
+
+        let shapes = [ShapeType::Rectangle, ShapeType::Circle, ShapeType::Line];
+
+        ui.horizontal(|ui| {
+            ui.add_space(57.0);
+
+            for shape in shapes.iter() {
+                let btn = Button::default()
+                    .frame(self.shapes_tool.active_shape == *shape)
+                    .rounding(5.0)
+                    .icon(&shape.icon())
+                    .show(ui);
+                if btn.clicked() || btn.drag_started() {
+                    self.shapes_tool.active_shape = *shape;
+                };
+            }
+        });
+
+        ui.add_space(10.0);
+        ui.separator();
+        ui.add_space(20.0);
+
+        ui.horizontal_wrapped(|ui| {
+            let colors = get_pen_colors();
+
+            colors.iter().for_each(|&c| {
+                let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
+                let active_color = ThemePalette::resolve_dynamic_color(
+                    self.shapes_tool.active_stroke.color,
+                    ui.visuals().dark_mode,
+                );
+                let color_btn = show_color_btn(ui, color, active_color, None);
+                if color_btn.clicked() || color_btn.drag_started() {
+                    self.shapes_tool.active_stroke.color = c;
+                }
+            });
+        });
+
+        ui.add_space(10.0);
+
+        show_opacity_slider(
+            ui,
+            &mut self.shapes_tool.active_stroke.opacity,
+            &self.shapes_tool.active_stroke.color,
+        );
+        ui.add_space(10.0);
+
+        ui.horizontal(|ui| {
+            ui.label(RichText::new("Thickness").size(13.0));
+            ui.add_space(10.0);
+            ui.spacing_mut().slider_width = ui.available_width();
+            ui.spacing_mut().slider_rail_height = self.shapes_tool.active_stroke.width;
+
+            ui.add(
+                egui::Slider::new(
+                    &mut self.shapes_tool.active_stroke.width,
+                    DEFAULT_PEN_STROKE_WIDTH..=10.0,
+                )
+                .show_value(false),
+            );
+        });
+        ui.add_space(10.0);
+    }
 }
+
 fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let width = 220.0;
     ui.style_mut().spacing.slider_width = width;
@@ -362,18 +443,18 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
 
     ui.add_space(10.0);
 
-    show_opacity_slider(ui, pen);
+    show_opacity_slider(ui, &mut pen.active_opacity, &pen.active_color);
 
     ui.add_space(10.0);
 }
 
-fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
+fn show_opacity_slider(ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor) {
     ui.horizontal(|ui| {
         ui.label(RichText::new("Opacity").size(13.0));
         ui.add_space(20.0);
         let slider_color =
-            ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode)
-                .linear_multiply(pen.active_opacity);
+            ThemePalette::resolve_dynamic_color(*active_color, ui.visuals().dark_mode)
+                .linear_multiply(*active_opacity);
         ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
         ui.visuals_mut().widgets.inactive.fg_stroke =
             egui::Stroke { width: 1.0, color: slider_color };
@@ -385,7 +466,7 @@ fn show_opacity_slider(ui: &mut egui::Ui, pen: &mut Pen) {
             egui::Stroke { width: 2.5, color: slider_color };
         ui.spacing_mut().slider_width = ui.available_width();
         ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(&mut pen.active_opacity, 0.01..=1.0).show_value(false));
+        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false));
     });
 }
 

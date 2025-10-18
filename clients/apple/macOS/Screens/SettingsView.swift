@@ -262,5 +262,5 @@ struct SettingsDebugView: View {
 
 #Preview {
     SettingsView()
-        .environmentObject(BillingState())
+        .withCommonPreviewEnvironment()
 }

@@ -76,12 +76,22 @@ impl AdminConfig {
 #[derive(Clone, Debug)]
 pub struct FeatureFlags {
     pub new_accounts: bool,
+    pub new_account_rate_limit: bool,
+    pub bandwidth_controls: bool,
 }
 
 impl FeatureFlags {
     pub fn from_env_vars() -> Self {
         Self {
             new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
+            new_account_rate_limit: env::var("FEATURE_NEW_ACCOUNT_LIMITS")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap(),
+            bandwidth_controls: env::var("FEATURE_BANDWIDTH_CONTROLS")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap(),

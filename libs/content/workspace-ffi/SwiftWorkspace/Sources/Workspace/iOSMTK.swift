@@ -13,12 +13,12 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var textUndoManager = iOSUndoManager()
     let textInteraction = UITextInteraction(for: .editable)
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     public override var undoManager: UndoManager? {
         return textUndoManager
@@ -35,8 +35,9 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
         
     var isLongPressCursorDrag = false
     
-    init(mtkView: iOSMTK) {
+    init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -700,14 +701,15 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
     
     let mtkView: iOSMTK
+    let currentHeaderSize: Double
 
     var wsHandle: UnsafeMutableRawPointer? { get { mtkView.wsHandle } }
-    var workspaceState: WorkspaceState? { get { mtkView.workspaceState } }
     
     var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
-
-    init(mtkView: iOSMTK) {
+    
+    init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
+        self.currentHeaderSize = headerSize
 
         super.init(frame: .infinite)
 
@@ -717,12 +719,19 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         pencilInteraction.delegate = self
         addInteraction(pencilInteraction)
         
-        
         // ipad trackpad support
-        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches = 0
-        self.addGestureRecognizer(pan)
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
+        pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
+
+        if (prefersPencilOnlyDrawing){
+            self.addGestureRecognizer(pan)
+        }
+    
+        // minimal zoom support, just cancel pans for now but don't send zoom events
+        let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
+        pinch.cancelsTouchesInView = false
+        self.addGestureRecognizer(pinch)
         
         // edit menu support
         self.addInteraction(editMenuInteraction)
@@ -730,16 +739,31 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         let pointerInteraction = UIPointerInteraction(delegate: mtkView)
         self.addInteraction(pointerInteraction)
         
-        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(self.handleLongPress(_:)))
-        longPress.cancelsTouchesInView = false
-        self.addGestureRecognizer(longPress)
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+        tap.cancelsTouchesInView = false
+        // can only paste with your finger
+        tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
+        pan.allowedScrollTypesMask = .all
+        tap.numberOfTapsRequired = 1
+        self.addGestureRecognizer(tap)
         
         self.isMultipleTouchEnabled = true
         set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
     }
     
-    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
+    @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        guard gesture.state == .ended else { return }
+        
+        if self.mtkView.kineticTimer != nil{
+            self.mtkView.kineticTimer?.invalidate()
+            self.mtkView.kineticTimer = nil
+            return
+        }
+        
+        // Check if we have any valid actions before presenting
+        let location = gesture.location(in: self)
+        if canvas_detect_islands_interaction(self.wsHandle, Float(location.x), Float(location.y+iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT)) || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages) { return }
+        
         let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: gesture.location(in: self))
         editMenuInteraction.presentEditMenu(with: config)
     }
@@ -752,8 +776,19 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         return false
     }
     
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
-        mtkView.handleTrackpadScroll(sender)
+    @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
+        mtkView.handlePan(sender)
+    }
+    @objc func handlePinch(_ sender: UIPinchGestureRecognizer? = nil) {
+        guard let event = sender, event.state != .cancelled, event.state != .failed else {
+            return
+        }
+        
+        if self.mtkView.kineticTimer != nil{
+            self.mtkView.kineticTimer?.invalidate()
+            self.mtkView.kineticTimer = nil
+            return
+        }
     }
     
     @available(iOS 17.5, *)
@@ -823,8 +858,10 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     public static let TITLE_BAR_HEIGHT: CGFloat = 33
     public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
+    var workspaceOutput: WorkspaceOutputState?
+    var workspaceInput: WorkspaceInputState?
     public var wsHandle: UnsafeMutableRawPointer?
-    var workspaceState: WorkspaceState?
+    
     var currentOpenDoc: UUID? = nil
     var currentSelectedFolder: UUID? = nil
 
@@ -848,7 +885,9 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     var ignoreTextUpdate = false
     
     var cursorTracked = false
+    var scrollSensitivity = 50.0
     var scrollId = 0
+    var kineticTimer: Timer?
         
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
@@ -874,22 +913,82 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
     }
     
     @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+            guard let event = sender, event.state != .cancelled, event.state != .failed else {
+                return
+            }
+
+            var velocity = event.velocity(in: self)
+            
+            velocity.x /= 50
+            velocity.y /= 50
+                            
+            if event.state == .ended {
+                let currentScrollId = Int(Date().timeIntervalSince1970)
+                scrollId = currentScrollId
+                
+                Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
+                    if currentScrollId != scrollId {
+                        timer.invalidate()
+                        return
+                    }
+                    
+                    velocity.x *= Self.POINTER_DECELERATION_RATE
+                    velocity.y *= Self.POINTER_DECELERATION_RATE
+                    
+                    if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                        timer.invalidate()
+                        return
+                    }
+                    
+                    if !cursorTracked {
+                        mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                    }
+                    scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+                    if !cursorTracked {
+                        mouse_gone(wsHandle)
+                    }
+                    
+                    self.setNeedsDisplay()
+                }
+            } else {
+                if !cursorTracked {
+                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                }
+                scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+                if !cursorTracked {
+                    mouse_gone(wsHandle)
+                }
+            }
+            
+            self.setNeedsDisplay()
+    }
+
+    
+    // used in canvas
+    @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
         }
 
+        if event.state == .began {
+            kineticTimer?.invalidate()
+            kineticTimer = nil
+        }
+        
         var velocity = event.velocity(in: self)
         
-        velocity.x /= 50
-        velocity.y /= 50
-                        
+        velocity.x /= scrollSensitivity
+        velocity.y /= scrollSensitivity
+
         if event.state == .ended {
             let currentScrollId = Int(Date().timeIntervalSince1970)
             scrollId = currentScrollId
-            
-            Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [self] timer in
-                if currentScrollId != scrollId {
+            touches_ended(wsHandle, UInt64.random(in: UInt64.min...UInt64.max), 0.0, 0.0, 0.0)
+
+            kineticTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { [weak self] timer in
+                guard let self = self else {
                     timer.invalidate()
+                    self?.kineticTimer = nil
                     return
                 }
                 
@@ -898,32 +997,28 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 
                 if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
                     timer.invalidate()
+                    self.kineticTimer = nil
                     return
                 }
-                
-                if !cursorTracked {
-                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-                }
-                scroll_wheel(self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
-                if !cursorTracked {
-                    mouse_gone(wsHandle)
-                }
+
+                pan(self.wsHandle, Float(velocity.x), Float(velocity.y))
+                mouse_gone(self.wsHandle)
                 
                 self.setNeedsDisplay()
             }
         } else {
-            if !cursorTracked {
-                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-            }
-            scroll_wheel(wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
-            if !cursorTracked {
-                mouse_gone(wsHandle)
-            }
+            let translation = event.translation(in: self)
+            
+            pan(self.wsHandle, Float(translation.x), Float(translation.y))
+            mouse_moved(wsHandle, Float(event.location(in: self).x), Float(event.location(in: self).y))
+
+            event.setTranslation(.zero, in: self)
+
         }
         
         self.setNeedsDisplay()
     }
-
+    
     public func pointerInteraction(_ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest, defaultRegion: UIPointerRegion) -> UIPointerRegion? {
         let offsetY: CGFloat = if interaction.view is iOSMTKTextInputWrapper || interaction.view is iOSMTKDrawingWrapper {
             docHeaderSize
@@ -943,49 +1038,11 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         cursorTracked = false
         mouse_gone(wsHandle)
     }
-    
-    func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func createDocAt(parent: UUID, drawing: Bool) {
-        let parent = CUuid(_0: parent.uuid)
-        create_doc_at(wsHandle, parent, drawing)
-        setNeedsDisplay(self.frame)
-    }
-
-    func closeDoc(id: UUID) {
-        close_tab(wsHandle, id.uuidString)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func closeAllTabs() {
-        close_all_tabs(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-    
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    func fileOpCompleted(fileOp: WSFileOpCompleted) {
-        switch fileOp {
-        case .Delete(let id):
-            close_tab(wsHandle, id.uuidString)
-            setNeedsDisplay(self.frame)
-        case .Rename(let id, let newName):
-            tab_renamed(wsHandle, id.uuidString, newName)
-            setNeedsDisplay(self.frame)
-        }
-    }
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
-        workspaceState?.wsHandle = wsHandle
+        workspaceInput?.wsHandle = wsHandle
     }
     
     public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -1020,24 +1077,12 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         set_scale(wsHandle, Float(self.contentScaleFactor))
         
         let output = ios_frame(wsHandle)
-        
-        if output.status_updated {
-            let status = get_status(wsHandle)
-            let msg = String(cString: status.msg)
-            free_text(status.msg)
-            let syncing = status.syncing
-            workspaceState?.syncing = syncing
-            workspaceState?.statusMsg = msg
-        }
-        
+                
         if output.tabs_changed {
-            workspaceState?.tabCount = Int(tab_count(wsHandle))
+            self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
         }
         
-        workspaceState?.reloadFiles = output.refresh_files
-
         let selectedFile = UUID(uuid: output.selected_file._0)
-
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
                 onSelectionChanged?()
@@ -1046,24 +1091,22 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
             currentOpenDoc = selectedFile
 
-            if selectedFile != self.workspaceState?.openDoc {
-                self.workspaceState?.openDoc = selectedFile
+            if selectedFile != self.workspaceOutput?.openDoc {
+                self.workspaceOutput?.openDoc = selectedFile
             }
         }
 
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
 
-        if currentTab != self.workspaceState!.currentTab {
+        if currentTab != self.workspaceOutput!.currentTab {
             DispatchQueue.main.async {
-                withAnimation {
-                    self.workspaceState!.currentTab = currentTab
-                }
+                self.workspaceOutput!.currentTab = currentTab
             }
         }
 
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
-            self.workspaceState?.openDoc = nil
+            self.workspaceOutput?.openDoc = nil
         }
         
         if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
@@ -1089,28 +1132,30 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         }
 
         if output.tab_title_clicked {
-            workspaceState!.renameOpenDoc = true
+            self.workspaceOutput?.renameOpenDoc = ()
 
             if !isCompact() {
                 unfocus_title(wsHandle)
             }
         }
 
+//      FIXME:  Can we just do this in rust?
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            openFile(id: newFile)
+            workspaceInput?.openFile(id: newFile)
         }
 
         if output.new_folder_btn_pressed {
-            workspaceState?.newFolderButtonPressed = true
+            self.workspaceOutput?.newFolderButtonPressed = ()
         }
+        
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)
-
+            
             if let url = URL(string: url),
                 UIApplication.shared.canOpenURL(url) {
-                self.workspaceState?.urlOpened = url
+                self.workspaceOutput?.urlOpened = url
             }
         }
 
@@ -1227,7 +1272,7 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
         for press in presses {
             guard let key = press.key else { continue }
 
-            if workspaceState!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
+            if workspaceOutput!.currentTab.isTextEdit() && key.keyCode == .keyboardDeleteOrBackspace {
                 return
             }
 
@@ -1263,7 +1308,6 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             }
         case .text(let text):
             clipboard_paste(wsHandle, text)
-            workspaceState?.pasted = true
         }
     }
     

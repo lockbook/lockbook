@@ -28,14 +28,11 @@ impl Lb {
 
         let doc = self.read_document_helper(id, &mut tree).await?;
 
-        let bg_lb = self.clone();
+        drop(tx);
+
         if user_activity {
-            tokio::spawn(async move {
-                bg_lb
-                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                    .await
-                    .unwrap();
-            });
+            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await?;
         }
 
         Ok(doc)
@@ -45,6 +42,21 @@ impl Lb {
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
+
+        let local_hmac = db
+            .local_metadata
+            .get()
+            .get(&id)
+            .and_then(|m| m.document_hmac())
+            .copied();
+        let base_hmac = db
+            .base_metadata
+            .get()
+            .get(&id)
+            .and_then(|m| m.document_hmac())
+            .copied();
+
+        let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
 
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
@@ -59,15 +71,13 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
+        if hmac != hmac_to_cleanup {
+            self.docs.delete(id, hmac_to_cleanup).await?;
+        }
+
         self.events.doc_written(id, None);
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await?;
 
         Ok(())
     }
@@ -83,15 +93,11 @@ impl Lb {
 
         let doc = self.read_document_helper(id, &mut tree).await?;
         let hmac = tree.find(&id)?.document_hmac().copied();
+        drop(tx);
 
         if user_activity {
-            let bg_lb = self.clone();
-            tokio::spawn(async move {
-                bg_lb
-                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                    .await
-                    .unwrap();
-            });
+            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await?;
         }
 
         Ok((hmac, doc))
@@ -103,6 +109,21 @@ impl Lb {
     ) -> LbResult<DocumentHmac> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
+
+        let local_hmac = db
+            .local_metadata
+            .get()
+            .get(&id)
+            .and_then(|m| m.document_hmac())
+            .copied();
+        let base_hmac = db
+            .base_metadata
+            .get()
+            .get(&id)
+            .and_then(|m| m.document_hmac())
+            .copied();
+
+        let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
 
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
@@ -127,19 +148,16 @@ impl Lb {
             .await?;
         tx.end();
 
+        if Some(hmac) != hmac_to_cleanup {
+            self.docs.delete(id, hmac_to_cleanup).await?;
+        }
+
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
         // or it will happen when there are multiple co-operative core processes.
         self.events.doc_written(id, Some(Actor::Workspace));
-
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await?;
 
         Ok(hmac)
     }
@@ -164,9 +182,9 @@ impl Lb {
             .filter_map(|f| f.document_hmac().map(|hmac| (*f.id(), *hmac)))
             .collect::<HashSet<_>>();
 
-        drop(tx);
-
         self.docs.retain(file_hmacs).await?;
+
+        drop(tx);
 
         Ok(())
     }

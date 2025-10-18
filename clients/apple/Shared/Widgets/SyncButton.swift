@@ -1,8 +1,11 @@
 import SwiftUI
 import AlertToast
+import SwiftWorkspace
 
 struct SyncButton: View {
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var workspaceInput: WorkspaceInputState
+    
     @State var syncButtonStatus: SyncButtonStatus = .canSync
     @State var statusMessage: String? = nil
     @State private var showClickToast = false
@@ -17,7 +20,8 @@ struct SyncButton: View {
                 homeState.showOutOfSpaceAlert = true
             }
             
-            AppState.workspaceState.requestSync()
+            
+            workspaceInput.requestSync()
         }, label: {
             if syncButtonStatus == .syncing {
                 Label(title: { Text("Sync") }, icon: {

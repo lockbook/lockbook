@@ -3,8 +3,9 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::tab::svg_editor::InputContext;
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
+use crate::tab::svg_editor::shapes::ShapesTool;
+use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
@@ -30,6 +31,7 @@ pub struct Toolbar {
     pub highlighter: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
+    pub shapes_tool: ShapesTool,
     pub previous_tool: Option<Tool>,
     pub gesture_handler: GestureHandler,
 
@@ -51,6 +53,7 @@ struct ToolbarLayout {
     zoom_pct_btn: Option<egui::Rect>,
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
+    mini_map: Option<egui::Rect>,
 }
 #[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
 pub enum Tool {
@@ -59,6 +62,7 @@ pub enum Tool {
     Eraser,
     Selection,
     Highlighter,
+    Shapes,
 }
 
 pub struct ToolContext<'a> {
@@ -241,11 +245,13 @@ impl Toolbar {
             layout: Default::default(),
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
+            shapes_tool: Default::default(),
         }
     }
 
     pub fn show(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, skip_frame: &mut bool,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
+        has_islands_interaction: &mut bool,
     ) -> bool {
         let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
 
@@ -272,12 +278,12 @@ impl Toolbar {
                 || overlay_toggle_res.clicked()
                 || overlay_toggle_res.contains_pointer()
             {
-                *skip_frame = true;
+                *has_islands_interaction = true;
             }
             return res;
         }
 
-        let mini_map_res = self.show_mini_map(ui, tlbr_ctx);
+        let (mini_map_dirty, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
@@ -285,27 +291,43 @@ impl Toolbar {
         let tools_island = self.show_tools_island(ui);
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
 
-        let mut overlay_res = history_island;
+        if is_pointer_over_res(ui, &history_island) {
+            *has_islands_interaction = true;
+        }
+
         if let Some(res) = tool_popover_at_cursor {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                *has_islands_interaction = true;
+            }
         }
         if let Some(res) = mini_map_res {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                *has_islands_interaction = true;
+            }
+        }
+
+        if mini_map_dirty {
+            res = true;
+            *has_islands_interaction = true;
         }
 
         if let Some(res) = tool_controls_res {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                *has_islands_interaction = true;
+            }
         }
         if let Some(res) = viewport_controls {
-            overlay_res = overlay_res.union(res);
+            if is_pointer_over_res(ui, &res) {
+                *has_islands_interaction = true;
+            }
         }
 
-        overlay_res = overlay_res
-            .union(tools_island.inner.response)
-            .union(overlay_toggle_res);
+        if is_pointer_over_res(ui, &tools_island.inner.response) {
+            *has_islands_interaction = true;
+        }
 
-        if overlay_res.hovered() || overlay_res.clicked() || overlay_res.contains_pointer() {
-            *skip_frame = true;
+        if is_pointer_over_res(ui, &overlay_toggle_res) {
+            *has_islands_interaction = true;
         }
         res
     }
@@ -397,4 +419,44 @@ impl Toolbar {
         self.layout.overlay_toggle = Some(overlay_toggle.response.rect);
         overlay_toggle.response
     }
+}
+
+impl SVGEditor {
+    pub fn detect_islands_interaction(&self, pointer: egui::Pos2) -> bool {
+        let islands = [
+            self.toolbar.layout.history_island,
+            self.toolbar.layout.overlay_toggle,
+            self.toolbar.layout.tool_popover,
+            self.toolbar.layout.tools_island,
+            self.toolbar.layout.zoom_pct_btn,
+            self.toolbar.layout.zoom_stops_popover,
+            self.toolbar.layout.viewport_island,
+            self.toolbar.layout.viewport_popover,
+            self.toolbar.layout.mini_map,
+        ];
+        for island in islands.iter() {
+            if island.unwrap_or(egui::Rect::ZERO).contains(pointer) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
+
+fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool {
+    ui.input(|r| {
+        for ev in r.events.iter() {
+            let temp = match ev {
+                egui::Event::PointerMoved(pos2) => overlay_res.rect.contains(*pos2),
+                egui::Event::PointerButton { pos, .. } => overlay_res.rect.contains(*pos),
+                egui::Event::Touch { pos, .. } => overlay_res.rect.contains(*pos),
+                _ => false,
+            };
+            if temp {
+                return true;
+            }
+        }
+        false
+    })
 }

@@ -1,11 +1,9 @@
-use cli_rs::cli_error::CliResult;
+use cli_rs::cli_error::{CliResult, Exit};
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use lb_fs::fs_impl::Drive;
-use lb_fs::logger;
 
 fn main() {
-    logger::init();
     Command::name("lb-fs")
         .version(env!("CARGO_PKG_VERSION"))
         .subcommand(
@@ -18,7 +16,8 @@ fn main() {
                 .description("start an NFS server and mount it to /tmp/lockbook")
                 .handler(mount),
         )
-        .parse();
+        .parse()
+        .exit()
 }
 
 #[tokio::main]

@@ -1,17 +1,18 @@
 import SwiftUI
+import SwiftWorkspace
 
 struct NewDrawerView<Main: View, Side: View>: View {
     @ObservedObject var homeState: HomeState
-    
+
     @ViewBuilder let mainView: Main
     @ViewBuilder let sideView: Side
-        
+
     let dragActivationClosedX: CGFloat = 20
     let dragActivationOpenX: CGFloat = 50
-    
+
     let velocityActivationX: CGFloat = 300
     let successThreshold: CGFloat = 0.6
-    
+
     let sidebarTrailingPadding: CGFloat = 50
 
     @State var offset: CGFloat = 0
@@ -20,7 +21,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
     func sidebarWidth(width: CGFloat) -> CGFloat {
         return width - sidebarTrailingPadding
     }
-    
+
     var body: some View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
@@ -30,45 +31,66 @@ struct NewDrawerView<Main: View, Side: View>: View {
                             ToolbarItem(placement: .navigationBarLeading) {
                                 Button(action: {
                                     homeState.sidebarState = .open
-                                    
-                                    UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+
+                                    UIApplication.shared.sendAction(
+                                        #selector(
+                                            UIResponder.resignFirstResponder
+                                        ),
+                                        to: nil,
+                                        from: nil,
+                                        for: nil
+                                    )
                                 }) {
-                                    Image(systemName: "sidebar.left")
-                                        .imageScale(.large)
+                                    Label(
+                                        "Sidebar",
+                                        systemImage: "sidebar.left"
+                                    )
+                                    .imageScale(.large)
+                                    .labelStyle(.iconOnly)
                                 }
                             }
                         }
                 }
-                    .animation(.interactiveSpring(
+                .animation(
+                    .interactiveSpring(
                         response: 0.5,
                         dampingFraction: 0.8,
-                        blendDuration: 0),
-                               value: gestureOffset
-                    )
-                    .overlay(
-                        GeometryReader { _ in
-                            EmptyView()
-                        }
-                        .background(.black.opacity(0.6))
-                        .opacity(getBlurRadius())
-                        .animation(.interactiveSpring(
+                        blendDuration: 0
+                    ),
+                    value: gestureOffset
+                )
+                .overlay(
+                    GeometryReader { _ in
+                        EmptyView()
+                    }
+                    .background(.black.opacity(0.6))
+                    .opacity(getBlurRadius())
+                    .animation(
+                        .interactiveSpring(
                             response: 0.5,
                             dampingFraction: 0.8,
-                            blendDuration: 0),
-                                   value: homeState.sidebarState == .open)
-                        .onTapGesture {
-                            withAnimation {
-                                if homeState.sidebarState == .open {
-                                    homeState.sidebarState = .closed
-                                } else {
-                                    homeState.sidebarState = .open
-                                }
-                            }
-                            
-                            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                        }
+                            blendDuration: 0
+                        ),
+                        value: homeState.sidebarState == .open
                     )
-                
+                    .onTapGesture {
+                        withAnimation {
+                            if homeState.sidebarState == .open {
+                                homeState.sidebarState = .closed
+                            } else {
+                                homeState.sidebarState = .open
+                            }
+                        }
+
+                        UIApplication.shared.sendAction(
+                            #selector(UIResponder.resignFirstResponder),
+                            to: nil,
+                            from: nil,
+                            for: nil
+                        )
+                    }
+                )
+
                 NavigationView {
                     sideView
                         .toolbar {
@@ -83,13 +105,24 @@ struct NewDrawerView<Main: View, Side: View>: View {
                         }
                 }
                 .frame(width: sidebarWidth(width: geometry.size.width))
-                    .animation(.interactiveSpring(
+                .animation(
+                    .interactiveSpring(
                         response: 0.5,
                         dampingFraction: 0.8,
-                        blendDuration: 0),
-                               value: gestureOffset
+                        blendDuration: 0
+                    ),
+                    value: gestureOffset
+                )
+                .offset(
+                    x: min(
+                        -sidebarWidth(width: geometry.size.width)
+                            + max(
+                                self.offset + self.gestureOffset,
+                                0
+                            ),
+                        0
                     )
-                    .offset(x: min(-sidebarWidth(width: geometry.size.width) + max(self.offset + self.gestureOffset, 0), 0))
+                )
             }
             .onReceive(homeState.$sidebarState) { newValue in
                 withAnimation {
@@ -100,7 +133,7 @@ struct NewDrawerView<Main: View, Side: View>: View {
                     }
                 }
             }
-            
+
             if homeState.sidebarState == .closed {
                 Rectangle()
                     .fill(Color.clear)
@@ -109,14 +142,23 @@ struct NewDrawerView<Main: View, Side: View>: View {
                     .gesture(
                         DragGesture()
                             .updating($gestureOffset) { value, out, _ in
-                                out = min(value.translation.width, sidebarWidth(width: geometry.size.width))
+                                out = min(
+                                    value.translation.width,
+                                    sidebarWidth(width: geometry.size.width)
+                                )
                             }
                             .onEnded { value in
-                                onOpenEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                                onOpenEnd(
+                                    translation: value.translation.width,
+                                    velocity: value.velocity.width,
+                                    sidebarWidth: sidebarWidth(
+                                        width: geometry.size.width
+                                    )
+                                )
                             }
                     )
             }
-            
+
             if homeState.sidebarState == .open {
                 Rectangle()
                     .fill(Color.clear)
@@ -125,10 +167,19 @@ struct NewDrawerView<Main: View, Side: View>: View {
                     .gesture(
                         DragGesture()
                             .updating($gestureOffset) { value, out, _ in
-                                out = max(value.translation.width, -sidebarWidth(width: geometry.size.width))
+                                out = max(
+                                    value.translation.width,
+                                    -sidebarWidth(width: geometry.size.width)
+                                )
                             }
                             .onEnded { value in
-                                onCloseEnd(translation: value.translation.width, velocity: value.velocity.width, sidebarWidth: sidebarWidth(width: geometry.size.width))
+                                onCloseEnd(
+                                    translation: value.translation.width,
+                                    velocity: value.velocity.width,
+                                    sidebarWidth: sidebarWidth(
+                                        width: geometry.size.width
+                                    )
+                                )
                             }
                     )
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -136,32 +187,52 @@ struct NewDrawerView<Main: View, Side: View>: View {
             }
         }
     }
-    
-    func onOpenEnd(translation: CGFloat, velocity: CGFloat, sidebarWidth: CGFloat){
-        let isOpenEnough = translation > 0 && translation > (sidebarWidth * successThreshold)
+
+    func onOpenEnd(
+        translation: CGFloat,
+        velocity: CGFloat,
+        sidebarWidth: CGFloat
+    ) {
+        let isOpenEnough =
+            translation > 0 && translation > (sidebarWidth * successThreshold)
         let isFastEnough = velocity > velocityActivationX
-                
+
         if isOpenEnough || isFastEnough {
             offset = sidebarWidth
             homeState.sidebarState = .open
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
         } else {
             offset = 0
             homeState.sidebarState = .closed
         }
     }
-    
-    func onCloseEnd(translation: CGFloat, velocity: CGFloat, sidebarWidth: CGFloat) {
+
+    func onCloseEnd(
+        translation: CGFloat,
+        velocity: CGFloat,
+        sidebarWidth: CGFloat
+    ) {
         let translation = abs(translation)
         let velocity = abs(velocity)
-        
-        let isOpenEnough = translation > 0 && translation > (sidebarWidth * successThreshold)
+
+        let isOpenEnough =
+            translation > 0 && translation > (sidebarWidth * successThreshold)
         let isFastEnough = velocity > velocityActivationX
-                
+
         if isOpenEnough || isFastEnough {
             offset = 0
             homeState.sidebarState = .closed
-            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
         } else {
             offset = sidebarWidth
             homeState.sidebarState = .open
@@ -174,9 +245,13 @@ struct NewDrawerView<Main: View, Side: View>: View {
 }
 
 #Preview {
-    NewDrawerView(homeState: HomeState(), mainView: {
-        Color.blue
-    }, sideView: {
-        Color.red
-    })
+    NewDrawerView(
+        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+        mainView: {
+            Color.blue
+        },
+        sideView: {
+            Color.red
+        }
+    )
 }

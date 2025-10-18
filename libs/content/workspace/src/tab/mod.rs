@@ -293,6 +293,7 @@ pub enum Event {
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
     PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
+    KineticPan { x: f32, y: f32 },
 }
 
 #[derive(Debug, Clone)]
@@ -413,6 +414,8 @@ pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
+    fn read_events(&self) -> Vec<Event>;
+    fn drain(&self);
 }
 
 impl ExtendedInput for egui::Context {
@@ -441,6 +444,23 @@ impl ExtendedInput for egui::Context {
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
             events
         })
+    }
+
+    fn read_events(&self) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            events
+        })
+    }
+
+    fn drain(&self) {
+        self.memory_mut(|m| {
+            m.data
+                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+        });
     }
 }
 
