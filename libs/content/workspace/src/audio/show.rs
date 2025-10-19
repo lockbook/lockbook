@@ -106,6 +106,9 @@ impl Audio {
                         self.player.ui(ui);
                     });
                     match self.player.transcription_progress {
+                        TranscriptionProgress::NoProgress => {if !self.player.transcript.is_empty(){
+                            ui.label("--- END OF TRANSCRIPT ---");
+                        }}
                         TranscriptionProgress::Reading => {self.guard = true;}
                         TranscriptionProgress::Finished => {
                             if self.guard {
