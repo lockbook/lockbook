@@ -39,7 +39,11 @@ pub fn import_transcription(lb: &Lb, file_id: Uuid, data: Option<&[u8]>) -> Opti
 
     let imports = lb.get_children(&imports_folder.id).unwrap();
     for import in imports {
-        if import.name == file_name {
+        let import_name = match import.name.rfind('.'){
+            Some(pos) => &import.name[..pos],
+            None => &import.name,
+        }.to_string();
+        if import_name == file_name {
             return Some(import);
         }
     }
