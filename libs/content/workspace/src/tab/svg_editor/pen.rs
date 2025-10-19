@@ -330,6 +330,17 @@ impl Pen {
                     let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
                     trace!(maybe_new_mg, "adding predicted touch to the path at");
 
+                    // let's repeat the last known force for predicted touches
+                    if maybe_new_mg.is_some() {
+                        if let Some(forces) =
+                            pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                        {
+                            if let Some(last_force) = forces.last() {
+                                forces.push(*last_force);
+                            }
+                        }
+                    }
+
                     if self.path_builder.first_predicted_mg.is_none() && maybe_new_mg.is_some() {
                         self.path_builder.first_predicted_mg = maybe_new_mg;
                         trace!(maybe_new_mg, "setting start of mg");
@@ -344,6 +355,12 @@ impl Pen {
                         for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
                             trace!(n, "removing predicted touch at ");
                             p.data.remove_manipulator_group(n);
+
+                            if let Some(forces) =
+                                pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                            {
+                                forces.pop();
+                            }
                         }
                         self.path_builder.first_predicted_mg = None;
                     } else {
