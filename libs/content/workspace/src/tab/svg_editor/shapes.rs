@@ -6,7 +6,6 @@ use lb_rs::model::svg::{
     element::{Element, Path, Stroke},
 };
 use resvg::usvg::Transform;
-use tracing::error;
 
 use crate::{
     tab::svg_editor::{
@@ -59,7 +58,6 @@ impl ShapesTool {
         ui.input(|r| {
             for e in r.events.iter() {
                 if let Some(shape_event) = self.map_ui_event(e, shapes_ctx, is_multi_touch) {
-                    error!("{:?}", shape_event);
                     self.handle_shape_event(&shape_event, shapes_ctx);
                     if shape_event == ShapeEvent::Cancel || shape_event == ShapeEvent::End {
                         break;
