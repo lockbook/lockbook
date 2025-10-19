@@ -419,7 +419,7 @@ impl Workspace {
                                         ContentState::Open(TabContent::Audio(Audio::new(
                                             id,
                                             bytes,
-                                            core.get_config().writeable_path,
+                                            core.clone(),
                                         )))
                                     }
                                 }
