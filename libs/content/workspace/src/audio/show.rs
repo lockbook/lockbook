@@ -39,10 +39,11 @@ pub fn import_transcription(lb: &Lb, file_id: Uuid, data: Option<&[u8]>) -> Opti
 
     let imports = lb.get_children(&imports_folder.id).unwrap();
     for import in imports {
-        let import_name = match import.name.rfind('.'){
+        let import_name = match import.name.rfind('.') {
             Some(pos) => &import.name[..pos],
             None => &import.name,
-        }.to_string();
+        }
+        .to_string();
         if import_name == file_name {
             return Some(import);
         }
@@ -75,7 +76,7 @@ pub struct Audio {
     pub player: Player,
     pub rt: Runtime,
     pub lb: Lb,
-    pub guard: bool
+    pub guard: bool,
 }
 
 impl Audio {
@@ -106,10 +107,14 @@ impl Audio {
                         self.player.ui(ui);
                     });
                     match self.player.transcription_progress {
-                        TranscriptionProgress::NoProgress => {if !self.player.transcript.is_empty(){
-                            ui.label("--- END OF TRANSCRIPT ---");
-                        }}
-                        TranscriptionProgress::Reading => {self.guard = true;}
+                        TranscriptionProgress::NoProgress => {
+                            if !self.player.transcript.is_empty() {
+                                ui.label("--- END OF TRANSCRIPT ---");
+                            }
+                        }
+                        TranscriptionProgress::Reading => {
+                            self.guard = true;
+                        }
                         TranscriptionProgress::Finished => {
                             if self.guard {
                                 self.guard = false;
