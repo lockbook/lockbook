@@ -46,7 +46,7 @@ pub fn import_transcription(lb: &Lb, file_id: Uuid, data: Option<&[u8]>) -> Opti
 
     match data {
         Some(bytes) => {
-            let file_extension = ".transcript";
+            let file_extension = "transcript";
 
             let file = lb
                 .create_file(
