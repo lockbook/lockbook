@@ -744,7 +744,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         // can only paste with your finger
         tap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         pan.allowedScrollTypesMask = .all
-        tap.numberOfTapsRequired = 1
+        tap.numberOfTouchesRequired = 1
         self.addGestureRecognizer(tap)
         
         self.isMultipleTouchEnabled = true
