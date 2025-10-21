@@ -693,7 +693,7 @@ public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDeleg
     }
 }
 
-public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMenuInteractionDelegate {
+public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMenuInteractionDelegate, UIGestureRecognizerDelegate {
 
     public static let TOOL_BAR_HEIGHT: CGFloat = 50
 
@@ -722,15 +722,15 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
-        pan.maximumNumberOfTouches = 1 // let egui handle zoom. without this even pinches would be registred as scrolls
 
         if (prefersPencilOnlyDrawing){
+            pan.delegate = self
             self.addGestureRecognizer(pan)
         }
     
-        // minimal zoom support, just cancel pans for now but don't send zoom events
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
         pinch.cancelsTouchesInView = false
+        pinch.delegate = self
         self.addGestureRecognizer(pinch)
         
         // edit menu support
@@ -779,6 +779,7 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
         mtkView.handlePan(sender)
     }
+
     @objc func handlePinch(_ sender: UIPinchGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
@@ -787,10 +788,31 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         if self.mtkView.kineticTimer != nil{
             self.mtkView.kineticTimer?.invalidate()
             self.mtkView.kineticTimer = nil
-            return
+        }
+        
+        let scale = event.scale
+        let pinchCenter = event.location(in: self.mtkView)
+        var velocity = event.velocity
+        
+        if event.state == .changed{
+            let zoomDelta = Float(scale)
+            
+            zoom(self.wsHandle, zoomDelta)
+            
+            let viewCenter = CGPoint(x: self.mtkView.bounds.midX, y: self.mtkView.bounds.midY)
+            let offsetX = pinchCenter.x - viewCenter.x
+            let offsetY = pinchCenter.y - viewCenter.y
+            
+            let panX = offsetX * (scale - 1.0)
+            let panY = offsetY * (scale - 1.0)
+            
+            pan(self.wsHandle, Float(panX), Float(panY))
+            
+            event.scale = 1.0
+        
         }
     }
-    
+        
     @available(iOS 17.5, *)
     public func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
         if squeeze.phase == .ended {
@@ -811,6 +833,19 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         }
 
         mtkView.setNeedsDisplay(mtkView.frame)
+    }
+    
+    public func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        // Allow pinch and pan to work together
+        if (gestureRecognizer is UIPinchGestureRecognizer && otherGestureRecognizer is UIPanGestureRecognizer) ||
+           (gestureRecognizer is UIPanGestureRecognizer && otherGestureRecognizer is UIPinchGestureRecognizer) {
+            return true
+        }
+        
+        return false
     }
     
     func updateFromPencilState() {
