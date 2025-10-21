@@ -396,15 +396,6 @@ pub unsafe extern "C" fn pan(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
         .push_event(workspace_rs::Event::KineticPan { x: scroll_x, y: scroll_y });
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn zoom(obj: *mut c_void, scale: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.raw_input.events.push(egui::Event::Zoom(scale));
-}
-
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
 pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
