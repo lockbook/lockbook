@@ -135,6 +135,10 @@ pub fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
         }
     }
 
+    if cfg!(target_os = "ios") {
+        return None;
+    }
+
     ui.input(|r| {
         if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {
             Some(r.smooth_scroll_delta)
