@@ -36,7 +36,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, error, span};
+use tracing::{Level, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -312,10 +312,10 @@ impl SVGEditor {
 
         let has_click_outside_islands = ui.input(|r| {
             r.events.iter().any(|e| match *e {
-                egui::Event::PointerButton { pos, button, pressed, modifiers } => {
-                    pressed == true && !self.detect_islands_interaction(pos)
+                egui::Event::PointerButton { pos, button: _, pressed, modifiers: _ } => {
+                    pressed && !self.detect_islands_interaction(pos)
                 }
-                egui::Event::Touch { device_id, id, phase, pos, force } => {
+                egui::Event::Touch { device_id: _, id: _, phase, pos, force: _ } => {
                     phase == egui::TouchPhase::Start && !self.detect_islands_interaction(pos)
                 }
                 _ => false,
