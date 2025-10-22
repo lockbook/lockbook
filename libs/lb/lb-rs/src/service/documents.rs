@@ -1,9 +1,7 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
 use crate::Lb;
-use crate::io::docs::key_path;
 use crate::model::clock::get_time;
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
