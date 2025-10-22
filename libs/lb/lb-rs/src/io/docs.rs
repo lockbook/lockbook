@@ -89,7 +89,7 @@ impl AsyncDocs {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
-            trace!("delete\t{}", &path_str);
+            debug!("delete\t{}", &path_str);
             if path.exists() {
                 fs::remove_file(path).await.map_unexpected()?;
             }
@@ -102,6 +102,8 @@ impl AsyncDocs {
         let dir_path = namespace_path(&self.location);
         fs::create_dir_all(&dir_path).await?;
         let mut entries = fs::read_dir(&dir_path).await?;
+        let debug_list = file_hmacs.iter().map(|(id, hmac)| key_path(&self.location, *id, *hmac));
+        debug!("retaining files: {:?}", debug_list );
 
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();

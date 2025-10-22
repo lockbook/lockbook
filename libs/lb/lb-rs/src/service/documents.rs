@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 
 use crate::Lb;
+use crate::io::docs::key_path;
 use crate::model::clock::get_time;
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -140,6 +142,13 @@ impl Lb {
         // todo can we not borrow here?
         let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac();
+        debug!(
+            "safe_write_investigation: we are inserting {:?}, our local was {:?}, and our base was {:?}. We intend to cleanup {:?}.",
+            (id, hmac.map(|h| base64::encode_config(h, base64::URL_SAFE))),
+            (id, local_hmac.map(|h| base64::encode_config(h, base64::URL_SAFE))),
+            (id, base_hmac.map(|h| base64::encode_config(h, base64::URL_SAFE))),
+            (id, hmac_to_cleanup.map(|h| base64::encode_config(h, base64::URL_SAFE)))
+        );
         let hmac = *hmac.ok_or_else(|| {
             LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {id}"))
         })?;
@@ -162,6 +171,7 @@ impl Lb {
         Ok(hmac)
     }
 
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub(crate) async fn cleanup(&self) -> LbResult<()> {
         // there is a risk that dont_delete is set to true after we check it
         if self.docs.dont_delete.load(Ordering::SeqCst) {
