@@ -419,6 +419,20 @@ impl Toolbar {
         self.layout.overlay_toggle = Some(overlay_toggle.response.rect);
         overlay_toggle.response
     }
+
+    pub fn has_visible_popover(&self) -> bool {
+        self.show_tool_popover
+            || self.viewport_popover.is_some()
+            || self.show_at_cursor_tool_popover.is_some()
+    }
+
+    pub fn close_all_popovers(
+        &mut self, settings: &mut CanvasSettings, cfg: &mut WsPersistentStore,
+    ) {
+        self.hide_tool_popover(settings, cfg);
+        self.viewport_popover = None;
+        self.show_at_cursor_tool_popover = None;
+    }
 }
 
 impl SVGEditor {
