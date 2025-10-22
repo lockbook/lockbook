@@ -346,7 +346,6 @@ impl SVGEditor {
         }
 
         if has_click_outside_islands {
-            error!("detected click outside islands, closing popovers");
             self.toolbar
                 .close_all_popovers(tool_context.settings, &mut self.cfg);
             return;
