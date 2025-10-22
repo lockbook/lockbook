@@ -43,21 +43,6 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let local_hmac = db
-            .local_metadata
-            .get()
-            .get(&id)
-            .and_then(|m| m.document_hmac())
-            .copied();
-        let base_hmac = db
-            .base_metadata
-            .get()
-            .get(&id)
-            .and_then(|m| m.document_hmac())
-            .copied();
-
-        let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
-
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
@@ -70,10 +55,6 @@ impl Lb {
         let hmac = tree.find(&id)?.document_hmac().copied();
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
-
-        if hmac != hmac_to_cleanup {
-            self.docs.delete(id, hmac_to_cleanup).await?;
-        }
 
         self.events.doc_written(id, None);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
@@ -110,21 +91,6 @@ impl Lb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let local_hmac = db
-            .local_metadata
-            .get()
-            .get(&id)
-            .and_then(|m| m.document_hmac())
-            .copied();
-        let base_hmac = db
-            .base_metadata
-            .get()
-            .get(&id)
-            .and_then(|m| m.document_hmac())
-            .copied();
-
-        let hmac_to_cleanup = if base_hmac != local_hmac { local_hmac } else { None };
-
         let mut tree = (&db.base_metadata)
             .to_staged(&mut db.local_metadata)
             .to_lazy();
@@ -147,10 +113,6 @@ impl Lb {
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
         tx.end();
-
-        if Some(hmac) != hmac_to_cleanup {
-            self.docs.delete(id, hmac_to_cleanup).await?;
-        }
 
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
