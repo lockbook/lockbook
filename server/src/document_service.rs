@@ -76,7 +76,6 @@ impl DocumentService for OnDiskDocuments {
         Ok(Some(self.get(id, hmac).await?))
     }
 
-
     async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
         let path = self.get_path(id, hmac);
         // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete

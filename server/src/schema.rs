@@ -33,5 +33,5 @@ pub struct ServerV5 {
     pub file_children: LookupSet<Uuid, Uuid>,
     pub server_egress: Single<BandwidthReport>,
     pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
-    pub scheduled_file_cleanups: LookupTable<(Uuid, DocumentHmac), i64>
+    pub scheduled_file_cleanups: LookupTable<(Uuid, DocumentHmac), i64>,
 }
