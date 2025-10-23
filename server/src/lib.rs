@@ -111,3 +111,4 @@ pub mod metrics;
 pub mod router_service;
 pub mod schema;
 pub mod utils;
+pub mod garbage_worker;

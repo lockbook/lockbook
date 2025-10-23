@@ -19,6 +19,9 @@ pub trait DocumentService: Send + Sync + Clone + 'static {
     async fn get<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac,
     ) -> Result<EncryptedDocument, ServerError<T>>;
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>>;
     async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>>;
 
     fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool;
@@ -61,6 +64,18 @@ impl DocumentService for OnDiskDocuments {
         let content = bincode::deserialize(&content)?;
         Ok(content)
     }
+
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
+        let path = self.get_path(id, hmac);
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        Ok(Some(self.get(id, hmac).await?))
+    }
+
 
     async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
         let path = self.get_path(id, hmac);
@@ -111,6 +126,14 @@ impl DocumentService for InMemDocuments {
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
         let key = format!("{id}-{hmac}");
         Ok(self.docs.lock().unwrap().get(&key).unwrap().clone())
+    }
+
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        Ok(self.docs.lock().unwrap().get(&key).cloned())
     }
 
     fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {
