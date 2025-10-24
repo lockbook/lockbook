@@ -345,7 +345,7 @@ impl SVGEditor {
             return;
         }
 
-        if has_click_outside_islands {
+        if has_click_outside_islands && self.toolbar.has_visible_popover() {
             self.toolbar
                 .close_all_popovers(tool_context.settings, &mut self.cfg);
             return;
