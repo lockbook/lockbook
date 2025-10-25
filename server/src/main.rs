@@ -57,6 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     error!("server started successfully");
 
     server_state.start_metrics_worker();
+    server_state.start_garbage_worker();
 
     // metrics endpoint to be served anauthenticated, locally, only
     tokio::spawn(warp::serve(get_metrics()).run(([127, 0, 0, 1], 8080)));
