@@ -1,6 +1,6 @@
 use db_rs::{LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
-use lb_rs::model::file_metadata::Owner;
+use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -33,4 +33,5 @@ pub struct ServerV5 {
     pub file_children: LookupSet<Uuid, Uuid>,
     pub server_egress: Single<BandwidthReport>,
     pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
+    pub scheduled_file_cleanups: LookupTable<(Uuid, DocumentHmac), i64>,
 }
