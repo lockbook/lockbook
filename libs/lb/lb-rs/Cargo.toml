@@ -1,6 +1,6 @@
 [package]
 name = "lb-rs"
-version = "25.10.15"
+version = "25.10.25"
 edition = "2021"
 description = "The rust library for interacting with your lockbook."
 repository = "https://github.com/lockbook/lockbook"

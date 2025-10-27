@@ -310,6 +310,18 @@ impl SVGEditor {
 
         self.handle_clip_input(ui);
 
+        let has_click_outside_islands = ui.input(|r| {
+            r.events.iter().any(|e| match *e {
+                egui::Event::PointerButton { pos, button: _, pressed, modifiers: _ } => {
+                    pressed && !self.detect_islands_interaction(pos)
+                }
+                egui::Event::Touch { device_id: _, id: _, phase, pos, force: _ } => {
+                    phase == egui::TouchPhase::Start && !self.detect_islands_interaction(pos)
+                }
+                _ => false,
+            })
+        });
+
         let mut tool_context = ToolContext {
             painter: &mut self.painter,
             buffer: &mut self.buffer,
@@ -330,6 +342,12 @@ impl SVGEditor {
 
         if self.has_islands_interaction {
             self.toolbar.pen.end_path(&mut tool_context, false);
+            return;
+        }
+
+        if has_click_outside_islands && self.toolbar.has_visible_popover() {
+            self.toolbar
+                .close_all_popovers(tool_context.settings, &mut self.cfg);
             return;
         }
 

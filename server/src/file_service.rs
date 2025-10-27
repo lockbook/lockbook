@@ -136,7 +136,6 @@ where
         let request = context.request;
         let req_owner = Owner(context.public_key);
 
-        let mut new_deleted = vec![];
         {
             let mut prior_deleted = HashSet::new();
             let mut current_deleted = HashSet::new();
@@ -199,7 +198,8 @@ where
                 {
                     let meta = tree.find(&id)?;
                     if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
-                        new_deleted.push((*meta.id(), hmac));
+                        db.scheduled_file_cleanups
+                            .insert((*meta.id(), hmac), get_time().0)?;
                     }
                 }
             }
@@ -220,11 +220,6 @@ where
             tx.drop_safely()?;
         }
 
-        for (id, hmac) in new_deleted {
-            self.document_service.delete(&id, &hmac).await?;
-            let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-            debug!(?id, ?hmac, "Deleted document contents");
-        }
         Ok(())
     }
 
@@ -559,9 +554,9 @@ where
                 return Err(ClientError(DocumentDeleted));
             }
 
-            // Here is where you would check if the person is out of space as a result of the new file.
-            // You could make this a transaction and check whether or not this is an increase in size or
-            // a reduction
+            let id = request.diff.new.id();
+            let hmac = request.diff.new.document_hmac().unwrap();
+            db.scheduled_file_cleanups.remove(&(*id, *hmac))?;
         }
 
         let new_version = get_time().0 as u64;
@@ -605,7 +600,14 @@ where
             }
 
             tree.stage(vec![new]).promote()?;
-            db.last_seen.insert(owner, get_time().0 as u64)?;
+            if let Some(old) = &request
+                .diff
+                .old
+                .and_then(|old| old.document_hmac().copied())
+            {
+                db.scheduled_file_cleanups
+                    .insert((*request.diff.new.id(), *old), get_time().0)?;
+            }
 
             tx.drop_safely()?;
             drop(lock);
@@ -624,19 +626,6 @@ where
 
         result?;
 
-        // New
-        if let Some(hmac) = request.diff.old.unwrap().document_hmac() {
-            self.document_service
-                .delete(request.diff.new.id(), hmac)
-                .await?;
-            let old_hmac = base64::encode_config(hmac, base64::URL_SAFE);
-            debug!(
-                ?id,
-                ?old_hmac,
-                "Cleaned up old document contents after successful metadata update"
-            );
-        }
-
         Ok(())
     }
 
@@ -644,11 +633,11 @@ where
         &self, context: RequestContext<GetDocRequest>,
     ) -> Result<GetDocumentResponse, ServerError<GetDocumentError>> {
         let request = &context.request;
+        let requester = Owner(context.public_key);
         {
             let mut lock = self.index_db.lock().await;
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
-            let requester = Owner(context.public_key);
 
             let meta_exists = db.metas.get().get(&request.id).is_some();
 
@@ -661,70 +650,67 @@ where
             )?
             .to_lazy();
 
-            let meta = match tree.maybe_find(&request.id) {
-                Some(meta) => Ok(meta),
-                None => Err(if meta_exists {
+            if tree.maybe_find(&request.id).is_none() {
+                return Err(if meta_exists {
                     ClientError(GetDocumentError::NotPermissioned)
                 } else {
                     ClientError(GetDocumentError::DocumentNotFound)
-                }),
-            }?;
-
-            let hmac = meta
-                .document_hmac()
-                .ok_or(ClientError(GetDocumentError::DocumentNotFound))?;
-
-            if request.hmac != *hmac {
-                return Err(ClientError(GetDocumentError::DocumentNotFound));
+                });
             }
-            let doc_size = meta
-                .file
-                .timestamped_value
-                .value
-                .doc_size()
-                .unwrap_or_default();
 
             if tree.calculate_deleted(&request.id)? {
                 return Err(ClientError(GetDocumentError::DocumentNotFound));
             }
 
-            if self.config.features.bandwidth_controls {
-                let mut server_wide = db.server_egress.get().cloned().unwrap_or_default();
-                let mut account_bandwidth = db
-                    .egress_by_owner
-                    .get()
-                    .get(&requester)
-                    .cloned()
-                    .unwrap_or_default();
-                let account_bandwidth_cap = db
-                    .accounts
-                    .get()
-                    .get(&requester)
-                    .map(|account| account.billing_info.bandwidth_cap())
-                    .unwrap_or_default();
+            tx.drop_safely()?;
+        };
 
-                if server_wide.current_bandwidth() > SERVER_BANDWIDTH_CAP {
-                    error!("Bandwidth caps are now being enforced");
-                    if account_bandwidth.current_bandwidth() > account_bandwidth_cap {
-                        error!("User bandwidth cap exceeded");
-                        return Err(ClientError(GetDocumentError::BandwidthExceeded));
-                    }
+        let Some(content) = self
+            .document_service
+            .maybe_get(&request.id, &request.hmac)
+            .await?
+        else {
+            return Err(ClientError(GetDocumentError::DocumentNotFound));
+        };
+
+        let mut lock = self.index_db.lock().await;
+        let db = lock.deref_mut();
+        let tx = db.begin_transaction()?;
+
+        if self.config.features.bandwidth_controls {
+            let mut server_wide = db.server_egress.get().cloned().unwrap_or_default();
+            let mut account_bandwidth = db
+                .egress_by_owner
+                .get()
+                .get(&requester)
+                .cloned()
+                .unwrap_or_default();
+            let account_bandwidth_cap = db
+                .accounts
+                .get()
+                .get(&requester)
+                .map(|account| account.billing_info.bandwidth_cap())
+                .unwrap_or_default();
+
+            let doc_size = content.value.len();
+
+            if doc_size + server_wide.current_bandwidth() > SERVER_BANDWIDTH_CAP {
+                error!("Bandwidth caps are now being enforced");
+                if doc_size + account_bandwidth.current_bandwidth() > account_bandwidth_cap {
+                    error!("User bandwidth cap exceeded");
+                    return Err(ClientError(GetDocumentError::BandwidthExceeded));
                 }
-
-                server_wide.increase_by(doc_size);
-                account_bandwidth.increase_by(doc_size);
-
-                db.server_egress.insert(server_wide)?;
-                db.egress_by_owner.insert(requester, account_bandwidth)?;
             }
 
-            tx.drop_safely()?;
+            server_wide.increase_by(doc_size);
+            account_bandwidth.increase_by(doc_size);
+
+            db.server_egress.insert(server_wide)?;
+            db.egress_by_owner.insert(requester, account_bandwidth)?;
         }
 
-        let content = self
-            .document_service
-            .get(&request.id, &request.hmac)
-            .await?;
+        tx.drop_safely()?;
+
         Ok(GetDocumentResponse { content })
     }
 

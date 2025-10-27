@@ -116,7 +116,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -4908,7 +4908,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "lb-rs",
 ]
@@ -4920,7 +4920,7 @@ source = "git+https://github.com/lockbook/lb-fonts#54b09038cbc3048f45e7d771a0118
 
 [[package]]
 name = "lb-fs"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4932,7 +4932,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4949,7 +4949,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -5079,7 +5079,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -5318,7 +5318,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "cli-rs 0.2.0",
  "colored 3.0.0",
@@ -5332,7 +5332,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "dark-light",
  "eframe",
@@ -5354,7 +5354,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "egui",
  "egui_wgpu_backend",
@@ -5373,7 +5373,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -5412,7 +5412,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "clipboard-win 4.5.0",
  "egui",
@@ -9059,7 +9059,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -11051,7 +11051,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -11067,7 +11067,7 @@ checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
 
 [[package]]
 name = "workspace"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -11115,7 +11115,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "25.10.15"
+version = "25.10.25"
 dependencies = [
  "egui",
  "egui_extras",
