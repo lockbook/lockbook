@@ -26,6 +26,7 @@ pub struct IOSResponse {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub tab_title_clicked: bool,
+    pub selected_folder_changed: bool,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -47,6 +48,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_scroll_updated,
                     tabs_changed,
                     failure_messages: _,
+                    selected_folder_changed,
                 },
             redraw_in,
             copied_text,
@@ -81,6 +83,7 @@ impl From<crate::Response> for IOSResponse {
             tab_title_clicked,
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
+            selected_folder_changed,
         }
     }
 }

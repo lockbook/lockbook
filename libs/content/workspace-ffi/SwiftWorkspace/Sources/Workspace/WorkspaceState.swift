@@ -41,6 +41,7 @@ public class WorkspaceInputState: ObservableObject {
         }
 
         let uuid = CUuid(_0: id.uuid)
+        no_folder_selected(wsHandle)
         open_file(wsHandle, uuid, false)
         redraw.send(())
         //        Will crash iOS, something with caret rects. Looks rust related

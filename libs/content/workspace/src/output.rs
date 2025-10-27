@@ -12,6 +12,8 @@ pub struct Response {
     pub file_renamed: Option<(Uuid, String)>,
     pub file_moved: Option<(Uuid, Uuid)>,
 
+    pub selected_folder_changed: bool,
+
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
 

@@ -599,6 +599,7 @@ impl Workspace {
     pub fn create_doc(&mut self, is_drawing: bool) {
         let focused_parent = self
             .focused_parent
+            .or_else(|| self.current_tab_id())
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
 
         let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
