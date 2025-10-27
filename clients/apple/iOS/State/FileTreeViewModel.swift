@@ -23,9 +23,6 @@ class FileTreeViewModel: ObservableObject {
             guard let file = filesModel.idsToFiles[openDoc] else {
                 return
             }
-            DispatchQueue.main.async {
-                workspaceInput.selectFolder(id: file.parent)
-            }
 
             self?.openDoc = openDoc
             self?.expandToFile(file: file)

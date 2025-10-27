@@ -289,7 +289,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
         let output = macos_frame(wsHandle)
-
+        
+        if output.selected_folder_changed {
+            let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+            if selectedFolder.isNil() {
+                self.workspaceOutput?.selectedFolder = nil
+            } else {
+                self.workspaceOutput?.selectedFolder = selectedFolder
+            }
+        }
+        
         let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
