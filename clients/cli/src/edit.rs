@@ -149,7 +149,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         }
         Editor::Sublime => format!("subl --wait {path_str}"),
         Editor::Code => format!("code --wait {path_str}"),
-        Editor::Custom(s) => s,
+        Editor::Custom(s) => format!("{s} {path_str}"),
     };
 
     std::process::Command::new("cmd")
