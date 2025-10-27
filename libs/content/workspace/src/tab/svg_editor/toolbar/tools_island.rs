@@ -241,7 +241,7 @@ impl Toolbar {
                     Tool::Highlighter => {
                         show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                     }
-                    Tool::Selection => {}
+                    Tool::Selection => self.show_selection_popover(ui),
                     Tool::Shapes => self.show_shapes_popover(ui),
                 })
             })
@@ -253,10 +253,6 @@ impl Toolbar {
     pub fn show_tool_popovers(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<Response> {
-        if self.active_tool == Tool::Selection {
-            return None;
-        }
-
         let tools_island_rect = self.layout.tools_island?;
 
         let opacity = animate_eased(
@@ -285,7 +281,7 @@ impl Toolbar {
                         Tool::Highlighter => {
                             show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                         }
-                        Tool::Selection => {}
+                        Tool::Selection => self.show_selection_popover(ui),
                         Tool::Shapes => self.show_shapes_popover(ui),
                     };
                 })
@@ -334,6 +330,14 @@ impl Toolbar {
             DEFAULT_ERASER_RADIUS..=DEFAULT_ERASER_RADIUS * 20.0,
         );
         ui.add_space(10.0);
+    }
+
+    fn show_selection_popover(&mut self, ui: &mut egui::Ui) {
+        let width = 200.0;
+        ui.style_mut().spacing.slider_width = width;
+        ui.set_width(width);
+
+        ui.label("hello world");
     }
 
     fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {
