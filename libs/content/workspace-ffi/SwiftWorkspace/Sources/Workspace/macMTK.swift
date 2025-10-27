@@ -297,7 +297,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
             } else {
                 self.workspaceOutput?.selectedFolder = selectedFolder
             }
-            print("SELECTED FOLDER: ", selectedFolder)
         }
         
         let selectedFile = UUID(uuid: output.selected_file._0)
