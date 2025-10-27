@@ -68,6 +68,7 @@ pub enum Editor {
     Vim,
     Nvim,
     Emacs,
+    Helix,
     Nano,
     Sublime,
     Code,
@@ -90,8 +91,8 @@ impl Default for Editor {
 
 impl Editor {
     fn from_sys_env_var() -> CliResult<Self> {
-        let editor = env::var("VISUAL")
-            .or(env::var("EDITOR"))
+        let editor = env::var("EDITOR")
+            .or(env::var("VISUAL"))
             .map_err(|_| "no EDITOR or VISUAL")?;
 
         let editor = editor.split('/').next_back().unwrap();
@@ -104,7 +105,7 @@ pub fn editor_flag() -> Flag<'static, Editor> {
     Flag::new("editor")
         .description("optional editor flag, if not present falls back to LOCKBOOK_EDITOR, if not present falls back to a platform default")
         .completor(|prompt| {
-            Ok(["vim", "nvim", "emacs", "nano", "sublime", "code"]
+            Ok(["vim", "nvim", "emacs", "helix", "nano", "sublime", "code"]
                 .into_iter()
                 .filter(|entry| entry.starts_with(prompt))
                 .map(|s| s.to_string())
@@ -120,6 +121,7 @@ impl FromStr for Editor {
             "vim" => Editor::Vim,
             "nvim" => Editor::Nvim,
             "emacs" => Editor::Emacs,
+            "hx" | "helix" => Editor::Helix,
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
@@ -141,7 +143,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match editor {
-        Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano => {
+        Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano | Editor::Helix => {
             eprintln!(
                 "Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor."
             );
@@ -170,6 +172,7 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         Editor::Vim => format!("</dev/tty vim {path_str}"),
         Editor::Nvim => format!("</dev/tty nvim {path_str}"),
         Editor::Emacs => format!("</dev/tty emacs {path_str}"),
+        Editor::Helix => format!("</dev/tty hx {path_str}"),
         Editor::Nano => format!("</dev/tty nano {path_str}"),
         Editor::Sublime => format!("subl --wait {path_str}"),
         Editor::Code => format!("code --wait {path_str}"),
