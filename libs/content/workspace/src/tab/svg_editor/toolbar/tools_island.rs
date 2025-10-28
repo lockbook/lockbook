@@ -16,6 +16,7 @@ use crate::tab::svg_editor::pen::{
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::shapes::ShapeType;
+use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
 use crate::theme::icons::Icon;
@@ -337,7 +338,21 @@ impl Toolbar {
         ui.style_mut().spacing.slider_width = width;
         ui.set_width(width);
 
-        ui.label("hello world");
+        show_section_header(ui, "stroke");
+        // thickness
+        if let Some(properties) = &self.selection.properties {
+            // alright let's init
+        } else {
+            // let's build this
+        }
+        // pressure sensitivity
+        // color
+        // opacity
+        ui.add_space(20.0);
+
+        show_section_header(ui, "layer");
+        // all the way back | back | forward | all the way forward
+        // copy | cut
     }
 
     fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {

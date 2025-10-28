@@ -3,7 +3,7 @@ use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::serialize_inner;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId, WeakImages};
+use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, WeakImages};
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
@@ -23,6 +23,14 @@ pub struct Selection {
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
     layout: Layout,
+    pub properties: Option<ElementEditableProperties>,
+}
+
+#[derive(Clone, Debug)]
+pub struct ElementEditableProperties {
+    pub stroke_width: f32,
+    pub fill_color: DynamicColor,
+    pub opacity: f32,
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -431,24 +439,24 @@ impl Selection {
                     detect_translation(selection_ctx.buffer, None, build_payload.pos)
                 {
                     if build_payload.modifiers.shift {
-                        self.selected_elements.push(maybe_new_selection);
+                        self.push_selection_el(maybe_new_selection);
                     } else if build_payload.modifiers.alt {
                         if let Some(i) = self
                             .selected_elements
                             .iter()
                             .position(|s_el| s_el.id == maybe_new_selection.id)
                         {
-                            self.selected_elements.remove(i);
+                            self.remove_selection_el(i);
                         }
                     } else {
-                        self.selected_elements = vec![maybe_new_selection];
+                        self.new_selection_els(vec![maybe_new_selection]);
                     }
                     if !self.selected_elements.is_empty() {
                         self.current_op = SelectionOperation::Translation;
                     }
                 } else {
                     self.current_op = SelectionOperation::LasoBuild(build_payload);
-                    self.selected_elements.clear();
+                    self.clear_selection_els();
                 }
             }
             SelectionEvent::LasoBuild(build_payload) => {
@@ -456,7 +464,8 @@ impl Selection {
                     let rect = get_laso_rect(build_payload.pos, build_origin.pos);
                     self.laso_rect = Some(rect);
 
-                    self.selected_elements = self.get_laso_selected_els(selection_ctx);
+                    let new_selection_els = self.get_laso_selected_els(selection_ctx);
+                    self.new_selection_els(new_selection_els);
                 }
             }
             SelectionEvent::EndLaso => {
@@ -464,7 +473,7 @@ impl Selection {
                 self.laso_rect = None;
             }
             SelectionEvent::SelectAll => {
-                self.selected_elements = selection_ctx
+                let new_selection_els = selection_ctx
                     .buffer
                     .elements
                     .iter()
@@ -475,6 +484,8 @@ impl Selection {
                         Some(SelectedElement { id, transform: Transform::identity() })
                     })
                     .collect();
+
+                self.new_selection_els(new_selection_els);
             }
             SelectionEvent::Delete => {
                 self.delete_selection(selection_ctx);
@@ -501,7 +512,7 @@ impl Selection {
             .history
             .apply_event(&delete_event, selection_ctx.buffer);
         selection_ctx.history.save(delete_event);
-        self.selected_elements.clear();
+        self.clear_selection_els();
     }
 
     fn get_laso_selected_els(
@@ -875,6 +886,26 @@ impl Selection {
         }
 
         out
+    }
+
+    fn push_selection_el(&mut self, el: SelectedElement) {
+        self.selected_elements.push(el);
+        self.properties = None;
+    }
+
+    fn remove_selection_el(&mut self, i: usize) {
+        self.selected_elements.remove(i);
+        self.properties = None;
+    }
+
+    fn clear_selection_els(&mut self) {
+        self.selected_elements.clear();
+        self.properties = None;
+    }
+
+    fn new_selection_els(&mut self, new_slection_els: Vec<SelectedElement>) {
+        self.selected_elements = new_slection_els;
+        self.properties = None;
     }
 }
 

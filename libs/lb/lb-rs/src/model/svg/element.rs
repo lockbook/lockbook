@@ -42,7 +42,7 @@ impl Default for Stroke {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DynamicColor {
     pub light: usvg::Color,
     pub dark: usvg::Color,

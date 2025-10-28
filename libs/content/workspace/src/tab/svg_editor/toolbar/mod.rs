@@ -3,6 +3,8 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
+use std::sync::Arc;
+
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
 use crate::tab::svg_editor::shapes::ShapesTool;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
@@ -473,4 +475,12 @@ fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool 
         }
         false
     })
+}
+
+fn show_section_header(ui: &mut egui::Ui, label: &str) {
+    ui.label(
+        egui::RichText::new(label.to_uppercase())
+            .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
+            .color(egui::Color32::GRAY),
+    );
 }
