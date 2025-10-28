@@ -1124,6 +1124,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
             self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
         }
         
+        if output.selected_folder_changed {
+            let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+            if selectedFolder.isNil() {
+                self.workspaceOutput?.selectedFolder = nil
+            } else {
+                self.workspaceOutput?.selectedFolder = selectedFolder
+            }
+        }
+        
         let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             if currentOpenDoc != selectedFile {
