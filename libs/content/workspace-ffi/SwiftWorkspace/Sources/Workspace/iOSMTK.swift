@@ -843,7 +843,8 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
     ) -> Bool {
         // Allow pinch and pan to work together
         if (gestureRecognizer is UIPinchGestureRecognizer && otherGestureRecognizer is UIPanGestureRecognizer) ||
-           (gestureRecognizer is UIPanGestureRecognizer && otherGestureRecognizer is UIPinchGestureRecognizer) {
+           (gestureRecognizer is UIPanGestureRecognizer && otherGestureRecognizer is UIPinchGestureRecognizer)
+        {
             return true
         }
         
@@ -859,6 +860,12 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         updateFromPencilState()
+        
+        // let's cancel the kinetic pan. don't nullify it so that the tap handler
+        // will know not to show the edit menu 
+        if self.mtkView.kineticTimer != nil{
+            self.mtkView.kineticTimer?.invalidate()
+        }
         
         mtkView.touchesBegan(touches, with: event)
     }
