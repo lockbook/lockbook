@@ -132,16 +132,14 @@ pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec
     let num_touches = ui.input(|r| {
         if let Some(multi_touch) = r.multi_touch() {
             multi_touch.num_touches
+        } else if r
+            .events
+            .iter()
+            .any(|e| matches!(e, egui::Event::Touch { .. }))
+        {
+            1
         } else {
-            if r.events
-                .iter()
-                .find(|e| matches!(e, egui::Event::Touch { .. }))
-                .is_some()
-            {
-                1
-            } else {
-                0
-            }
+            0
         }
     });
 
