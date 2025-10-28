@@ -722,11 +722,13 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
-
-        if (prefersPencilOnlyDrawing){
-            pan.delegate = self
-            self.addGestureRecognizer(pan)
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        if !prefersPencilOnlyDrawing{
+            pan.minimumNumberOfTouches = 2
         }
+        
+        self.addGestureRecognizer(pan)
     
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
         pinch.cancelsTouchesInView = false

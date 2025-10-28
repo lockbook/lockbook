@@ -128,7 +128,25 @@ pub fn is_scroll(ui: &mut egui::Ui) -> bool {
     is_scroll
 }
 
-pub fn get_pan(ui: &mut egui::Ui) -> Option<egui::Vec2> {
+pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec2> {
+    let num_touches = ui.input(|r| {
+        if let Some(multi_touch) = r.multi_touch() {
+            multi_touch.num_touches
+        } else if r
+            .events
+            .iter()
+            .any(|e| matches!(e, egui::Event::Touch { .. }))
+        {
+            1
+        } else {
+            0
+        }
+    });
+
+    if !pencil_only_drawing && num_touches == 1 {
+        return None;
+    }
+
     for event in ui.ctx().read_events() {
         if let Event::KineticPan { x, y } = event {
             return Some(egui::vec2(x, y));
