@@ -125,7 +125,11 @@ impl Toolbar {
                     1.0
                 };
 
-                Some(-get_pan(ui).unwrap_or_default() / out.absolute_transform.sx / delta_factor)
+                Some(
+                    -get_pan(ui, tlbr_ctx.settings.pencil_only_drawing).unwrap_or(res.drag_delta())
+                        / out.absolute_transform.sx
+                        / delta_factor,
+                )
             } else {
                 None
             };
