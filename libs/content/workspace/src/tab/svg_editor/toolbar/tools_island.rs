@@ -4,9 +4,10 @@ use bezier_rs::{Cap, Subpath};
 use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
-use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::buffer::{self, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
+use tracing::{Event, error};
 
 use crate::set_tool;
 use crate::tab::svg_editor::eraser::DEFAULT_ERASER_RADIUS;
@@ -15,10 +16,11 @@ use crate::tab::svg_editor::pen::{
     DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PenSettings,
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
+use crate::tab::svg_editor::selection::ElementEditableProperties;
 use crate::tab::svg_editor::shapes::ShapeType;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
-use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
+use crate::tab::svg_editor::{CanvasSettings, Pen, Tool, history};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
@@ -242,7 +244,9 @@ impl Toolbar {
                     Tool::Highlighter => {
                         show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                     }
-                    Tool::Selection => self.show_selection_popover(ui),
+                    Tool::Selection => {
+                        self.show_selection_popover(ui, tlbr_ctx);
+                    }
                     Tool::Shapes => self.show_shapes_popover(ui),
                 })
             })
@@ -253,8 +257,13 @@ impl Toolbar {
 
     pub fn show_tool_popovers(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> Option<Response> {
-        let tools_island_rect = self.layout.tools_island?;
+    ) -> (bool, Option<Response>) {
+        let mut buffer_changed = false;
+
+        let tools_island_rect = match self.layout.tools_island {
+            Some(rect) => rect,
+            None => return (buffer_changed, None),
+        };
 
         let opacity = animate_eased(
             ui.ctx(),
@@ -282,16 +291,18 @@ impl Toolbar {
                         Tool::Highlighter => {
                             show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                         }
-                        Tool::Selection => self.show_selection_popover(ui),
+                        Tool::Selection => {
+                            buffer_changed = self.show_selection_popover(ui, tlbr_ctx)
+                        }
                         Tool::Shapes => self.show_shapes_popover(ui),
                     };
                 })
             });
 
             self.layout.tool_popover = Some(tool_popover.response.rect);
-            Some(tool_popover.response)
+            (buffer_changed, Some(tool_popover.response))
         } else {
-            None
+            (buffer_changed, None)
         }
     }
 
@@ -329,30 +340,251 @@ impl Toolbar {
             ui,
             &mut self.eraser.radius,
             DEFAULT_ERASER_RADIUS..=DEFAULT_ERASER_RADIUS * 20.0,
+            1.0,
         );
         ui.add_space(10.0);
     }
 
-    fn show_selection_popover(&mut self, ui: &mut egui::Ui) {
+    fn show_selection_popover(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) -> bool {
         let width = 200.0;
         ui.style_mut().spacing.slider_width = width;
         ui.set_width(width);
 
+        let mut buffer_changed = false;
+        ui.add_space(10.0);
         show_section_header(ui, "stroke");
-        // thickness
-        if let Some(properties) = &self.selection.properties {
-            // alright let's init
-        } else {
-            // let's build this
-        }
-        // pressure sensitivity
-        // color
-        // opacity
-        ui.add_space(20.0);
+        ui.add_space(10.0);
 
-        show_section_header(ui, "layer");
+        if let Some(properties) = &mut self.selection.properties {
+            self.selection.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = tlbr_ctx.buffer.elements.get(&s_el.id) {
+                    properties.opacity = el.opacity();
+                    properties.stroke = el.stroke();
+                }
+            });
+
+            if let Some(stroke) = &mut properties.stroke {
+                let colors = get_pen_colors();
+                ui.horizontal_wrapped(|ui|{
+                    colors.iter().for_each(|&c| {
+                        let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
+                        let active_color =
+                            ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
+
+                        let color_btn = show_color_btn(ui, color, active_color, None);
+                        if color_btn.clicked() || color_btn.drag_started() {
+                            let event = history::Event::StrokeChange(
+                                self.selection
+                                    .selected_elements
+                                    .iter()
+                                    .filter_map(
+                                        |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                            if let Some(el) = tlbr_ctx.buffer.elements.get_mut(&s_el.id)
+                                            {
+                                                let old_stroke = el.stroke().clone();
+                                                stroke.color = c;
+                                                if let Some(mut el_stroke) = el.stroke(){
+                                                    el_stroke.color = c;
+                                                    el.set_stroke(*stroke);
+                                                    buffer_changed = true;
+                                                    Some(history::StrokeChangeElement {
+                                                        id: s_el.id,
+                                                        old_stroke,
+                                                        new_stroke: Some(el_stroke),
+                                                    })
+                                                }else{
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                    )
+                                    .collect(),
+                            );
+                            tlbr_ctx.history.save(event);
+                        }
+                    });
+                });
+                ui.add_space(10.0);
+                let slider_res = show_opacity_slider(ui, &mut stroke.opacity, &stroke.color);
+
+                if slider_res.drag_started() || slider_res.clicked() {
+                    // let's store the inital stroke of each selected el
+                    self.selection_stroke_snashot = self
+                        .selection
+                        .selected_elements
+                        .iter()
+                        .filter_map(|s_el| {
+                            if let Some(el) = tlbr_ctx.buffer.elements.get(&s_el.id) {
+                                if let Some(stroke) = el.stroke() {
+                                    Some((s_el.id, stroke.clone()))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+                if slider_res.dragged() || slider_res.clicked() {
+                    self.selection.selected_elements.iter().for_each(|s_el| {
+                        if let Some(el) = tlbr_ctx.buffer.elements.get_mut(&s_el.id) {
+                            if let Some(mut el_stroke) = el.stroke() {
+                                el_stroke.opacity = stroke.opacity;
+                                el.set_stroke(el_stroke);
+                                buffer_changed = true;
+                            }
+                        }
+                    });
+                }
+                if slider_res.drag_stopped() || slider_res.clicked() {
+                    let event = history::Event::StrokeChange(
+                        self.selection
+                            .selected_elements
+                            .iter()
+                            .filter_map(
+                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                    if let Some(el) = tlbr_ctx.buffer.elements.get_mut(&s_el.id) {
+                                        Some(history::StrokeChangeElement {
+                                            id: s_el.id,
+                                            old_stroke: self
+                                                .selection_stroke_snashot
+                                                .get(&s_el.id)
+                                                .copied(),
+                                            new_stroke: el.stroke(),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                },
+                            )
+                            .collect(),
+                    );
+                    self.selection_stroke_snashot.clear();
+                    tlbr_ctx.history.save(event);
+                }
+
+                ui.add_space(25.0);
+
+                let range = DEFAULT_PEN_STROKE_WIDTH..=10.0;
+                let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
+
+                if slider_res.drag_started() || slider_res.clicked() {
+                    // let's store the inital stroke of each selected el
+                    self.selection_stroke_snashot = self
+                        .selection
+                        .selected_elements
+                        .iter()
+                        .filter_map(|s_el| {
+                            if let Some(el) = tlbr_ctx.buffer.elements.get(&s_el.id) {
+                                if let Some(stroke) = el.stroke() {
+                                    Some((s_el.id, stroke.clone()))
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+                if slider_res.dragged() || slider_res.clicked() {
+                    self.selection.selected_elements.iter().for_each(|s_el| {
+                        if let Some(el) = tlbr_ctx.buffer.elements.get_mut(&s_el.id) {
+                            if let Some(mut el_stroke) = el.stroke() {
+                                el_stroke.width = stroke.width;
+                                el.set_stroke(el_stroke);
+                                buffer_changed = true;
+                            }
+                        }
+                    });
+                }
+                if slider_res.drag_stopped() || slider_res.clicked() {
+                    let event = history::Event::StrokeChange(
+                        self.selection
+                            .selected_elements
+                            .iter()
+                            .filter_map(
+                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                    if let Some(el) = tlbr_ctx.buffer.elements.get_mut(&s_el.id) {
+                                        Some(history::StrokeChangeElement {
+                                            id: s_el.id,
+                                            old_stroke: self
+                                                .selection_stroke_snashot
+                                                .get(&s_el.id)
+                                                .copied(),
+                                            new_stroke: el.stroke(),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                },
+                            )
+                            .collect(),
+                    );
+                    self.selection_stroke_snashot.clear();
+                    tlbr_ctx.history.save(event);
+                }
+
+                ui.add_space(20.0);
+
+                show_section_header(ui, "layer");
+                ui.add_space(10.0);
+                ui.horizontal(|ui| {
+                    let btn_rounding = 5.0;
+                    if Button::default()
+                        .icon(&Icon::BRING_TO_BACK)
+                        .frame(true)
+                        .margin(egui::vec2(3.0, 0.0))
+                        .rounding(btn_rounding)
+                        .show(ui)
+                        .clicked()
+                    {}
+                    if Button::default()
+                        .icon(&Icon::BRING_BACK)
+                        .frame(true)
+                        .margin(egui::vec2(3.0, 0.0))
+                        .rounding(btn_rounding)
+                        .show(ui)
+                        .clicked()
+                    {}
+                    if Button::default()
+                        .frame(true)
+                        .margin(egui::vec2(3.0, 0.0))
+                        .icon(&Icon::BRING_FRONT)
+                        .rounding(btn_rounding)
+                        .show(ui)
+                        .clicked()
+                    {}
+                    if Button::default()
+                        .margin(egui::vec2(3.0, 0.0))
+                        .frame(true)
+                        .rounding(btn_rounding)
+                        .icon(&Icon::BRING_TO_FRONT)
+                        .show(ui)
+                        .clicked()
+                    {}
+                });
+                ui.add_space(10.0);
+            }
+        } else {
+            let mut properties = ElementEditableProperties::default();
+
+            self.selection.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = tlbr_ctx.buffer.elements.get(&s_el.id) {
+                    properties.opacity = el.opacity();
+                    properties.stroke = el.stroke();
+                }
+            });
+
+            self.selection.properties = Some(properties);
+        }
+
         // all the way back | back | forward | all the way forward
         // copy | cut
+        buffer_changed
     }
 
     fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {
@@ -436,7 +668,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0);
+    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
 
     if cfg!(target_os = "ios") {
         ui.add_space(10.0);
@@ -467,10 +699,10 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     ui.add_space(10.0);
 }
 
-fn show_opacity_slider(ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor) {
+fn show_opacity_slider(
+    ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor,
+) -> egui::Response {
     ui.horizontal(|ui| {
-        ui.label(RichText::new("Opacity").size(13.0));
-        ui.add_space(20.0);
         let slider_color =
             ThemePalette::resolve_dynamic_color(*active_color, ui.visuals().dark_mode)
                 .linear_multiply(*active_opacity);
@@ -485,8 +717,9 @@ fn show_opacity_slider(ui: &mut egui::Ui, active_opacity: &mut f32, active_color
             egui::Stroke { width: 2.5, color: slider_color };
         ui.spacing_mut().slider_width = ui.available_width();
         ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false));
-    });
+        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false))
+    })
+    .inner
 }
 
 fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
@@ -511,6 +744,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
         ui,
         &mut pen.active_stroke_width,
         DEFAULT_HIGHLIGHTER_STROKE_WIDTH..=40.0,
+        1.0,
     );
 
     ui.add_space(10.0);
@@ -644,16 +878,17 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
     painter.add(egui::Shape::Mesh(mesh));
 }
 
-fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>) {
+fn show_thickness_slider(
+    ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>, step_size: f64,
+) -> egui::Response {
     let width = ui.available_width();
-    let slider_rect = ui
-        .add(
-            egui::Slider::new(value, value_range.clone())
-                .show_value(false)
-                .step_by(1.0)
-                .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
-        )
-        .rect;
+    let mut slider_res = ui.add(
+        egui::Slider::new(value, value_range.clone())
+            .show_value(false)
+            .step_by(step_size)
+            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
+    );
+    let slider_rect = slider_res.rect;
 
     let middle_range = value_range.start() + (value_range.end() - value_range.start()).abs() / 2.0;
     let ticks = [value_range.start(), &middle_range, value_range.end()];
@@ -707,8 +942,10 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
         if response.clicked() {
             *value = **t;
         }
+        slider_res = slider_res.union(response);
     }
     ui.advance_cursor_after_rect(slider_rect);
+    slider_res
 }
 
 fn get_non_additive(color: &egui::Color32) -> egui::Color32 {

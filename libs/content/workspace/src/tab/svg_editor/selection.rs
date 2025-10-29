@@ -3,7 +3,7 @@ use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::serialize_inner;
-use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, WeakImages};
+use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
@@ -26,10 +26,9 @@ pub struct Selection {
     pub properties: Option<ElementEditableProperties>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ElementEditableProperties {
-    pub stroke_width: f32,
-    pub fill_color: DynamicColor,
+    pub stroke: Option<Stroke>,
     pub opacity: f32,
 }
 

@@ -247,12 +247,6 @@ impl SVGEditor {
         }
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
-            if global_diff.transformed.is_none() {
-                self.toolbar
-                    .hide_tool_popover(&mut self.settings, &mut self.cfg);
-
-                self.toolbar.toggle_viewport_popover(None);
-            }
         }
 
         let needs_save_and_frame_is_cheap =

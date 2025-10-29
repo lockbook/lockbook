@@ -3,6 +3,7 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
@@ -11,8 +12,10 @@ use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
+use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::Stroke;
 use viewport_island::ViewportPopover;
 
 use super::gesture_handler::GestureHandler;
@@ -33,6 +36,7 @@ pub struct Toolbar {
     pub highlighter: Pen,
     pub eraser: Eraser,
     pub selection: Selection,
+    selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub shapes_tool: ShapesTool,
     pub previous_tool: Option<Tool>,
     pub gesture_handler: GestureHandler,
@@ -248,6 +252,7 @@ impl Toolbar {
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
             shapes_tool: Default::default(),
+            selection_stroke_snashot: Default::default(),
         }
     }
 
@@ -285,13 +290,21 @@ impl Toolbar {
             return res;
         }
 
-        let (mini_map_dirty, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
+        let (buffer_changed, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
+        if buffer_changed {
+            res = true;
+            *has_islands_interaction = true;
+        }
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
         let tools_island = self.show_tools_island(ui);
-        let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
+        let (buffer_changed, tool_controls_res) = self.show_tool_popovers(ui, tlbr_ctx);
+        if buffer_changed {
+            res = true;
+            *has_islands_interaction = true;
+        }
 
         if is_pointer_over_res(ui, &history_island) {
             *has_islands_interaction = true;
@@ -306,11 +319,6 @@ impl Toolbar {
             if is_pointer_over_res(ui, &res) {
                 *has_islands_interaction = true;
             }
-        }
-
-        if mini_map_dirty {
-            res = true;
-            *has_islands_interaction = true;
         }
 
         if let Some(res) = tool_controls_res {
