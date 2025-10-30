@@ -528,6 +528,9 @@ impl Workspace {
                                 TabContent::SpaceInspector(sv) => {
                                     sv.show(ui);
                                 }
+                                TabContent::Audio(a) => {
+                                    a.show(ui);
+                                }
                             };
                         }
                     }
@@ -1235,6 +1238,7 @@ pub enum DocType {
     Image,
     ImageUnsupported,
     Code,
+    Audio,
     Unknown,
 }
 
@@ -1247,6 +1251,7 @@ impl DocType {
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "go" => Self::Code,
+            "mp3" | "wav" | "m4a" | "flac" => Self::Audio,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
@@ -1257,6 +1262,7 @@ impl DocType {
             DocType::Drawing => Icon::DRAW,
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
+            DocType::Audio => Icon::AUDIO,
             _ => Icon::DOC_UNKNOWN,
         }
     }
