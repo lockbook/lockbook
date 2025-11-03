@@ -41,6 +41,7 @@ class FileIconHelper {
         "tiff": "photo",
         "heif": "photo",
         "heic": "photo",
+        "webp": "photo",
         
         "zip": "doc.zipper",
         "tar": "doc.zipper",
