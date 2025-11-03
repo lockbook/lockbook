@@ -53,6 +53,9 @@ enum ShapeEvent {
 
 impl ShapesTool {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, shapes_ctx: &mut ToolContext) {
+        if shapes_ctx.toolbar_has_interaction {
+            return;
+        }
         let is_multi_touch = is_multi_touch(ui);
 
         ui.input(|r| {

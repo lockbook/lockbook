@@ -80,6 +80,7 @@ pub struct ToolContext<'a> {
     pub settings: &'a mut CanvasSettings,
     pub is_locked_vw_pen_only: bool,
     pub viewport_settings: &'a mut ViewportSettings,
+    pub toolbar_has_interaction: bool,
 }
 
 pub struct ToolbarContext<'a> {
@@ -442,6 +443,10 @@ impl Toolbar {
         self.hide_tool_popover(settings, cfg);
         self.viewport_popover = None;
         self.show_at_cursor_tool_popover = None;
+    }
+
+    pub fn is_selection_being_modified(&self) -> bool {
+        self.selection_stroke_snashot.is_empty() == false
     }
 }
 

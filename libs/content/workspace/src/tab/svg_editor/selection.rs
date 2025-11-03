@@ -84,7 +84,14 @@ struct SelectionInputState {
 }
 
 impl Selection {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
+        is_toolbar_modifying_selection: bool,
+    ) {
+        if is_toolbar_modifying_selection {
+            return;
+        }
+
         let is_multi_touch = is_multi_touch(ui);
 
         let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
@@ -104,6 +111,10 @@ impl Selection {
                 suggested_op = self.show_selection_rects(ui, selection_ctx);
             },
         );
+
+        if selection_ctx.toolbar_has_interaction {
+            return;
+        }
 
         ui.input(|r| {
             let mut input_state = SelectionInputState {
@@ -649,134 +660,27 @@ impl Selection {
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let mut max_current_index = 0;
-        let mut min_cureent_index = usize::MAX;
-        self.selected_elements.iter().for_each(|selected_element| {
-            if let Some((el_id, _, _)) =
-                selection_ctx.buffer.elements.get_full(&selected_element.id)
-            {
-                max_current_index = el_id.max(max_current_index);
-                min_cureent_index = el_id.min(min_cureent_index);
-            }
-        });
+        ui.add_space(4.0);
 
-        if Button::default()
-            .icon(&Icon::BRING_TO_BACK.color(
-                if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                },
-            ))
-            .show(ui)
+        if ui
+            .add(
+                egui::Button::new(egui::RichText::new("Copy"))
+                    .fill(egui::Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::NONE),
+            )
             .clicked()
-            && max_current_index != selection_ctx.buffer.elements.len() - 1
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    selection_ctx
-                        .buffer
-                        .elements
-                        .move_index(el_id, selection_ctx.buffer.elements.len() - 1);
-                }
-            });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_BACK.color(
-                if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                },
-            ))
-            .show(ui)
-            .clicked()
-            && max_current_index != selection_ctx.buffer.elements.len() - 1
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    if el_id < selection_ctx.buffer.elements.len() - 1 {
-                        selection_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
-                    }
-                }
-            });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().linear_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    if el_id > 0 {
-                        selection_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
-                    }
-                }
-            });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().linear_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    selection_ctx.buffer.elements.move_index(el_id, 0);
-                }
-            });
-        }
-
-        ui.visuals_mut().widgets.noninteractive.bg_stroke =
-            egui::Stroke { width: 3.0, color: ui.visuals().extreme_bg_color };
-
-        ui.add(egui::Separator::default().vertical().grow(3.0));
+        {}
 
         ui.add_space(4.0);
 
-        if Button::default()
-            .icon(&Icon::CONTENT_COPY)
-            .show(ui)
+        if ui
+            .add(
+                egui::Button::new(egui::RichText::new("More"))
+                    .fill(egui::Color32::TRANSPARENT)
+                    .stroke(egui::Stroke::NONE),
+            )
             .clicked()
-        {
-            let id_map = &selection_ctx.buffer.id_map;
-            let elements: &IndexMap<Uuid, Element> = &self
-                .selected_elements
-                .drain(..)
-                .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
-                .collect();
-            // let weak_images = &selection_ctx.buffer.weak_images;
-
-            let serialized_selection = serialize_inner(
-                id_map,
-                elements,
-                &selection_ctx.buffer.weak_viewport_settings,
-                &WeakImages::default(),
-                &selection_ctx.buffer.weak_path_pressures,
-            );
-
-            ui.output_mut(|w| w.copied_text = serialized_selection);
-        }
+        {}
 
         ui.add_space(4.0);
 

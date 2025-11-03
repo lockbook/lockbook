@@ -332,12 +332,8 @@ impl SVGEditor {
             settings: &mut self.settings,
             is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
             viewport_settings: &mut self.viewport_settings,
+            toolbar_has_interaction: self.has_islands_interaction,
         };
-
-        if self.has_islands_interaction {
-            self.toolbar.pen.end_path(&mut tool_context, false);
-            return;
-        }
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
             self.toolbar
@@ -356,7 +352,12 @@ impl SVGEditor {
                 self.toolbar.eraser.handle_input(ui, &mut tool_context);
             }
             Tool::Selection => {
-                self.toolbar.selection.handle_input(ui, &mut tool_context);
+                let is_toolbar_modifying_selection = self.toolbar.is_selection_being_modified();
+                self.toolbar.selection.handle_input(
+                    ui,
+                    &mut tool_context,
+                    is_toolbar_modifying_selection,
+                );
             }
             Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
         }

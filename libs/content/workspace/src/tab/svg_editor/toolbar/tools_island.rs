@@ -531,41 +531,14 @@ impl Toolbar {
                 ui.add_space(20.0);
 
                 show_section_header(ui, "layer");
-                ui.add_space(10.0);
+                ui.add_space(5.0);
                 ui.horizontal(|ui| {
-                    let btn_rounding = 5.0;
-                    if Button::default()
-                        .icon(&Icon::BRING_TO_BACK)
-                        .frame(true)
-                        .margin(egui::vec2(3.0, 0.0))
-                        .rounding(btn_rounding)
-                        .show(ui)
-                        .clicked()
-                    {}
-                    if Button::default()
-                        .icon(&Icon::BRING_BACK)
-                        .frame(true)
-                        .margin(egui::vec2(3.0, 0.0))
-                        .rounding(btn_rounding)
-                        .show(ui)
-                        .clicked()
-                    {}
-                    if Button::default()
-                        .frame(true)
-                        .margin(egui::vec2(3.0, 0.0))
-                        .icon(&Icon::BRING_FRONT)
-                        .rounding(btn_rounding)
-                        .show(ui)
-                        .clicked()
-                    {}
-                    if Button::default()
-                        .margin(egui::vec2(3.0, 0.0))
-                        .frame(true)
-                        .rounding(btn_rounding)
-                        .icon(&Icon::BRING_TO_FRONT)
-                        .show(ui)
-                        .clicked()
-                    {}
+                    self.show_layer_controls(tlbr_ctx, ui);
+                });
+
+                ui.add_space(7.5);
+                ui.horizontal(|ui| {
+                    self.show_action_controls(tlbr_ctx, ui);
                 });
                 ui.add_space(10.0);
             }
@@ -585,6 +558,175 @@ impl Toolbar {
         // all the way back | back | forward | all the way forward
         // copy | cut
         buffer_changed
+    }
+
+    fn show_action_controls(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
+        let btn_rounding = 5.0;
+        ui.horizontal(|ui| {
+            if Button::default()
+                .icon(&Icon::CONTENT_COPY)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {
+                // let id_map = &selection_ctx.buffer.id_map;
+                // let elements: &IndexMap<Uuid, Element> = &self
+                //     .selected_elements
+                //     .drain(..)
+                //     .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
+                //     .collect();
+                // // let weak_images = &selection_ctx.buffer.weak_images;
+
+                // let serialized_selection = serialize_inner(
+                //     id_map,
+                //     elements,
+                //     &selection_ctx.buffer.weak_viewport_settings,
+                //     &WeakImages::default(),
+                //     &selection_ctx.buffer.weak_path_pressures,
+                // );
+
+                // ui.output_mut(|w| w.copied_text = serialized_selection);
+            }
+            if Button::default()
+                .icon(&Icon::CONTENT_CUT)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {}
+        });
+    }
+    fn show_layer_controls(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let btn_rounding = 5.0;
+            let mut max_current_index = 0;
+            let mut min_cureent_index = usize::MAX;
+            self.selection
+                .selected_elements
+                .iter()
+                .for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        tlbr_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        max_current_index = el_id.max(max_current_index);
+                        min_cureent_index = el_id.min(min_cureent_index);
+                    }
+                });
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_BACK.color(
+                    if max_current_index == tlbr_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != tlbr_ctx.buffer.elements.len() - 1
+            {
+                self.selection
+                    .selected_elements
+                    .iter()
+                    .for_each(|selected_element| {
+                        if let Some((el_id, _, _)) =
+                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
+                        {
+                            tlbr_ctx
+                                .buffer
+                                .elements
+                                .move_index(el_id, tlbr_ctx.buffer.elements.len() - 1);
+                        }
+                    });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_BACK.color(
+                    if max_current_index == tlbr_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != tlbr_ctx.buffer.elements.len() - 1
+            {
+                self.selection
+                    .selected_elements
+                    .iter()
+                    .for_each(|selected_element| {
+                        if let Some((el_id, _, _)) =
+                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
+                        {
+                            if el_id < tlbr_ctx.buffer.elements.len() - 1 {
+                                tlbr_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
+                            }
+                        }
+                    });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selection
+                    .selected_elements
+                    .iter()
+                    .for_each(|selected_element| {
+                        if let Some((el_id, _, _)) =
+                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
+                        {
+                            if el_id > 0 {
+                                tlbr_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
+                            }
+                        }
+                    });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selection
+                    .selected_elements
+                    .iter()
+                    .for_each(|selected_element| {
+                        if let Some((el_id, _, _)) =
+                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
+                        {
+                            tlbr_ctx.buffer.elements.move_index(el_id, 0);
+                        }
+                    });
+            }
+        });
     }
 
     fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {
