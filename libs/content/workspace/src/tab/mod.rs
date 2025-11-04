@@ -17,10 +17,10 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
-use urlencoding::decode;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use urlencoding::decode;
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -572,7 +572,9 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
     #[cfg(windows)]
     let target_path = target_path.replace('\\', "/");
 
-    let target_path = decode(&target_path).map(|cow| cow.to_string()).unwrap_or(target_path);
+    let target_path = decode(&target_path)
+        .map(|cow| cow.to_string())
+        .unwrap_or(target_path);
 
     core.get_by_path(&target_path).map_err(|e| e.to_string())
 }
