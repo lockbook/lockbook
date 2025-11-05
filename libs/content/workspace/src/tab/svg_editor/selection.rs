@@ -1,17 +1,22 @@
+use std::collections::HashMap;
+
 use bezier_rs::Subpath;
 use glam::DVec2;
-use indexmap::IndexMap;
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::serialize_inner;
-use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke, WeakImages};
+use lb_rs::model::svg::buffer::get_pen_colors;
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke};
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
 
-use crate::set_tool;
-use crate::tab::svg_editor::toolbar::show_section_header;
+use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::toolbar::{
+    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+};
+use crate::tab::svg_editor::{history, selection};
 use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 
 use super::history::TransformElement;
@@ -25,6 +30,7 @@ pub struct Selection {
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
     layout: Layout,
+    pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub properties: Option<ElementEditableProperties>,
 }
 
@@ -707,7 +713,9 @@ impl Selection {
             .icon(&Icon::ARROW_RIGHT)
             .show(ui)
             .clicked()
-        {}
+        {
+            self.show_selection_popover(ui, selection_ctx);
+        }
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -853,7 +861,7 @@ impl Selection {
                         let color_btn = show_color_btn(ui, color, active_color, None);
                         if color_btn.clicked() || color_btn.drag_started() {
                             let event = history::Event::StrokeChange(
-                                self.selection
+                                self
                                     .selected_elements
                                     .iter()
                                     .filter_map(
@@ -891,7 +899,6 @@ impl Selection {
                 if slider_res.drag_started() || slider_res.clicked() {
                     // let's store the inital stroke of each selected el
                     self.selection_stroke_snashot = self
-                        .selection
                         .selected_elements
                         .iter()
                         .filter_map(|s_el| {
@@ -920,8 +927,7 @@ impl Selection {
                 }
                 if slider_res.drag_stopped() || slider_res.clicked() {
                     let event = history::Event::StrokeChange(
-                        self.selection
-                            .selected_elements
+                        self.selected_elements
                             .iter()
                             .filter_map(
                                 |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
@@ -955,7 +961,6 @@ impl Selection {
                 if slider_res.drag_started() || slider_res.clicked() {
                     // let's store the inital stroke of each selected el
                     self.selection_stroke_snashot = self
-                        .selection
                         .selected_elements
                         .iter()
                         .filter_map(|s_el| {
@@ -984,8 +989,7 @@ impl Selection {
                 }
                 if slider_res.drag_stopped() || slider_res.clicked() {
                     let event = history::Event::StrokeChange(
-                        self.selection
-                            .selected_elements
+                        self.selected_elements
                             .iter()
                             .filter_map(
                                 |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
@@ -1029,7 +1033,7 @@ impl Selection {
             let mut properties = ElementEditableProperties::default();
 
             self.selected_elements.iter().for_each(|s_el| {
-                if let Some(el) = tlbr_ctx.buffer.elements.get(&s_el.id) {
+                if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
                     properties.opacity = el.opacity();
                     properties.stroke = el.stroke();
                 }
@@ -1041,6 +1045,161 @@ impl Selection {
         // all the way back | back | forward | all the way forward
         // copy | cut
         buffer_changed
+    }
+
+    fn show_layer_controls(&mut self, selection_ctx: &mut ToolContext<'_>, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let btn_rounding = 5.0;
+            let mut max_current_index = 0;
+            let mut min_cureent_index = usize::MAX;
+            self.selected_elements.iter().for_each(|selected_element| {
+                if let Some((el_id, _, _)) =
+                    selection_ctx.buffer.elements.get_full(&selected_element.id)
+                {
+                    max_current_index = el_id.max(max_current_index);
+                    min_cureent_index = el_id.min(min_cureent_index);
+                }
+            });
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_BACK.color(
+                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != selection_ctx.buffer.elements.len() - 1
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        selection_ctx
+                            .buffer
+                            .elements
+                            .move_index(el_id, selection_ctx.buffer.elements.len() - 1);
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_BACK.color(
+                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != selection_ctx.buffer.elements.len() - 1
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        if el_id < selection_ctx.buffer.elements.len() - 1 {
+                            selection_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
+                        }
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        if el_id > 0 {
+                            selection_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
+                        }
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        selection_ctx.buffer.elements.move_index(el_id, 0);
+                    }
+                });
+            }
+        });
+    }
+
+    fn show_action_controls(&mut self, selection_ctx: &mut ToolContext, ui: &mut egui::Ui) {
+        let btn_rounding = 5.0;
+        ui.horizontal(|ui| {
+            if Button::default()
+                .icon(&Icon::CONTENT_COPY)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {
+                // let id_map = &selection_ctx.buffer.id_map;
+                // let elements: &IndexMap<Uuid, Element> = &self
+                //     .selected_elements
+                //     .drain(..)
+                //     .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
+                //     .collect();
+                // // let weak_images = &selection_ctx.buffer.weak_images;
+
+                // let serialized_selection = serialize_inner(
+                //     id_map,
+                //     elements,
+                //     &selection_ctx.buffer.weak_viewport_settings,
+                //     &WeakImages::default(),
+                //     &selection_ctx.buffer.weak_path_pressures,
+                // );
+
+                // ui.output_mut(|w| w.copied_text = serialized_selection);
+            }
+            if Button::default()
+                .icon(&Icon::CONTENT_CUT)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {}
+        });
     }
 }
 

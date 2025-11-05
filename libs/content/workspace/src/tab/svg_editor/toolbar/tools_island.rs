@@ -18,7 +18,9 @@ use crate::tab::svg_editor::pen::{
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::selection::ElementEditableProperties;
 use crate::tab::svg_editor::shapes::ShapeType;
-use crate::tab::svg_editor::toolbar::show_section_header;
+use crate::tab::svg_editor::toolbar::{
+    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+};
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::{CanvasSettings, Pen, Tool, history};
 use crate::theme::icons::Icon;
@@ -345,175 +347,6 @@ impl Toolbar {
         ui.add_space(10.0);
     }
 
-    fn show_action_controls(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
-        let btn_rounding = 5.0;
-        ui.horizontal(|ui| {
-            if Button::default()
-                .icon(&Icon::CONTENT_COPY)
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-            {
-                // let id_map = &selection_ctx.buffer.id_map;
-                // let elements: &IndexMap<Uuid, Element> = &self
-                //     .selected_elements
-                //     .drain(..)
-                //     .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
-                //     .collect();
-                // // let weak_images = &selection_ctx.buffer.weak_images;
-
-                // let serialized_selection = serialize_inner(
-                //     id_map,
-                //     elements,
-                //     &selection_ctx.buffer.weak_viewport_settings,
-                //     &WeakImages::default(),
-                //     &selection_ctx.buffer.weak_path_pressures,
-                // );
-
-                // ui.output_mut(|w| w.copied_text = serialized_selection);
-            }
-            if Button::default()
-                .icon(&Icon::CONTENT_CUT)
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-            {}
-        });
-    }
-    fn show_layer_controls(&mut self, tlbr_ctx: &mut ToolbarContext<'_>, ui: &mut egui::Ui) {
-        ui.horizontal(|ui| {
-            let btn_rounding = 5.0;
-            let mut max_current_index = 0;
-            let mut min_cureent_index = usize::MAX;
-            self.selection
-                .selected_elements
-                .iter()
-                .for_each(|selected_element| {
-                    if let Some((el_id, _, _)) =
-                        tlbr_ctx.buffer.elements.get_full(&selected_element.id)
-                    {
-                        max_current_index = el_id.max(max_current_index);
-                        min_cureent_index = el_id.min(min_cureent_index);
-                    }
-                });
-
-            if Button::default()
-                .icon(&Icon::BRING_TO_BACK.color(
-                    if max_current_index == tlbr_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && max_current_index != tlbr_ctx.buffer.elements.len() - 1
-            {
-                self.selection
-                    .selected_elements
-                    .iter()
-                    .for_each(|selected_element| {
-                        if let Some((el_id, _, _)) =
-                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
-                        {
-                            tlbr_ctx
-                                .buffer
-                                .elements
-                                .move_index(el_id, tlbr_ctx.buffer.elements.len() - 1);
-                        }
-                    });
-            }
-
-            if Button::default()
-                .icon(&Icon::BRING_BACK.color(
-                    if max_current_index == tlbr_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && max_current_index != tlbr_ctx.buffer.elements.len() - 1
-            {
-                self.selection
-                    .selected_elements
-                    .iter()
-                    .for_each(|selected_element| {
-                        if let Some((el_id, _, _)) =
-                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
-                        {
-                            if el_id < tlbr_ctx.buffer.elements.len() - 1 {
-                                tlbr_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
-                            }
-                        }
-                    });
-            }
-
-            if Button::default()
-                .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                }))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && min_cureent_index != 0
-            {
-                self.selection
-                    .selected_elements
-                    .iter()
-                    .for_each(|selected_element| {
-                        if let Some((el_id, _, _)) =
-                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
-                        {
-                            if el_id > 0 {
-                                tlbr_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
-                            }
-                        }
-                    });
-            }
-
-            if Button::default()
-                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                }))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-                && min_cureent_index != 0
-            {
-                self.selection
-                    .selected_elements
-                    .iter()
-                    .for_each(|selected_element| {
-                        if let Some((el_id, _, _)) =
-                            tlbr_ctx.buffer.elements.get_full(&selected_element.id)
-                        {
-                            tlbr_ctx.buffer.elements.move_index(el_id, 0);
-                        }
-                    });
-            }
-        });
-    }
-
     fn show_shapes_popover(&mut self, ui: &mut egui::Ui) {
         let width = 220.0;
         ui.style_mut().spacing.slider_width = width;
@@ -626,29 +459,6 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     ui.add_space(10.0);
 }
 
-fn show_opacity_slider(
-    ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor,
-) -> egui::Response {
-    ui.horizontal(|ui| {
-        let slider_color =
-            ThemePalette::resolve_dynamic_color(*active_color, ui.visuals().dark_mode)
-                .linear_multiply(*active_opacity);
-        ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
-        ui.visuals_mut().widgets.inactive.fg_stroke =
-            egui::Stroke { width: 1.0, color: slider_color };
-        ui.visuals_mut().widgets.hovered.bg_fill = slider_color;
-        ui.visuals_mut().widgets.hovered.fg_stroke =
-            egui::Stroke { width: 2.0, color: slider_color };
-        ui.visuals_mut().widgets.active.bg_fill = slider_color;
-        ui.visuals_mut().widgets.active.fg_stroke =
-            egui::Stroke { width: 2.5, color: slider_color };
-        ui.spacing_mut().slider_width = ui.available_width();
-        ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false))
-    })
-    .inner
-}
-
 fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
     ui.label(RichText::new("Pressure Sensitivity").size(13.0));
     ui.horizontal(|ui| {
@@ -703,27 +513,6 @@ fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
     pen.colors_history[1] = pen.colors_history[0];
     pen.colors_history[0] = pen.active_color;
     pen.active_color = new_color;
-}
-
-fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
-) -> egui::Response {
-    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
-    let margin = 6.0;
-    let (id, rect) =
-        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
-
-    ui.painter()
-        .circle_filled(rect.center(), circle_diameter / 2.0, color);
-
-    if get_non_additive(&active_color).eq(&color) {
-        ui.painter().circle_stroke(
-            rect.center(),
-            circle_diameter / 2.0 - 3.0,
-            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
-        );
-    }
-    ui.interact(rect, id, egui::Sense::click_and_drag())
 }
 
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
@@ -803,78 +592,4 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
     };
 
     painter.add(egui::Shape::Mesh(mesh));
-}
-
-fn show_thickness_slider(
-    ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>, step_size: f64,
-) -> egui::Response {
-    let width = ui.available_width();
-    let mut slider_res = ui.add(
-        egui::Slider::new(value, value_range.clone())
-            .show_value(false)
-            .step_by(step_size)
-            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
-    );
-    let slider_rect = slider_res.rect;
-
-    let middle_range = value_range.start() + (value_range.end() - value_range.start()).abs() / 2.0;
-    let ticks = [value_range.start(), &middle_range, value_range.end()];
-
-    for (i, t) in ticks.iter().enumerate() {
-        let margin = egui::vec2(2.0, 10.0);
-        let end_y = slider_rect.top() - margin.y + (i as f32 * 3.0 + 1.0);
-
-        let total_spacing = width - (THICKNESS_BTN_WIDTH * ticks.len() as f32);
-        let spacing_between = total_spacing / (ticks.len() as f32 + 1.0);
-
-        let rect_start_x = slider_rect.left()
-            + spacing_between
-            + i as f32 * (THICKNESS_BTN_WIDTH + spacing_between);
-
-        let rect = match i {
-            0 => egui::Rect {
-                min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
-                max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            1 => egui::Rect {
-                min: egui::pos2(rect_start_x, slider_rect.top() - margin.y),
-                max: egui::pos2(rect_start_x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            2 => egui::Rect {
-                min: egui::pos2(
-                    slider_rect.right() - margin.x - THICKNESS_BTN_WIDTH,
-                    slider_rect.top() - margin.y,
-                ),
-                max: egui::pos2(slider_rect.right() - margin.x, end_y),
-            },
-            _ => break,
-        };
-
-        let response = ui.allocate_rect(rect.expand2(egui::vec2(0.0, 5.0)), egui::Sense::click());
-
-        if t.eq(&value) {
-            ui.painter().rect_filled(
-                rect.expand(5.0),
-                egui::Rounding::same(8.0),
-                egui::Color32::GRAY.linear_multiply(0.1),
-            );
-        }
-
-        ui.painter().rect_filled(
-            rect,
-            egui::Rounding::same(2.0),
-            ui.visuals().text_color().linear_multiply(0.8),
-        );
-
-        if response.clicked() {
-            *value = **t;
-        }
-        slider_res = slider_res.union(response);
-    }
-    ui.advance_cursor_after_rect(slider_rect);
-    slider_res
-}
-
-fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
-    egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
