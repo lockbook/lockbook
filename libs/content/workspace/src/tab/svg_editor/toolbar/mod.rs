@@ -490,7 +490,7 @@ fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool 
     })
 }
 
-fn show_section_header(ui: &mut egui::Ui, label: &str) {
+pub fn show_section_header(ui: &mut egui::Ui, label: &str) {
     ui.label(
         egui::RichText::new(label.to_uppercase())
             .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))

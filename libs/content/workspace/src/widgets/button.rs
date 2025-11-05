@@ -199,10 +199,6 @@ impl<'a> Button<'a> {
                     }
                 }
 
-                if resp.hovered() {
-                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand)
-                }
-
                 resp
             })
             .inner
