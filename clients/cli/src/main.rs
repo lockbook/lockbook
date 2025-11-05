@@ -5,6 +5,7 @@ mod imex;
 mod input;
 mod lb_fs;
 mod list;
+mod migrate;
 mod share;
 mod stream;
 
@@ -205,9 +206,17 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("search")
+            Command::name("search").description("search document contents")
                 .input(Arg::str("query"))
                 .handler(|query| search(&query.get()))
+        )
+        .subcommand(
+            Command::name("migrate-from").description("transfer files from an existing platform")
+                .subcommand(
+                    Command::name("bear").description("migrate your files from https://bear.app/ Export as md and using the 'export attachments' option.")
+                        .input(Arg::<PathBuf>::name("disk-path").description("location of a bear export of files."))
+                        .handler(|path| migrate::bear(path.get()))
+                )
         )
         .subcommand(
             Command::name("sync").description("sync your local changes back to lockbook servers") // todo also back
