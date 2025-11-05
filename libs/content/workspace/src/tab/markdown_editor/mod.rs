@@ -625,7 +625,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
     };
 
-    let icons = lb_fonts::MATERIAL_SYMBOLS_OUTLINED;
+    let icons = lb_fonts::NERD_FONTS_SYMBOLS;
 
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
@@ -726,12 +726,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         }
     });
 
-    fonts.font_data.insert("material_icons".into(), {
-        FontData {
-            tweak: FontTweak { y_offset_factor: -0.1, scale: base_scale, ..Default::default() },
-            ..FontData::from_static(icons)
-        }
-    });
     fonts.font_data.insert("icons".into(), {
         FontData {
             tweak: FontTweak { y_offset_factor: 0., scale: base_scale, ..Default::default() },
@@ -780,5 +774,5 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .families
         .get_mut(&FontFamily::Monospace)
         .unwrap()
-        .push("material_icons".to_owned());
+        .push("icons".to_owned());
 }

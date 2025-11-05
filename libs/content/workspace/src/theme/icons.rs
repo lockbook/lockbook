@@ -14,45 +14,36 @@ const fn ic(c: &'static str) -> Icon {
 }
 
 impl Icon {
-    pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
-    pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
-    pub const ARROW_DOWN: Self = ic("\u{e5c5}"); // Arrow Down
-    pub const ARROW_UP: Self = ic("\u{e5c7}"); // Arrow Up
-    pub const BRING_BACK: Self = ic("\u{e5cb}");
-    pub const BRING_TO_BACK: Self = ic("\u{e5dc}");
-    pub const BRING_TO_FRONT: Self = ic("\u{e5dd}");
-    pub const BRING_FRONT: Self = ic("\u{e5cc}");
-    pub const BRUSH: Self = ic("\u{e3ae}");
-    pub const BOLD: Self = ic("\u{e238}"); // Bold Text
-    pub const CHECK: Self = ic("\u{e5ca}");
-    pub const CHECK_CIRCLE: Self = ic("\u{e86c}"); // Check Circle
-    pub const CANCEL: Self = ic("\u{e5c9}"); // Cancel
-    pub const CANCEL_PRESENTATION: Self = ic("\u{e0e9}"); // Cancel Presentation
-    pub const CIRCLE: Self = ic("\u{ef4a}"); // Circle
-    pub const CHEVRON_LEFT: Self = ic("\u{e5cb}"); // Chevron Left
-    pub const CHEVRON_RIGHT: Self = ic("\u{e5cc}"); // Chevron Right
-    pub const CLOSE: Self = ic("\u{e5cd}"); // Close
+    pub const ACCOUNT: Self = ic("\u{f0004}"); // Person Outline
+    pub const ARROW_DOWN: Self = ic("\u{f0d7}"); // Arrow Down
+    pub const ARROW_UP: Self = ic("\u{f0d8}"); // Arrow Up
+    pub const BRING_TO_BACK: Self = ic("\u{f0600}");
+    pub const BRING_TO_FRONT: Self = ic("\u{f0601}");
+    pub const BRUSH: Self = ic("\u{f00e3}");
+    pub const BOLD: Self = ic("\u{f0264}"); // Bold Text
+    pub const CHECK_CIRCLE: Self = ic("\u{f05e0}"); // Check Circle
+    pub const CIRCLE: Self = ic("\u{eabc}"); // Circle
+    pub const CHEVRON_LEFT: Self = ic("\u{f0141}"); // Chevron Left
+    pub const CHEVRON_RIGHT: Self = ic("\u{f0142}"); // Chevron Right
+    pub const CLOSE: Self = ic("\u{f0156}"); // Close
     pub const CODE: Self = ic("\u{e86f}"); // Code
     pub const CONTENT_COPY: Self = ic("\u{e14d}"); // Content Copy
     pub const CONTENT_CUT: Self = ic("\u{e14e}"); // Content Cut
     pub const CONTENT_PASTE: Self = ic("\u{e14f}"); // Content Paste
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note
     pub const DOC_TEXT: Self = ic("\u{e873}"); // Description
+    pub const DOC_MD: Self = ic("\u{f552}"); // Description
     pub const DONE: Self = ic("\u{e876}"); // Done
-    pub const DRAW: Self = ic("\u{e746}"); // Draw
-    pub const EDIT: Self = ic("\u{e254}"); // Mode Edit
+    pub const DRAW: Self = ic("\u{e3ae}"); // Draw
     pub const EMPTY_INBOX: Self = ic("\u{f07e}"); // Upcoming
     pub const ERASER: Self = ic("\u{e6d0}"); // Upcoming
-    pub const EXPLORE: Self = ic("\u{e569}"); // Mini map on canvas
     pub const DELETE: Self = ic("\u{e872}"); // Delete
     pub const FOLDER: Self = ic("\u{e2c7}"); // Folder
     pub const FOLDER_OPEN: Self = ic("\u{e2c8}"); // Folder Open
     pub const FULLSCREEN: Self = ic("\u{e5d0}");
     pub const FULLSCREEN_EXIT: Self = ic("\u{e5d1}");
     pub const GROUP: Self = ic("\u{e7ef}"); // Group
-    pub const HISTORY: Self = ic("\u{e889}"); // History
     pub const HIGHLIGHTER: Self = ic("\u{e6d1}");
-    pub const HIGHLIGHT_OFF: Self = ic("\u{e888}"); // Highlight Off
     pub const HEADER_1: Self = ic("\u{e262}"); // Header 11
     pub const TOGGLE_SIDEBAR: Self = ic("\u{f7e4}");
     pub const HAND: Self = ic("\u{f82f}"); // Selection tool
@@ -66,11 +57,7 @@ impl Icon {
     pub const LOCK_CLOSED: Self = ic("\u{e897}");
 
     pub const MONEY: Self = ic("\u{e263}"); // Monetization On
-    pub const MORE_VERT: Self = ic("\u{e5d4}");
     pub const NUMBER_LIST: Self = ic("\u{e242}"); // Number List
-    pub const PLACE_ITEM: Self = ic("\u{f1f0}"); // Place Item
-    pub const PEN: Self = ic("\u{e150}"); // Pencil
-    pub const PREVIEW: Self = ic("\u{f1c5}"); // Preview
     pub const SETTINGS: Self = ic("\u{e8b8}"); // Settings
     pub const SPARKLE: Self = ic("\u{e65f}"); // Auto Awesome
     pub const SAVE: Self = ic("\u{e161}"); // Save
@@ -84,13 +71,8 @@ impl Icon {
     pub const SYNC_PROBLEM: Self = ic("\u{e000}"); // Sync Problem
     pub const TODO_LIST: Self = ic("\u{e6b3}"); // Todo List
     pub const THUMBS_UP: Self = ic("\u{e8dc}"); // Thumbs Up
-    pub const VERTICAL_SPLIT: Self = ic("\u{e949}"); // Vertical Split
-    pub const VIDEO_LABEL: Self = ic("\u{e071}"); // Video Label
-    pub const VISIBILITY_ON: Self = ic("\u{e8f4}"); // Visibility On
-    pub const VISIBILITY_OFF: Self = ic("\u{e8f5}"); // Visibility Off
     pub const REDO: Self = ic("\u{e15A}");
     pub const UNDO: Self = ic("\u{e166}");
-    pub const WARNING: Self = ic("\u{e001}");
     pub const ZOOM_IN: Self = ic("\u{e145}");
     pub const ZOOM_OUT: Self = ic("\u{e15b}");
     pub const STRIKETHROUGH: Self = ic("\u{e257}");
@@ -105,16 +87,7 @@ impl Icon {
     pub const FEEDBACK: Self = ic("\u{e87f}");
     pub const REPORT: Self = ic("\u{e160}");
 
-    //pub const ARTICLE: Self = ic("\u{ef42}");
-    //pub const COMMAND_KEY: Self = Self('\u{eae7}');
-    //pub const SWAP_HORIZONTAL: Self = Self('\u{e933}'); // Swap Horizontal Circle
-    //pub const EDIT_OFF: Self = ic("\u{e950}"); // Edit Off
-    //pub const FIND_REPLACE: Self = ic("\u{e881}"); // Find Replace
-    //pub const SHIELD: Self = Self("\u{e8e8}");
-    //pub const SHIELD_OFF: Self = Self("\u{e9d4}");
     pub const RECTANGLE: Self = ic("\u{eb54}"); // Rectangle
-    //pub const PALETTE: Self = ic("\u{e40a}"); // Palette
-    //pub const QR_CODE: Self = ic("\u{e00a}"); // Qr Code 2
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
