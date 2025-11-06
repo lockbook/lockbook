@@ -14,12 +14,13 @@ const fn ic(c: &'static str) -> Icon {
 }
 
 // look em up here: https://www.nerdfonts.com/cheat-sheet
+// if you have nerdfonts installed the previews in the comments should be accurate
 // make duplicates clear in the code
 // don't leave dead code behind
 impl Icon {
-    pub const ACCOUNT: Self = ic("\u{f0004}");
-    pub const ARROW_DOWN: Self = ic("\u{f0d7}");
-    pub const ARROW_UP: Self = ic("\u{f0d8}");
+    pub const ACCOUNT: Self = ic("\u{f0004}"); // 󰀄
+    pub const ARROW_DOWN: Self = ic("\u{f035d}"); // 󰍝
+    pub const ARROW_UP: Self = ic("\u{f0360}"); // 󰍠
     pub const BRING_TO_BACK: Self = ic("\u{f0600}");
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}");
     pub const BRUSH: Self = ic("\u{f00e3}");
@@ -29,12 +30,12 @@ impl Icon {
     pub const CHEVRON_LEFT: Self = ic("\u{f0141}");
     pub const CHEVRON_RIGHT: Self = ic("\u{f0142}");
     pub const CLOSE: Self = ic("\u{f0156}");
-    pub const CODE: Self = ic("\u{f121}");
+    pub const CODE: Self = ic("\u{f0174}");
     pub const CONTENT_COPY: Self = ic("\u{f018f}");
     pub const CONTENT_CUT: Self = ic("\u{f0190}");
     pub const CONTENT_PASTE: Self = ic("\u{f0192}");
     pub const DOC_UNKNOWN: Self = ic("\u{f039a}");
-    pub const DOC_TEXT: Self = ic("\u{f15c}");
+    pub const DOC_TEXT: Self = ic("\u{f15c}"); // 
     pub const DOC_MD: Self = ic("\u{f48a}");
     pub const DONE: Self = ic("\u{f012c}");
     pub const DRAW: Self = Self::BRUSH;
@@ -73,11 +74,11 @@ impl Icon {
     pub const SYNC_PROBLEM: Self = ic("\u{f0026}");
     pub const TODO_LIST: Self = ic("\u{f096a}");
     pub const THUMBS_UP: Self = ic("\u{f0513}");
-    pub const REDO: Self = ic("\u{f044e}");
-    pub const UNDO: Self = ic("\u{f054c}");
-    pub const ZOOM_IN: Self = ic("\u{f0415}");
-    pub const ZOOM_OUT: Self = ic("\u{f0374}");
-    pub const STRIKETHROUGH: Self = ic("\u{f0281}");
+    pub const REDO: Self = ic("\u{f044f}");
+    pub const UNDO: Self = ic("\u{f054d}");
+    pub const ZOOM_IN: Self = ic("\u{f0415}"); // 󰐕
+    pub const ZOOM_OUT: Self = ic("\u{f0374}"); // 󰍴
+    pub const STRIKETHROUGH: Self = ic("\u{f0280}");
     pub const BULLET_LIST: Self = ic("\u{f0279}");
     pub const INDENT: Self = ic("\u{f0276}");
     pub const DEINDENT: Self = ic("\u{f0275}");

@@ -79,15 +79,3 @@ pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
     }
 }
 
-pub fn register_fonts(fonts: &mut egui::FontDefinitions) {
-    let mut font = egui::FontData::from_static(lb_fonts::NERD_FONTS_SYMBOLS);
-    font.tweak.y_offset_factor = -0.1;
-
-    fonts.font_data.insert("icons".to_owned(), font);
-
-    fonts
-        .families
-        .get_mut(&egui::FontFamily::Monospace)
-        .unwrap()
-        .push("icons".to_owned());
-}

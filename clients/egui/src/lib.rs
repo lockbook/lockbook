@@ -46,7 +46,6 @@ impl Lockbook {
 
         let mut fonts = egui::FontDefinitions::default();
         workspace_rs::register_fonts(&mut fonts);
-        // theme::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
         egui_extras::install_image_loaders(ctx);
 

@@ -1231,7 +1231,7 @@ impl ElapsedHumanString for u64 {
 pub enum DocType {
     PlainText,
     Markdown,
-    Drawing,
+    SVG,
     Image,
     ImageUnsupported,
     Code,
@@ -1242,7 +1242,7 @@ impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
         match ext {
-            "draw" | "svg" => Self::Drawing,
+            "draw" | "svg" => Self::SVG,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
@@ -1251,14 +1251,27 @@ impl DocType {
             _ => Self::Unknown,
         }
     }
+
     pub fn to_icon(&self) -> Icon {
         match self {
             DocType::Markdown  => Icon::DOC_MD,
             DocType::PlainText => Icon::DOC_TEXT,
-            DocType::Drawing => Icon::DRAW,
+            DocType::SVG => Icon::DRAW,
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn hide_ext(&self) -> bool {
+        match self {
+            DocType::PlainText => false,
+            DocType::Markdown => true,
+            DocType::SVG => true,
+            DocType::Image => false,
+            DocType::ImageUnsupported => false,
+            DocType::Code => false,
+            DocType::Unknown => false,
         }
     }
 }
