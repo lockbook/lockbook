@@ -1254,7 +1254,7 @@ impl DocType {
 
     pub fn to_icon(&self) -> Icon {
         match self {
-            DocType::Markdown  => Icon::DOC_MD,
+            DocType::Markdown => Icon::DOC_MD,
             DocType::PlainText => Icon::DOC_TEXT,
             DocType::SVG => Icon::DRAW,
             DocType::Image => Icon::IMAGE,

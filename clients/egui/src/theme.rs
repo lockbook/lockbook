@@ -78,4 +78,3 @@ pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
         dark_light::Mode::Dark => visuals::dark(primary),
     }
 }
-
