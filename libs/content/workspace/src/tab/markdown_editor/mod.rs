@@ -625,7 +625,6 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
     };
 
-    let icons = lb_fonts::NERD_FONTS_SYMBOLS;
 
     let mono_scale = 0.9 * base_scale;
     let mono_y_offset_factor = 0.1;
@@ -725,11 +724,11 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             ..FontData::from_static(mono)
         }
     });
-
+    
     fonts.font_data.insert("icons".into(), {
         FontData {
-            tweak: FontTweak { y_offset_factor: 0., scale: base_scale, ..Default::default() },
-            ..FontData::from_static(icons)
+            tweak: FontTweak {  ..Default::default() },
+            ..FontData::from_static(lb_fonts::NERD_FONTS_SYMBOLS)
         }
     });
 
