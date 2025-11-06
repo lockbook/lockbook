@@ -27,7 +27,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::{Color, DynamicColor, Element};
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use pen::PenSettings;
@@ -99,6 +99,7 @@ pub struct Response {
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
     background_type: BackgroundOverlay,
+    background_color: DynamicColor,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,
@@ -118,6 +119,7 @@ impl Default for CanvasSettings {
             pen: PenSettings::default_pen(),
             background_type: BackgroundOverlay::default(),
             show_mini_map: true,
+            background_color: DynamicColor { light: Color::white(), dark: Color::black() },
         }
     }
 }

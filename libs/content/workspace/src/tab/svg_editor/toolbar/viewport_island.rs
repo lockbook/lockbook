@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use egui::Response;
+use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::BackgroundOverlay;
@@ -9,8 +10,10 @@ use crate::tab::svg_editor::gesture_handler::{
     MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
     zoom_percentage_to_transform,
 };
+use crate::tab::svg_editor::toolbar::show_color_btn;
 use crate::tab::svg_editor::util::draw_dashed_line;
 use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 
 use super::{Toolbar, ToolbarContext};
@@ -272,6 +275,8 @@ impl Toolbar {
 
         ui.scope(|ui| {
             show_background_selector(ui, tlbr_ctx);
+            ui.add_space(5.0);
+            show_background_colors_selector(ui, tlbr_ctx);
         });
 
         ui.add_space(20.0);
@@ -412,6 +417,28 @@ impl Toolbar {
             self.renderer.request_rerender = true;
         }
     }
+}
+
+fn show_background_colors_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
+    let colors = get_background_colors();
+    ui.horizontal_wrapped(|ui| {
+        for color in colors {
+            if show_color_btn(
+                ui,
+                ThemePalette::resolve_dynamic_color(color, ui.visuals().dark_mode),
+                ThemePalette::resolve_dynamic_color(
+                    tlbr_ctx.settings.background_color,
+                    ui.visuals().dark_mode,
+                ),
+                None,
+            )
+            .clicked()
+            {
+                tlbr_ctx.settings.background_color = color;
+                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+            };
+        }
+    });
 }
 
 fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {

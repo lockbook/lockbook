@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
-use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
+use usvg::{self, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
 
 use super::buffer::u_transform_to_bezier;
@@ -42,10 +42,31 @@ impl Default for Stroke {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct DynamicColor {
-    pub light: usvg::Color,
-    pub dark: usvg::Color,
+    pub light: Color,
+    pub dark: Color,
+}
+
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Color {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+}
+
+impl Color {
+    pub fn new_rgb(red: u8, green: u8, blue: u8) -> Self {
+        Self { red, green, blue }
+    }
+
+    pub fn black() -> Self {
+        Self::new_rgb(0, 0, 0)
+    }
+
+    pub fn white() -> Self {
+        Self::new_rgb(255, 255, 255)
+    }
 }
 
 impl Default for DynamicColor {

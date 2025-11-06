@@ -16,6 +16,7 @@ use crate::tab::svg_editor::pen::{
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::shapes::ShapeType;
+use crate::tab::svg_editor::toolbar::show_color_btn;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
 use crate::theme::icons::Icon;
@@ -525,27 +526,6 @@ fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {
     pen.active_color = new_color;
 }
 
-fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
-) -> egui::Response {
-    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
-    let margin = 6.0;
-    let (id, rect) =
-        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
-
-    ui.painter()
-        .circle_filled(rect.center(), circle_diameter / 2.0, color);
-
-    if get_non_additive(&active_color).eq(&color) {
-        ui.painter().circle_stroke(
-            rect.center(),
-            circle_diameter / 2.0 - 3.0,
-            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
-        );
-    }
-    ui.interact(rect, id, egui::Sense::click_and_drag())
-}
-
 fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarContext) {
     let (res, painter) = ui.allocate_painter(
         egui::vec2(ui.available_width(), 100.0),
@@ -690,8 +670,4 @@ fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeI
         }
     }
     ui.advance_cursor_after_rect(slider_rect);
-}
-
-fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
-    egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
