@@ -352,12 +352,7 @@ impl SVGEditor {
                 self.toolbar.eraser.handle_input(ui, &mut tool_context);
             }
             Tool::Selection => {
-                let is_toolbar_modifying_selection = self.toolbar.is_selection_being_modified();
-                self.toolbar.selection.handle_input(
-                    ui,
-                    &mut tool_context,
-                    is_toolbar_modifying_selection,
-                );
+                self.toolbar.selection.handle_input(ui, &mut tool_context);
             }
             Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
         }

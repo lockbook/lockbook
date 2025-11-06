@@ -444,10 +444,6 @@ impl Toolbar {
         self.viewport_popover = None;
         self.show_at_cursor_tool_popover = None;
     }
-
-    pub fn is_selection_being_modified(&self) -> bool {
-        self.selection.selection_stroke_snashot.is_empty() == false
-    }
 }
 
 impl SVGEditor {

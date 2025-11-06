@@ -30,6 +30,7 @@ pub struct Selection {
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
     layout: Layout,
+    show_selection_popover: bool,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub properties: Option<ElementEditableProperties>,
 }
@@ -65,8 +66,30 @@ pub struct SelectedElement {
 #[derive(Default)]
 struct Layout {
     container_tooltip: Option<egui::Rect>,
+    popover: Option<egui::Rect>,
 }
 
+impl Layout {
+    fn has_ui_interaction(&self, maybe_interact_pos: Option<egui::Pos2>) -> bool {
+        let pos = match maybe_interact_pos {
+            Some(val) => val,
+            None => return false,
+        };
+
+        if let Some(tooltip_rect) = self.container_tooltip {
+            if tooltip_rect.contains(pos) {
+                return true;
+            }
+        }
+        if let Some(popover_rect) = self.popover {
+            if popover_rect.contains(pos) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
 #[derive(Debug)]
 enum SelectionEvent {
     StartLaso(BuildPayload),
@@ -92,19 +115,12 @@ struct SelectionInputState {
 }
 
 impl Selection {
-    pub fn handle_input(
-        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
-        is_toolbar_modifying_selection: bool,
-    ) {
-        if is_toolbar_modifying_selection {
-            return;
-        }
-
+    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         let is_multi_touch = is_multi_touch(ui);
 
+        let mut suggested_op = None;
         let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
         child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        let mut suggested_op = None;
         child_ui.with_layer_id(
             egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
             |ui| {
@@ -138,15 +154,9 @@ impl Selection {
                 {
                     break;
                 }
-                if let Some(pos) = r.pointer.interact_pos() {
-                    if self
-                        .layout
-                        .container_tooltip
-                        .unwrap_or(egui::Rect::NOTHING)
-                        .contains(pos)
-                    {
-                        break;
-                    }
+
+                if self.layout.has_ui_interaction(r.pointer.interact_pos()) {
+                    break;
                 }
 
                 if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
@@ -589,7 +599,9 @@ impl Selection {
         let container = self.get_container_rect(selection_ctx.buffer);
         let mut op = None;
 
-        if self.current_op != SelectionOperation::Translation {
+        if self.current_op != SelectionOperation::Translation
+            && self.selection_stroke_snashot.is_empty()
+        {
             for el in self.selected_elements.iter() {
                 let child = match selection_ctx.buffer.elements.get(&el.id) {
                     Some(el) => el.bounding_box(),
@@ -604,7 +616,6 @@ impl Selection {
         }
 
         ui.visuals_mut().window_rounding = egui::Rounding::same(7.0);
-        ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5.0, 0.0);
         ui.style_mut()
             .text_styles
             .insert(egui::TextStyle::Body, egui::FontId::new(15.0, egui::FontFamily::Proportional));
@@ -617,16 +628,6 @@ impl Selection {
         if ui.visuals().dark_mode {
             ui.visuals_mut().window_stroke = egui::Stroke::NONE;
             ui.visuals_mut().window_fill = egui::Color32::from_rgb(42, 42, 42);
-        } else {
-            // ui.visuals_mut().window_stroke =
-            //     egui::Stroke::new(0.5, egui::Color32::from_rgb(240, 240, 240));
-            // ui.visuals_mut().window_shadow = egui::Shadow {
-            //     offset: egui::vec2(1.0, 8.0),
-            //     blur: 20.0,
-            //     spread: 0.0,
-            //     color: egui::Color32::from_black_alpha(5),
-            // };
-            // ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
         }
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
@@ -664,10 +665,30 @@ impl Selection {
             egui::LayerId { order: egui::Order::Tooltip, id: "selection_tooltip".into() },
             |ui| {
                 let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
+                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5.0, 0.0);
+
                     egui::Frame::window(ui.style())
                         .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
                 });
+                let show_popover_toggled = res.inner.inner.inner;
+
                 self.layout.container_tooltip = Some(res.response.rect);
+
+                let popover_min = res.response.rect.right_top() + egui::vec2(5.0, 0.0);
+                let res = ui.allocate_ui_at_rect(
+                    egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0)),
+                    |ui| {
+                        if self.show_selection_popover && !show_popover_toggled {
+                            egui::Frame::window(ui.style()).show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    self.show_selection_popover(ui, selection_ctx);
+                                });
+                            });
+                        }
+                    },
+                );
+
+                self.layout.popover = Some(res.response.rect)
             },
         );
 
@@ -678,7 +699,7 @@ impl Selection {
         op
     }
 
-    fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+    fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
         let btn_margin = egui::vec2(5.0, 2.0);
         if ui.visuals().dark_mode {
             ui.visuals_mut().window_stroke =
@@ -687,6 +708,20 @@ impl Selection {
             ui.visuals_mut().widgets.noninteractive.bg_stroke = ui.visuals().window_stroke;
             ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
         }
+
+        if self.show_selection_popover {
+            if Button::default()
+                .icon(&Icon::ARROW_LEFT)
+                .margin(egui::vec2(0.0, btn_margin.y))
+                .show(ui)
+                .clicked()
+            {
+                self.show_selection_popover = !self.show_selection_popover;
+            }
+
+            return false;
+        }
+
         if Button::default()
             .text("Copy")
             .margin(btn_margin)
@@ -714,8 +749,10 @@ impl Selection {
             .show(ui)
             .clicked()
         {
-            self.show_selection_popover(ui, selection_ctx);
+            self.show_selection_popover = !self.show_selection_popover;
+            return true;
         }
+        false
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -822,6 +859,7 @@ impl Selection {
 
     fn clear_selection_els(&mut self) {
         self.selected_elements.clear();
+        self.show_selection_popover = false;
         self.properties = None;
     }
 
