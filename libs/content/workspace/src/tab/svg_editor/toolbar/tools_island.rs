@@ -1,13 +1,10 @@
-use std::ops::RangeInclusive;
-
 use bezier_rs::{Cap, Subpath};
 use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
-use lb_rs::model::svg::buffer::{self, get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
-use tracing::{Event, error};
 
 use crate::set_tool;
 use crate::tab::svg_editor::eraser::DEFAULT_ERASER_RADIUS;
@@ -16,21 +13,16 @@ use crate::tab::svg_editor::pen::{
     DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PenSettings,
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
-use crate::tab::svg_editor::selection::ElementEditableProperties;
 use crate::tab::svg_editor::shapes::ShapeType;
-use crate::tab::svg_editor::toolbar::{
-    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
-};
+use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
-use crate::tab::svg_editor::{CanvasSettings, Pen, Tool, history};
+use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 use crate::workspace::WsPersistentStore;
 
-use super::{
-    COLOR_SWATCH_BTN_RADIUS, SCREEN_PADDING, THICKNESS_BTN_WIDTH, Toolbar, ToolbarContext,
-};
+use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
@@ -259,13 +251,8 @@ impl Toolbar {
 
     pub fn show_tool_popovers(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-    ) -> (bool, Option<Response>) {
-        let mut buffer_changed = false;
-
-        let tools_island_rect = match self.layout.tools_island {
-            Some(rect) => rect,
-            None => return (buffer_changed, None),
-        };
+    ) -> Option<Response> {
+        let tools_island_rect = self.layout.tools_island?;
 
         let opacity = animate_eased(
             ui.ctx(),
@@ -302,9 +289,9 @@ impl Toolbar {
             });
 
             self.layout.tool_popover = Some(tool_popover.response.rect);
-            (buffer_changed, Some(tool_popover.response))
+            Some(tool_popover.response)
         } else {
-            (buffer_changed, None)
+            None
         }
     }
 

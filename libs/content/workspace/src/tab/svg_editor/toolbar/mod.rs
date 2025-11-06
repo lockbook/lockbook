@@ -3,7 +3,6 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
@@ -14,10 +13,10 @@ use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
-use lb_rs::Uuid;
+
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{DynamicColor, Stroke};
+use lb_rs::model::svg::element::DynamicColor;
 use viewport_island::ViewportPopover;
 
 use super::gesture_handler::GestureHandler;
@@ -301,7 +300,7 @@ impl Toolbar {
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
         let tools_island = self.show_tools_island(ui);
-        let (buffer_changed, tool_controls_res) = self.show_tool_popovers(ui, tlbr_ctx);
+        let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
         if buffer_changed {
             res = true;
             *has_islands_interaction = true;

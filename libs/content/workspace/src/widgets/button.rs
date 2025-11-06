@@ -1,4 +1,4 @@
-use egui::{CursorIcon, Rounding, TextStyle, TextWrapMode, WidgetText};
+use egui::{Rounding, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 

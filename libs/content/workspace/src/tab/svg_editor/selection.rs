@@ -2,19 +2,21 @@ use std::collections::HashMap;
 
 use bezier_rs::Subpath;
 use glam::DVec2;
+use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::get_pen_colors;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke};
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
+use lb_rs::model::svg::buffer::serialize_inner;
 
+use crate::tab::svg_editor::history;
 use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
 use crate::tab::svg_editor::toolbar::{
     show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
-use crate::tab::svg_editor::{history, selection};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
@@ -728,7 +730,8 @@ impl Selection {
             .show(ui)
             .clicked()
         {
-            // Handle copy action
+            self.copy_selection(ui, selection_ctx);
+            self.clear_selection_els();
         }
 
         ui.separator();
@@ -753,6 +756,31 @@ impl Selection {
             return true;
         }
         false
+    }
+
+    fn cut_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        self.copy_selection(ui, selection_ctx);
+        self.delete_selection(selection_ctx);
+        self.clear_selection_els();
+    }
+
+    fn copy_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        let id_map = &selection_ctx.buffer.id_map;
+        let elements: &IndexMap<Uuid, Element> = &self
+            .selected_elements
+            .iter()
+            .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
+            .collect();
+
+        let serialized_selection = serialize_inner(
+            id_map,
+            elements,
+            &selection_ctx.buffer.weak_viewport_settings,
+            &WeakImages::default(),
+            &selection_ctx.buffer.weak_path_pressures,
+        );
+
+        ui.output_mut(|w| w.copied_text = serialized_selection);
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -906,7 +934,7 @@ impl Selection {
                                         |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
                                             if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id)
                                             {
-                                                let old_stroke = el.stroke().clone();
+                                                let old_stroke = el.stroke();
                                                 stroke.color = c;
                                                 if let Some(mut el_stroke) = el.stroke(){
                                                     el_stroke.color = c;
@@ -941,11 +969,7 @@ impl Selection {
                         .iter()
                         .filter_map(|s_el| {
                             if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                                if let Some(stroke) = el.stroke() {
-                                    Some((s_el.id, stroke.clone()))
-                                } else {
-                                    None
-                                }
+                                el.stroke().map(|stroke| (s_el.id, stroke))
                             } else {
                                 None
                             }
@@ -1003,11 +1027,7 @@ impl Selection {
                         .iter()
                         .filter_map(|s_el| {
                             if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                                if let Some(stroke) = el.stroke() {
-                                    Some((s_el.id, stroke.clone()))
-                                } else {
-                                    None
-                                }
+                                el.stroke().map(|stroke| (s_el.id, stroke))
                             } else {
                                 None
                             }
@@ -1080,8 +1100,6 @@ impl Selection {
             self.properties = Some(properties);
         }
 
-        // all the way back | back | forward | all the way forward
-        // copy | cut
         buffer_changed
     }
 
@@ -1211,23 +1229,8 @@ impl Selection {
                 .show(ui)
                 .clicked()
             {
-                // let id_map = &selection_ctx.buffer.id_map;
-                // let elements: &IndexMap<Uuid, Element> = &self
-                //     .selected_elements
-                //     .drain(..)
-                //     .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
-                //     .collect();
-                // // let weak_images = &selection_ctx.buffer.weak_images;
-
-                // let serialized_selection = serialize_inner(
-                //     id_map,
-                //     elements,
-                //     &selection_ctx.buffer.weak_viewport_settings,
-                //     &WeakImages::default(),
-                //     &selection_ctx.buffer.weak_path_pressures,
-                // );
-
-                // ui.output_mut(|w| w.copied_text = serialized_selection);
+                self.copy_selection(ui, selection_ctx);
+                self.clear_selection_els();
             }
             if Button::default()
                 .icon(&Icon::CONTENT_CUT)
@@ -1236,7 +1239,9 @@ impl Selection {
                 .rounding(btn_rounding)
                 .show(ui)
                 .clicked()
-            {}
+            {
+                self.cut_selection(ui, selection_ctx);
+            }
         });
     }
 }

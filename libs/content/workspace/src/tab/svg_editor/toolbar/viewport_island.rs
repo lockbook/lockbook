@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use egui::Response;
 use resvg::usvg::Transform;
 
