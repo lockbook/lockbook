@@ -191,14 +191,14 @@ impl NfsFileSystem for Drive {
         let now = FileEntry::now();
         let entry = data.get_mut(id).unwrap();
 
-        if let Nfs3Option::Some(new) = setattr.size {
-            if entry.fattr.size != new {
-                let mut doc = self.lb.read_document(*id.as_uuid(), false).await.unwrap();
-                doc.resize(new as usize, 0);
-                self.lb.write_document(*id.as_uuid(), &doc).await.unwrap();
-                entry.fattr.mtime = now;
-                entry.fattr.ctime = now;
-            }
+        if let Nfs3Option::Some(new) = setattr.size
+            && entry.fattr.size != new
+        {
+            let mut doc = self.lb.read_document(*id.as_uuid(), false).await.unwrap();
+            doc.resize(new as usize, 0);
+            self.lb.write_document(*id.as_uuid(), &doc).await.unwrap();
+            entry.fattr.mtime = now;
+            entry.fattr.ctime = now;
         }
 
         match setattr.atime {

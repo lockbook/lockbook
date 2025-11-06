@@ -1532,7 +1532,6 @@ pub trait FilesExt {
     fn root(&self) -> Uuid;
     fn get_by_id(&self, id: Uuid) -> &File;
     fn children(&self, id: Uuid) -> Vec<&File>;
-    fn descendents(&self, id: Uuid) -> Vec<&File>;
 }
 
 impl FilesExt for [File] {
@@ -1564,15 +1563,6 @@ impl FilesExt for [File] {
             (_, _) => a.name.cmp(&b.name),
         });
         children
-    }
-
-    fn descendents(&self, id: Uuid) -> Vec<&File> {
-        let mut descendents = vec![];
-        for child in self.children(id) {
-            descendents.extend(self.descendents(child.id));
-            descendents.push(child);
-        }
-        descendents
     }
 }
 
