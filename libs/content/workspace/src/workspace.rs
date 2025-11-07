@@ -307,7 +307,7 @@ impl Workspace {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
+    // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
             self.tasks.update();
@@ -363,7 +363,7 @@ impl Workspace {
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id,
-                                &bytes,
+                                bytes,
                                 &ctx,
                                 writeable_dir,
                                 !show_tabs, // todo: use settings to determine toolbar visibility

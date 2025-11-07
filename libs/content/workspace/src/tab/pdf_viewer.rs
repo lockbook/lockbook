@@ -1,17 +1,19 @@
-use egui::load::SizedTexture;
-use lb_pdf::{PdfPageRenderRotation, PdfRenderConfig};
-use lb_rs::Uuid;
-// use lb_pdf::PdfiumWrapper;
+use std::sync::Arc;
+
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
+use egui::load::SizedTexture;
+use hayro::{InterpreterSettings, Pdf, RenderSettings};
+use lb_rs::Uuid;
 
 pub struct PdfViewer {
     pub id: Uuid,
+    pub pdf: Pdf,
 
     renders: Vec<Content>,
     zoom_factor: Option<f32>,
     fit_page_zoom: Option<f32>,
-    sa_offset: Option<egui::Vec2>,
+    scroll_offset: Option<egui::Vec2>,
     scroll_update: Option<f32>,
     sidebar: Option<SideBar>,
 }
@@ -41,36 +43,28 @@ const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
 impl PdfViewer {
     pub fn new(
-        id: Uuid, bytes: &[u8], ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
+        id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
     ) -> Self {
-        let available_height = ctx.used_rect().height();
-        let blowup_factor = 1.5; // improves the resolution of the rendered image at the cost of rendering time
+        let pdf = Pdf::new(Arc::new(bytes)).unwrap();
 
-        let render_config = PdfRenderConfig::new()
-            .set_target_height((available_height * blowup_factor) as i32)
-            .scale_page_by_factor(if is_mobile_viewport { 5. } else { 2. })
-            .rotate_if_landscape(PdfPageRenderRotation::Degrees90, true);
-
-        let pdfium_binary_path = if !cfg!(target_os = "android") {
-            data_dir.to_string()
-        } else {
-            format!("{data_dir}/egui")
-        };
-
-        println!("{pdfium_binary_path}");
-
-        let pdfium = lb_pdf::init(&pdfium_binary_path);
-        let docs = pdfium.load_pdf_from_byte_slice(bytes, None).unwrap();
-
-        let renders = docs
+        let renders = pdf
             .pages()
             .iter()
-            .map(|f| {
-                let image = f.render_with_config(&render_config).unwrap().as_image(); // todo: handle error PdfiumLibraryInternalError(Unknown)
+            .map(|page| {
+                let image = hayro::render(
+                    page,
+                    &InterpreterSettings::default(),
+                    &RenderSettings {
+                        width: None,
+                        height: None,
+                        x_scale: ctx.pixels_per_point(),
+                        y_scale: ctx.pixels_per_point(),
+                    },
+                );
                 let size = [image.width() as _, image.height() as _];
-                let image_buffer = image.to_rgba8();
-                let pixels = image_buffer.as_flat_samples();
-                let image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                println!("SIZE: {:?}", size);
+                let image =
+                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
                 Content {
                     offset: None,
                     texture: ctx.load_texture("pdf_image", image, egui::TextureOptions::LINEAR),
@@ -78,22 +72,22 @@ impl PdfViewer {
             })
             .collect();
 
-        let render_config = PdfRenderConfig::new()
-            .scale_page_by_factor(0.5)
-            .thumbnail(ctx.available_rect().height() as i32);
-
         let sidebar = if is_mobile_viewport {
             None
         } else {
-            let thumbnails = docs
+            let mut tn_render_settings = RenderSettings::default();
+            tn_render_settings.x_scale = 0.5;
+            tn_render_settings.y_scale = 0.5;
+
+            let thumbnails = pdf
                 .pages()
                 .iter()
-                .map(|f| {
-                    let image = f.render_with_config(&render_config).unwrap().as_image();
+                .map(|page| {
+                    let image =
+                        hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
                     let size = [image.width() as _, image.height() as _];
-                    let image_buffer = image.to_rgba8();
-                    let pixels = image_buffer.as_flat_samples();
-                    let image = egui::ColorImage::from_rgba_unmultiplied(size, pixels.as_slice());
+                    let image =
+                        egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
                     Content {
                         offset: None,
                         texture: ctx.load_texture(
@@ -118,9 +112,10 @@ impl PdfViewer {
             renders,
             zoom_factor: None,
             fit_page_zoom: None,
-            sa_offset: None,
+            scroll_offset: None,
             scroll_update: None,
             sidebar,
+            pdf,
         }
     }
 
@@ -220,7 +215,7 @@ impl PdfViewer {
             )
         });
 
-        self.sa_offset = res.inner;
+        self.scroll_offset = res.inner;
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
@@ -401,7 +396,7 @@ impl PdfViewer {
             r.offset = None;
         });
 
-        let y_offset = self.sa_offset.unwrap_or(egui::vec2(0.0, 0.0)).y;
+        let y_offset = self.scroll_offset.unwrap_or(egui::vec2(0.0, 0.0)).y;
 
         let total_height = self.get_sao_height();
         let aspect = total_height / y_offset;
