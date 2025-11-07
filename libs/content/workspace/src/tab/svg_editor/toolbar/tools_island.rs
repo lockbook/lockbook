@@ -24,9 +24,7 @@ use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 use crate::workspace::WsPersistentStore;
 
-use super::{
-    COLOR_SWATCH_BTN_RADIUS, SCREEN_PADDING, THICKNESS_BTN_WIDTH, Toolbar, ToolbarContext,
-};
+use super::{SCREEN_PADDING, THICKNESS_BTN_WIDTH, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(

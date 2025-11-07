@@ -476,17 +476,20 @@ pub fn get_pen_colors() -> Vec<DynamicColor> {
 
 pub fn get_background_colors() -> Vec<DynamicColor> {
     let pastel_blue =
-        DynamicColor { light: Color::new_rgb(224, 237, 255), dark: Color::new_rgb(40, 54, 70) };
+        DynamicColor { light: Color::new_rgb(226, 235, 240), dark: Color::new_rgb(5, 15, 26) };
 
     let soft_pink_beige =
-        DynamicColor { light: Color::new_rgb(245, 230, 224), dark: Color::new_rgb(78, 65, 60) };
+        DynamicColor { light: Color::new_rgb(240, 230, 230), dark: Color::new_rgb(25, 16, 14) };
 
     let warm_gray =
-        DynamicColor { light: Color::new_rgb(238, 236, 230), dark: Color::new_rgb(48, 47, 44) };
+        DynamicColor { light: Color::new_rgb(238, 236, 230), dark: Color::new_rgb(22, 21, 20) };
+
+    let nice_green =
+        DynamicColor { light: Color::new_rgb(226, 240, 228), dark: Color::new_rgb(10, 23, 16) };
 
     let bg = DynamicColor { light: Color::white(), dark: Color::black() };
 
-    vec![pastel_blue, soft_pink_beige, warm_gray, bg]
+    vec![soft_pink_beige, warm_gray, nice_green, pastel_blue, bg]
 }
 
 fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {
