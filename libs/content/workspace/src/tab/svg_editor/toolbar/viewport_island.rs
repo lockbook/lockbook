@@ -1,15 +1,18 @@
 use egui::Response;
+use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::BackgroundOverlay;
 use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
 use crate::tab::svg_editor::gesture_handler::{
     MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
     zoom_percentage_to_transform,
 };
+use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
+use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
 use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 
 use super::{Toolbar, ToolbarContext};
@@ -271,13 +274,18 @@ impl Toolbar {
 
         ui.scope(|ui| {
             show_background_selector(ui, tlbr_ctx);
+            ui.add_space(10.0);
+            show_background_color_selector(ui, tlbr_ctx);
         });
 
         ui.add_space(20.0);
         show_section_header(ui, "layout");
 
         egui::Frame::default()
-            .fill(ui.visuals().code_bg_color)
+            .fill(ThemePalette::resolve_dynamic_color(
+                tlbr_ctx.settings.background_color,
+                ui.visuals().dark_mode,
+            ))
             .inner_margin(egui::Margin::same(30.0))
             .outer_margin(egui::Margin::symmetric(0.0, 5.0))
             .rounding(ui.visuals().window_rounding / 2.0)
@@ -309,18 +317,22 @@ impl Toolbar {
 
                 let preview_painter = ui.painter_at(preview_rect);
 
-                preview_painter.rect_filled(preview_rect, 0.0, ui.style().visuals.extreme_bg_color);
+                preview_painter.rect_filled(
+                    preview_rect,
+                    0.0,
+                    ThemePalette::resolve_dynamic_color(
+                        tlbr_ctx.settings.background_color,
+                        ui.visuals().dark_mode,
+                    ),
+                );
                 ui.advance_cursor_after_rect(preview_rect);
                 // Draw the shadows
 
                 let shadow = egui::Shadow {
                     offset: egui::vec2(0.0, 0.0),
-
                     blur: 40.0,
-
-                    spread: 10.0,
-
-                    color: ui.visuals().extreme_bg_color,
+                    spread: 0.5,
+                    color: tlbr_ctx.settings.get_secondary_background_color(ui),
                 }
                 .as_shape(preview_rect, 0.0);
 
@@ -410,6 +422,41 @@ impl Toolbar {
     }
 }
 
+fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
+    let colors = get_background_colors();
+    ui.horizontal_wrapped(|ui| {
+        let active_color = ThemePalette::resolve_dynamic_color(
+            tlbr_ctx.settings.background_color,
+            ui.visuals().dark_mode,
+        );
+        for dyn_color in colors {
+            let color = ThemePalette::resolve_dynamic_color(dyn_color, ui.visuals().dark_mode);
+
+            let (id, rect) = ui.allocate_space(egui::vec2(40.0, 20.0));
+            let res = ui.interact(rect, id, egui::Sense::click_and_drag());
+            if res.clicked() || res.drag_started() {
+                tlbr_ctx.settings.background_color = dyn_color;
+                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+            }
+
+            let is_active = get_non_additive(&active_color).eq(&color);
+            let stroke_color = get_secondary_color(color);
+
+            ui.painter().rect(
+                rect,
+                10.0,
+                color,
+                if is_active {
+                    egui::Stroke { width: 2.0, color: stroke_color }
+                } else {
+                    egui::Stroke { width: 0.5, color: stroke_color }
+                },
+            );
+            ui.add_space(7.0);
+        }
+    });
+}
+
 fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
     show_section_header(ui, "background");
 
@@ -423,59 +470,34 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
         40.0,
     );
 
-    let default_stroke = egui::Stroke { width: 1.5, color: egui::Color32::GRAY };
+    let background_color = ThemePalette::resolve_dynamic_color(
+        tlbr_ctx.settings.background_color,
+        ui.visuals().dark_mode,
+    );
+    let active_stroke_color = tlbr_ctx.settings.get_secondary_background_color(ui);
+
     let transform = Transform::identity()
         .post_scale(0.5, 0.5)
         .post_translate(-1.0, 3.0);
 
-    ui.visuals_mut().widgets.active.fg_stroke.color = ui
-        .visuals_mut()
-        .widgets
-        .active
-        .fg_stroke
-        .color
-        .linear_multiply(0.6);
-    ui.visuals_mut().widgets.inactive.fg_stroke.color = ui
-        .visuals_mut()
-        .widgets
-        .active
-        .fg_stroke
-        .color
-        .linear_multiply(0.6);
-    ui.visuals_mut().widgets.hovered.fg_stroke.color = ui
-        .visuals_mut()
-        .widgets
-        .active
-        .fg_stroke
-        .color
-        .linear_multiply(0.6);
+    ui.visuals_mut().widgets.active.fg_stroke.color = active_stroke_color;
+    ui.visuals_mut().widgets.inactive.fg_stroke.color = active_stroke_color;
+    ui.visuals_mut().widgets.hovered.fg_stroke.color = active_stroke_color;
 
     ui.visuals_mut().widgets.active.fg_stroke.width =
         ui.visuals_mut().widgets.hovered.fg_stroke.width;
+
     ui.horizontal(|ui| {
         let dot_selector_rect = egui::Rect::from_min_size(ui.cursor().min, bg_selector_dim);
         let dot_res = ui.allocate_rect(dot_selector_rect, egui::Sense::click_and_drag());
 
         let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Dots;
-        let stroke = if is_active {
-            let mut copy = default_stroke;
-            copy.color = ui.visuals().widgets.active.bg_fill;
-            copy
-        } else {
-            let a = ui.style().interact(&dot_res);
-            a.fg_stroke
-            // default_stroke
-        };
-        ui.painter().rect(
-            dot_res.rect,
-            3.0,
-            if is_active {
-                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
-            } else {
-                egui::Color32::TRANSPARENT
-            },
-            stroke,
-        );
+        let mut stroke = ui.style().interact(&dot_res).fg_stroke;
+        if is_active {
+            stroke.width = 2.0
+        }
+        ui.painter()
+            .rect(dot_res.rect, 3.0, background_color, stroke);
 
         show_dot_grid(dot_res.rect, transform, &ui.painter_at(dot_res.rect), Some(1.5));
 
@@ -490,24 +512,14 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
         let notebook_res = ui.allocate_rect(notebook_selector_rect, egui::Sense::click_and_drag());
 
         let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Lines;
-        let stroke = if is_active {
-            let mut copy = default_stroke;
-            copy.color = ui.visuals().widgets.active.bg_fill;
-            copy
-        } else {
-            ui.style().interact(&notebook_res).fg_stroke
+
+        let mut stroke = ui.style().interact(&notebook_res).fg_stroke;
+        if is_active {
+            stroke.width = 2.0
         };
 
-        ui.painter().rect(
-            notebook_res.rect,
-            3.0,
-            if is_active {
-                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
-            } else {
-                egui::Color32::TRANSPARENT
-            },
-            stroke,
-        );
+        ui.painter()
+            .rect(notebook_res.rect, 3.0, background_color, stroke);
 
         show_lines_background(
             false,
@@ -529,24 +541,14 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
         let grid_res = ui.allocate_rect(grid_selector_rect, egui::Sense::click_and_drag());
 
         let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Grid;
-        let stroke = if is_active {
-            let mut copy = default_stroke;
-            copy.color = ui.visuals().widgets.active.bg_fill;
-            copy
-        } else {
-            ui.style().interact(&grid_res).fg_stroke
+
+        let mut stroke = ui.style().interact(&grid_res).fg_stroke;
+        if is_active {
+            stroke.width = 2.0
         };
 
-        ui.painter().rect(
-            grid_res.rect,
-            3.0,
-            if is_active {
-                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
-            } else {
-                egui::Color32::TRANSPARENT
-            },
-            stroke,
-        );
+        ui.painter()
+            .rect(grid_res.rect, 3.0, background_color, stroke);
 
         show_lines_background(
             true,
@@ -569,24 +571,13 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
 
         let is_active = tlbr_ctx.settings.background_type == BackgroundOverlay::Blank;
 
-        let stroke = if is_active {
-            let mut copy = default_stroke;
-            copy.color = ui.visuals().widgets.active.bg_fill;
-            copy
-        } else {
-            ui.style().interact(&blank_res).fg_stroke
+        let mut stroke = ui.style().interact(&blank_res).fg_stroke;
+        if is_active {
+            stroke.width = 2.0
         };
 
-        ui.painter().rect(
-            blank_res.rect,
-            3.0,
-            if is_active {
-                ui.visuals().widgets.active.bg_fill.linear_multiply(0.05)
-            } else {
-                egui::Color32::TRANSPARENT
-            },
-            stroke,
-        );
+        ui.painter()
+            .rect(blank_res.rect, 3.0, background_color, stroke);
 
         if blank_res.clicked() {
             tlbr_ctx.settings.background_type = BackgroundOverlay::Blank;
@@ -725,9 +716,10 @@ fn show_side_controls(
     };
 
     let unlocked_stroke =
-        egui::Stroke { width: 1.0, color: egui::Color32::GRAY.linear_multiply(0.8) };
+        egui::Stroke { width: 1.0, color: tlbr_ctx.settings.get_secondary_background_color(ui) };
 
-    let locked_stroke = egui::Stroke { width: 1.4, color: egui::Color32::GRAY };
+    let mut locked_stroke = unlocked_stroke;
+    locked_stroke.width = 1.4;
 
     let child_ui = &mut ui.child_ui(rect, layout, None);
 
