@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use egui::Response;
 use resvg::usvg::Transform;
 
@@ -9,6 +7,7 @@ use crate::tab::svg_editor::gesture_handler::{
     MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
     zoom_percentage_to_transform,
 };
+use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
 use crate::theme::icons::Icon;
 use crate::widgets::{Button, switch};
@@ -275,11 +274,8 @@ impl Toolbar {
         });
 
         ui.add_space(20.0);
-        ui.label(
-            egui::RichText::new("Layout".to_uppercase())
-                .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
-                .color(egui::Color32::GRAY),
-        );
+        show_section_header(ui, "layout");
+
         egui::Frame::default()
             .fill(ui.visuals().code_bg_color)
             .inner_margin(egui::Margin::same(30.0))
@@ -415,11 +411,8 @@ impl Toolbar {
 }
 
 fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
-    ui.label(
-        egui::RichText::new("Background".to_uppercase())
-            .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
-            .color(egui::Color32::GRAY),
-    );
+    show_section_header(ui, "background");
+
     ui.add_space(5.0);
 
     let x_padding = 15.0;

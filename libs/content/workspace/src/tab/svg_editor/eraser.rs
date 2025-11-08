@@ -45,6 +45,9 @@ impl Eraser {
     }
 
     pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
+        if eraser_ctx.toolbar_has_interaction {
+            return;
+        }
         let is_multi_touch = is_multi_touch(ui);
 
         ui.input(|r| {

@@ -29,7 +29,7 @@ pub struct Path {
     pub opacity: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: DynamicColor,
     pub opacity: f32,
@@ -42,7 +42,7 @@ impl Default for Stroke {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct DynamicColor {
     pub light: usvg::Color,
     pub dark: usvg::Color,
@@ -220,6 +220,13 @@ impl Element {
             Element::Text(_) => todo!(),
         }
     }
+    pub fn mark_data_change(&mut self) {
+        match self {
+            Element::Path(p) => p.diff_state.data_changed = true,
+            Element::Image(i) => i.diff_state.data_changed = true,
+            Element::Text(_) => todo!(),
+        }
+    }
     pub fn deleted(&self) -> bool {
         match self {
             Element::Path(p) => p.deleted,
@@ -266,5 +273,22 @@ impl Element {
             Element::Image(image) => image.opacity,
             Element::Text(_) => todo!(),
         }
+    }
+
+    pub fn stroke(&self) -> Option<Stroke> {
+        match self {
+            Element::Path(path) => path.stroke,
+            Element::Image(_) => None,
+            Element::Text(_) => todo!(),
+        }
+    }
+
+    pub fn set_stroke(&mut self, stroke: Stroke) {
+        match self {
+            Element::Path(path) => path.stroke = Some(stroke),
+            Element::Image(_) => {}
+            Element::Text(_) => {}
+        }
+        self.mark_data_change();
     }
 }
