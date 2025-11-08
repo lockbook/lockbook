@@ -43,6 +43,7 @@ impl Icon {
     pub const CONTENT_CUT: Self = ic("\u{e14e}"); // Content Cut
     pub const CONTENT_PASTE: Self = ic("\u{e14f}"); // Content Paste
     pub const DOC_UNKNOWN: Self = ic("\u{e06f}"); // Note
+    pub const DOC_MD: Self = ic("\u{f48a}");
     pub const DOC_TEXT: Self = ic("\u{e873}"); // Description
     pub const DONE: Self = ic("\u{e876}"); // Done
     pub const DRAW: Self = ic("\u{e746}"); // Draw
