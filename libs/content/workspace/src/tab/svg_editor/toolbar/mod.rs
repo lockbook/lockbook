@@ -445,6 +445,31 @@ impl Toolbar {
     }
 }
 
+pub fn show_color_btn(
+    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
+) -> egui::Response {
+    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
+    let margin = 6.0;
+    let (id, rect) =
+        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
+
+    ui.painter()
+        .circle_filled(rect.center(), circle_diameter / 2.0, color);
+
+    if get_non_additive(&active_color).eq(&color) {
+        ui.painter().circle_stroke(
+            rect.center(),
+            circle_diameter / 2.0 - 3.0,
+            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
+        );
+    }
+    ui.interact(rect, id, egui::Sense::click_and_drag())
+}
+
+fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
+    egui::Color32::from_rgb(color.r(), color.g(), color.b())
+}
+
 impl SVGEditor {
     pub fn detect_islands_interaction(&self, pointer: egui::Pos2) -> bool {
         let islands = [
@@ -491,27 +516,6 @@ pub fn show_section_header(ui: &mut egui::Ui, label: &str) {
             .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
             .color(egui::Color32::GRAY),
     );
-}
-
-pub fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
-) -> egui::Response {
-    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
-    let margin = 6.0;
-    let (id, rect) =
-        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
-
-    ui.painter()
-        .circle_filled(rect.center(), circle_diameter / 2.0, color);
-
-    if get_non_additive(&active_color).eq(&color) {
-        ui.painter().circle_stroke(
-            rect.center(),
-            circle_diameter / 2.0 - 3.0,
-            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
-        );
-    }
-    ui.interact(rect, id, egui::Sense::click_and_drag())
 }
 
 pub fn show_opacity_slider(
@@ -605,8 +609,4 @@ pub fn show_thickness_slider(
     }
     ui.advance_cursor_after_rect(slider_rect);
     slider_res
-}
-
-fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
-    egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }

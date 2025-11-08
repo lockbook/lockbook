@@ -17,8 +17,10 @@ use std::time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
+use colors_transform::Color;
 use element::PromoteBufferWeakImages;
 pub use eraser::Eraser;
 pub use history::{DeleteElement, Event, InsertElement};
@@ -27,7 +29,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::{DynamicColor, Element};
 pub use path_builder::PathBuilder;
 pub use pen::Pen;
 use pen::PenSettings;
@@ -99,6 +101,7 @@ pub struct Response {
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
     background_type: BackgroundOverlay,
+    background_color: DynamicColor,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,
@@ -118,6 +121,10 @@ impl Default for CanvasSettings {
             pen: PenSettings::default_pen(),
             background_type: BackgroundOverlay::default(),
             show_mini_map: true,
+            background_color: DynamicColor {
+                light: lb_rs::model::svg::element::Color::white(),
+                dark: lb_rs::model::svg::element::Color::black(),
+            },
         }
     }
 }
@@ -455,4 +462,30 @@ impl InputContext {
             })
         })
     }
+}
+
+impl CanvasSettings {
+    fn get_secondary_background_color(&self, ui: &mut egui::Ui) -> egui::Color32 {
+        let color =
+            ThemePalette::resolve_dynamic_color(self.background_color, ui.visuals().dark_mode);
+
+        get_secondary_color(color)
+    }
+}
+
+pub fn get_secondary_color(color: egui::Color32) -> egui::Color32 {
+    let mut secondary =
+        colors_transform::Rgb::from(color.r().into(), color.g().into(), color.b().into());
+
+    let lightness = secondary.get_lightness();
+    if lightness < 50.0 {
+        secondary = secondary.set_lightness(lightness + 20.0)
+    } else {
+        secondary = secondary.set_lightness(lightness - 20.0)
+    };
+    egui::Color32::from_rgb(
+        secondary.get_red() as u8,
+        secondary.get_green() as u8,
+        secondary.get_blue() as u8,
+    )
 }

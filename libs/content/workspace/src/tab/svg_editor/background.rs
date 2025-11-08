@@ -1,6 +1,9 @@
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::{BackgroundOverlay, SVGEditor};
+use crate::{
+    tab::svg_editor::{BackgroundOverlay, SVGEditor},
+    theme::palette::ThemePalette,
+};
 
 impl SVGEditor {
     pub fn paint_background_colors(&mut self, ui: &mut egui::Ui) {
@@ -12,7 +15,10 @@ impl SVGEditor {
         ui.painter().rect_filled(
             self.viewport_settings.working_rect,
             0.0,
-            ui.visuals().extreme_bg_color,
+            ThemePalette::resolve_dynamic_color(
+                self.settings.background_color,
+                ui.visuals().dark_mode,
+            ),
         );
     }
 
