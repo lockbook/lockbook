@@ -1,13 +1,18 @@
 package app.lockbook.screen
 
 import android.content.ClipData
+import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
@@ -21,6 +26,8 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import net.lockbook.Lb
 import java.io.File
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.lang.ref.WeakReference
 
 class MainScreenActivity : AppCompatActivity() {
@@ -70,6 +77,12 @@ class MainScreenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler(
+            GlobalExceptionHandler(this, defaultHandler)
+        )
+
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -311,5 +324,58 @@ class MainScreenActivity : AppCompatActivity() {
     fun syncImportAccount() {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
+    }
+}
+
+class GlobalExceptionHandler(
+    private val context: Context,
+    private val defaultHandler: Thread.UncaughtExceptionHandler?
+) : Thread.UncaughtExceptionHandler {
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    override fun uncaughtException(thread: Thread, exception: Throwable) {
+        try {
+            println("custom uncaught handler")
+            // Get stack trace as string
+            val stackTrace = getStackTraceString(exception)
+
+            // Save to file or send to analytics
+            saveExceptionToFile(stackTrace)
+
+            // You can also show a custom crash dialog here if needed
+        } catch (e: Exception) {
+            println(e)
+        } finally {
+            // Call the default handler to let the system handle it normally
+            defaultHandler?.uncaughtException(thread, exception)
+
+            // Or kill the process if you want to handle it completely yourself
+            // exitProcess(1)
+        }
+    }
+
+    private fun getStackTraceString(exception: Throwable): String {
+        val sw = StringWriter()
+        val pw = PrintWriter(sw)
+        exception.printStackTrace(pw)
+        return sw.toString()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveExceptionToFile(stackTrace: String) {
+        val filename = "lb_crash_${System.currentTimeMillis()}.txt"
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+            put(MediaStore.Downloads.MIME_TYPE, "text/plain")
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+
+        uri?.let {
+            resolver.openOutputStream(it)?.use { output ->
+                output.write(stackTrace.toByteArray())
+            }
+        }
     }
 }

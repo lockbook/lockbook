@@ -13,13 +13,21 @@ pub extern "C" fn folder_selected(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let id = id.into();
 
+    obj.workspace.out.selected_folder_changed = true;
     obj.workspace.focused_parent = Some(id);
 }
 
 #[no_mangle]
 pub extern "C" fn no_folder_selected(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.out.selected_folder_changed = true;
     obj.workspace.focused_parent = None;
+}
+
+#[no_mangle]
+pub extern "C" fn get_selected_folder(obj: *mut c_void) -> CUuid {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.focused_parent.unwrap_or_default().into()
 }
 
 #[no_mangle]

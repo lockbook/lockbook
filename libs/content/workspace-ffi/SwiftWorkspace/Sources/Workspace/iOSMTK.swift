@@ -722,11 +722,13 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
         // ipad trackpad support
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
-
-        if (prefersPencilOnlyDrawing){
-            pan.delegate = self
-            self.addGestureRecognizer(pan)
+        pan.delegate = self
+        pan.cancelsTouchesInView = false
+        if !prefersPencilOnlyDrawing{
+            pan.minimumNumberOfTouches = 2
         }
+        
+        self.addGestureRecognizer(pan)
     
         let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
         pinch.cancelsTouchesInView = false
@@ -1122,6 +1124,15 @@ public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
                 
         if output.tabs_changed {
             self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+        }
+        
+        if output.selected_folder_changed {
+            let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+            if selectedFolder.isNil() {
+                self.workspaceOutput?.selectedFolder = nil
+            } else {
+                self.workspaceOutput?.selectedFolder = selectedFolder
+            }
         }
         
         let selectedFile = UUID(uuid: output.selected_file._0)

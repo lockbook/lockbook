@@ -66,6 +66,12 @@ public class PathSearchTextField: NSTextField {
         }
     }
     
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        guard let window = self.window else { return }
+        window.makeFirstResponder(self)
+    }
+    
     public override func cancelOperation(_ sender: Any?) {
         pathSearchModel.endSearch()
     }
@@ -81,8 +87,6 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         textField.delegate = context.coordinator
         textField.font = .systemFont(ofSize: 15)
         textField.backgroundColor = nil
-        textField
-            .becomeFirstResponder()
         
         return textField
     }

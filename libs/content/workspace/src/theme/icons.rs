@@ -13,6 +13,10 @@ const fn ic(c: &'static str) -> Icon {
     Icon { has_badge: false, icon: c, size: 20.0, color: None, weak: false }
 }
 
+// look em up here: https://www.nerdfonts.com/cheat-sheet
+// if you have nerdfonts installed the previews in the comments should be accurate
+// make duplicates clear in the code
+// don't leave dead code behind
 impl Icon {
     pub const ACCOUNT: Self = ic("\u{e7ff}"); // Person Outline
     pub const ARROW_CIRCLE_DOWN: Self = ic("\u{f181}"); // Arrow Circle Down
