@@ -2,11 +2,13 @@ package app.lockbook.screen
 
 import android.content.ClipData
 import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
+import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.view.View
 import androidx.activity.OnBackPressedCallback
@@ -14,6 +16,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat.startActivityForResult
 import androidx.core.content.FileProvider
 import androidx.fragment.app.*
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
@@ -332,7 +335,6 @@ class GlobalExceptionHandler(
     private val defaultHandler: Thread.UncaughtExceptionHandler?
 ) : Thread.UncaughtExceptionHandler {
 
-    @RequiresApi(Build.VERSION_CODES.Q)
     override fun uncaughtException(thread: Thread, exception: Throwable) {
         try {
             println("custom uncaught handler")
@@ -343,6 +345,7 @@ class GlobalExceptionHandler(
             saveExceptionToFile(stackTrace)
 
             // You can also show a custom crash dialog here if needed
+
         } catch (e: Exception) {
             println(e)
         } finally {
