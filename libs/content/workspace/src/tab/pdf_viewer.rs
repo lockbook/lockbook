@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
-use egui::load::SizedTexture;
+use egui::{load::SizedTexture, ImageSource};
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
 
@@ -41,11 +41,16 @@ const MAX_ZOOM_IN_STOPS: f32 = 15.0;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
+// get dimensions from the pdf
+// these dimensions will be '100%'
+// but these aren't great starting dimensions
+// we need to probably match height 
 impl PdfViewer {
     pub fn new(
         id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
     ) -> Self {
         let pdf = Pdf::new(Arc::new(bytes)).unwrap();
+        println!("DIMENSIONS: {:?}", pdf.pages().first().unwrap().render_dimensions());
 
         let renders = pdf
             .pages()
@@ -153,14 +158,14 @@ impl PdfViewer {
                     let renders_res = ui
                         .vertical_centered(|ui| {
                             for (i, p) in self.renders.iter_mut().enumerate() {
-                                let img = egui::Image::new(egui::ImageSource::Texture(
+                                let img = egui::Image::new(ImageSource::Texture(
                                     SizedTexture::new(
                                         &p.texture,
                                         egui::vec2(
                                             p.texture.size()[0] as f32
-                                                * self.zoom_factor.unwrap_or(1.0),
+                                                * 1.,
                                             p.texture.size()[1] as f32
-                                                * self.zoom_factor.unwrap_or(1.0),
+                                                * 1.,
                                         ),
                                     ),
                                 ))
