@@ -107,6 +107,10 @@ impl Pen {
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
+        if pen_ctx.toolbar_has_interaction {
+            self.end_path(pen_ctx, false);
+        }
+
         let input_state =
             PenPointerInput { is_multi_touch: is_multi_touch(ui), is_scroll: is_scroll(ui) };
         let mut is_drawing = false;
@@ -603,6 +607,7 @@ fn correct_start_of_path() {
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
         viewport_settings: &mut Default::default(),
+        toolbar_has_interaction: false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -658,6 +663,7 @@ fn cancel_touch_ui_event() {
         settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
         viewport_settings: &mut Default::default(),
+        toolbar_has_interaction: false,
     };
 
     let input_state = PenPointerInput { is_multi_touch: false, is_scroll: false };

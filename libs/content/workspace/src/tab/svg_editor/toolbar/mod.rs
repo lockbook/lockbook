@@ -3,14 +3,20 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
+use std::ops::RangeInclusive;
+use std::sync::Arc;
+
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
 use crate::tab::svg_editor::shapes::ShapesTool;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
+
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::DynamicColor;
 use viewport_island::ViewportPopover;
 
 use super::gesture_handler::GestureHandler;
@@ -74,6 +80,7 @@ pub struct ToolContext<'a> {
     pub settings: &'a mut CanvasSettings,
     pub is_locked_vw_pen_only: bool,
     pub viewport_settings: &'a mut ViewportSettings,
+    pub toolbar_has_interaction: bool,
 }
 
 pub struct ToolbarContext<'a> {
@@ -283,13 +290,21 @@ impl Toolbar {
             return res;
         }
 
-        let (mini_map_dirty, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
+        let (buffer_changed, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
+        if buffer_changed {
+            res = true;
+            *has_islands_interaction = true;
+        }
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
 
         let tools_island = self.show_tools_island(ui);
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
+        if buffer_changed {
+            res = true;
+            *has_islands_interaction = true;
+        }
 
         if is_pointer_over_res(ui, &history_island) {
             *has_islands_interaction = true;
@@ -304,11 +319,6 @@ impl Toolbar {
             if is_pointer_over_res(ui, &res) {
                 *has_islands_interaction = true;
             }
-        }
-
-        if mini_map_dirty {
-            res = true;
-            *has_islands_interaction = true;
         }
 
         if let Some(res) = tool_controls_res {
@@ -473,4 +483,130 @@ fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool 
         }
         false
     })
+}
+
+pub fn show_section_header(ui: &mut egui::Ui, label: &str) {
+    ui.label(
+        egui::RichText::new(label.to_uppercase())
+            .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
+            .color(egui::Color32::GRAY),
+    );
+}
+
+pub fn show_color_btn(
+    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
+) -> egui::Response {
+    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
+    let margin = 6.0;
+    let (id, rect) =
+        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
+
+    ui.painter()
+        .circle_filled(rect.center(), circle_diameter / 2.0, color);
+
+    if get_non_additive(&active_color).eq(&color) {
+        ui.painter().circle_stroke(
+            rect.center(),
+            circle_diameter / 2.0 - 3.0,
+            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
+        );
+    }
+    ui.interact(rect, id, egui::Sense::click_and_drag())
+}
+
+pub fn show_opacity_slider(
+    ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor,
+) -> egui::Response {
+    ui.horizontal(|ui| {
+        let slider_color =
+            ThemePalette::resolve_dynamic_color(*active_color, ui.visuals().dark_mode)
+                .linear_multiply(*active_opacity);
+        ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
+        ui.visuals_mut().widgets.inactive.fg_stroke =
+            egui::Stroke { width: 1.0, color: slider_color };
+        ui.visuals_mut().widgets.hovered.bg_fill = slider_color;
+        ui.visuals_mut().widgets.hovered.fg_stroke =
+            egui::Stroke { width: 2.0, color: slider_color };
+        ui.visuals_mut().widgets.active.bg_fill = slider_color;
+        ui.visuals_mut().widgets.active.fg_stroke =
+            egui::Stroke { width: 2.5, color: slider_color };
+        ui.spacing_mut().slider_width = ui.available_width();
+        ui.spacing_mut().slider_rail_height = 2.0;
+        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false))
+    })
+    .inner
+}
+
+pub fn show_thickness_slider(
+    ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>, step_size: f64,
+) -> egui::Response {
+    let width = ui.available_width();
+    let mut slider_res = ui.add(
+        egui::Slider::new(value, value_range.clone())
+            .show_value(false)
+            .step_by(step_size)
+            .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
+    );
+    let slider_rect = slider_res.rect;
+
+    let middle_range = value_range.start() + (value_range.end() - value_range.start()).abs() / 2.0;
+    let ticks = [value_range.start(), &middle_range, value_range.end()];
+
+    for (i, t) in ticks.iter().enumerate() {
+        let margin = egui::vec2(2.0, 10.0);
+        let end_y = slider_rect.top() - margin.y + (i as f32 * 3.0 + 1.0);
+
+        let total_spacing = width - (THICKNESS_BTN_WIDTH * ticks.len() as f32);
+        let spacing_between = total_spacing / (ticks.len() as f32 + 1.0);
+
+        let rect_start_x = slider_rect.left()
+            + spacing_between
+            + i as f32 * (THICKNESS_BTN_WIDTH + spacing_between);
+
+        let rect = match i {
+            0 => egui::Rect {
+                min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
+                max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
+            },
+            1 => egui::Rect {
+                min: egui::pos2(rect_start_x, slider_rect.top() - margin.y),
+                max: egui::pos2(rect_start_x + THICKNESS_BTN_WIDTH, end_y),
+            },
+            2 => egui::Rect {
+                min: egui::pos2(
+                    slider_rect.right() - margin.x - THICKNESS_BTN_WIDTH,
+                    slider_rect.top() - margin.y,
+                ),
+                max: egui::pos2(slider_rect.right() - margin.x, end_y),
+            },
+            _ => break,
+        };
+
+        let response = ui.allocate_rect(rect.expand2(egui::vec2(0.0, 5.0)), egui::Sense::click());
+
+        if t.eq(&value) {
+            ui.painter().rect_filled(
+                rect.expand(5.0),
+                egui::Rounding::same(8.0),
+                egui::Color32::GRAY.linear_multiply(0.1),
+            );
+        }
+
+        ui.painter().rect_filled(
+            rect,
+            egui::Rounding::same(2.0),
+            ui.visuals().text_color().linear_multiply(0.8),
+        );
+
+        if response.clicked() {
+            *value = **t;
+        }
+        slider_res = slider_res.union(response);
+    }
+    ui.advance_cursor_after_rect(slider_rect);
+    slider_res
+}
+
+fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
+    egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
