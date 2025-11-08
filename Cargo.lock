@@ -4157,8 +4157,8 @@ dependencies = [
 
 [[package]]
 name = "lb-fonts"
-version = "0.1.5"
-source = "git+https://github.com/lockbook/lb-fonts#54b09038cbc3048f45e7d771a0118c2c808d4491"
+version = "0.2.0"
+source = "git+https://github.com/lockbook/lb-fonts#cac0e8530eae3e7fc3b406f6467536906d6744b0"
 
 [[package]]
 name = "lb-fs"

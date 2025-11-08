@@ -675,7 +675,7 @@ impl Selection {
         }
 
         if Button::default()
-            .icon(&Icon::BRING_BACK.color(
+            .icon(&Icon::CHEVRON_LEFT.color(
                 if max_current_index == selection_ctx.buffer.elements.len() - 1 {
                     ui.visuals().text_color().linear_multiply(0.4)
                 } else {
@@ -698,7 +698,7 @@ impl Selection {
         }
 
         if Button::default()
-            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+            .icon(&Icon::CHEVRON_RIGHT.color(if min_cureent_index == 0 {
                 ui.visuals().text_color().linear_multiply(0.4)
             } else {
                 ui.visuals().text_color()

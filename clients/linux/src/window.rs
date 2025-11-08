@@ -371,7 +371,7 @@ impl HasDisplayHandle for AppWindowHandle {
 // Taken from other lockbook code
 pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
     window: &W, screen: ScreenDescriptor, dark_mode: bool,
-) -> WgpuLockbook {
+) -> WgpuLockbook<'_> {
     let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);

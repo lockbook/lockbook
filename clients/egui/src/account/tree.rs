@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
@@ -8,7 +8,7 @@ use std::{mem, thread};
 use egui::text_edit::TextEditState;
 use egui::{
     Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId, Modifiers, Order, Pos2,
-    Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
+    Rect, Sense, TextEdit, Ui, Vec2, WidgetText, vec2,
 };
 use egui_notify::Toasts;
 use lb::Uuid;
@@ -1006,7 +1006,16 @@ impl FileTree {
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
-        let mut text = WidgetText::from(&file.name);
+        let doc_type = DocType::from_name(&file.name);
+        let mut text = if doc_type.hide_ext() {
+            let wo = Path::new(&file.name)
+                .file_stem()
+                .map(|stem| stem.to_str().unwrap())
+                .unwrap_or(&file.name);
+            WidgetText::from(wo)
+        } else {
+            WidgetText::from(&file.name)
+        };
         let mut default_fill = ui.style().visuals.extreme_bg_color;
         if is_selected {
             default_fill = ui.visuals().code_bg_color;
@@ -1082,18 +1091,19 @@ impl FileTree {
         }
 
         // render
+        let button = Button::default()
+            .text(text)
+            .default_fill(default_fill)
+            .rounding(btn_rounding)
+            .margin(btn_margin)
+            .frame(true)
+            .hexpand(true)
+            .indent(indent)
+            .padding(vec2(10., 7.));
+
         let file_resp = if file.is_document() {
-            let icon = DocType::from_name(&file.name).to_icon();
-            let file_resp = Button::default()
-                .icon(&icon)
-                .text(text)
-                .default_fill(default_fill)
-                .rounding(btn_rounding)
-                .margin(btn_margin)
-                .frame(true)
-                .hexpand(true)
-                .indent(indent)
-                .show(ui);
+            let icon = doc_type.to_icon();
+            let file_resp = button.icon(&icon).show(ui);
 
             file_resp
         } else {
@@ -1107,16 +1117,9 @@ impl FileTree {
                 &Icon::FOLDER
             };
 
-            let file_resp = Button::default()
+            let file_resp = button
                 .icon(icon)
                 .icon_color(ui.style().visuals.widgets.active.bg_fill)
-                .text(text)
-                .default_fill(default_fill)
-                .margin(btn_margin)
-                .rounding(btn_rounding)
-                .frame(true)
-                .hexpand(true)
-                .indent(indent)
                 .show(ui);
             if is_expanded {
                 resp = resp.union(self.show_children_recursive(
@@ -1532,7 +1535,6 @@ pub trait FilesExt {
     fn root(&self) -> Uuid;
     fn get_by_id(&self, id: Uuid) -> &File;
     fn children(&self, id: Uuid) -> Vec<&File>;
-    fn descendents(&self, id: Uuid) -> Vec<&File>;
 }
 
 impl FilesExt for [File] {
@@ -1564,15 +1566,6 @@ impl FilesExt for [File] {
             (_, _) => a.name.cmp(&b.name),
         });
         children
-    }
-
-    fn descendents(&self, id: Uuid) -> Vec<&File> {
-        let mut descendents = vec![];
-        for child in self.children(id) {
-            descendents.extend(self.descendents(child.id));
-            descendents.push(child);
-        }
-        descendents
     }
 }
 
