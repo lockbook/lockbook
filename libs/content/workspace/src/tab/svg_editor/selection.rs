@@ -1,15 +1,24 @@
+use std::collections::HashMap;
+
 use bezier_rs::Subpath;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::serialize_inner;
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId, WeakImages};
+use lb_rs::model::svg::buffer::get_pen_colors;
+use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
+use lb_rs::model::svg::buffer::serialize_inner;
 
+use crate::tab::svg_editor::history;
+use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::toolbar::{
+    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+};
 use crate::theme::icons::Icon;
+use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 
 use super::history::TransformElement;
@@ -23,6 +32,15 @@ pub struct Selection {
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
     layout: Layout,
+    show_selection_popover: bool,
+    pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
+    pub properties: Option<ElementEditableProperties>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct ElementEditableProperties {
+    pub stroke: Option<Stroke>,
+    pub opacity: f32,
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -50,8 +68,30 @@ pub struct SelectedElement {
 #[derive(Default)]
 struct Layout {
     container_tooltip: Option<egui::Rect>,
+    popover: Option<egui::Rect>,
 }
 
+impl Layout {
+    fn has_ui_interaction(&self, maybe_interact_pos: Option<egui::Pos2>) -> bool {
+        let pos = match maybe_interact_pos {
+            Some(val) => val,
+            None => return false,
+        };
+
+        if let Some(tooltip_rect) = self.container_tooltip {
+            if tooltip_rect.contains(pos) {
+                return true;
+            }
+        }
+        if let Some(popover_rect) = self.popover {
+            if popover_rect.contains(pos) {
+                return true;
+            }
+        }
+
+        false
+    }
+}
 #[derive(Debug)]
 enum SelectionEvent {
     StartLaso(BuildPayload),
@@ -80,9 +120,9 @@ impl Selection {
     pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         let is_multi_touch = is_multi_touch(ui);
 
+        let mut suggested_op = None;
         let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
         child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        let mut suggested_op = None;
         child_ui.with_layer_id(
             egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
             |ui| {
@@ -98,6 +138,10 @@ impl Selection {
             },
         );
 
+        if selection_ctx.toolbar_has_interaction {
+            return;
+        }
+
         ui.input(|r| {
             let mut input_state = SelectionInputState {
                 transform_occured: false,
@@ -112,15 +156,9 @@ impl Selection {
                 {
                     break;
                 }
-                if let Some(pos) = r.pointer.interact_pos() {
-                    if self
-                        .layout
-                        .container_tooltip
-                        .unwrap_or(egui::Rect::NOTHING)
-                        .contains(pos)
-                    {
-                        break;
-                    }
+
+                if self.layout.has_ui_interaction(r.pointer.interact_pos()) {
+                    break;
                 }
 
                 if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
@@ -431,24 +469,24 @@ impl Selection {
                     detect_translation(selection_ctx.buffer, None, build_payload.pos)
                 {
                     if build_payload.modifiers.shift {
-                        self.selected_elements.push(maybe_new_selection);
+                        self.push_selection_el(maybe_new_selection);
                     } else if build_payload.modifiers.alt {
                         if let Some(i) = self
                             .selected_elements
                             .iter()
                             .position(|s_el| s_el.id == maybe_new_selection.id)
                         {
-                            self.selected_elements.remove(i);
+                            self.remove_selection_el(i);
                         }
                     } else {
-                        self.selected_elements = vec![maybe_new_selection];
+                        self.new_selection_els(vec![maybe_new_selection]);
                     }
                     if !self.selected_elements.is_empty() {
                         self.current_op = SelectionOperation::Translation;
                     }
                 } else {
                     self.current_op = SelectionOperation::LasoBuild(build_payload);
-                    self.selected_elements.clear();
+                    self.clear_selection_els();
                 }
             }
             SelectionEvent::LasoBuild(build_payload) => {
@@ -456,7 +494,8 @@ impl Selection {
                     let rect = get_laso_rect(build_payload.pos, build_origin.pos);
                     self.laso_rect = Some(rect);
 
-                    self.selected_elements = self.get_laso_selected_els(selection_ctx);
+                    let new_selection_els = self.get_laso_selected_els(selection_ctx);
+                    self.new_selection_els(new_selection_els);
                 }
             }
             SelectionEvent::EndLaso => {
@@ -464,7 +503,7 @@ impl Selection {
                 self.laso_rect = None;
             }
             SelectionEvent::SelectAll => {
-                self.selected_elements = selection_ctx
+                let new_selection_els = selection_ctx
                     .buffer
                     .elements
                     .iter()
@@ -475,6 +514,8 @@ impl Selection {
                         Some(SelectedElement { id, transform: Transform::identity() })
                     })
                     .collect();
+
+                self.new_selection_els(new_selection_els);
             }
             SelectionEvent::Delete => {
                 self.delete_selection(selection_ctx);
@@ -501,7 +542,7 @@ impl Selection {
             .history
             .apply_event(&delete_event, selection_ctx.buffer);
         selection_ctx.history.save(delete_event);
-        self.selected_elements.clear();
+        self.clear_selection_els();
     }
 
     fn get_laso_selected_els(
@@ -560,7 +601,9 @@ impl Selection {
         let container = self.get_container_rect(selection_ctx.buffer);
         let mut op = None;
 
-        if self.current_op != SelectionOperation::Translation {
+        if self.current_op != SelectionOperation::Translation
+            && self.selection_stroke_snashot.is_empty()
+        {
             for el in self.selected_elements.iter() {
                 let child = match selection_ctx.buffer.elements.get(&el.id) {
                     Some(el) => el.bounding_box(),
@@ -574,11 +617,10 @@ impl Selection {
             op = self.show_selection_container(ui, container);
         }
 
-        ui.visuals_mut().window_rounding = egui::Rounding::same(10.0);
-        ui.style_mut().spacing.window_margin = egui::Margin::symmetric(7.0, 3.0);
+        ui.visuals_mut().window_rounding = egui::Rounding::same(7.0);
         ui.style_mut()
             .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::new(13.0, egui::FontFamily::Proportional));
+            .insert(egui::TextStyle::Body, egui::FontId::new(15.0, egui::FontFamily::Proportional));
         ui.style_mut().text_styles.insert(
             egui::TextStyle::Button,
             egui::FontId::new(15.0, egui::FontFamily::Proportional),
@@ -587,17 +629,7 @@ impl Selection {
 
         if ui.visuals().dark_mode {
             ui.visuals_mut().window_stroke = egui::Stroke::NONE;
-            ui.visuals_mut().window_fill = egui::Color32::from_rgba_unmultiplied(20, 20, 20, 247);
-        } else {
-            ui.visuals_mut().window_stroke =
-                egui::Stroke::new(0.5, egui::Color32::from_rgb(240, 240, 240));
-            ui.visuals_mut().window_shadow = egui::Shadow {
-                offset: egui::vec2(1.0, 8.0),
-                blur: 20.0,
-                spread: 0.0,
-                color: egui::Color32::from_black_alpha(5),
-            };
-            ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
+            ui.visuals_mut().window_fill = egui::Color32::from_rgb(42, 42, 42);
         }
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
@@ -612,9 +644,9 @@ impl Selection {
 
         // minimizes layout shifts
         let approx_container_tooltip =
-            egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(250.0, 40.0));
+            egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(250.0, 0.0));
 
-        let min = container.min
+        let top_left_min = container.min
             - egui::vec2(
                 0.0,
                 self.layout
@@ -623,13 +655,44 @@ impl Selection {
                     .height()
                     + gap_between_btn_and_rect,
             );
+        let bottom_left_min = container.left_bottom() + egui::vec2(0.0, gap_between_btn_and_rect);
+
+        let bottom_screen_overflow = selection_ctx.viewport_settings.container_rect.bottom()
+            < approx_container_tooltip.height() + bottom_left_min.y;
+
+        let min = if bottom_screen_overflow { top_left_min } else { bottom_left_min };
 
         let tooltip_rect = egui::Rect { min, max: min };
-        let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
-            egui::Frame::window(ui.style())
-                .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
-        });
-        self.layout.container_tooltip = Some(res.response.rect);
+        ui.with_layer_id(
+            egui::LayerId { order: egui::Order::Tooltip, id: "selection_tooltip".into() },
+            |ui| {
+                let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
+                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5.0, 0.0);
+
+                    egui::Frame::window(ui.style())
+                        .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
+                });
+                let show_popover_toggled = res.inner.inner.inner;
+
+                self.layout.container_tooltip = Some(res.response.rect);
+
+                let popover_min = res.response.rect.right_top() + egui::vec2(5.0, 0.0);
+                let res = ui.allocate_ui_at_rect(
+                    egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0)),
+                    |ui| {
+                        if self.show_selection_popover && !show_popover_toggled {
+                            egui::Frame::window(ui.style()).show(ui, |ui| {
+                                ui.vertical(|ui| {
+                                    self.show_selection_popover(ui, selection_ctx);
+                                });
+                            });
+                        }
+                    },
+                );
+
+                self.layout.popover = Some(res.response.rect)
+            },
+        );
 
         if opacity == 0.0 {
             self.layout.container_tooltip = None;
@@ -638,151 +701,86 @@ impl Selection {
         op
     }
 
-    fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let mut max_current_index = 0;
-        let mut min_cureent_index = usize::MAX;
-        self.selected_elements.iter().for_each(|selected_element| {
-            if let Some((el_id, _, _)) =
-                selection_ctx.buffer.elements.get_full(&selected_element.id)
+    fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
+        let btn_margin = egui::vec2(5.0, 2.0);
+        if ui.visuals().dark_mode {
+            ui.visuals_mut().window_stroke =
+                egui::Stroke { width: 1.5, color: egui::Color32::from_rgb(240, 240, 240) };
+        } else {
+            ui.visuals_mut().widgets.noninteractive.bg_stroke = ui.visuals().window_stroke;
+            ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
+        }
+
+        if self.show_selection_popover {
+            if Button::default()
+                .icon(&Icon::ARROW_LEFT)
+                .margin(egui::vec2(0.0, btn_margin.y))
+                .show(ui)
+                .clicked()
             {
-                max_current_index = el_id.max(max_current_index);
-                min_cureent_index = el_id.min(min_cureent_index);
+                self.show_selection_popover = !self.show_selection_popover;
             }
-        });
 
-        if Button::default()
-            .icon(&Icon::BRING_TO_BACK.color(
-                if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                },
-            ))
-            .show(ui)
-            .clicked()
-            && max_current_index != selection_ctx.buffer.elements.len() - 1
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    selection_ctx
-                        .buffer
-                        .elements
-                        .move_index(el_id, selection_ctx.buffer.elements.len() - 1);
-                }
-            });
+            return false;
         }
 
         if Button::default()
-            .icon(&Icon::BRING_BACK.color(
-                if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                },
-            ))
+            .text("Copy")
+            .margin(btn_margin)
             .show(ui)
             .clicked()
-            && max_current_index != selection_ctx.buffer.elements.len() - 1
         {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    if el_id < selection_ctx.buffer.elements.len() - 1 {
-                        selection_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
-                    }
-                }
-            });
+            self.copy_selection(ui, selection_ctx);
+            self.clear_selection_els();
         }
+
+        ui.separator();
 
         if Button::default()
-            .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().linear_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
+            .text("Delete")
+            .margin(btn_margin)
             .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    if el_id > 0 {
-                        selection_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
-                    }
-                }
-            });
-        }
-
-        if Button::default()
-            .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                ui.visuals().text_color().linear_multiply(0.4)
-            } else {
-                ui.visuals().text_color()
-            }))
-            .show(ui)
-            .clicked()
-            && min_cureent_index != 0
-        {
-            self.selected_elements.iter().for_each(|selected_element| {
-                if let Some((el_id, _, _)) =
-                    selection_ctx.buffer.elements.get_full(&selected_element.id)
-                {
-                    selection_ctx.buffer.elements.move_index(el_id, 0);
-                }
-            });
-        }
-
-        ui.visuals_mut().widgets.noninteractive.bg_stroke =
-            egui::Stroke { width: 3.0, color: ui.visuals().extreme_bg_color };
-
-        ui.add(egui::Separator::default().vertical().grow(3.0));
-
-        ui.add_space(4.0);
-
-        if Button::default()
-            .icon(&Icon::CONTENT_COPY)
-            .show(ui)
-            .clicked()
-        {
-            let id_map = &selection_ctx.buffer.id_map;
-            let elements: &IndexMap<Uuid, Element> = &self
-                .selected_elements
-                .drain(..)
-                .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
-                .collect();
-            // let weak_images = &selection_ctx.buffer.weak_images;
-
-            let serialized_selection = serialize_inner(
-                id_map,
-                elements,
-                &selection_ctx.buffer.weak_viewport_settings,
-                &WeakImages::default(),
-                &selection_ctx.buffer.weak_path_pressures,
-            );
-
-            ui.output_mut(|w| w.copied_text = serialized_selection);
-        }
-
-        ui.add_space(4.0);
-
-        if ui
-            .add(
-                egui::Button::new(
-                    egui::RichText::new("Delete")
-                        .color(ui.visuals().error_fg_color.linear_multiply(0.8)),
-                )
-                .fill(egui::Color32::TRANSPARENT)
-                .stroke(egui::Stroke::NONE),
-            )
             .clicked()
         {
             self.delete_selection(selection_ctx);
         }
+
+        ui.separator();
+
+        if Button::default()
+            .icon(&Icon::ARROW_RIGHT)
+            .show(ui)
+            .clicked()
+        {
+            self.show_selection_popover = !self.show_selection_popover;
+            return true;
+        }
+        false
+    }
+
+    fn cut_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        self.copy_selection(ui, selection_ctx);
+        self.delete_selection(selection_ctx);
+        self.clear_selection_els();
+    }
+
+    fn copy_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
+        let id_map = &selection_ctx.buffer.id_map;
+        let elements: &IndexMap<Uuid, Element> = &self
+            .selected_elements
+            .iter()
+            .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
+            .collect();
+
+        let serialized_selection = serialize_inner(
+            id_map,
+            elements,
+            &selection_ctx.buffer.weak_viewport_settings,
+            &WeakImages::default(),
+            &selection_ctx.buffer.weak_path_pressures,
+        );
+
+        ui.output_mut(|w| w.copied_text = serialized_selection);
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -875,6 +873,376 @@ impl Selection {
         }
 
         out
+    }
+
+    fn push_selection_el(&mut self, el: SelectedElement) {
+        self.selected_elements.push(el);
+        self.properties = None;
+    }
+
+    fn remove_selection_el(&mut self, i: usize) {
+        self.selected_elements.remove(i);
+        self.properties = None;
+    }
+
+    fn clear_selection_els(&mut self) {
+        self.selected_elements.clear();
+        self.show_selection_popover = false;
+        self.properties = None;
+    }
+
+    fn new_selection_els(&mut self, new_slection_els: Vec<SelectedElement>) {
+        self.selected_elements = new_slection_els;
+        self.properties = None;
+    }
+
+    fn show_selection_popover(
+        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
+    ) -> bool {
+        let width = 200.0;
+        ui.style_mut().spacing.slider_width = width;
+        ui.set_width(width);
+
+        let mut buffer_changed = false;
+        ui.add_space(10.0);
+        show_section_header(ui, "stroke");
+        ui.add_space(10.0);
+
+        if let Some(properties) = &mut self.properties {
+            self.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
+                    properties.opacity = el.opacity();
+                    properties.stroke = el.stroke();
+                }
+            });
+
+            if let Some(stroke) = &mut properties.stroke {
+                let colors = get_pen_colors();
+                ui.horizontal_wrapped(|ui|{
+                    colors.iter().for_each(|&c| {
+                        let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
+                        let active_color =
+                            ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
+
+                        let color_btn = show_color_btn(ui, color, active_color, None);
+                        if color_btn.clicked() || color_btn.drag_started() {
+                            let event = history::Event::StrokeChange(
+                                self
+                                    .selected_elements
+                                    .iter()
+                                    .filter_map(
+                                        |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id)
+                                            {
+                                                let old_stroke = el.stroke();
+                                                stroke.color = c;
+                                                if let Some(mut el_stroke) = el.stroke(){
+                                                    el_stroke.color = c;
+                                                    el.set_stroke(*stroke);
+                                                    buffer_changed = true;
+                                                    Some(history::StrokeChangeElement {
+                                                        id: s_el.id,
+                                                        old_stroke,
+                                                        new_stroke: Some(el_stroke),
+                                                    })
+                                                }else{
+                                                    None
+                                                }
+                                            } else {
+                                                None
+                                            }
+                                        },
+                                    )
+                                    .collect(),
+                            );
+                            selection_ctx.history.save(event);
+                        }
+                    });
+                });
+                ui.add_space(10.0);
+                let slider_res = show_opacity_slider(ui, &mut stroke.opacity, &stroke.color);
+
+                if slider_res.drag_started() || slider_res.clicked() {
+                    // let's store the inital stroke of each selected el
+                    self.selection_stroke_snashot = self
+                        .selected_elements
+                        .iter()
+                        .filter_map(|s_el| {
+                            if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
+                                el.stroke().map(|stroke| (s_el.id, stroke))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+                if slider_res.dragged() || slider_res.clicked() {
+                    self.selected_elements.iter().for_each(|s_el| {
+                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                            if let Some(mut el_stroke) = el.stroke() {
+                                el_stroke.opacity = stroke.opacity;
+                                el.set_stroke(el_stroke);
+                                buffer_changed = true;
+                            }
+                        }
+                    });
+                }
+                if slider_res.drag_stopped() || slider_res.clicked() {
+                    let event = history::Event::StrokeChange(
+                        self.selected_elements
+                            .iter()
+                            .filter_map(
+                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                    if let Some(el) =
+                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
+                                    {
+                                        Some(history::StrokeChangeElement {
+                                            id: s_el.id,
+                                            old_stroke: self
+                                                .selection_stroke_snashot
+                                                .get(&s_el.id)
+                                                .copied(),
+                                            new_stroke: el.stroke(),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                },
+                            )
+                            .collect(),
+                    );
+                    self.selection_stroke_snashot.clear();
+                    selection_ctx.history.save(event);
+                }
+
+                ui.add_space(25.0);
+
+                let range = DEFAULT_PEN_STROKE_WIDTH..=10.0;
+                let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
+
+                if slider_res.drag_started() || slider_res.clicked() {
+                    // let's store the inital stroke of each selected el
+                    self.selection_stroke_snashot = self
+                        .selected_elements
+                        .iter()
+                        .filter_map(|s_el| {
+                            if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
+                                el.stroke().map(|stroke| (s_el.id, stroke))
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                }
+                if slider_res.dragged() || slider_res.clicked() {
+                    self.selected_elements.iter().for_each(|s_el| {
+                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                            if let Some(mut el_stroke) = el.stroke() {
+                                el_stroke.width = stroke.width;
+                                el.set_stroke(el_stroke);
+                                buffer_changed = true;
+                            }
+                        }
+                    });
+                }
+                if slider_res.drag_stopped() || slider_res.clicked() {
+                    let event = history::Event::StrokeChange(
+                        self.selected_elements
+                            .iter()
+                            .filter_map(
+                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
+                                    if let Some(el) =
+                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
+                                    {
+                                        Some(history::StrokeChangeElement {
+                                            id: s_el.id,
+                                            old_stroke: self
+                                                .selection_stroke_snashot
+                                                .get(&s_el.id)
+                                                .copied(),
+                                            new_stroke: el.stroke(),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                },
+                            )
+                            .collect(),
+                    );
+                    self.selection_stroke_snashot.clear();
+                    selection_ctx.history.save(event);
+                }
+
+                ui.add_space(20.0);
+
+                show_section_header(ui, "layer");
+                ui.add_space(5.0);
+                ui.horizontal(|ui| {
+                    self.show_layer_controls(selection_ctx, ui);
+                });
+
+                ui.add_space(7.5);
+                ui.horizontal(|ui| {
+                    self.show_action_controls(selection_ctx, ui);
+                });
+                ui.add_space(10.0);
+            }
+        } else {
+            let mut properties = ElementEditableProperties::default();
+
+            self.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
+                    properties.opacity = el.opacity();
+                    properties.stroke = el.stroke();
+                }
+            });
+
+            self.properties = Some(properties);
+        }
+
+        buffer_changed
+    }
+
+    fn show_layer_controls(&mut self, selection_ctx: &mut ToolContext<'_>, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            let btn_rounding = 5.0;
+            let mut max_current_index = 0;
+            let mut min_cureent_index = usize::MAX;
+            self.selected_elements.iter().for_each(|selected_element| {
+                if let Some((el_id, _, _)) =
+                    selection_ctx.buffer.elements.get_full(&selected_element.id)
+                {
+                    max_current_index = el_id.max(max_current_index);
+                    min_cureent_index = el_id.min(min_cureent_index);
+                }
+            });
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_BACK.color(
+                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != selection_ctx.buffer.elements.len() - 1
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        selection_ctx
+                            .buffer
+                            .elements
+                            .move_index(el_id, selection_ctx.buffer.elements.len() - 1);
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_BACK.color(
+                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
+                        ui.visuals().text_color().linear_multiply(0.4)
+                    } else {
+                        ui.visuals().text_color()
+                    },
+                ))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && max_current_index != selection_ctx.buffer.elements.len() - 1
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        if el_id < selection_ctx.buffer.elements.len() - 1 {
+                            selection_ctx.buffer.elements.swap_indices(el_id, el_id + 1);
+                        }
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        if el_id > 0 {
+                            selection_ctx.buffer.elements.swap_indices(el_id, el_id - 1);
+                        }
+                    }
+                });
+            }
+
+            if Button::default()
+                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
+                    ui.visuals().text_color().linear_multiply(0.4)
+                } else {
+                    ui.visuals().text_color()
+                }))
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+                && min_cureent_index != 0
+            {
+                self.selected_elements.iter().for_each(|selected_element| {
+                    if let Some((el_id, _, _)) =
+                        selection_ctx.buffer.elements.get_full(&selected_element.id)
+                    {
+                        selection_ctx.buffer.elements.move_index(el_id, 0);
+                    }
+                });
+            }
+        });
+    }
+
+    fn show_action_controls(&mut self, selection_ctx: &mut ToolContext, ui: &mut egui::Ui) {
+        let btn_rounding = 5.0;
+        ui.horizontal(|ui| {
+            if Button::default()
+                .icon(&Icon::CONTENT_COPY)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {
+                self.copy_selection(ui, selection_ctx);
+                self.clear_selection_els();
+            }
+            if Button::default()
+                .icon(&Icon::CONTENT_CUT)
+                .frame(true)
+                .margin(egui::vec2(3.0, 0.0))
+                .rounding(btn_rounding)
+                .show(ui)
+                .clicked()
+            {
+                self.cut_selection(ui, selection_ctx);
+            }
+        });
     }
 }
 

@@ -5,10 +5,6 @@ struct PathSearchContainerView<Content: View>: View {
     @StateObject var model: PathSearchViewModel
     @ViewBuilder var content: Content
 
-    #if os(macOS)
-        @FocusState var focused: Bool
-    #endif
-
     init(model: PathSearchViewModel, content: @escaping () -> Content) {
         self._model = StateObject(wrappedValue: model)
         self.content = content()
@@ -157,10 +153,7 @@ struct PathSearchContainerView<Content: View>: View {
                 .frame(height: 30)
         #else
             PathSearchTextFieldWrapper()
-                .focused($focused)
-                .onAppear {
-                    focused = true
-                }
+
         #endif
     }
 

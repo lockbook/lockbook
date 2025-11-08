@@ -1,5 +1,3 @@
-use std::ops::RangeInclusive;
-
 use bezier_rs::{Cap, Subpath};
 use egui::{InnerResponse, Response, RichText};
 use egui_animation::{animate_eased, easing};
@@ -16,7 +14,7 @@ use crate::tab::svg_editor::pen::{
 };
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::shapes::ShapeType;
-use crate::tab::svg_editor::toolbar::show_color_btn;
+use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
 use crate::theme::icons::Icon;
@@ -24,7 +22,7 @@ use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
 use crate::workspace::WsPersistentStore;
 
-use super::{SCREEN_PADDING, THICKNESS_BTN_WIDTH, Toolbar, ToolbarContext};
+use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
     pub fn show_tools_island(
@@ -240,7 +238,9 @@ impl Toolbar {
                     Tool::Highlighter => {
                         show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                     }
-                    Tool::Selection => {}
+                    Tool::Selection => {
+                        // self.show_selection_popover(ui, tlbr_ctx);
+                    }
                     Tool::Shapes => self.show_shapes_popover(ui),
                 })
             })
@@ -252,10 +252,6 @@ impl Toolbar {
     pub fn show_tool_popovers(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> Option<Response> {
-        if self.active_tool == Tool::Selection {
-            return None;
-        }
-
         let tools_island_rect = self.layout.tools_island?;
 
         let opacity = animate_eased(
@@ -284,7 +280,9 @@ impl Toolbar {
                         Tool::Highlighter => {
                             show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                         }
-                        Tool::Selection => {}
+                        Tool::Selection => {
+                            // buffer_changed = self.show_selection_popover(ui, tlbr_ctx)
+                        }
                         Tool::Shapes => self.show_shapes_popover(ui),
                     };
                 })
@@ -331,6 +329,7 @@ impl Toolbar {
             ui,
             &mut self.eraser.radius,
             DEFAULT_ERASER_RADIUS..=DEFAULT_ERASER_RADIUS * 20.0,
+            1.0,
         );
         ui.add_space(10.0);
     }
@@ -416,7 +415,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     // thickness hints.
     ui.add_space(20.0);
 
-    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0);
+    show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
 
     if cfg!(target_os = "ios") {
         ui.add_space(10.0);
@@ -447,28 +446,6 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     ui.add_space(10.0);
 }
 
-fn show_opacity_slider(ui: &mut egui::Ui, active_opacity: &mut f32, active_color: &DynamicColor) {
-    ui.horizontal(|ui| {
-        ui.label(RichText::new("Opacity").size(13.0));
-        ui.add_space(20.0);
-        let slider_color =
-            ThemePalette::resolve_dynamic_color(*active_color, ui.visuals().dark_mode)
-                .linear_multiply(*active_opacity);
-        ui.visuals_mut().widgets.inactive.bg_fill = slider_color;
-        ui.visuals_mut().widgets.inactive.fg_stroke =
-            egui::Stroke { width: 1.0, color: slider_color };
-        ui.visuals_mut().widgets.hovered.bg_fill = slider_color;
-        ui.visuals_mut().widgets.hovered.fg_stroke =
-            egui::Stroke { width: 2.0, color: slider_color };
-        ui.visuals_mut().widgets.active.bg_fill = slider_color;
-        ui.visuals_mut().widgets.active.fg_stroke =
-            egui::Stroke { width: 2.5, color: slider_color };
-        ui.spacing_mut().slider_width = ui.available_width();
-        ui.spacing_mut().slider_rail_height = 2.0;
-        ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false));
-    });
-}
-
 fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
     ui.label(RichText::new("Pressure Sensitivity").size(13.0));
     ui.horizontal(|ui| {
@@ -491,6 +468,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
         ui,
         &mut pen.active_stroke_width,
         DEFAULT_HIGHLIGHTER_STROKE_WIDTH..=40.0,
+        1.0,
     );
 
     ui.add_space(10.0);
@@ -601,71 +579,4 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
     };
 
     painter.add(egui::Shape::Mesh(mesh));
-}
-
-fn show_thickness_slider(ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>) {
-    let width = ui.available_width();
-    let slider_rect = ui
-        .add(
-            egui::Slider::new(value, value_range.clone())
-                .show_value(false)
-                .step_by(1.0)
-                .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
-        )
-        .rect;
-
-    let middle_range = value_range.start() + (value_range.end() - value_range.start()).abs() / 2.0;
-    let ticks = [value_range.start(), &middle_range, value_range.end()];
-
-    for (i, t) in ticks.iter().enumerate() {
-        let margin = egui::vec2(2.0, 10.0);
-        let end_y = slider_rect.top() - margin.y + (i as f32 * 3.0 + 1.0);
-
-        let total_spacing = width - (THICKNESS_BTN_WIDTH * ticks.len() as f32);
-        let spacing_between = total_spacing / (ticks.len() as f32 + 1.0);
-
-        let rect_start_x = slider_rect.left()
-            + spacing_between
-            + i as f32 * (THICKNESS_BTN_WIDTH + spacing_between);
-
-        let rect = match i {
-            0 => egui::Rect {
-                min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
-                max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            1 => egui::Rect {
-                min: egui::pos2(rect_start_x, slider_rect.top() - margin.y),
-                max: egui::pos2(rect_start_x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            2 => egui::Rect {
-                min: egui::pos2(
-                    slider_rect.right() - margin.x - THICKNESS_BTN_WIDTH,
-                    slider_rect.top() - margin.y,
-                ),
-                max: egui::pos2(slider_rect.right() - margin.x, end_y),
-            },
-            _ => break,
-        };
-
-        let response = ui.allocate_rect(rect.expand2(egui::vec2(0.0, 5.0)), egui::Sense::click());
-
-        if t.eq(&value) {
-            ui.painter().rect_filled(
-                rect.expand(5.0),
-                egui::Rounding::same(8.0),
-                egui::Color32::GRAY.linear_multiply(0.1),
-            );
-        }
-
-        ui.painter().rect_filled(
-            rect,
-            egui::Rounding::same(2.0),
-            ui.visuals().text_color().linear_multiply(0.8),
-        );
-
-        if response.clicked() {
-            *value = **t;
-        }
-    }
-    ui.advance_cursor_after_rect(slider_rect);
 }

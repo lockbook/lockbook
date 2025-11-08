@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::Buffer;
-use lb_rs::model::svg::element::Element;
+use lb_rs::model::svg::element::{Element, Stroke};
 use resvg::usvg::Transform;
 
 #[derive(Default, Debug)]
@@ -17,6 +17,7 @@ pub enum Event {
     Insert(Vec<InsertElement>),
     Delete(Vec<DeleteElement>),
     Transform(Vec<TransformElement>),
+    StrokeChange(Vec<StrokeChangeElement>),
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -33,6 +34,13 @@ pub struct InsertElement {
 pub struct TransformElement {
     pub id: Uuid,
     pub transform: Transform,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct StrokeChangeElement {
+    pub id: Uuid,
+    pub old_stroke: Option<Stroke>,
+    pub new_stroke: Option<Stroke>,
 }
 
 impl History {
@@ -84,6 +92,15 @@ impl History {
                 payload.iter().for_each(|transform_payload| {
                     if let Some(el) = buffer.elements.get_mut(&transform_payload.id) {
                         el.transform(transform_payload.transform);
+                    }
+                });
+            }
+            Event::StrokeChange(payload) => {
+                payload.iter().for_each(|stroke_change_payload| {
+                    if let Some(el) = buffer.elements.get_mut(&stroke_change_payload.id) {
+                        if let Some(stroke) = stroke_change_payload.new_stroke {
+                            el.set_stroke(stroke);
+                        }
                     }
                 });
             }
@@ -149,6 +166,18 @@ impl History {
                         })
                         .collect(),
                 )
+            }
+            Event::StrokeChange(stroke_change_elements) => {
+                source = Event::StrokeChange(
+                    stroke_change_elements
+                        .iter()
+                        .map(|stroke_change_payload| StrokeChangeElement {
+                            id: stroke_change_payload.id,
+                            old_stroke: stroke_change_payload.new_stroke,
+                            new_stroke: stroke_change_payload.old_stroke,
+                        })
+                        .collect(),
+                );
             }
         }
         source

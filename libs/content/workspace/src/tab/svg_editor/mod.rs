@@ -254,12 +254,6 @@ impl SVGEditor {
         }
         if global_diff.is_dirty() {
             self.has_queued_save_request = true;
-            if global_diff.transformed.is_none() {
-                self.toolbar
-                    .hide_tool_popover(&mut self.settings, &mut self.cfg);
-
-                self.toolbar.toggle_viewport_popover(None);
-            }
         }
 
         let needs_save_and_frame_is_cheap =
@@ -345,12 +339,8 @@ impl SVGEditor {
             settings: &mut self.settings,
             is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
             viewport_settings: &mut self.viewport_settings,
+            toolbar_has_interaction: self.has_islands_interaction,
         };
-
-        if self.has_islands_interaction {
-            self.toolbar.pen.end_path(&mut tool_context, false);
-            return;
-        }
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
             self.toolbar
