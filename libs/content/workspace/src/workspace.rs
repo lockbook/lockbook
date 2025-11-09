@@ -325,7 +325,6 @@ impl Workspace {
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
                     let show_tabs = self.show_tabs;
 
                     if let Some(tab) = self.tabs.get_mut_by_id(id) {
