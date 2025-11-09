@@ -51,10 +51,6 @@ class HomeState: ObservableObject {
         self.workspaceOutput = workspaceOutput
         self.filesModel = filesModel
         
-        #if os(iOS)
-        expandSidebarIfNoDocs()
-        #endif
-        
         workspaceOutput.$renameOpenDoc.sink { [weak self] _ in
             guard let openDoc = workspaceOutput.openDoc else {
                 return
@@ -80,12 +76,6 @@ class HomeState: ObservableObject {
             }
         }
         .store(in: &cancellables)
-    }
-    
-    func expandSidebarIfNoDocs() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.sidebarState = .open
-        }
     }
     
     func closeWorkspaceBlockingScreens() {
