@@ -24,7 +24,7 @@ struct HomeView: View {
         Group {
             if horizontalSizeClass == .compact {
                 NavigationStack {
-                    NewDrawerView(
+                    DrawerView(
                         homeState: homeState,
                         mainView: {
                             detail
