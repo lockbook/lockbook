@@ -1,16 +1,23 @@
-use std::sync::Arc;
+use std::{collections::HashMap, ops::Range, sync::Arc};
 
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
-use egui::{load::SizedTexture, ImageSource};
+use egui::{
+    CentralPanel, Color32, ColorImage, Context, Image, ImageSource, Pos2, Rect, Rounding,
+    ScrollArea, Sense, Stroke, TextureHandle, Ui, Vec2, load::SizedTexture,
+};
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
 
 pub struct PdfViewer {
     pub id: Uuid,
-    pub pdf: Pdf,
 
-    renders: Vec<Content>,
+    ctx: Context,
+    pdf: Pdf,
+    page_bounds: Vec<Rect>,
+    page_cache: HashMap<usize, TextureHandle>,
+    scale: f32,
+
     zoom_factor: Option<f32>,
     fit_page_zoom: Option<f32>,
     scroll_offset: Option<egui::Vec2>,
@@ -37,91 +44,76 @@ enum ZoomFactor {
     Decrease,
 }
 const ZOOM_STOP: f32 = 0.1;
-const MAX_ZOOM_IN_STOPS: f32 = 15.0;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
 
 // get dimensions from the pdf
 // these dimensions will be '100%'
 // but these aren't great starting dimensions
-// we need to probably match height 
+// we need to probably match height
+// we will load the pdf calculate global sizing and provide that to the scroll area
+// when we scroll we will re-calculate everything and ask the scroll area to scroll to
+// the new top-left corner of the viewport that's zoomed in. basically need to confirm
+// that the center stays in the same location.
 impl PdfViewer {
     pub fn new(
         id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, data_dir: &str, is_mobile_viewport: bool,
     ) -> Self {
         let pdf = Pdf::new(Arc::new(bytes)).unwrap();
-        println!("DIMENSIONS: {:?}", pdf.pages().first().unwrap().render_dimensions());
 
-        let renders = pdf
-            .pages()
-            .iter()
-            .map(|page| {
-                let image = hayro::render(
-                    page,
-                    &InterpreterSettings::default(),
-                    &RenderSettings {
-                        width: None,
-                        height: None,
-                        x_scale: ctx.pixels_per_point(),
-                        y_scale: ctx.pixels_per_point(),
-                    },
-                );
-                let size = [image.width() as _, image.height() as _];
-                println!("SIZE: {:?}", size);
-                let image =
-                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
-                Content {
-                    offset: None,
-                    texture: ctx.load_texture("pdf_image", image, egui::TextureOptions::LINEAR),
-                }
-            })
-            .collect();
-
-        let sidebar = if is_mobile_viewport {
-            None
-        } else {
-            let mut tn_render_settings = RenderSettings::default();
-            tn_render_settings.x_scale = 0.5;
-            tn_render_settings.y_scale = 0.5;
-
-            let thumbnails = pdf
-                .pages()
-                .iter()
-                .map(|page| {
-                    let image =
-                        hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
-                    let size = [image.width() as _, image.height() as _];
-                    let image =
-                        egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
-                    Content {
-                        offset: None,
-                        texture: ctx.load_texture(
-                            "pdf_thumbnail",
-                            image,
-                            egui::TextureOptions::LINEAR,
-                        ),
-                    }
-                })
-                .collect();
-            Some(SideBar {
-                thumbnails,
-                is_visible: true,
-                active_thumbnail: 0,
-                sa_offset: None,
-                scroll_update: None,
-            })
-        };
-
-        Self {
+        let mut s = Self {
             id,
-            renders,
             zoom_factor: None,
             fit_page_zoom: None,
             scroll_offset: None,
             scroll_update: None,
-            sidebar,
+            sidebar: Default::default(),
             pdf,
-        }
+            page_cache: Default::default(),
+            page_bounds: Default::default(),
+            ctx: ctx.clone(),
+            scale: Default::default(),
+        };
+
+        if !is_mobile_viewport {
+            s.setup_sidebar();
+        };
+
+        s
+    }
+
+    fn setup_sidebar(&mut self) {
+        let tn_render_settings =
+            RenderSettings { x_scale: 0.5, y_scale: 0.5, ..Default::default() };
+
+        let thumbnails = self
+            .pdf
+            .pages()
+            .iter()
+            .map(|page| {
+                let image =
+                    hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
+                let size = [image.width() as _, image.height() as _];
+                let image =
+                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
+                Content {
+                    offset: None,
+                    texture: self.ctx.load_texture(
+                        "pdf_thumbnail",
+                        image,
+                        egui::TextureOptions::LINEAR,
+                    ),
+                }
+            })
+            .collect();
+
+        self.sidebar = Some(SideBar {
+            thumbnails,
+            is_visible: true,
+            active_thumbnail: 0,
+            sa_offset: None,
+            scroll_update: None,
+        });
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
@@ -131,96 +123,36 @@ impl PdfViewer {
             ui.visuals().extreme_bg_color,
         );
 
+        ui.horizontal(|ui| {
+            let (rect, _) = ui.allocate_exact_size(
+                Vec2 { x: ui.available_width() - SIDEBAR_WIDTH, y: ui.available_height() },
+                Sense::focusable_noninteractive(),
+            );
+
+            println!("rect {rect:?}");
+            ui.allocate_ui_at_rect(rect, |ui| {
+                self.show_pages(ui);
+            });
+        });
+
+        return; 
         ui.vertical(|ui| {
-            self.show_toolbar(ui);
+            // self.show_toolbar(ui);
+            ui.horizontal(|ui| {
+                let mut page_width = ui.available_width();
+                if self.sidebar.is_some() {
+                    page_width -= SIDEBAR_WIDTH;
+                }
+
+                ui.allocate_ui(Vec2 { x: page_width, y: ui.available_height() }, |ui| {
+                    ui.vertical(|ui| {});
+                });
+
+                // ui.vertical(|ui| {
+                //     self.show_sidebar(ui);
+                // });
+            });
         });
-
-        self.show_sidebar(ui);
-
-        if let Some(page) = self.renders.first() {
-            if self.fit_page_zoom.is_none() {
-                self.fit_page_zoom = Some(ui.available_height() / page.texture.size()[1] as f32);
-                self.zoom_factor = self.fit_page_zoom;
-            }
-        }
-
-        let mut sao = egui::ScrollArea::both();
-        if let Some(delta) = self.scroll_update {
-            sao = sao.vertical_scroll_offset(delta);
-            self.scroll_update = None;
-        }
-
-        let mut offset_sum = 0.0;
-        let res = egui::CentralPanel::default().show_inside(ui, |ui| {
-            Some(
-                // todo: read more about viewport to optimize large pdf rendering
-                sao.show_viewport(ui, |ui, _| {
-                    let renders_res = ui
-                        .vertical_centered(|ui| {
-                            for (i, p) in self.renders.iter_mut().enumerate() {
-                                let img = egui::Image::new(ImageSource::Texture(
-                                    SizedTexture::new(
-                                        &p.texture,
-                                        egui::vec2(
-                                            p.texture.size()[0] as f32
-                                                * 1.,
-                                            p.texture.size()[1] as f32
-                                                * 1.,
-                                        ),
-                                    ),
-                                ))
-                                .sense(egui::Sense::click());
-
-                                let res = if ui.available_size_before_wrap().x
-                                    < img.size().unwrap_or_default()[0]
-                                {
-                                    ui.with_layout(
-                                        egui::Layout::left_to_right(egui::Align::Center)
-                                            .with_cross_justify(true),
-                                        |ui| ui.add(img),
-                                    )
-                                    .inner
-                                } else {
-                                    ui.add(img)
-                                };
-
-                                if p.offset.is_none() {
-                                    p.offset = Some(offset_sum);
-                                    offset_sum += res.rect.height() + SPACE_BETWEEN_PAGES;
-                                }
-
-                                if let Some(sidebar) = &mut self.sidebar {
-                                    if ui.clip_rect().contains(res.rect.center())
-                                        && sidebar.active_thumbnail != i
-                                    {
-                                        sidebar.active_thumbnail = i;
-                                        Self::scroll_thumbnail_to_page(sidebar);
-                                    }
-                                }
-
-                                ui.add_space(SPACE_BETWEEN_PAGES);
-                            }
-                        })
-                        .response;
-
-                    if renders_res.clicked()
-                        || ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Equals))
-                    {
-                        self.update_zoom_factor(ZoomFactor::Increase);
-                    }
-
-                    if renders_res.clicked_by(egui::PointerButton::Secondary)
-                        || ui.input_mut(|i| i.consume_key(egui::Modifiers::CTRL, egui::Key::Minus))
-                    {
-                        self.update_zoom_factor(ZoomFactor::Decrease);
-                    }
-                })
-                .state
-                .offset,
-            )
-        });
-
-        self.scroll_offset = res.inner;
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
@@ -276,7 +208,7 @@ impl PdfViewer {
             ui.columns(3, |cols| {
                 cols[0].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
-                        self.update_zoom_factor(ZoomFactor::Decrease);
+                        // self.update_zoom_factor(ZoomFactor::Decrease);
                     }
                 });
 
@@ -302,7 +234,7 @@ impl PdfViewer {
 
                 cols[2].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
-                        self.update_zoom_factor(ZoomFactor::Increase);
+                        // self.update_zoom_factor(ZoomFactor::Increase);
                     };
                 });
             });
@@ -324,111 +256,187 @@ impl PdfViewer {
             sidebar.scroll_update = None;
         }
 
-        egui::SidePanel::right("pdf_sidebar")
-            .resizable(false)
-            .show_separator_line(false)
-            .show_animated_inside(ui, sidebar.is_visible, |ui| {
-                sidebar.sa_offset = Some(
-                    sao.show(ui, |ui| {
-                        egui::Frame::default()
-                            .inner_margin(sidebar_margin)
-                            .show(ui, |ui| {
-                                for (i, p) in sidebar.thumbnails.clone().iter_mut().enumerate() {
-                                    let tint_color = if i == sidebar.active_thumbnail {
-                                        egui::Color32::WHITE
-                                    } else {
-                                        egui::Color32::GRAY.linear_multiply(0.5)
-                                    };
+        sidebar.sa_offset = Some(
+            sao.show(ui, |ui| {
+                egui::Frame::default()
+                    .inner_margin(sidebar_margin)
+                    .show(ui, |ui| {
+                        for (i, p) in sidebar.thumbnails.clone().iter_mut().enumerate() {
+                            let tint_color = if i == sidebar.active_thumbnail {
+                                egui::Color32::WHITE
+                            } else {
+                                egui::Color32::GRAY.linear_multiply(0.5)
+                            };
 
-                                    let res = ui.add(
-                                        egui::Image::new(egui::ImageSource::Texture(
-                                            SizedTexture::new(
-                                                &p.texture,
-                                                egui::vec2(
-                                                    SIDEBAR_WIDTH - sidebar_margin,
-                                                    p.texture.size()[1] as f32
-                                                        * (SIDEBAR_WIDTH - sidebar_margin)
-                                                        / p.texture.size()[0] as f32,
-                                                ),
-                                            ),
-                                        ))
-                                        .tint(tint_color)
-                                        .sense(egui::Sense::click()),
-                                    );
+                            let res = ui.add(
+                                egui::Image::new(egui::ImageSource::Texture(SizedTexture::new(
+                                    &p.texture,
+                                    egui::vec2(
+                                        SIDEBAR_WIDTH - sidebar_margin,
+                                        p.texture.size()[1] as f32
+                                            * (SIDEBAR_WIDTH - sidebar_margin)
+                                            / p.texture.size()[0] as f32,
+                                    ),
+                                )))
+                                .tint(tint_color)
+                                .sense(egui::Sense::click()),
+                            );
 
-                                    if sidebar.thumbnails[i].offset.is_none() {
-                                        sidebar.thumbnails[i].offset = Some(offset_sum);
-                                        offset_sum += res.rect.height() + sidebar_margin;
-                                    }
+                            if sidebar.thumbnails[i].offset.is_none() {
+                                sidebar.thumbnails[i].offset = Some(offset_sum);
+                                offset_sum += res.rect.height() + sidebar_margin;
+                            }
 
-                                    if res.hovered() {
-                                        ui.output_mut(|w| {
-                                            w.cursor_icon = egui::CursorIcon::PointingHand
-                                        })
-                                    }
-                                    if res.clicked() {
-                                        sidebar.active_thumbnail = i;
+                            if res.hovered() {
+                                ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::PointingHand)
+                            }
+                            // if res.clicked() {
+                            //     sidebar.active_thumbnail = i;
 
-                                        // scroll to the page
-                                        if let Some(content) =
-                                            self.renders.get(sidebar.active_thumbnail)
-                                        {
-                                            if let Some(offset) = content.offset {
-                                                self.scroll_update = Some(offset);
-                                            }
-                                        } else {
-                                            return;
-                                        }
+                            //     // scroll to the page
+                            //     if let Some(content) =
+                            //         self.renders.get(sidebar.active_thumbnail)
+                            //     {
+                            //         if let Some(offset) = content.offset {
+                            //             self.scroll_update = Some(offset);
+                            //         }
+                            //     } else {
+                            //         return;
+                            //     }
 
-                                        Self::scroll_thumbnail_to_page(sidebar);
-                                    }
+                            //     Self::scroll_thumbnail_to_page(sidebar);
+                            // }
 
-                                    ui.add_space(sidebar_margin);
-                                }
-                            });
-                    })
-                    .state
-                    .offset,
-                );
-            });
+                            ui.add_space(sidebar_margin);
+                        }
+                    });
+            })
+            .state
+            .offset,
+        );
     }
 
-    fn update_zoom_factor(&mut self, mode: ZoomFactor) {
-        if self.fit_page_zoom.is_none() || self.zoom_factor.is_none() {
-            return;
-        }
-        self.renders.iter_mut().for_each(|r| {
-            r.offset = None;
-        });
-
-        let y_offset = self.scroll_offset.unwrap_or(egui::vec2(0.0, 0.0)).y;
-
-        let total_height = self.get_sao_height();
-        let aspect = total_height / y_offset;
-
-        self.zoom_factor = Some(match mode {
-            ZoomFactor::Increase => (self.zoom_factor.unwrap() + ZOOM_STOP)
-                .min(ZOOM_STOP * MAX_ZOOM_IN_STOPS + self.fit_page_zoom.unwrap()),
-            ZoomFactor::Decrease => (self.zoom_factor.unwrap() - ZOOM_STOP).max(ZOOM_STOP),
-        });
-
-        let new_offset: f32 = self.get_sao_height() / aspect;
-
-        self.scroll_update = Some(new_offset);
-    }
-
-    fn scroll_thumbnail_to_page(sidebar: &mut SideBar) {
-        if let Some(content) = sidebar.thumbnails.get(sidebar.active_thumbnail) {
-            if let Some(offset) = content.offset {
-                sidebar.scroll_update = Some(offset);
+    fn show_pages(&mut self, ui: &mut Ui) {
+        ScrollArea::both().show_viewport(ui, |ui, viewport| {
+            if self.scale == 0. {
+                self.scale = match self.pdf.pages().first().map(|p| p.render_dimensions().1) {
+                    Some(height) => ui.available_height() / height,
+                    None => 1.,
+                };
             }
+
+            if self.page_bounds.is_empty() {
+                self.compute_bounds();
+            }
+            let max_height = self.page_bounds[self.page_bounds.len() - 1].max.y;
+            let max_width = self
+                .page_bounds
+                .iter()
+                .map(|r| r.width().ceil() as u32)
+                .max()
+                .unwrap_or_default() as f32;
+
+            // ui.vertical_centered(|ui| {
+                let (_, rect) = ui.allocate_space(egui::Vec2 { x: max_width, y: max_height });
+                println!("{rect:?}");
+
+                for idx in 0..self.page_bounds.len() {
+                    let page_rect = self.page_bounds[idx];
+                    if page_rect.intersects(viewport) {
+                        let paint_location = page_rect.translate(rect.min.to_vec2());
+                        let img = self.get_page(idx);
+                        ui.painter().rect_stroke(
+                            paint_location,
+                            Rounding::ZERO,
+                            Stroke::new(1., Color32::RED),
+                        );
+                        img.paint_at(ui, paint_location);
+                    }
+                }
+            //});
+        });
+    }
+
+    fn get_page(&mut self, idx: usize) -> Image<'_> {
+        let page = &self.pdf.pages()[idx];
+
+        let texture = self.page_cache.get(&idx).cloned().unwrap_or_else(|| {
+            let pixmap = hayro::render(
+                page,
+                &InterpreterSettings::default(),
+                &RenderSettings { x_scale: self.scale, y_scale: self.scale, ..Default::default() },
+            );
+            let image = ColorImage::from_rgba_premultiplied(
+                [pixmap.width() as _, pixmap.height() as _],
+                pixmap.data_as_u8_slice(),
+            );
+            self.ctx
+                .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
+        });
+        self.page_cache.insert(idx, texture.clone());
+
+        let img = Image::new(ImageSource::Texture(SizedTexture {
+            id: texture.id(),
+            size: texture.size_vec2(),
+        }));
+
+        img
+    }
+
+    fn compute_bounds(&mut self) {
+        let mut pages = vec![];
+
+        let mut offset = Pos2::ZERO;
+
+        for page in self.pdf.pages().iter() {
+            let mut dims = Vec2::new(page.render_dimensions().0, page.render_dimensions().1);
+            dims *= self.scale;
+
+            pages.push(Rect { min: offset, max: offset + dims });
+
+            offset.y += dims.y + SPACE_BETWEEN_PAGES;
         }
+
+        self.page_bounds = pages;
     }
-    // todo: refactor for dynamic sizing
-    fn get_sao_height(&self) -> f32 {
-        self.renders[0].texture.size()[1] as f32
-            * self.zoom_factor.unwrap_or(1.0)
-            * self.renders.len() as f32
-            + 10.0 * self.renders.len() as f32
-    }
+
+    // fn update_zoom_factor(&mut self, mode: ZoomFactor) {
+    //     if self.fit_page_zoom.is_none() || self.zoom_factor.is_none() {
+    //         return;
+    //     }
+    //     self.renders.iter_mut().for_each(|r| {
+    //         r.offset = None;
+    //     });
+
+    //     let y_offset = self.scroll_offset.unwrap_or(egui::vec2(0.0, 0.0)).y;
+
+    //     let total_height = self.get_sao_height();
+    //     let aspect = total_height / y_offset;
+
+    //     self.zoom_factor = Some(match mode {
+    //         ZoomFactor::Increase => (self.zoom_factor.unwrap() + ZOOM_STOP)
+    //             .min(ZOOM_STOP * MAX_ZOOM_IN_STOPS + self.fit_page_zoom.unwrap()),
+    //         ZoomFactor::Decrease => (self.zoom_factor.unwrap() - ZOOM_STOP).max(ZOOM_STOP),
+    //     });
+
+    //     let new_offset: f32 = self.get_sao_height() / aspect;
+
+    //     self.scroll_update = Some(new_offset);
+    // }
+
+    // fn scroll_thumbnail_to_page(sidebar: &mut SideBar) {
+    //     if let Some(content) = sidebar.thumbnails.get(sidebar.active_thumbnail) {
+    //         if let Some(offset) = content.offset {
+    //             sidebar.scroll_update = Some(offset);
+    //         }
+    //     }
+    // }
+
+    // // todo: refactor for dynamic sizing
+    // fn get_sao_height(&self) -> f32 {
+    //     self.renders[0].texture.size()[1] as f32
+    //         * self.zoom_factor.unwrap_or(1.0)
+    //         * self.renders.len() as f32
+    //         + 10.0 * self.renders.len() as f32
+    // }
 }
