@@ -362,10 +362,7 @@ impl Workspace {
                             )));
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id,
-                                bytes,
-                                &ctx,
-                                writeable_dir,
+                                id, bytes, &ctx,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {

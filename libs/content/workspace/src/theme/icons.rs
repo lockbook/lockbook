@@ -91,6 +91,8 @@ impl Icon {
     pub const FEEDBACK: Self = ic("\u{f0b7a}");
     pub const REPORT: Self = ic("\u{f46e}");
     pub const RECTANGLE: Self = ic("\u{f0e5e}");
+    pub const FIT_WIDTH: Self = ic("\u{f0e74}"); // 󰹴
+    pub const FIT_HEIGHT: Self = ic("\u{f0e79}"); // 󰹹
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
