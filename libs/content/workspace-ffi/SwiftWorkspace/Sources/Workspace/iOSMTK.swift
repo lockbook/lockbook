@@ -8,22 +8,35 @@
 
     import GameController
 
-    public class iOSMTKTextInputWrapper: UIView, UITextInput, UIDropInteractionDelegate {
+    public class MarkdownView: UIView, UITextInput {
         public static let TOOL_BAR_HEIGHT: CGFloat = 42
         public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
         let mtkView: iOSMTK
-        let currentHeaderSize: Double
-
-        var textUndoManager = iOSUndoManager()
-        let textInteraction = UITextInteraction(for: .editable)
-
         var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
 
+        // text input
+        let textInteraction = UITextInteraction(for: .editable)
+        public var inputDelegate: UITextInputDelegate?
+        public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
+
+        // pan (iPad trackpad support)
+        private let panRecognizer = UIPanGestureRecognizer()
+
+        // undo/redo
+        private let undo = iOSUndoManager()
         public override var undoManager: UndoManager? {
-            return textUndoManager
+            return undo
         }
 
+        // drop
+        var dropDelegate: UIDropInteractionDelegate?
+
+        // ?
+        let currentHeaderSize: Double
+
+        // interactive refinement (floating cursor)
+        var interactiveRefinementInProgress = false
         var lastFloatingCursorRect: CGRect? = nil
         var floatingCursor: UIView = UIView()
         var floatingCursorWidth = 1.0
@@ -33,14 +46,37 @@
         var floatingCursorNewEndY = 0.0
         var autoScroll: Timer? = nil
 
-        var isLongPressCursorDrag = false
-
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             self.currentHeaderSize = headerSize
 
             super.init(frame: .infinite)
 
+            self.clipsToBounds = true
+            self.isUserInteractionEnabled = true
+
+            // text input
+            textInteraction.textInput = self
+            self.addInteraction(textInteraction)
+
+            for gestureRecognizer in self.gestureRecognizers ?? [] {
+                // receive touch events even if they are part of one of these recognized gestures
+                // this supports checkboxes and other interactive markdown elements in the text area (crudely)
+                if gestureRecognizer.name == "UITextInteractionNameSingleTap"
+                    || gestureRecognizer.name == "UITextInteractionNameTapAndAHalf"
+                    || gestureRecognizer.name == "UITextInteractionNameLinkTap"
+                {
+                    gestureRecognizer.cancelsTouchesInView = false
+                }
+
+                // send interactive refinements to our handler
+                // this is the intended way to support a floating cursor
+                if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                    gestureRecognizer.addTarget(
+                        self, action: #selector(handleInteractiveRefinement(_:)))
+                }
+            }
+            
             mtkView.onSelectionChanged = { [weak self] in
                 self?.inputDelegate?.selectionDidChange(self)
             }
@@ -48,47 +84,25 @@
                 self?.inputDelegate?.textDidChange(self)
             }
 
-            self.clipsToBounds = true
-            self.isUserInteractionEnabled = true
+            // pan (iPad trackpad support)
+            panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+            panRecognizer.allowedScrollTypesMask = .all
+            panRecognizer.maximumNumberOfTouches = 0
+            self.addGestureRecognizer(panRecognizer)
 
-            // ipad trackpad support
-            let pan = UIPanGestureRecognizer(
-                target: self, action: #selector(self.handleTrackpadScroll(_:)))
-            pan.allowedScrollTypesMask = .all
-            pan.maximumNumberOfTouches = 0
-            self.addGestureRecognizer(pan)
-
-            // selection support
-            textInteraction.textInput = self
-            self.addInteraction(textInteraction)
-
-            for gestureRecognizer in textInteraction.gesturesForFailureRequirements {
-                let gestureName = gestureRecognizer.name?.lowercased()
-
-                if gestureName?.contains("tap") ?? false {
-                    gestureRecognizer.cancelsTouchesInView = false
-                }
-            }
-
-            for gesture in gestureRecognizers ?? [] {
-                let gestureName = gesture.name?.lowercased()
-
-                if gestureName?.contains("interactiverefinement") ?? false {
-                    gesture.addTarget(self, action: #selector(longPressGestureStateChanged(_:)))
-                }
-            }
-
-            // drop support
-            let dropInteraction = UIDropInteraction(delegate: self)
+            // drop
+            self.dropDelegate = MarkdownDropDelegate(
+                mtkView: mtkView, textDelegate: inputDelegate!, textInput: self)
+            let dropInteraction = UIDropInteraction(delegate: self.dropDelegate!)
             self.addInteraction(dropInteraction)
 
-            // undo redo support
-            self.textUndoManager.textWrapper = self
-            self.textUndoManager.wsHandle = self.wsHandle
-            self.textUndoManager.mtkView = mtkView
-            self.textUndoManager.inputDelegate = inputDelegate
+            // undo/redo
+            self.undo.textWrapper = self
+            self.undo.wsHandle = self.wsHandle
+            self.undo.mtkView = mtkView
+            self.undo.inputDelegate = inputDelegate
 
-            // floating cursor support
+            // interactive refinement (floating cursor)
             if #available(iOS 17.4, *) {
                 let concreteFloatingCursor = UIStandardTextCursorView()
                 concreteFloatingCursor.tintColor = .systemBlue
@@ -108,16 +122,20 @@
             addSubview(floatingCursor)
         }
 
-        @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+        @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
             mtkView.handleTrackpadScroll(sender)
         }
 
-        @objc private func longPressGestureStateChanged(_ recognizer: UIGestureRecognizer) {
+        @objc private func handleInteractiveRefinement(_ recognizer: UIGestureRecognizer) {
             switch recognizer.state {
+            case .possible:
+                break
             case .began:
-                isLongPressCursorDrag = true
-            case .cancelled, .ended:
-                isLongPressCursorDrag = false
+                interactiveRefinementInProgress = true
+            case .changed:
+                break
+            case .ended, .cancelled, .failed:
+                interactiveRefinementInProgress = false
 
                 inputDelegate?.selectionWillChange(self)
                 mtkView.drawImmediately()
@@ -292,64 +310,6 @@
             replace(range, withText: replacementText as String)
         }
 
-        public func dropInteraction(
-            _ interaction: UIDropInteraction, canHandle session: UIDropSession
-        ) -> Bool {
-            guard session.items.count == 1 else { return false }
-
-            return session.hasItemsConforming(toTypeIdentifiers: [
-                UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier,
-            ])
-        }
-
-        public func dropInteraction(
-            _ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession
-        ) -> UIDropProposal {
-            let dropLocation = session.location(in: self)
-            let operation: UIDropOperation
-
-            if self.frame.contains(dropLocation) {
-                operation = .copy
-            } else {
-                operation = .cancel
-            }
-
-            return UIDropProposal(operation: operation)
-        }
-
-        public func dropInteraction(
-            _ interaction: UIDropInteraction, performDrop session: UIDropSession
-        ) {
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
-                session.loadObjects(ofClass: UIImage.self) { imageItems in
-                    let images = imageItems as? [UIImage] ?? []
-
-                    for image in images {
-                        self.importContent(.image(image), isPaste: true)
-                    }
-                }
-            }
-
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.text.identifier as String]) {
-                session.loadObjects(ofClass: NSAttributedString.self) { textItems in
-                    let attributedStrings = textItems as? [NSAttributedString] ?? []
-
-                    for attributedString in attributedStrings {
-                        self.importContent(.text(attributedString.string), isPaste: true)
-                    }
-                }
-            }
-
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String])
-            {
-                session.loadObjects(ofClass: URL.self) { urlItems in
-                    for url in urlItems {
-                        self.importContent(.url(url), isPaste: true)
-                    }
-                }
-            }
-        }
-
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
             inputDelegate?.textWillChange(self)
             inputDelegate?.selectionWillChange(self)
@@ -403,7 +363,7 @@
                     return
                 }
 
-                if !floatingCursor.isHidden || isLongPressCursorDrag {
+                if !floatingCursor.isHidden || interactiveRefinementInProgress {
                     set_selected(wsHandle, range)
                     return
                 }
@@ -549,10 +509,6 @@
 
             return Int(right) - Int(left)
         }
-
-        public var inputDelegate: UITextInputDelegate?
-
-        public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
 
         public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection)
             -> UITextPosition?
@@ -752,6 +708,72 @@
         func unimplemented() {
             print("unimplemented!")
             Thread.callStackSymbols.forEach { print($0) }
+        }
+    }
+
+    public class MarkdownDropDelegate: NSObject, UIDropInteractionDelegate {
+        weak var mtkView: iOSMTK?
+        weak var textDelegate: UITextInputDelegate?
+        weak var textInput: UITextInput?
+
+        public init(mtkView: iOSMTK, textDelegate: UITextInputDelegate, textInput: UITextInput) {
+            self.mtkView = mtkView
+            self.textDelegate = textDelegate
+            self.textInput = textInput
+        }
+
+        public func dropInteraction(
+            _ interaction: UIDropInteraction, canHandle session: UIDropSession
+        ) -> Bool {
+            guard session.items.count == 1 else { return false }
+
+            return session.hasItemsConforming(toTypeIdentifiers: [
+                UTType.image.identifier, UTType.fileURL.identifier, UTType.text.identifier,
+            ])
+        }
+
+        public func dropInteraction(
+            _ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession
+        ) -> UIDropProposal {
+            return UIDropProposal(operation: .copy)
+        }
+
+        public func dropInteraction(
+            _ interaction: UIDropInteraction, performDrop session: UIDropSession
+        ) {
+            textDelegate?.textWillChange(textInput)
+            textDelegate?.selectionWillChange(textInput)
+
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
+                session.loadObjects(ofClass: UIImage.self) { imageItems in
+                    let images = imageItems as? [UIImage] ?? []
+                    for image in images {
+                        self.mtkView?.importContent(.image(image), isPaste: true)
+                    }
+                }
+            }
+
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.text.identifier as String]) {
+                session.loadObjects(ofClass: NSAttributedString.self) { textItems in
+                    let attributedStrings = textItems as? [NSAttributedString] ?? []
+                    for attributedString in attributedStrings {
+                        self.mtkView?.importContent(.text(attributedString.string), isPaste: true)
+                    }
+                }
+            }
+
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String])
+            {
+                session.loadObjects(ofClass: URL.self) { urlItems in
+                    for url in urlItems {
+                        self.mtkView?.importContent(.url(url), isPaste: true)
+                    }
+                }
+            }
+
+            mtkView?.drawImmediately()
+            textDelegate?.selectionDidChange(textInput)
+            textDelegate?.textDidChange(textInput)
         }
     }
 
@@ -1156,7 +1178,7 @@
             defaultRegion: UIPointerRegion
         ) -> UIPointerRegion? {
             let offsetY: CGFloat =
-                if interaction.view is iOSMTKTextInputWrapper
+                if interaction.view is MarkdownView
                     || interaction.view is iOSMTKDrawingWrapper
                 {
                     docHeaderSize
@@ -1264,7 +1286,7 @@
                 self.workspaceOutput?.openDoc = nil
             }
 
-            if let currentWrapper = currentWrapper as? iOSMTKTextInputWrapper,
+            if let currentWrapper = currentWrapper as? MarkdownView,
                 currentTab == .Markdown
             {
                 if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
@@ -1612,7 +1634,7 @@
 
         public var wsHandle: UnsafeMutableRawPointer? = nil
 
-        weak var textWrapper: iOSMTKTextInputWrapper? = nil
+        weak var textWrapper: MarkdownView? = nil
         weak var mtkView: iOSMTK? = nil
         weak var inputDelegate: UITextInputDelegate? = nil
 

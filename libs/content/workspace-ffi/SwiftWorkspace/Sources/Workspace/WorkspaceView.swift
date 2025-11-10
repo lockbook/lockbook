@@ -254,7 +254,7 @@ import SwiftUI
                     ])
                 case .PlainText, .Markdown:
                     if let currentWrapper = self.currentWrapper
-                        as? iOSMTKTextInputWrapper,
+                        as? MarkdownView,
                         currentWrapper.currentHeaderSize
                             == headerSize
                     {
@@ -263,7 +263,7 @@ import SwiftUI
 
                     self.currentWrapper?.removeFromSuperview()
 
-                    let textWrapper = iOSMTKTextInputWrapper(
+                    let textWrapper = MarkdownView(
                         mtkView: self.mtkView,
                         headerSize: headerSize
                     )
@@ -286,7 +286,7 @@ import SwiftUI
                         ),
                         textWrapper.bottomAnchor.constraint(
                             equalTo: self.bottomAnchor,
-                            constant: -iOSMTKTextInputWrapper
+                            constant: -MarkdownView
                                 .TOOL_BAR_HEIGHT
                         ),
                     ])
