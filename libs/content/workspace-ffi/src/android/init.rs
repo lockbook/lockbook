@@ -79,7 +79,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let core = unsafe { &mut *(core as *mut Lb) };
 
     let mut native_window = NativeWindow::new(&env, surface);
-    let backends = wgpu::Backends::VULKAN;
+    let backends = wgpu::Backends::VULKAN | wgpu::Backends::GL;
     let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
     let instance = wgpu::Instance::new(instance_desc);
     let surface = instance
