@@ -289,8 +289,8 @@ impl PdfViewer {
     }
 
     fn show_pages(&mut self, ui: &mut Ui) {
-        let available_width = ui.available_width();
-        let available_height = ui.available_height();
+        let available_width = ui.available_width() * 0.95;
+        let available_height = ui.available_height() * 0.95;
         CentralPanel::default().show_inside(ui, |ui| {
             ScrollArea::both().show_viewport(ui, |ui, viewport| {
                 let target_scale = if self.fit_width {
@@ -373,7 +373,11 @@ impl PdfViewer {
             let pixmap = hayro::render(
                 page,
                 &InterpreterSettings::default(),
-                &RenderSettings { x_scale: self.scale, y_scale: self.scale, ..Default::default() },
+                &RenderSettings {
+                    x_scale: self.scale * self.ctx.pixels_per_point(),
+                    y_scale: self.scale * self.ctx.pixels_per_point(),
+                    ..Default::default()
+                },
             );
             let image = ColorImage::from_rgba_premultiplied(
                 [pixmap.width() as _, pixmap.height() as _],
