@@ -1,6 +1,6 @@
 use egui::TextWrapMode;
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
     pub icon: &'static str,

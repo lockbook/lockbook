@@ -16,6 +16,7 @@ use markdown_editor::input::Region;
 use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
+pub const ICON_SIZE: f32 = 16.0;
 
 pub struct Toolbar {
     heading_last_click_at: Instant,
@@ -51,14 +52,14 @@ impl<'ast> Editor {
                     let mut events = Vec::new();
 
                     if is_mobile && self.virtual_keyboard_shown {
-                        let resp = IconButton::new(&Icon::KEYBOARD_HIDE).show(ui);
+                        let resp = IconButton::new(Icon::KEYBOARD_HIDE.size(16.0)).show(ui);
                         if resp.clicked() {
                             ui.ctx().set_virtual_keyboard_shown(false);
                         }
                         add_seperator(ui);
                     }
 
-                    if IconButton::new(&Icon::UNDO)
+                    if IconButton::new(Icon::UNDO.size(16.0))
                         .tooltip("Undo")
                         .show(ui)
                         .clicked()
@@ -66,7 +67,7 @@ impl<'ast> Editor {
                         events.push(Event::Undo);
                     }
                     ui.add_space(5.);
-                    if IconButton::new(&Icon::REDO)
+                    if IconButton::new(Icon::REDO.size(16.0))
                         .tooltip("Redo")
                         .show(ui)
                         .clicked()
@@ -78,22 +79,22 @@ impl<'ast> Editor {
 
                     self.heading_button(root, ui).map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(&Icon::BOLD, InlineNode::Bold, root, ui)
+                    self.inline(Icon::BOLD.size(ICON_SIZE), InlineNode::Bold, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(&Icon::ITALIC, InlineNode::Italic, root, ui)
+                    self.inline(Icon::ITALIC.size(ICON_SIZE), InlineNode::Italic, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(&Icon::CODE, InlineNode::Code, root, ui)
+                    self.inline(Icon::CODE.size(ICON_SIZE), InlineNode::Code, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(&Icon::STRIKETHROUGH, InlineNode::Strikethrough, root, ui)
+                    self.inline(Icon::STRIKETHROUGH.size(ICON_SIZE), InlineNode::Strikethrough, root, ui)
                         .map(|e| events.push(e));
 
                     add_seperator(ui);
 
                     self.block(
-                        &Icon::NUMBER_LIST,
+                        Icon::NUMBER_LIST.size(ICON_SIZE),
                         BlockNode::ListItem(ListItem::Numbered(1), 0),
                         root,
                         ui,
@@ -101,7 +102,7 @@ impl<'ast> Editor {
                     .map(|e| events.push(e));
                     ui.add_space(5.);
                     self.block(
-                        &Icon::BULLET_LIST,
+                        Icon::BULLET_LIST.size(ICON_SIZE),
                         BlockNode::ListItem(ListItem::Bulleted, 0),
                         root,
                         ui,
@@ -109,7 +110,7 @@ impl<'ast> Editor {
                     .map(|e| events.push(e));
                     ui.add_space(5.);
                     self.block(
-                        &Icon::TODO_LIST,
+                        Icon::TODO_LIST.size(ICON_SIZE),
                         BlockNode::ListItem(ListItem::Todo(false), 0),
                         root,
                         ui,
@@ -119,7 +120,7 @@ impl<'ast> Editor {
                     add_seperator(ui);
 
                     self.inline(
-                        &Icon::LINK,
+                        Icon::LINK.size(ICON_SIZE),
                         InlineNode::Link(LinkType::Inline, "".into(), "".into()),
                         root,
                         ui,
@@ -128,7 +129,7 @@ impl<'ast> Editor {
 
                     add_seperator(ui);
 
-                    if IconButton::new(&Icon::INDENT)
+                    if IconButton::new(Icon::INDENT.size(ICON_SIZE))
                         .tooltip("Indent")
                         .show(ui)
                         .clicked()
@@ -136,7 +137,7 @@ impl<'ast> Editor {
                         events.push(Event::Indent { deindent: false });
                     }
                     ui.add_space(5.);
-                    if IconButton::new(&Icon::DEINDENT)
+                    if IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
                         .tooltip("De-indent")
                         .show(ui)
                         .clicked()
@@ -183,7 +184,7 @@ impl<'ast> Editor {
             HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
         ));
 
-        let resp = IconButton::new(&Icon::HEADER_1)
+        let resp = IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
             .colored(applied)
             .tooltip(format!("{style}"))
             .show(ui);
@@ -196,21 +197,21 @@ impl<'ast> Editor {
     }
 
     fn inline(
-        &self, icon: &'static Icon, style: InlineNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+        &self, icon: Icon, style: InlineNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
         let applied = self.inline_styled(root, self.buffer.current.selection, &style);
         self.button(icon, MarkdownNode::Inline(style), applied, ui)
     }
 
     fn block(
-        &self, icon: &'static Icon, style: BlockNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+        &self, icon: Icon, style: BlockNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
         let applied = self.unapply_block(root, &style);
         self.button(icon, MarkdownNode::Block(style), applied, ui)
     }
 
     fn button(
-        &self, icon: &'static Icon, style: MarkdownNode, applied: bool, ui: &mut Ui,
+        &self, icon: Icon, style: MarkdownNode, applied: bool, ui: &mut Ui,
     ) -> Option<Event> {
         let resp = IconButton::new(icon)
             .colored(applied)

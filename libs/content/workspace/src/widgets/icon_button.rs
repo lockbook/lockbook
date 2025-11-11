@@ -5,14 +5,14 @@ use crate::theme::icons::Icon;
 /// A button with only an icon. Has a background when hovered. Colored when clicked.
 /// Supports an optional tooltip.
 pub struct IconButton {
-    icon: &'static Icon,
+    icon: Icon,
     tooltip: Option<String>,
     colored: bool,
 }
 
 impl IconButton {
     /// Create an icon button with the given icon.
-    pub fn new(icon: &'static Icon) -> Self {
+    pub fn new(icon: Icon) -> Self {
         Self { icon, tooltip: None, colored: false }
     }
 
@@ -29,7 +29,7 @@ impl IconButton {
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
 
-        let icon_text: WidgetText = self.icon.into();
+        let icon_text: WidgetText = (&self.icon).into();
         let galley =
             icon_text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, TextStyle::Body);
 
