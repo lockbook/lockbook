@@ -3,9 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use egui::{
-    Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers,
-    Pos2, Rect, ScrollArea, SidePanel, TextureHandle, Ui, Vec2,
-    load::SizedTexture,
+    Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers, Pos2,
+    Rect, ScrollArea, SidePanel, TextureHandle, Ui, Vec2, load::SizedTexture,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
