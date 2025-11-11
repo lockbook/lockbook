@@ -7,7 +7,7 @@ impl super::SettingsModal {
         let debug_str = self.debug.lock().unwrap().clone();
 
         ui.horizontal(|ui| {
-            if IconButton::new(&Icon::CONTENT_COPY).show(ui).clicked() {
+            if IconButton::new(Icon::CONTENT_COPY).show(ui).clicked() {
                 ui.output_mut(|o| o.copied_text = debug_str.clone());
             }
             ui.heading("Debug");

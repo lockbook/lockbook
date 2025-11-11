@@ -1,6 +1,6 @@
 use egui::TextWrapMode;
 
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Icon {
     pub has_badge: bool,
     pub icon: &'static str,
@@ -10,7 +10,7 @@ pub struct Icon {
 }
 
 const fn ic(c: &'static str) -> Icon {
-    Icon { has_badge: false, icon: c, size: 20.0, color: None, weak: false }
+    Icon { has_badge: false, icon: c, size: 18.0, color: None, weak: false }
 }
 
 // look em up here: https://www.nerdfonts.com/cheat-sheet

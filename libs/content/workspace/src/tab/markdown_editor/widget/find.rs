@@ -93,7 +93,7 @@ impl Find {
             }
             ui.add_space(5.);
 
-            if IconButton::new(&Icon::CHEVRON_LEFT)
+            if IconButton::new(Icon::CHEVRON_LEFT)
                 .tooltip("Previous")
                 .show(ui)
                 .clicked()
@@ -103,7 +103,7 @@ impl Find {
                 result.backwards = true;
             }
             ui.add_space(5.);
-            if IconButton::new(&Icon::CHEVRON_RIGHT)
+            if IconButton::new(Icon::CHEVRON_RIGHT)
                 .tooltip("Next")
                 .show(ui)
                 .clicked()
