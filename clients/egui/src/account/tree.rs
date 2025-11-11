@@ -1106,7 +1106,10 @@ impl FileTree {
 
         let file_resp = if file.is_document() {
             let icon = doc_type.to_icon().size(icon_size);
-            let file_resp = button.icon(&icon).icon_color(ui.style().visuals.text_color().linear_multiply(0.5)).show(ui);
+            let file_resp = button
+                .icon(&icon)
+                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
+                .show(ui);
 
             file_resp
         } else {
@@ -1118,7 +1121,8 @@ impl FileTree {
                 Icon::SHARED_FOLDER
             } else {
                 Icon::FOLDER
-            }.size(icon_size);
+            }
+            .size(icon_size);
 
             let file_resp = button
                 .icon(&icon)

@@ -1,4 +1,4 @@
-use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, WidgetText};
+use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 
 use crate::theme::icons::Icon;
 
@@ -27,15 +27,14 @@ impl IconButton {
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
-        let padding = ui.spacing().button_padding;
         let wrap_width = ui.available_width();
 
         let icon_text: WidgetText = self.icon.into();
         let galley =
             icon_text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, TextStyle::Body);
 
-        let desired_size = egui::Vec2::splat(self.icon.size) + padding * 2.;
-        let (rect, mut resp) = ui.allocate_at_least(desired_size, Sense::click());
+        let desired_size = Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.);
+        let (rect, mut resp) = ui.allocate_exact_size(desired_size, Sense::click());
 
         if resp.hovered() {
             ui.painter()
@@ -45,13 +44,18 @@ impl IconButton {
             });
         }
 
-        let draw_pos = rect.center() - egui::Vec2::splat(self.icon.size) / 2. + egui::vec2(0., 1.5);
         let icon_color = if self.colored || resp.is_pointer_button_down_on() {
             ui.visuals().widgets.active.bg_fill
         } else {
             ui.visuals().text_color()
         };
-        ui.painter().galley(draw_pos, galley, icon_color);
+        ui.painter().galley(
+            ((rect.min - galley.mesh_bounds.min)
+                + ((rect.size() - galley.mesh_bounds.size()) / 2.0))
+                .to_pos2(),
+            galley,
+            icon_color,
+        );
 
         if let Some(tooltip) = &self.tooltip {
             ui.ctx()
