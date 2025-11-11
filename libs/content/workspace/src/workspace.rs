@@ -307,7 +307,7 @@ impl Workspace {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
+    // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
             self.tasks.update();
@@ -325,7 +325,6 @@ impl Workspace {
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
                     let show_tabs = self.show_tabs;
 
                     if let Some(tab) = self.tabs.get_mut_by_id(id) {
@@ -362,10 +361,7 @@ impl Workspace {
                             )));
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id,
-                                &bytes,
-                                &ctx,
-                                writeable_dir,
+                                id, bytes, &ctx,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {

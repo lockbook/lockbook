@@ -41,6 +41,7 @@ impl Icon {
     pub const DOC_UNKNOWN: Self = ic("\u{f039a}");
     pub const DOC_TEXT: Self = ic("\u{f15c}"); // 
     pub const DOC_MD: Self = ic("\u{f48a}");
+    pub const DOC_PDF: Self = ic("\u{e67d}");
     pub const DONE: Self = ic("\u{f012c}");
     pub const DRAW: Self = Self::BRUSH;
     pub const EMPTY_INBOX: Self = ic("\u{f06ee}");
@@ -94,6 +95,8 @@ impl Icon {
     pub const FEEDBACK: Self = ic("\u{f0b7a}");
     pub const REPORT: Self = ic("\u{f46e}");
     pub const RECTANGLE: Self = ic("\u{f0e5e}");
+    pub const FIT_WIDTH: Self = ic("\u{f0e74}"); // 󰹴
+    pub const FIT_HEIGHT: Self = ic("\u{f0e79}"); // 󰹹
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
