@@ -100,10 +100,11 @@ impl Toolbar {
 
             let mut transform = None;
             let zoom_step = 10.0;
+            let size = 15.;
 
             if ui
                 .add_enabled_ui(zoom_percentage > zoom_step, |ui| {
-                    Button::default().icon(&Icon::ZOOM_OUT).show(ui)
+                    Button::default().icon(&Icon::ZOOM_OUT.size(size)).show(ui)
                 })
                 .inner
                 .clicked()
@@ -132,7 +133,7 @@ impl Toolbar {
                 self.toggle_viewport_popover(Some(ViewportPopover::ZoomStops));
             }
 
-            if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
+            if Button::default().icon(&Icon::ZOOM_IN.size(size)).show(ui).clicked() {
                 let target_zoom_percentage =
                     ((zoom_percentage / zoom_step).floor() + 1.0) * zoom_step;
 
@@ -156,7 +157,7 @@ impl Toolbar {
                 Icon::ARROW_UP
             } else {
                 Icon::ARROW_DOWN
-            };
+            }.size(size);
 
             let more_btn = Button::default().icon(&icon).show(ui);
             if more_btn.clicked() || more_btn.drag_started() {

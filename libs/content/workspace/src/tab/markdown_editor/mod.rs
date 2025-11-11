@@ -726,7 +726,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 
     fonts.font_data.insert("icons".into(), {
         FontData {
-            tweak: FontTweak { y_offset: -0.1, scale: 0.85, ..Default::default() },
+            tweak: FontTweak { y_offset: -0.1, scale: mono_scale, ..Default::default() },
             ..FontData::from_static(lb_fonts::NERD_FONTS_MONO_SYMBOLS)
         }
     });
