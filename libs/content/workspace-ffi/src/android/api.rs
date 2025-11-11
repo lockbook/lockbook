@@ -229,6 +229,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         .position(|tab| tab.id() == Some(id))
     {
         obj.workspace.close_tab(tab_id);
+    } else {
+        for i in 0..obj.workspace.tabs.len() {
+            obj.workspace.close_tab(i);
+        }
     }
 }
 
