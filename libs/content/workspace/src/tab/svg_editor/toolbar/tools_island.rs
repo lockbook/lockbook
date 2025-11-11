@@ -46,7 +46,7 @@ impl Toolbar {
         let res = ui.allocate_ui_at_rect(tools_island_rect, |ui| {
             egui::Frame::window(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    let tool_icon_size = 25.0;
+                    let tool_icon_size = 20.0;
 
                     let selection_btn = Button::default()
                         .icon(&Icon::HAND.size(tool_icon_size))

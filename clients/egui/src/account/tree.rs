@@ -907,12 +907,13 @@ impl FileTree {
         }
 
         let suggested_docs_btn = Button::default()
-            .icon(&Icon::FOLDER)
+            .icon(&Icon::FOLDER.size(19.0))
             .icon_color(ui.style().visuals.widgets.active.bg_fill)
             .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)
             .hexpand(true)
+            .padding(vec2(15., 7.))
             .show(ui);
 
         suggested_docs_btn.context_menu(|ui| {
@@ -1099,26 +1100,32 @@ impl FileTree {
             .frame(true)
             .hexpand(true)
             .indent(indent)
-            .padding(vec2(10., 7.));
+            .padding(vec2(15., 7.));
+
+        let icon_size = 19.0;
 
         let file_resp = if file.is_document() {
-            let icon = doc_type.to_icon();
-            let file_resp = button.icon(&icon).show(ui);
+            let icon = doc_type.to_icon().size(icon_size);
+            let file_resp = button
+                .icon(&icon)
+                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
+                .show(ui);
 
             file_resp
         } else {
             let is_shared = !file.shares.is_empty();
 
             let icon = if is_expanded {
-                &Icon::FOLDER_OPEN
+                Icon::FOLDER_OPEN
             } else if is_shared {
-                &Icon::SHARED_FOLDER
+                Icon::SHARED_FOLDER
             } else {
-                &Icon::FOLDER
-            };
+                Icon::FOLDER
+            }
+            .size(icon_size);
 
             let file_resp = button
-                .icon(icon)
+                .icon(&icon)
                 .icon_color(ui.style().visuals.widgets.active.bg_fill)
                 .show(ui);
             if is_expanded {

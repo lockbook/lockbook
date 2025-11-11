@@ -102,7 +102,7 @@ impl<'ast> Editor {
                         ui.set_min_height(30.);
                         ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
 
-                        if IconButton::new(&Icon::CONTENT_CUT)
+                        if IconButton::new(Icon::CONTENT_CUT)
                             .tooltip("Cut")
                             .show(ui)
                             .clicked()
@@ -111,7 +111,7 @@ impl<'ast> Editor {
                             ui.close_menu();
                         }
                         ui.add_space(5.);
-                        if IconButton::new(&Icon::CONTENT_COPY)
+                        if IconButton::new(Icon::CONTENT_COPY)
                             .tooltip("Copy")
                             .show(ui)
                             .clicked()
@@ -120,7 +120,7 @@ impl<'ast> Editor {
                             ui.close_menu();
                         }
                         ui.add_space(5.);
-                        if IconButton::new(&Icon::CONTENT_PASTE)
+                        if IconButton::new(Icon::CONTENT_PASTE)
                             .tooltip("Paste")
                             .show(ui)
                             .clicked()

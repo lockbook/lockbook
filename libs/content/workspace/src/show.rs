@@ -869,7 +869,7 @@ impl Workspace {
 
                     // close button - the x
                     let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                        .font(egui::FontId::monospace(x_icon.size))
+                        .font(egui::FontId::monospace(10.))
                         .into();
                     let close_button = close_button.into_galley(
                         ui,
