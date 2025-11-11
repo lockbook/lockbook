@@ -88,8 +88,13 @@ impl<'ast> Editor {
                     self.inline(Icon::CODE.size(ICON_SIZE), InlineNode::Code, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(Icon::STRIKETHROUGH.size(ICON_SIZE), InlineNode::Strikethrough, root, ui)
-                        .map(|e| events.push(e));
+                    self.inline(
+                        Icon::STRIKETHROUGH.size(ICON_SIZE),
+                        InlineNode::Strikethrough,
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
 
                     add_seperator(ui);
 
@@ -210,9 +215,7 @@ impl<'ast> Editor {
         self.button(icon, MarkdownNode::Block(style), applied, ui)
     }
 
-    fn button(
-        &self, icon: Icon, style: MarkdownNode, applied: bool, ui: &mut Ui,
-    ) -> Option<Event> {
+    fn button(&self, icon: Icon, style: MarkdownNode, applied: bool, ui: &mut Ui) -> Option<Event> {
         let resp = IconButton::new(icon)
             .colored(applied)
             .tooltip(format!("{style}"))
