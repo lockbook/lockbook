@@ -3,8 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use egui::{
-    Align, CentralPanel, Color32, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers,
-    Pos2, Rect, Rounding, ScrollArea, SidePanel, Stroke, TextureHandle, Ui, Vec2,
+    Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers,
+    Pos2, Rect, ScrollArea, SidePanel, TextureHandle, Ui, Vec2,
     load::SizedTexture,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
@@ -56,7 +56,7 @@ impl PdfViewer {
             page_cache: Default::default(),
             page_bounds: Default::default(),
             ctx: ctx.clone(),
-            scale: Default::default(),
+            scale: 1.,
             fit_width: true,
             scroll_to: None,
             current_page: 0,
@@ -148,19 +148,21 @@ impl PdfViewer {
             self.scroll_to = Some(0);
         }
 
-        ui.input_mut(|r| {
-            r.events.retain(|e| {
+        let event = ui.input(|r| {
+            for e in &r.events {
                 if let Event::Zoom(f) = e {
-                    self.fit_height = false;
-                    self.fit_width = false;
-                    let pos = r.pointer.latest_pos();
-                    self.scale_updated(self.scale * f, pos);
-                    false
-                } else {
-                    true
+                    return Some(Event::Zoom(*f));
                 }
-            });
+            }
+            None
         });
+
+        let pos = ui.input(|r| r.pointer.latest_pos());
+        if let Some(Event::Zoom(f)) = event {
+            self.fit_height = false;
+            self.fit_width = false;
+            self.scale_updated(self.scale * f, pos);
+        }
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
@@ -343,7 +345,6 @@ impl PdfViewer {
     }
 
     fn show_pages(&mut self, ui: &mut Ui) {
-        println!("frame");
         let available_width = ui.available_width() * 0.95;
         let available_height = ui.available_height() * 0.95;
         self.render_area = ui.available_rect_before_wrap();
@@ -353,6 +354,7 @@ impl PdfViewer {
                 .animated(false)
                 .show_viewport(ui, |ui, viewport| {
                     self.current_viewport = viewport;
+
                     let target_scale = if self.fit_width {
                         match self.pdf.pages().first().map(|p| p.render_dimensions().0) {
                             Some(width) => available_width / width,
@@ -383,11 +385,7 @@ impl PdfViewer {
                         x: max_width.max(available_width),
                         y: max_height,
                     });
-                    if let Some(scroll_adj) = self.viewport_adjustment {
-                        ui.scroll_with_delta(scroll_adj);
-                        self.viewport_adjustment = None;
-                        return;
-                    }
+
                     let mut intersect_areas = vec![];
                     let draw_adjustment = rect.min.to_vec2();
 
@@ -412,9 +410,13 @@ impl PdfViewer {
                                 .push((idx, page_rect.intersect(viewport).area() as u32));
                         }
                     }
-
                     self.handle_keys(ui);
+                    if let Some(scroll_adj) = self.viewport_adjustment {
+                        ui.scroll_with_delta(scroll_adj);
+                        self.viewport_adjustment = None;
 
+                        ui.ctx().request_repaint();
+                    }
                     if let Some(scroll_idx) = self.scroll_to {
                         // this doesn't take into account `center_adjustment` from above
                         // but it doesn't matter, as if center_adjustment != 0, there is
@@ -442,26 +444,32 @@ impl PdfViewer {
     }
 
     fn get_page(&mut self, idx: usize) -> Image<'_> {
-        let page = &self.pdf.pages()[idx];
+        let texture = if idx != self.pdf.pages().len() {
+            self.page_cache.get(&idx).cloned().unwrap_or_else(|| {
+                let page = &self.pdf.pages()[idx];
+                let pixmap = hayro::render(
+                    page,
+                    &InterpreterSettings::default(),
+                    &RenderSettings {
+                        x_scale: self.scale * self.ctx.pixels_per_point(),
+                        y_scale: self.scale * self.ctx.pixels_per_point(),
+                        ..Default::default()
+                    },
+                );
+                let image = ColorImage::from_rgba_premultiplied(
+                    [pixmap.width() as _, pixmap.height() as _],
+                    pixmap.data_as_u8_slice(),
+                );
 
-        let texture = self.page_cache.get(&idx).cloned().unwrap_or_else(|| {
-            let pixmap = hayro::render(
-                page,
-                &InterpreterSettings::default(),
-                &RenderSettings {
-                    x_scale: self.scale * self.ctx.pixels_per_point(),
-                    y_scale: self.scale * self.ctx.pixels_per_point(),
-                    ..Default::default()
-                },
-            );
-            let image = ColorImage::from_rgba_premultiplied(
-                [pixmap.width() as _, pixmap.height() as _],
-                pixmap.data_as_u8_slice(),
-            );
-
+                self.ctx
+                    .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
+            })
+        } else {
+            let image = ColorImage::from_rgba_premultiplied([1, 1], &[0, 0, 0, 0]);
             self.ctx
                 .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
-        });
+        };
+
         self.page_cache.insert(idx, texture.clone());
 
         let img = Image::new(ImageSource::Texture(SizedTexture {
@@ -486,6 +494,10 @@ impl PdfViewer {
             offset.y += dims.y + SPACE_BETWEEN_PAGES;
         }
 
+        let mut safe_area = Vec2::new(500., 500.);
+        safe_area *= self.scale;
+        pages.push(Rect { min: offset, max: offset + safe_area });
+
         self.page_bounds = pages;
     }
 
@@ -504,10 +516,6 @@ impl PdfViewer {
         };
         println!("old_viewport {old_viewport_location:?}");
 
-        // where inside the viewport was the point
-        let normalized_old_viewport = (old_viewport_location - self.current_viewport.min)
-            / (self.current_viewport.max - self.current_viewport.min);
-
         // normalized point location in page space
         let normalized_page_space = old_viewport_location.to_vec2()
             / self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
@@ -522,7 +530,10 @@ impl PdfViewer {
         let new_location =
             normalized_page_space * self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
         println!("new location {new_location:?}");
-        self.viewport_adjustment = Some(-1. * (new_location - old_viewport_location.to_vec2()));
+        if !self.fit_width && !self.fit_height {
+            self.viewport_adjustment = Some(-1. * (new_location - old_viewport_location.to_vec2()));
+        }
         println!("adjustment {:?}", self.viewport_adjustment);
+        self.ctx.request_repaint();
     }
 }
