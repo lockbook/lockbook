@@ -3,8 +3,9 @@ use std::{collections::HashMap, sync::Arc};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use egui::{
-    CentralPanel, ColorImage, Context, Image, ImageSource, Pos2, Rect, ScrollArea, SidePanel,
-    TextureHandle, Ui, Vec2, load::SizedTexture,
+    Align, CentralPanel, Color32, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers,
+    Pos2, Rect, Rounding, ScrollArea, SidePanel, Stroke, TextureHandle, Ui, Vec2,
+    load::SizedTexture,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
@@ -21,6 +22,10 @@ pub struct PdfViewer {
     fit_height: bool,
     current_page: usize,
     scroll_to: Option<usize>,
+
+    render_area: Rect,
+    current_viewport: Rect,
+    viewport_adjustment: Option<Vec2>,
 
     sidebar: Option<SideBar>,
 }
@@ -56,11 +61,16 @@ impl PdfViewer {
             scroll_to: None,
             current_page: 0,
             fit_height: false,
+            current_viewport: Rect::ZERO,
+            viewport_adjustment: Default::default(),
+            render_area: Rect::ZERO,
         };
 
         if !is_mobile_viewport {
             s.setup_sidebar();
         };
+
+        s.compute_bounds();
 
         s
     }
@@ -105,6 +115,52 @@ impl PdfViewer {
 
         self.show_sidebar(ui);
         self.show_pages(ui);
+    }
+
+    fn handle_keys(&mut self, ui: &mut egui::Ui) {
+        if ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::ArrowDown)) {
+            ui.scroll_with_delta(Vec2 { x: 0., y: -20. });
+        }
+
+        if ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::ArrowUp)) {
+            ui.scroll_with_delta(Vec2 { x: 0., y: 20. });
+        }
+
+        if (ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::PageDown))
+            || ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::ArrowRight)))
+            && self.current_page != self.page_bounds.len() - 1
+        {
+            self.scroll_to = Some(self.current_page + 1);
+        }
+
+        if (ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::PageUp))
+            || ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::ArrowLeft)))
+            && self.current_page != 0
+        {
+            self.scroll_to = Some(self.current_page - 1);
+        }
+
+        if ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::End)) {
+            self.scroll_to = Some(self.page_bounds.len() - 1);
+        }
+
+        if ui.input_mut(|w| w.consume_key(Modifiers::NONE, Key::Home)) {
+            self.scroll_to = Some(0);
+        }
+
+        ui.input_mut(|r| {
+            r.events.retain(|e| {
+                if let Event::Zoom(f) = e {
+                    self.fit_height = false;
+                    self.fit_width = false;
+                    let pos = r.pointer.latest_pos();
+                    self.scale_updated(self.scale * f, pos);
+                    false
+                } else {
+                    true
+                }
+            });
+        });
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) {
@@ -160,8 +216,7 @@ impl PdfViewer {
             ui.columns(5, |cols| {
                 cols[0].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {
-                        self.scale -= ZOOM_STOP;
-                        self.scale_updated();
+                        self.scale_updated(self.scale - ZOOM_STOP, None);
                         self.fit_height = false;
                         self.fit_width = false;
                     }
@@ -182,8 +237,7 @@ impl PdfViewer {
 
                 cols[2].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_IN).show(ui).clicked() {
-                        self.scale += ZOOM_STOP;
-                        self.scale_updated();
+                        self.scale_updated(ZOOM_STOP + self.scale, None);
                         self.fit_height = false;
                         self.fit_width = false;
                     };
@@ -289,65 +343,87 @@ impl PdfViewer {
     }
 
     fn show_pages(&mut self, ui: &mut Ui) {
+        println!("frame");
         let available_width = ui.available_width() * 0.95;
         let available_height = ui.available_height() * 0.95;
+        self.render_area = ui.available_rect_before_wrap();
+
         CentralPanel::default().show_inside(ui, |ui| {
-            ScrollArea::both().show_viewport(ui, |ui, viewport| {
-                let target_scale = if self.fit_width {
-                    match self.pdf.pages().first().map(|p| p.render_dimensions().0) {
-                        Some(width) => available_width / width,
-                        None => 1.,
+            ScrollArea::both()
+                .animated(false)
+                .show_viewport(ui, |ui, viewport| {
+                    self.current_viewport = viewport;
+                    let target_scale = if self.fit_width {
+                        match self.pdf.pages().first().map(|p| p.render_dimensions().0) {
+                            Some(width) => available_width / width,
+                            None => 1.,
+                        }
+                    } else if self.fit_height {
+                        match self.pdf.pages().first().map(|p| p.render_dimensions().1) {
+                            Some(height) => available_height / height,
+                            None => 1.,
+                        }
+                    } else {
+                        self.scale
+                    };
+
+                    if target_scale != self.scale {
+                        self.scale_updated(target_scale, None);
                     }
-                } else if self.fit_height {
-                    match self.pdf.pages().first().map(|p| p.render_dimensions().1) {
-                        Some(height) => available_height / height,
-                        None => 1.,
+
+                    let max_height = self.page_bounds[self.page_bounds.len() - 1].max.y;
+                    let max_width = self
+                        .page_bounds
+                        .iter()
+                        .map(|r| r.width().ceil() as u32)
+                        .max()
+                        .unwrap_or_default() as f32;
+
+                    let (_, rect) = ui.allocate_space(egui::Vec2 {
+                        x: max_width.max(available_width),
+                        y: max_height,
+                    });
+                    if let Some(scroll_adj) = self.viewport_adjustment {
+                        ui.scroll_with_delta(scroll_adj);
+                        self.viewport_adjustment = None;
+                        return;
                     }
-                } else {
-                    self.scale
-                };
-
-                if target_scale != self.scale {
-                    self.scale = target_scale;
-                    self.scale_updated();
-                }
-
-                if self.page_bounds.is_empty() {
-                    self.compute_bounds();
-                }
-                let max_height = self.page_bounds[self.page_bounds.len() - 1].max.y;
-                let max_width = self
-                    .page_bounds
-                    .iter()
-                    .map(|r| r.width().ceil() as u32)
-                    .max()
-                    .unwrap_or_default() as f32;
-
-                let (_, rect) = ui.allocate_space(egui::Vec2 {
-                    x: max_width.max(available_width),
-                    y: max_height,
-                });
-
-                if let Some(scroll_idx) = self.scroll_to {
-                    ui.scroll_to_rect(
-                        self.page_bounds[scroll_idx].translate(rect.min.to_vec2()),
-                        None,
-                    );
-                    self.scroll_to = None;
-                }
-
-                ui.vertical_centered(|ui| {
                     let mut intersect_areas = vec![];
+                    let draw_adjustment = rect.min.to_vec2();
+
                     for idx in 0..self.page_bounds.len() {
                         let page_rect = self.page_bounds[idx];
+                        let center_adjustment = Vec2 {
+                            x: if page_rect.width() < available_width {
+                                (available_width - page_rect.width()) / 2.
+                            } else {
+                                0.
+                            },
+                            y: 0.,
+                        };
+                        let page_rect = page_rect.translate(center_adjustment);
+
                         if page_rect.intersects(viewport) {
-                            let paint_location = page_rect.translate(rect.min.to_vec2());
+                            let paint_location = page_rect.translate(draw_adjustment);
                             let img = self.get_page(idx);
                             img.paint_at(ui, paint_location);
 
                             intersect_areas
                                 .push((idx, page_rect.intersect(viewport).area() as u32));
                         }
+                    }
+
+                    self.handle_keys(ui);
+
+                    if let Some(scroll_idx) = self.scroll_to {
+                        // this doesn't take into account `center_adjustment` from above
+                        // but it doesn't matter, as if center_adjustment != 0, there is
+                        // no horizontal scroll bar
+                        ui.scroll_to_rect(
+                            self.page_bounds[scroll_idx].translate(draw_adjustment),
+                            Some(Align::TOP),
+                        );
+                        self.scroll_to = None;
                     }
 
                     let max_area = intersect_areas
@@ -362,7 +438,6 @@ impl PdfViewer {
                         .map(|t| t.0)
                         .unwrap_or_default();
                 });
-            });
         });
     }
 
@@ -414,8 +489,40 @@ impl PdfViewer {
         self.page_bounds = pages;
     }
 
-    fn scale_updated(&mut self) {
+    /// zoom from indicates the position of the cursor. If None it will zoom from the center
+    fn scale_updated(&mut self, new_scale: f32, zoom_from: Option<Pos2>) {
+        if self.viewport_adjustment.is_some() {
+            return;
+        }
+        // location in the old viewport
+        println!("zoom from {zoom_from:?}");
+        let old_viewport_location = match zoom_from {
+            Some(mouse) => {
+                ((mouse - self.render_area.min) + self.current_viewport.min.to_vec2()).to_pos2()
+            }
+            None => self.current_viewport.center(),
+        };
+        println!("old_viewport {old_viewport_location:?}");
+
+        // where inside the viewport was the point
+        let normalized_old_viewport = (old_viewport_location - self.current_viewport.min)
+            / (self.current_viewport.max - self.current_viewport.min);
+
+        // normalized point location in page space
+        let normalized_page_space = old_viewport_location.to_vec2()
+            / self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
+        println!("normalized_page space {normalized_page_space:?}");
+
+        self.scale = new_scale;
         self.page_bounds.clear();
         self.page_cache.clear();
+        self.compute_bounds();
+
+        // calculate the new viewport
+        let new_location =
+            normalized_page_space * self.page_bounds.last().map(|r| r.max.to_vec2()).unwrap();
+        println!("new location {new_location:?}");
+        self.viewport_adjustment = Some(-1. * (new_location - old_viewport_location.to_vec2()));
+        println!("adjustment {:?}", self.viewport_adjustment);
     }
 }
