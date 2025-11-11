@@ -1235,6 +1235,7 @@ pub enum DocType {
     Image,
     ImageUnsupported,
     Code,
+    PDF,
     Unknown,
 }
 
@@ -1247,6 +1248,7 @@ impl DocType {
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "go" => Self::Code,
+            "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
@@ -1259,6 +1261,7 @@ impl DocType {
             DocType::SVG => Icon::DRAW,
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
+            DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
         }
     }
@@ -1271,6 +1274,7 @@ impl DocType {
             DocType::Image => false,
             DocType::ImageUnsupported => false,
             DocType::Code => false,
+            DocType::PDF => true,
             DocType::Unknown => false,
         }
     }
