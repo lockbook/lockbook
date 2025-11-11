@@ -13,19 +13,60 @@ pub struct PdfViewer {
     pub id: Uuid,
 
     ctx: Context,
+
+    /// metadata representation of the PDF
     pdf: Pdf,
+
+    /// the bounds of all the pages, as influenced by scale. Includes a safe-area as
+    /// a last page to address some shortcommings with egui::ScrollArea not being able
+    /// scroll beyond what it thinks the bottom of the last page is. I was not able
+    /// to get it to be aware of additional space in the frame that the re-scale happens.
     page_bounds: Vec<Rect>,
+
+    /// The textures to be drawn, reset on zoom,
+    /// could perhaps be better as a Vec<Option<TextureHandle>> for memory layout
+    /// could perhaps be better to have some large texture buckets and then scale between them
+    /// for a smoother experience. Probably less computationally expensive as well.
     page_cache: HashMap<usize, TextureHandle>,
+
+    /// The current scale 1 == 100% zoom
     scale: f32,
+
+    /// if true, at the top of the frame, scale will be adjusted to fit the available
+    /// width (or height)
     fit_width: bool,
+
+    /// see [Self::fit_width]
     fit_height: bool,
+
+    /// the current page in the viewport, calculated by what page has the most visible area
+    /// ties are broken by the lowest index. Gets a lil strange when you zoom out and are view
+    /// ing the bottom pages, but I think it makes sense overall and has the least weird stuff
+    /// in general. Can tweak the algo just a bit to get rid of that last problem
     current_page: usize,
+
+    /// what page should we scroll to, generally set by the sidebar, though it could be cool
+    /// to link to pages from md docs or something at some point
     scroll_to: Option<usize>,
 
+    /// where is the viewport rendered? needed for scale computations to identify the
+    /// location of the cursor in page-space
     render_area: Rect,
+
+    /// what is the scroll area looking at right now? See also [Self::render_area]
     current_viewport: Rect,
+
+    /// if we just scrolled, what should our new viewport be? This value is annoying to calculate
+    /// and deal with. The scroll area is fickle about when it receives this information and when
+    /// it actually does the rendering. An ideal scroll area would be able to process this
+    /// immediately and keep animations on, and also not require a safe area at the bottom
     viewport_adjustment: Option<Vec2>,
 
+    /// state related to the sidebar, not present on mobile by default. All thumbnails are rendered
+    /// this is the last O(n) operation. As such the thumbnails are scaled down pretty far so that
+    /// large pdfs are possible. I opened an f150 manual without a problem so it's fine for now,
+    /// but ideally the next round of implementation would allow resizing, and efficient rendering
+    /// and high res thumbnails
     sidebar: Option<SideBar>,
 }
 
