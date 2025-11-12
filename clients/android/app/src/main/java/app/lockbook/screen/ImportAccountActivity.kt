@@ -7,8 +7,9 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import app.lockbook.databinding.ActivityImportAccountBinding
-import app.lockbook.model.ImportAccountViewModel
-import app.lockbook.model.UpdateImportUI
+import app.lockbook.model.NotifySyncDone
+import app.lockbook.model.SyncRepository
+import app.lockbook.services.ImportAccountViewModel
 import app.lockbook.util.exhaustive
 import app.lockbook.util.getApp
 
@@ -18,7 +19,7 @@ class ImportAccountActivity : AppCompatActivity() {
     // onDestroyView.
     private val binding get() = _binding!!
 
-    private val model: ImportAccountViewModel by viewModels()
+    private val syncRepository = SyncRepository.getInstance()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,32 +34,32 @@ class ImportAccountActivity : AppCompatActivity() {
             onBackPressed()
         }
 
-        if (model.isErrorVisible) {
-            binding.importAccountProgressBar.visibility = View.GONE
-            binding.importExitApp.visibility = View.VISIBLE
-        }
-
-        model.syncModel.notifySyncStepInfo.observe(
+//        if (model.isErrorVisible) {
+//            binding.importAccountProgressBar.visibility = View.GONE
+//            binding.importExitApp.visibility = View.VISIBLE
+//        }
+        syncRepository.notifySyncStepInfo.observe(
             this
         ) { stepInfo ->
+            println("received sync step info")
             binding.importAccountProgressBar.max = stepInfo.total
             binding.importAccountProgressBar.progress = stepInfo.progress
 
             binding.importInfo.text = stepInfo.msg
         }
 
-        model.updateImportUI.observe(
+        syncRepository.notifySyncDone.observe(
             this
         ) { updateImportUI ->
             when (updateImportUI) {
-                UpdateImportUI.FinishedSync -> {
+                NotifySyncDone.FinishedSync -> {
                     getApp().isInImportSync = false
 
                     startActivity(Intent(applicationContext, MainScreenActivity::class.java))
 
                     finishAffinity()
                 }
-                is UpdateImportUI.NotifyError -> {
+                is NotifySyncDone.NotifyError -> {
                     binding.importAccountProgressBar.visibility = View.GONE
                     binding.importExitApp.visibility = View.VISIBLE
 
