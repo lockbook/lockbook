@@ -691,17 +691,15 @@
         }
 
         public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-            mtkView.forwardKeyPress(presses, with: event, pressBegan: true)
-
-            if !mtkView.overrideDefaultKeyboardBehavior {
+            let forward = mtkView.handleKeyEvent(presses, with: event, pressBegan: true)
+            if forward {
                 super.pressesBegan(presses, with: event)
             }
         }
 
         public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-            mtkView.forwardKeyPress(presses, with: event, pressBegan: false)
-
-            if !mtkView.overrideDefaultKeyboardBehavior {
+            let forward = mtkView.handleKeyEvent(presses, with: event, pressBegan: false)
+            if forward {
                 super.pressesEnded(presses, with: event)
             }
         }
@@ -793,8 +791,8 @@
         var pointerInteraction: UIPointerInteraction?
 
         // pencil
-        var pencilInteraction: UIPencilInteraction?
         var pencilDelegate: SvgPencilDelegate?
+        var pencilInteraction: UIPencilInteraction?
 
         // gestures
         var gestureDelegate: SvgGestureDelegate?
@@ -803,7 +801,7 @@
         var pinchRecognizer: UIPinchGestureRecognizer?
 
         // menu
-        var menuDelegate: SvgEditMenuDelegate?
+        var menuDelegate: SvgMenuDelegate?
         var menuInteraction: UIEditMenuInteraction?
 
         // ?
@@ -818,21 +816,21 @@
             isMultipleTouchEnabled = true
 
             // pointer
-            let pointerInteraction = UIPointerInteraction(delegate: mtkView)
+            let pointerInteraction = UIPointerInteraction(delegate: mtkView.pointerDelegate)
 
             self.addInteraction(pointerInteraction)
 
             self.pointerInteraction = pointerInteraction
 
             // pencil
-            let pencilInteraction = UIPencilInteraction()
             let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
+            let pencilInteraction = UIPencilInteraction()
 
             pencilInteraction.delegate = self.pencilDelegate
             addInteraction(pencilInteraction)
-
-            self.pencilInteraction = pencilInteraction
+            
             self.pencilDelegate = pencilDelegate
+            self.pencilInteraction = pencilInteraction
 
             // gestures: tap
             let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
@@ -871,8 +869,7 @@
             self.panRecognizer = pan
 
             // gestures: pinch
-            let pinch = UIPinchGestureRecognizer(
-                target: self, action: #selector(self.handlePinch(_:)))
+            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
             pinch.cancelsTouchesInView = false
 
             pinch.delegate = gestureDelegate
@@ -880,10 +877,14 @@
 
             self.pinchRecognizer = pinch
 
-            // edit menu support
-            let editMenuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
+            // menu
+            let menuDelegate = SvgMenuDelegate()
+            let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
 
-            self.addInteraction(editMenuInteraction)
+            self.addInteraction(menuInteraction)
+            
+            self.menuDelegate = menuDelegate
+            self.menuInteraction = menuInteraction
         }
 
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
@@ -1052,39 +1053,245 @@
     }
 
     // MARK: - SvgEditMenuDelegate
-    public class SvgEditMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
+    public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
+
+
+    // MARK: - iOSMTKViewDelegate
+    public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
+        weak var mtkView: iOSMTK?
+
+        init(mtkView: iOSMTK) {
+            self.mtkView = mtkView
+        }
+        
+        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+            guard let mtkView = self.mtkView else { return }
+            let wsHandle = mtkView.wsHandle
+            
+            resize_editor(wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
+            mtkView.setNeedsDisplay()
+        }
+
+        public func draw(in view: MTKView) {
+            guard let mtkView = self.mtkView else { return }
+            let wsHandle = mtkView.wsHandle
+            
+            if mtkView.tabSwitchTask != nil {
+                mtkView.tabSwitchTask!()
+                mtkView.tabSwitchTask = nil
+            }
+
+            dark_mode(wsHandle, mtkView.isDarkMode())
+            show_hide_tabs(wsHandle, !mtkView.isCompact())
+            set_scale(wsHandle, Float(mtkView.contentScaleFactor))
+
+            let output = ios_frame(wsHandle)
+
+            if output.tabs_changed {
+                mtkView.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+            }
+
+            if output.selected_folder_changed {
+                let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+                if selectedFolder.isNil() {
+                    mtkView.workspaceOutput?.selectedFolder = nil
+                } else {
+                    mtkView.workspaceOutput?.selectedFolder = selectedFolder
+                }
+            }
+
+            let selectedFile = UUID(uuid: output.selected_file._0)
+            if !selectedFile.isNil() {
+                if mtkView.currentOpenDoc != selectedFile {
+                    mtkView.onSelectionChanged?()
+                    mtkView.onTextChanged?()
+                }
+
+                mtkView.currentOpenDoc = selectedFile
+
+                if selectedFile != mtkView.workspaceOutput?.openDoc {
+                    mtkView.workspaceOutput?.openDoc = selectedFile
+                }
+            }
+
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+
+            if currentTab != mtkView.workspaceOutput!.currentTab {
+                DispatchQueue.main.async {
+                    mtkView.workspaceOutput!.currentTab = currentTab
+                }
+            }
+
+            if currentTab == .Welcome && mtkView.currentOpenDoc != nil {
+                mtkView.currentOpenDoc = nil
+                mtkView.workspaceOutput?.openDoc = nil
+            }
+
+            if let currentWrapper = mtkView.currentWrapper as? MdView,
+                currentTab == .Markdown
+            {
+                if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
+                    && currentWrapper.floatingCursor.isHidden
+                {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+
+                if output.scroll_updated {
+                    mtkView.onSelectionChanged?()
+                }
+
+                if output.text_updated && !mtkView.ignoreTextUpdate {
+                    mtkView.onTextChanged?()
+                }
+
+                if output.selection_updated && !mtkView.ignoreSelectionUpdate {
+                    mtkView.onSelectionChanged?()
+                }
+
+                let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
+                update_virtual_keyboard(wsHandle, keyboard_shown)
+            }
+
+            if output.tab_title_clicked {
+                mtkView.workspaceOutput?.renameOpenDoc = ()
+
+                if !mtkView.isCompact() {
+                    unfocus_title(wsHandle)
+                }
+            }
+
+            //      FIXME:  Can we just do this in rust?
+            let newFile = UUID(uuid: output.doc_created._0)
+            if !newFile.isNil() {
+                mtkView.workspaceInput?.openFile(id: newFile)
+            }
+
+            if output.new_folder_btn_pressed {
+                mtkView.workspaceOutput?.newFolderButtonPressed = ()
+            }
+
+            if let openedUrl = output.url_opened {
+                let url = textFromPtr(s: openedUrl)
+
+                if let url = URL(string: url),
+                    UIApplication.shared.canOpenURL(url)
+                {
+                    mtkView.workspaceOutput?.urlOpened = url
+                }
+            }
+
+            if let text = output.copied_text {
+                let text = textFromPtr(s: text)
+                if !text.isEmpty {
+                    UIPasteboard.general.string = text
+                }
+            }
+
+            mtkView.redrawTask?.cancel()
+            mtkView.isPaused = output.redraw_in > 50
+            if mtkView.isPaused {
+                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+                let redrawInInterval = DispatchTimeInterval.milliseconds(
+                    Int(truncatingIfNeeded: min(500, redrawIn)))
+
+                let newRedrawTask = DispatchWorkItem {
+                    mtkView.drawImmediately()
+                }
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + redrawInInterval, execute: newRedrawTask)
+                mtkView.redrawTask = newRedrawTask
+            }
+
+            mtkView.enableSetNeedsDisplay = mtkView.isPaused
+        }
+    }
+
+    // MARK: - iOSPointerDelegate
+    public class iOSPointerDelegate: NSObject, UIPointerInteractionDelegate {
+        weak var mtkView: iOSMTK?
+
+        init(mtkView: iOSMTK) {
+            self.mtkView = mtkView
+        }
+
+        public func pointerInteraction(
+            _ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest,
+            defaultRegion: UIPointerRegion
+        ) -> UIPointerRegion? {
+            guard let mtkView = self.mtkView else { return defaultRegion }
+            let wsHandle = mtkView.wsHandle
+            
+            let offsetY: CGFloat =
+                if interaction.view is MdView
+                    || interaction.view is SvgView
+                {
+                    mtkView.docHeaderSize
+                } else {
+                    0
+                }
+
+            mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
+            return defaultRegion
+        }
+
+        public func pointerInteraction(
+            _ interaction: UIPointerInteraction, willEnter region: UIPointerRegion,
+            animator: any UIPointerInteractionAnimating
+        ) {
+            guard let mtkView = self.mtkView else { return }
+            
+            mtkView.cursorTracked = true
+        }
+
+        public func pointerInteraction(
+            _ interaction: UIPointerInteraction, willExit region: UIPointerRegion,
+            animator: any UIPointerInteractionAnimating
+        ) {
+            guard let mtkView = self.mtkView else { return }
+            
+            mtkView.cursorTracked = false
+            mouse_gone(mtkView.wsHandle)
+        }
+    }
 
     // MARK: - iOSMTK
-    public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
-
+    public class iOSMTK: MTKView {
         public static let TAB_BAR_HEIGHT: CGFloat = 40
         public static let TITLE_BAR_HEIGHT: CGFloat = 33
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
-
+        
+        public var wsHandle: UnsafeMutableRawPointer?
+        weak var currentWrapper: UIView? = nil
+        
+        // pointer
+        var pointerInteraction: UIPointerInteraction?
+        var pointerDelegate: UIPointerInteractionDelegate?
+        
+        // gestures
+        var panRecognizer: UIPanGestureRecognizer?
+        
+        // mtk
+        var mtkDelegate: iOSMTKViewDelegate?
+        var redrawTask: DispatchWorkItem? = nil
+        
+        // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
-        public var wsHandle: UnsafeMutableRawPointer?
+        var currentOpenDoc: UUID? = nil // todo: duplicated in ws output
+        var currentSelectedFolder: UUID? = nil // duplicated in ws output
 
-        var currentOpenDoc: UUID? = nil
-        var currentSelectedFolder: UUID? = nil
-
-        var redrawTask: DispatchWorkItem? = nil
-
-        var tabSwitchTask: (() -> Void)? = nil
-        var onSelectionChanged: (() -> Void)? = nil
-        var onTextChanged: (() -> Void)? = nil
-
-        weak var currentWrapper: UIView? = nil
-
-        var overrideDefaultKeyboardBehavior = false
-
+        // view hierarchy management
+        var tabSwitchTask: (() -> Void)? = nil // facilitates switching wrapper views in response to tab change
+        var onSelectionChanged: (() -> Void)? = nil // only populated when wrapper is markdown
+        var onTextChanged: (() -> Void)? = nil // also only populated when wrapper is markdown
+        var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
+        var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
         var docHeaderSize: Double {
             return !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
 
-        var ignoreSelectionUpdate = false
-        var ignoreTextUpdate = false
-
+        // kinetic scroll
         var cursorTracked = false
         var scrollSensitivity = 50.0
         var scrollId = 0
@@ -1093,19 +1300,29 @@
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
 
-            let pointerInteraction = UIPointerInteraction(delegate: self)
-            self.addInteraction(pointerInteraction)
+            // pointer
+            let pointerDelegate = iOSPointerDelegate(mtkView: self)
+            let pointer = UIPointerInteraction(delegate: pointerDelegate)
+            
+            self.addInteraction(pointer)
+            
+            self.pointerDelegate = pointerDelegate
+            self.pointerInteraction = pointer
 
-            // ipad trackpad support
-            let pan = UIPanGestureRecognizer(
-                target: self, action: #selector(self.handleTrackpadScroll(_:)))
+            // gestures
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
             pan.allowedScrollTypesMask = .all
             pan.maximumNumberOfTouches = 0
+            
             self.addGestureRecognizer(pan)
-
+            self.panRecognizer = pan
+            
+            // mtk
+            self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
+            
             self.isPaused = false
             self.enableSetNeedsDisplay = false
-            self.delegate = self
+            self.delegate = mtkDelegate
             self.preferredFramesPerSecond = 120
             self.isUserInteractionEnabled = true
         }
@@ -1225,49 +1442,11 @@
             self.setNeedsDisplay()
         }
 
-        public func pointerInteraction(
-            _ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest,
-            defaultRegion: UIPointerRegion
-        ) -> UIPointerRegion? {
-            let offsetY: CGFloat =
-                if interaction.view is MdView
-                    || interaction.view is SvgView
-                {
-                    docHeaderSize
-                } else {
-                    0
-                }
-
-            mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
-            return defaultRegion
-        }
-
-        public func pointerInteraction(
-            _ interaction: UIPointerInteraction, willEnter region: UIPointerRegion,
-            animator: any UIPointerInteractionAnimating
-        ) {
-            cursorTracked = true
-        }
-
-        public func pointerInteraction(
-            _ interaction: UIPointerInteraction, willExit region: UIPointerRegion,
-            animator: any UIPointerInteractionAnimating
-        ) {
-            cursorTracked = false
-            mouse_gone(wsHandle)
-        }
-
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(self.layer).toOpaque())
             self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
             workspaceInput?.wsHandle = wsHandle
-        }
-
-        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(self.contentScaleFactor))
-            self.setNeedsDisplay()
         }
 
         public func drawImmediately() {
@@ -1279,142 +1458,11 @@
 
             self.isPaused = true
             self.enableSetNeedsDisplay = false
-
-            self.draw(in: self)
+            
+            self.mtkDelegate?.draw(in: self)
 
             ignoreSelectionUpdate = false
             ignoreTextUpdate = false
-        }
-
-        public func draw(in view: MTKView) {
-            if tabSwitchTask != nil {
-                tabSwitchTask!()
-                tabSwitchTask = nil
-            }
-
-            dark_mode(wsHandle, isDarkMode())
-            show_hide_tabs(wsHandle, !isCompact())
-            set_scale(wsHandle, Float(self.contentScaleFactor))
-
-            let output = ios_frame(wsHandle)
-
-            if output.tabs_changed {
-                self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
-            }
-
-            if output.selected_folder_changed {
-                let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
-                if selectedFolder.isNil() {
-                    self.workspaceOutput?.selectedFolder = nil
-                } else {
-                    self.workspaceOutput?.selectedFolder = selectedFolder
-                }
-            }
-
-            let selectedFile = UUID(uuid: output.selected_file._0)
-            if !selectedFile.isNil() {
-                if currentOpenDoc != selectedFile {
-                    onSelectionChanged?()
-                    onTextChanged?()
-                }
-
-                currentOpenDoc = selectedFile
-
-                if selectedFile != self.workspaceOutput?.openDoc {
-                    self.workspaceOutput?.openDoc = selectedFile
-                }
-            }
-
-            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
-
-            if currentTab != self.workspaceOutput!.currentTab {
-                DispatchQueue.main.async {
-                    self.workspaceOutput!.currentTab = currentTab
-                }
-            }
-
-            if currentTab == .Welcome && currentOpenDoc != nil {
-                currentOpenDoc = nil
-                self.workspaceOutput?.openDoc = nil
-            }
-
-            if let currentWrapper = currentWrapper as? MdView,
-                currentTab == .Markdown
-            {
-                if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
-                    && currentWrapper.floatingCursor.isHidden
-                {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                }
-
-                if output.scroll_updated {
-                    onSelectionChanged?()
-                }
-
-                if output.text_updated && !ignoreTextUpdate {
-                    onTextChanged?()
-                }
-
-                if output.selection_updated && !ignoreSelectionUpdate {
-                    onSelectionChanged?()
-                }
-
-                let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
-                update_virtual_keyboard(wsHandle, keyboard_shown)
-            }
-
-            if output.tab_title_clicked {
-                self.workspaceOutput?.renameOpenDoc = ()
-
-                if !isCompact() {
-                    unfocus_title(wsHandle)
-                }
-            }
-
-            //      FIXME:  Can we just do this in rust?
-            let newFile = UUID(uuid: output.doc_created._0)
-            if !newFile.isNil() {
-                workspaceInput?.openFile(id: newFile)
-            }
-
-            if output.new_folder_btn_pressed {
-                self.workspaceOutput?.newFolderButtonPressed = ()
-            }
-
-            if let openedUrl = output.url_opened {
-                let url = textFromPtr(s: openedUrl)
-
-                if let url = URL(string: url),
-                    UIApplication.shared.canOpenURL(url)
-                {
-                    self.workspaceOutput?.urlOpened = url
-                }
-            }
-
-            if let text = output.copied_text {
-                let text = textFromPtr(s: text)
-                if !text.isEmpty {
-                    UIPasteboard.general.string = text
-                }
-            }
-
-            redrawTask?.cancel()
-            self.isPaused = output.redraw_in > 50
-            if self.isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(
-                    Int(truncatingIfNeeded: min(500, redrawIn)))
-
-                let newRedrawTask = DispatchWorkItem {
-                    self.drawImmediately()
-                }
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + redrawInInterval, execute: newRedrawTask)
-                redrawTask = newRedrawTask
-            }
-
-            self.enableSetNeedsDisplay = self.isPaused
         }
 
         override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?)
@@ -1490,24 +1538,23 @@
         }
 
         public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-            forwardKeyPress(presses, with: event, pressBegan: true)
-
-            if !overrideDefaultKeyboardBehavior {
+            let forward = handleKeyEvent(presses, with: event, pressBegan: true)
+            if forward {
                 super.pressesBegan(presses, with: event)
             }
         }
 
         public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-            forwardKeyPress(presses, with: event, pressBegan: false)
-
-            if !overrideDefaultKeyboardBehavior {
+            let forward = handleKeyEvent(presses, with: event, pressBegan: false)
+            if forward {
                 super.pressesEnded(presses, with: event)
             }
         }
 
-        func forwardKeyPress(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool)
+        /// Returns whether the event should be forwarded up the inheritance hierarchy
+        func handleKeyEvent(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool) -> Bool
         {
-            overrideDefaultKeyboardBehavior = false
+            var forward = true
 
             for press in presses {
                 guard let key = press.key else { continue }
@@ -1515,7 +1562,7 @@
                 if workspaceOutput!.currentTab.isTextEdit()
                     && key.keyCode == .keyboardDeleteOrBackspace
                 {
-                    return
+                    break
                 }
 
                 let shift = key.modifierFlags.contains(.shift)
@@ -1525,13 +1572,15 @@
 
                 if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab)
                 {
-                    overrideDefaultKeyboardBehavior = true
+                    forward = false
                 }
 
                 ios_key_event(
                     wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
                 self.setNeedsDisplay(self.frame)
             }
+            
+            return forward
         }
 
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
