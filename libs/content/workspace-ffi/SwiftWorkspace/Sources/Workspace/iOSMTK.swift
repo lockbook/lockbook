@@ -8,7 +8,8 @@
 
     import GameController
 
-    public class MarkdownView: UIView, UITextInput {
+    // MARK: - MdView
+    public class MdView: UIView, UITextInput {
         public static let TOOL_BAR_HEIGHT: CGFloat = 42
         public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
@@ -21,10 +22,10 @@
         public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
 
         // pan (iPad trackpad support)
-        private let panRecognizer = UIPanGestureRecognizer()
+        let panRecognizer = UIPanGestureRecognizer()
 
         // undo/redo
-        private let undo = iOSUndoManager()
+        let undo = iOSUndoManager()
         public override var undoManager: UndoManager? {
             return undo
         }
@@ -76,7 +77,7 @@
                         self, action: #selector(handleInteractiveRefinement(_:)))
                 }
             }
-            
+
             mtkView.onSelectionChanged = { [weak self] in
                 self?.inputDelegate?.selectionDidChange(self)
             }
@@ -91,7 +92,7 @@
             self.addGestureRecognizer(panRecognizer)
 
             // drop
-            self.dropDelegate = MarkdownDropDelegate(
+            self.dropDelegate = MdDropDelegate(
                 mtkView: mtkView, textDelegate: inputDelegate!, textInput: self)
             let dropInteraction = UIDropInteraction(delegate: self.dropDelegate!)
             self.addInteraction(dropInteraction)
@@ -711,7 +712,8 @@
         }
     }
 
-    public class MarkdownDropDelegate: NSObject, UIDropInteractionDelegate {
+    // MARK: - MdDropDelegate
+    public class MdDropDelegate: NSObject, UIDropInteractionDelegate {
         weak var mtkView: iOSMTK?
         weak var textDelegate: UITextInputDelegate?
         weak var textInput: UITextInput?
@@ -741,14 +743,17 @@
         public func dropInteraction(
             _ interaction: UIDropInteraction, performDrop session: UIDropSession
         ) {
-            textDelegate?.textWillChange(textInput)
-            textDelegate?.selectionWillChange(textInput)
+            guard let mtkView = mtkView else { return }
+            guard let textDelegate = textDelegate else { return }
+
+            textDelegate.textWillChange(textInput)
+            textDelegate.selectionWillChange(textInput)
 
             if session.hasItemsConforming(toTypeIdentifiers: [UTType.image.identifier as String]) {
                 session.loadObjects(ofClass: UIImage.self) { imageItems in
                     let images = imageItems as? [UIImage] ?? []
                     for image in images {
-                        self.mtkView?.importContent(.image(image), isPaste: true)
+                        mtkView.importContent(.image(image), isPaste: true)
                     }
                 }
             }
@@ -757,99 +762,134 @@
                 session.loadObjects(ofClass: NSAttributedString.self) { textItems in
                     let attributedStrings = textItems as? [NSAttributedString] ?? []
                     for attributedString in attributedStrings {
-                        self.mtkView?.importContent(.text(attributedString.string), isPaste: true)
+                        mtkView.importContent(.text(attributedString.string), isPaste: true)
                     }
                 }
             }
 
             if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String])
             {
-                session.loadObjects(ofClass: URL.self) { urlItems in
+                _ = session.loadObjects(ofClass: URL.self) { urlItems in
                     for url in urlItems {
-                        self.mtkView?.importContent(.url(url), isPaste: true)
+                        mtkView.importContent(.url(url), isPaste: true)
                     }
                 }
             }
 
-            mtkView?.drawImmediately()
-            textDelegate?.selectionDidChange(textInput)
-            textDelegate?.textDidChange(textInput)
+            mtkView.drawImmediately()
+            textDelegate.selectionDidChange(textInput)
+            textDelegate.textDidChange(textInput)
         }
-    }
+        }
 
-    public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate,
-        UIEditMenuInteractionDelegate, UIGestureRecognizerDelegate
-    {
-
+    // MARK: - SvgView
+    public class SvgView: UIView {
         public static let TOOL_BAR_HEIGHT: CGFloat = 50
 
-        let pencilInteraction = UIPencilInteraction()
-        lazy var editMenuInteraction = UIEditMenuInteraction(delegate: self)
-
         let mtkView: iOSMTK
-        let currentHeaderSize: Double
-
         var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
 
-        var prefersPencilOnlyDrawing: Bool = UIPencilInteraction.prefersPencilOnlyDrawing
+        // pointer
+        var pointerInteraction: UIPointerInteraction?
+
+        // pencil
+        var pencilInteraction: UIPencilInteraction?
+        var pencilDelegate: SvgPencilDelegate?
+
+        // gestures
+        var gestureDelegate: SvgGestureDelegate?
+        var tapRecognizer: UITapGestureRecognizer?
+        var panRecognizer: UIPanGestureRecognizer?
+        var pinchRecognizer: UIPinchGestureRecognizer?
+
+        // menu
+        var menuDelegate: SvgEditMenuDelegate?
+        var menuInteraction: UIEditMenuInteraction?
+
+        // ?
+        let currentHeaderSize: Double
 
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             self.currentHeaderSize = headerSize
-
+            
             super.init(frame: .infinite)
 
             isMultipleTouchEnabled = true
 
-            // pen support
-            pencilInteraction.delegate = self
+            // pointer
+            let pointerInteraction = UIPointerInteraction(delegate: mtkView)
+
+            self.addInteraction(pointerInteraction)
+
+            self.pointerInteraction = pointerInteraction
+
+            // pencil
+            let pencilInteraction = UIPencilInteraction()
+            let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
+
+            pencilInteraction.delegate = self.pencilDelegate
             addInteraction(pencilInteraction)
 
-            // ipad trackpad support
+            self.pencilInteraction = pencilInteraction
+            self.pencilDelegate = pencilDelegate
+
+            // gestures: tap
+            let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+            tap.allowedTouchTypes = [
+                NSNumber(value: UITouch.TouchType.direct.rawValue),
+                NSNumber(value: UITouch.TouchType.indirect.rawValue),
+                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
+                NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
+            ]
+            tap.numberOfTouchesRequired = 1
+            tap.cancelsTouchesInView = false
+
+            self.addGestureRecognizer(tap)
+
+            self.tapRecognizer = tap
+
+            // gestures: pan
             let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
-                NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
-            ]
-            pan.delegate = self
-            pan.cancelsTouchesInView = false
-            if !prefersPencilOnlyDrawing {
-                pan.minimumNumberOfTouches = 2
-            }
-
-            self.addGestureRecognizer(pan)
-
-            let pinch = UIPinchGestureRecognizer(
-                target: self, action: #selector(self.handlePinch(_:)))
-            pinch.cancelsTouchesInView = false
-            pinch.delegate = self
-            self.addGestureRecognizer(pinch)
-
-            // edit menu support
-            self.addInteraction(editMenuInteraction)
-
-            let pointerInteraction = UIPointerInteraction(delegate: mtkView)
-            self.addInteraction(pointerInteraction)
-
-            let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
-            tap.cancelsTouchesInView = false
-            // can only paste with your finger
-            tap.allowedTouchTypes = [
-                NSNumber(value: UITouch.TouchType.direct.rawValue),
-                NSNumber(value: UITouch.TouchType.indirect.rawValue),
+                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-            tap.numberOfTouchesRequired = 1
-            self.addGestureRecognizer(tap)
+            if UIPencilInteraction.prefersPencilOnlyDrawing { // todo: update when prefersPencilOnlyDrawing changes
+                pan.minimumNumberOfTouches = 1
+            } else {
+                pan.minimumNumberOfTouches = 2
+            }
+            pan.cancelsTouchesInView = false
 
-            self.isMultipleTouchEnabled = true
-            set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
+            pan.delegate = gestureDelegate
+            self.addGestureRecognizer(pan)
+
+            self.panRecognizer = pan
+
+            // gestures: pinch
+            let pinch = UIPinchGestureRecognizer(
+                target: self, action: #selector(self.handlePinch(_:)))
+            pinch.cancelsTouchesInView = false
+
+            pinch.delegate = gestureDelegate
+            self.addGestureRecognizer(pinch)
+
+            self.pinchRecognizer = pinch
+
+            // edit menu support
+            let editMenuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
+
+            self.addInteraction(editMenuInteraction)
         }
 
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-            guard gesture.state == .ended else { return }
+            guard let menuInteraction = menuInteraction else { return }
+            
+            if gesture.state != .ended { return }
 
             if self.mtkView.kineticTimer != nil {
                 self.mtkView.kineticTimer?.invalidate()
@@ -861,7 +901,7 @@
             let location = gesture.location(in: self)
             if canvas_detect_islands_interaction(
                 self.wsHandle, Float(location.x),
-                Float(location.y + iOSMTKDrawingWrapper.TOOL_BAR_HEIGHT))
+                Float(location.y + SvgView.TOOL_BAR_HEIGHT))
                 || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
             {
                 return
@@ -869,7 +909,7 @@
 
             let config = UIEditMenuConfiguration(
                 identifier: nil, sourcePoint: gesture.location(in: self))
-            editMenuInteraction.presentEditMenu(with: config)
+            menuInteraction.presentEditMenu(with: config)
         }
 
         public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -896,7 +936,6 @@
 
             let scale = event.scale
             let pinchCenter = event.location(in: self.mtkView)
-            var velocity = event.velocity
 
             if event.state == .changed {
                 let zoomDelta = Float(scale)
@@ -917,56 +956,8 @@
             }
         }
 
-        @available(iOS 17.5, *)
-        public func pencilInteraction(
-            _ interaction: UIPencilInteraction,
-            didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
-        ) {
-            if squeeze.phase == .ended {
-                show_tool_popover_at_cursor(wsHandle)
-            }
-        }
-
-        public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-            switch UIPencilInteraction.preferredTapAction {
-            case .ignore, .showColorPalette, .showInkAttributes:
-                print("do nothing")
-            case .switchEraser:
-                toggle_drawing_tool_between_eraser(wsHandle)
-            case .switchPrevious:
-                toggle_drawing_tool(wsHandle)
-            default:
-                print("don't know, do nothing")
-            }
-
-            mtkView.setNeedsDisplay(mtkView.frame)
-        }
-
-        public func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            // Allow pinch and pan to work together
-            if (gestureRecognizer is UIPinchGestureRecognizer
-                && otherGestureRecognizer is UIPanGestureRecognizer)
-                || (gestureRecognizer is UIPanGestureRecognizer
-                    && otherGestureRecognizer is UIPinchGestureRecognizer)
-            {
-                return true
-            }
-
-            return false
-        }
-
-        func updateFromPencilState() {
-            if UIPencilInteraction.prefersPencilOnlyDrawing != prefersPencilOnlyDrawing {
-                prefersPencilOnlyDrawing.toggle()
-                set_pencil_only_drawing(wsHandle, prefersPencilOnlyDrawing)
-            }
-        }
-
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            updateFromPencilState()
+            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
 
             // let's cancel the kinetic pan. don't nullify it so that the tap handler
             // will know not to show the edit menu
@@ -1003,6 +994,67 @@
         }
     }
 
+    // MARK: - SvgGestureDelegate
+    public class SvgGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // Allow pinch and pan to work together
+            if (gestureRecognizer is UIPinchGestureRecognizer
+                && otherGestureRecognizer is UIPanGestureRecognizer)
+                || (gestureRecognizer is UIPanGestureRecognizer
+                    && otherGestureRecognizer is UIPinchGestureRecognizer)
+            {
+                return true
+            }
+
+            return false
+        }
+    }
+
+    // MARK: - SvgPencilDelegate
+    public class SvgPencilDelegate: NSObject, UIPencilInteractionDelegate {
+        weak var mtkView: iOSMTK?
+
+        init(mtkView: iOSMTK) {
+            self.mtkView = mtkView
+        }
+
+        @available(iOS 17.5, *)
+        public func pencilInteraction(
+            _ interaction: UIPencilInteraction,
+            didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
+        ) {
+            guard let mtkView = mtkView else { return }
+
+            if squeeze.phase == .ended {
+                show_tool_popover_at_cursor(mtkView.wsHandle)
+            }
+        }
+
+        public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
+            guard let mtkView = mtkView else { return }
+
+            switch UIPencilInteraction.preferredTapAction {
+            case .ignore, .showColorPalette, .showInkAttributes:
+                print("do nothing")
+            case .switchEraser:
+                toggle_drawing_tool_between_eraser(mtkView.wsHandle)
+            case .switchPrevious:
+                toggle_drawing_tool(mtkView.wsHandle)
+            default:
+                print("don't know, do nothing")
+            }
+
+            mtkView.setNeedsDisplay(mtkView.frame)
+        }
+    }
+
+    // MARK: - SvgEditMenuDelegate
+    public class SvgEditMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
+
+    // MARK: - iOSMTK
     public class iOSMTK: MTKView, MTKViewDelegate, UIPointerInteractionDelegate {
 
         public static let TAB_BAR_HEIGHT: CGFloat = 40
@@ -1178,8 +1230,8 @@
             defaultRegion: UIPointerRegion
         ) -> UIPointerRegion? {
             let offsetY: CGFloat =
-                if interaction.view is MarkdownView
-                    || interaction.view is iOSMTKDrawingWrapper
+                if interaction.view is MdView
+                    || interaction.view is SvgView
                 {
                     docHeaderSize
                 } else {
@@ -1286,7 +1338,7 @@
                 self.workspaceOutput?.openDoc = nil
             }
 
-            if let currentWrapper = currentWrapper as? MarkdownView,
+            if let currentWrapper = currentWrapper as? MdView,
                 currentTab == .Markdown
             {
                 if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
@@ -1535,38 +1587,13 @@
         }
     }
 
-    class LBTextRange: UITextRange {
-        let c: CTextRange
-
-        init(c: CTextRange) {
-            self.c = c
-        }
-
-        override var start: UITextPosition {
-            return LBTextPos(c: c.start)
-        }
-
-        override var end: UITextPosition {
-            return LBTextPos(c: c.end)
-        }
-
-        override var isEmpty: Bool {
-            return c.start.pos >= c.end.pos
-        }
-
-        var length: Int {
-            return Int(c.start.pos - c.end.pos)
-        }
+    public enum SupportedImportFormat {
+        case url(URL)
+        case image(UIImage)
+        case text(String)
     }
 
-    class LBTextPos: UITextPosition {
-        let c: CTextPosition
-
-        init(c: CTextPosition) {
-            self.c = c
-        }
-    }
-
+    // MARK: - LBTokenizer
     class LBTokenizer: NSObject, UITextInputTokenizer {
         let wsHandle: UnsafeMutableRawPointer?
 
@@ -1630,11 +1657,11 @@
         }
     }
 
+    // MARK: - iOSUndoManager
     class iOSUndoManager: UndoManager {
-
         public var wsHandle: UnsafeMutableRawPointer? = nil
 
-        weak var textWrapper: MarkdownView? = nil
+        weak var textWrapper: MdView? = nil
         weak var mtkView: iOSMTK? = nil
         weak var inputDelegate: UITextInputDelegate? = nil
 
@@ -1665,10 +1692,37 @@
         }
     }
 
-    public enum SupportedImportFormat {
-        case url(URL)
-        case image(UIImage)
-        case text(String)
+    // MARK: - FFI Wrappers
+    class LBTextRange: UITextRange {
+        let c: CTextRange
+
+        init(c: CTextRange) {
+            self.c = c
+        }
+
+        override var start: UITextPosition {
+            return LBTextPos(c: c.start)
+        }
+
+        override var end: UITextPosition {
+            return LBTextPos(c: c.end)
+        }
+
+        override var isEmpty: Bool {
+            return c.start.pos >= c.end.pos
+        }
+
+        var length: Int {
+            return Int(c.start.pos - c.end.pos)
+        }
+    }
+
+    class LBTextPos: UITextPosition {
+        let c: CTextPosition
+
+        init(c: CTextPosition) {
+            self.c = c
+        }
     }
 
     class LBTextSelectionRect: UITextSelectionRect {
