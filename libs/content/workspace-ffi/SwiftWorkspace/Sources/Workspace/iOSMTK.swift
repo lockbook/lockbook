@@ -72,7 +72,7 @@ public class MdView: UIView, UITextInput {
 
             // send interactive refinements to our handler
             // this is the intended way to support a floating cursor
-            if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+            if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
                 gestureRecognizer.addTarget(
                     self, action: #selector(handleInteractiveRefinement(_:)))
             }
