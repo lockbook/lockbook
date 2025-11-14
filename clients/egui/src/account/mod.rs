@@ -148,7 +148,7 @@ impl AccountScreen {
                         .inner_margin(egui::Margin::symmetric(20.0, 20.0))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
-                            self.show_nav_panel(ui);
+                            self.show_sync_btn(ui);
 
                             ui.add_space(15.0);
                         });
@@ -174,6 +174,10 @@ impl AccountScreen {
                             self.tree.selected = Some(self.tree.suggested_docs_folder_id)
                                 .into_iter()
                                 .collect();
+                        }
+
+                        if let Some(rect) = full_doc_search_resp.search_box_rect {
+                            self.show_icon_shelf(ui, rect);
                         }
 
                         let full_doc_search_term_empty = self
@@ -515,41 +519,51 @@ impl AccountScreen {
         }
     }
 
-    fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
-        ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 40.0),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                self.show_sync_btn(ui);
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-                    if settings_btn.clicked() {
-                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                        ui.ctx().request_repaint();
-                    };
-                    settings_btn.on_hover_text("Settings");
-
-                    let incoming_shares_btn = Button::default()
-                        .icon(&Icon::SHARED_FOLDER.badge(self.lb_status.pending_shares))
-                        .show(ui);
-
-                    if incoming_shares_btn.clicked() {
-                        self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                        ui.ctx().request_repaint();
-                    };
-                    incoming_shares_btn.on_hover_text("Incoming shares");
-
-                    let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
-
-                    if zen_mode_btn.clicked() {
-                        self.update_zen_mode(true);
-                    }
-
-                    zen_mode_btn.on_hover_text("Hide side panel");
-                });
+    fn show_icon_shelf(&mut self, ui: &mut egui::Ui, anchor_rect: egui::Rect) {
+        let rect = egui::Rect {
+            min: egui::pos2(anchor_rect.right(), anchor_rect.top()),
+            max: egui::pos2(ui.available_rect_before_wrap().right(), anchor_rect.bottom()),
+        };
+        let ui = &mut ui.child_ui(
+            rect,
+            egui::Layout {
+                main_dir: egui::Direction::RightToLeft,
+                main_wrap: false,
+                main_align: egui::Align::LEFT,
+                main_justify: false,
+                cross_align: egui::Align::Center,
+                cross_justify: true,
             },
+            None,
         );
+
+        ui.visuals_mut().override_text_color = Some(ui.visuals().text_color().linear_multiply(0.9));
+        ui.add_space(10.0);
+
+        let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+
+        if zen_mode_btn.clicked() {
+            self.update_zen_mode(true);
+        }
+
+        zen_mode_btn.on_hover_text("Hide side panel");
+
+        let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+        if settings_btn.clicked() {
+            self.update_tx.send(OpenModal::Settings.into()).unwrap();
+            ui.ctx().request_repaint();
+        };
+        settings_btn.on_hover_text("Settings");
+
+        let incoming_shares_btn = Button::default()
+            .icon(&Icon::SHARED_FOLDER.badge(self.lb_status.pending_shares))
+            .show(ui);
+
+        if incoming_shares_btn.clicked() {
+            self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+            ui.ctx().request_repaint();
+        };
+        incoming_shares_btn.on_hover_text("Incoming shares");
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {
