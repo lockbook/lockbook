@@ -7,10 +7,11 @@ pub struct Icon {
     pub size: f32,
     color: Option<egui::Color32>,
     weak: bool,
+    frame: bool,
 }
 
 const fn ic(c: &'static str) -> Icon {
-    Icon { has_badge: false, icon: c, size: 18.0, color: None, weak: false }
+    Icon { has_badge: false, icon: c, size: 18.0, color: None, weak: false, frame: false }
 }
 
 // look em up here: https://www.nerdfonts.com/cheat-sheet
@@ -66,6 +67,8 @@ impl Icon {
     pub const LOCK_CLOSED: Self = ic("\u{f033e}");
     pub const MONEY: Self = ic("\u{ef8d}");
     pub const NUMBER_LIST: Self = ic("\u{f027b}");
+    pub const NEW_FOLDER: Self = ic("\u{ea80}");
+    pub const NEW_FILE: Self = ic("\u{ea7f}");
     pub const SETTINGS: Self = ic("\u{f0493}");
     pub const SPARKLE: Self = ic("\u{f51b}");
     pub const SAVE: Self = ic("\u{f0193}");
@@ -101,6 +104,12 @@ impl Icon {
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;
         this.color = Some(color);
+        this
+    }
+
+    pub fn frame(self, frame: bool) -> Self {
+        let mut this = self;
+        this.frame = frame;
         this
     }
 
@@ -145,10 +154,11 @@ impl Icon {
         let padding = egui::vec2(0.0, 0.0);
         let desired_size = egui::vec2(self.size + padding.x, self.size + padding.y);
 
-        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::hover());
+        let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::click_and_drag());
 
         if ui.is_rect_visible(rect) {
-            let text_color = ui.style().interact(&resp).text_color();
+            let style = ui.style().interact(&resp);
+            let text_color = style.text_color();
             let wrap_width = ui.available_width();
 
             let icon_pos = egui::pos2(rect.min.x + padding.x, rect.center().y - self.size / 2.0);
@@ -156,6 +166,14 @@ impl Icon {
             let icon: egui::WidgetText = self.into();
             let icon =
                 icon.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, egui::TextStyle::Body);
+
+            if self.frame {
+                painter.unwrap_or(ui.painter()).rect_filled(
+                    rect.expand2(ui.spacing().button_padding),
+                    style.rounding,
+                    style.bg_fill,
+                );
+            }
 
             painter
                 .unwrap_or(ui.painter())
