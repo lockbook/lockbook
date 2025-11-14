@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut as _};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
 use egui::{Id, Key, Modifiers};
@@ -81,9 +81,7 @@ impl FullDocSearch {
         ui.visuals_mut().widgets.active.bg_fill = ui.visuals().widgets.hovered.bg_fill;
         ui.spacing_mut().button_padding = egui::vec2(6.0, 2.0);
 
-        let res = Icon::CLOSE.size(10.0).frame(true).show(&mut ui);
-
-        res
+        Icon::CLOSE.size(10.0).frame(true).show(&mut ui)
     }
     pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Response {
         let mut resp = Response::default();
