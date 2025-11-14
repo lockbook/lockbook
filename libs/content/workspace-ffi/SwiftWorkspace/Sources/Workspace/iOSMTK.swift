@@ -778,7 +778,7 @@
             textDelegate.selectionDidChange(textInput)
             textDelegate.textDidChange(textInput)
         }
-        }
+    }
 
     // MARK: - SvgView
     public class SvgView: UIView {
@@ -810,7 +810,7 @@
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             self.currentHeaderSize = headerSize
-            
+
             super.init(frame: .infinite)
 
             isMultipleTouchEnabled = true
@@ -828,7 +828,7 @@
 
             pencilInteraction.delegate = self.pencilDelegate
             addInteraction(pencilInteraction)
-            
+
             self.pencilDelegate = pencilDelegate
             self.pencilInteraction = pencilInteraction
 
@@ -856,7 +856,7 @@
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-            if UIPencilInteraction.prefersPencilOnlyDrawing { // todo: update when prefersPencilOnlyDrawing changes
+            if UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
                 pan.minimumNumberOfTouches = 1
             } else {
                 pan.minimumNumberOfTouches = 2
@@ -869,7 +869,8 @@
             self.panRecognizer = pan
 
             // gestures: pinch
-            let pinch = UIPinchGestureRecognizer(target: self, action: #selector(self.handlePinch(_:)))
+            let pinch = UIPinchGestureRecognizer(
+                target: self, action: #selector(self.handlePinch(_:)))
             pinch.cancelsTouchesInView = false
 
             pinch.delegate = gestureDelegate
@@ -882,14 +883,14 @@
             let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
 
             self.addInteraction(menuInteraction)
-            
+
             self.menuDelegate = menuDelegate
             self.menuInteraction = menuInteraction
         }
 
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let menuInteraction = menuInteraction else { return }
-            
+
             if gesture.state != .ended { return }
 
             if self.mtkView.kineticTimer != nil {
@@ -1055,7 +1056,6 @@
     // MARK: - SvgEditMenuDelegate
     public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
 
-
     // MARK: - iOSMTKViewDelegate
     public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
         weak var mtkView: iOSMTK?
@@ -1063,19 +1063,20 @@
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
         }
-        
+
         public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
             guard let mtkView = self.mtkView else { return }
             let wsHandle = mtkView.wsHandle
-            
-            resize_editor(wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
+
+            resize_editor(
+                wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
             mtkView.setNeedsDisplay()
         }
 
         public func draw(in view: MTKView) {
             guard let mtkView = self.mtkView else { return }
             let wsHandle = mtkView.wsHandle
-            
+
             if mtkView.tabSwitchTask != nil {
                 mtkView.tabSwitchTask!()
                 mtkView.tabSwitchTask = nil
@@ -1221,7 +1222,7 @@
         ) -> UIPointerRegion? {
             guard let mtkView = self.mtkView else { return defaultRegion }
             let wsHandle = mtkView.wsHandle
-            
+
             let offsetY: CGFloat =
                 if interaction.view is MdView
                     || interaction.view is SvgView
@@ -1240,7 +1241,7 @@
             animator: any UIPointerInteractionAnimating
         ) {
             guard let mtkView = self.mtkView else { return }
-            
+
             mtkView.cursorTracked = true
         }
 
@@ -1249,7 +1250,7 @@
             animator: any UIPointerInteractionAnimating
         ) {
             guard let mtkView = self.mtkView else { return }
-            
+
             mtkView.cursorTracked = false
             mouse_gone(mtkView.wsHandle)
         }
@@ -1260,33 +1261,33 @@
         public static let TAB_BAR_HEIGHT: CGFloat = 40
         public static let TITLE_BAR_HEIGHT: CGFloat = 33
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
-        
+
         public var wsHandle: UnsafeMutableRawPointer?
         weak var currentWrapper: UIView? = nil
-        
+
         // pointer
         var pointerInteraction: UIPointerInteraction?
         var pointerDelegate: UIPointerInteractionDelegate?
-        
+
         // gestures
         var panRecognizer: UIPanGestureRecognizer?
-        
+
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
         var redrawTask: DispatchWorkItem? = nil
-        
+
         // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
-        var currentOpenDoc: UUID? = nil // todo: duplicated in ws output
-        var currentSelectedFolder: UUID? = nil // duplicated in ws output
+        var currentOpenDoc: UUID? = nil  // todo: duplicated in ws output
+        var currentSelectedFolder: UUID? = nil  // duplicated in ws output
 
         // view hierarchy management
-        var tabSwitchTask: (() -> Void)? = nil // facilitates switching wrapper views in response to tab change
-        var onSelectionChanged: (() -> Void)? = nil // only populated when wrapper is markdown
-        var onTextChanged: (() -> Void)? = nil // also only populated when wrapper is markdown
-        var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
-        var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
+        var tabSwitchTask: (() -> Void)? = nil  // facilitates switching wrapper views in response to tab change
+        var onSelectionChanged: (() -> Void)? = nil  // only populated when wrapper is markdown
+        var onTextChanged: (() -> Void)? = nil  // also only populated when wrapper is markdown
+        var ignoreSelectionUpdate = false  // don't invoke corresponding handler when drawing immediately
+        var ignoreTextUpdate = false  // also don't invoke corresponding handler when drawing immediately
         var docHeaderSize: Double {
             return !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
@@ -1303,23 +1304,24 @@
             // pointer
             let pointerDelegate = iOSPointerDelegate(mtkView: self)
             let pointer = UIPointerInteraction(delegate: pointerDelegate)
-            
+
             self.addInteraction(pointer)
-            
+
             self.pointerDelegate = pointerDelegate
             self.pointerInteraction = pointer
 
             // gestures
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handleTrackpadScroll(_:)))
+            let pan = UIPanGestureRecognizer(
+                target: self, action: #selector(self.handleTrackpadScroll(_:)))
             pan.allowedScrollTypesMask = .all
             pan.maximumNumberOfTouches = 0
-            
+
             self.addGestureRecognizer(pan)
             self.panRecognizer = pan
-            
+
             // mtk
             self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
-            
+
             self.isPaused = false
             self.enableSetNeedsDisplay = false
             self.delegate = mtkDelegate
@@ -1458,7 +1460,7 @@
 
             self.isPaused = true
             self.enableSetNeedsDisplay = false
-            
+
             self.mtkDelegate?.draw(in: self)
 
             ignoreSelectionUpdate = false
@@ -1552,7 +1554,8 @@
         }
 
         /// Returns whether the event should be forwarded up the inheritance hierarchy
-        func handleKeyEvent(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool) -> Bool
+        func handleKeyEvent(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool)
+            -> Bool
         {
             var forward = true
 
@@ -1579,7 +1582,7 @@
                     wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
                 self.setNeedsDisplay(self.frame)
             }
-            
+
             return forward
         }
 
