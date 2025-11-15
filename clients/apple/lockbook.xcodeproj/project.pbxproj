@@ -211,6 +211,7 @@
 				47BC31D42D249E3A0020F0E4 /* Utils */,
 				47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */,
 				4741C7902939C9220073F24F /* Products.storekit */,
+				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -229,7 +230,6 @@
 		EA5C7D712516606000F7F358 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 				4731980C2D29A1CD00FBCD5F /* State */,
 				473198002D28916400FBCD5F /* Screens */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
