@@ -190,7 +190,6 @@
 			isa = PBXGroup;
 			children = (
 				47728DB12EC921DD005F9C91 /* AppIcon.icon */,
-				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 				472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */,
 				EA5C7D672516605F00F7F358 /* Shared */,
 				EA5C7D712516606000F7F358 /* iOS */,
@@ -230,6 +229,7 @@
 		EA5C7D712516606000F7F358 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
+				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 				4731980C2D29A1CD00FBCD5F /* State */,
 				473198002D28916400FBCD5F /* Screens */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
