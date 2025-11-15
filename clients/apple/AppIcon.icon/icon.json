@@ -4,13 +4,24 @@
     {
       "layers" : [
         {
+          "fill-specializations" : [
+            {
+              "value" : "automatic"
+            },
+            {
+              "appearance" : "tinted",
+              "value" : {
+                "automatic-gradient" : "extended-gray:1.00000,1.00000"
+              }
+            }
+          ],
           "image-name" : "logo.svg",
           "name" : "logo",
           "position" : {
-            "scale" : 0.4,
+            "scale" : 0.38,
             "translation-in-points" : [
-              1.9375,
-              8.5859375
+              -2.234375,
+              9.03125
             ]
           }
         }

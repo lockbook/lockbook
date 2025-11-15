@@ -16,9 +16,9 @@
 		473DD1502DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
 		473DD1512DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
 		474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 474AFD3E2CD695DB00B1546D /* Bridge */; };
-		47728DB22EC921DD005F9C91 /* lockbook.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* lockbook.icon */; };
-		47728DB32EC921DD005F9C91 /* lockbook.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* lockbook.icon */; };
-		47728DB42EC921DD005F9C91 /* lockbook.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* lockbook.icon */; };
+		47728DB22EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
+		47728DB32EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
+		47728DB42EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
 		47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394C26C8A4B400303EAE /* Assets.xcassets */; };
 		47B041F32905BFB100A02DA7 /* AlertToast in Frameworks */ = {isa = PBXBuildFile; productRef = 47B041F22905BFB100A02DA7 /* AlertToast */; };
 		47B041F52905BFF100A02DA7 /* AlertToast in Frameworks */ = {isa = PBXBuildFile; productRef = 47B041F42905BFF100A02DA7 /* AlertToast */; };
@@ -78,7 +78,7 @@
 		472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
 		473DD14E2DEBA60C00E50ADC /* logo.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = logo.svg; sourceTree = "<group>"; };
 		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
-		47728DB12EC921DD005F9C91 /* lockbook.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = lockbook.icon; sourceTree = "<group>"; };
+		47728DB12EC921DD005F9C91 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
 		478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LbSwiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
@@ -189,7 +189,7 @@
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
-				47728DB12EC921DD005F9C91 /* lockbook.icon */,
+				47728DB12EC921DD005F9C91 /* AppIcon.icon */,
 				473DD14E2DEBA60C00E50ADC /* logo.svg */,
 				472F9EDD2A6C468A005F4785 /* Lockbook (iOS).entitlements */,
 				EA5C7D672516605F00F7F358 /* Shared */,
@@ -428,7 +428,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				47728DB22EC921DD005F9C91 /* lockbook.icon in Resources */,
+				47728DB22EC921DD005F9C91 /* AppIcon.icon in Resources */,
 				473DD1502DEBA60C00E50ADC /* logo.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -438,7 +438,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */,
-				47728DB42EC921DD005F9C91 /* lockbook.icon in Resources */,
+				47728DB42EC921DD005F9C91 /* AppIcon.icon in Resources */,
 				473DD1512DEBA60C00E50ADC /* logo.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -448,7 +448,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B273394F26C8B3EF00303EAE /* Media.xcassets in Resources */,
-				47728DB32EC921DD005F9C91 /* lockbook.icon in Resources */,
+				47728DB32EC921DD005F9C91 /* AppIcon.icon in Resources */,
 				473DD14F2DEBA60C00E50ADC /* logo.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -818,6 +818,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -849,6 +850,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -1019,6 +1021,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
 				CODE_SIGN_ENTITLEMENTS = "Lockbook (iOS).entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
