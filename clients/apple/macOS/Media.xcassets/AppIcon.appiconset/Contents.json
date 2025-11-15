@@ -1,61 +1,61 @@
 {
   "images" : [
     {
-      "filename" : "logo-padded-16.png",
+      "filename" : "lockbook-logo-16px.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "16x16"
     },
     {
-      "filename" : "logo-padded-32.png",
+      "filename" : "lockbook-logo-32px 1.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "16x16"
     },
     {
-      "filename" : "logo-padded-32.png",
+      "filename" : "lockbook-logo-32px.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "32x32"
     },
     {
-      "filename" : "logo-padded-64.png",
+      "filename" : "lockbook-logo-64px.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "32x32"
     },
     {
-      "filename" : "logo-padded-128.png",
+      "filename" : "lockbook-logo-128px.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "128x128"
     },
     {
-      "filename" : "logo-padded-256.png",
+      "filename" : "lockbook-logo-256px 1.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "128x128"
     },
     {
-      "filename" : "logo-padded-256.png",
+      "filename" : "lockbook-logo-256px.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "256x256"
     },
     {
-      "filename" : "logo-padded-512.png",
+      "filename" : "lockbook-logo-512px 1.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "256x256"
     },
     {
-      "filename" : "logo-padded-512.png",
+      "filename" : "lockbook-logo-512px.png",
       "idiom" : "mac",
       "scale" : "1x",
       "size" : "512x512"
     },
     {
-      "filename" : "logo-padded-1024.png",
+      "filename" : "lockbook-logo-1024px.png",
       "idiom" : "mac",
       "scale" : "2x",
       "size" : "512x512"
