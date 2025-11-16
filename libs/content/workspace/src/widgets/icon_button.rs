@@ -8,12 +8,13 @@ pub struct IconButton {
     icon: Icon,
     tooltip: Option<String>,
     colored: bool,
+    size: Option<f32>,
 }
 
 impl IconButton {
     /// Create an icon button with the given icon.
     pub fn new(icon: Icon) -> Self {
-        Self { icon, tooltip: None, colored: false }
+        Self { icon, tooltip: None, colored: false, size: None }
     }
 
     /// Add a tooltip for the button. Default: `None`.
@@ -26,6 +27,11 @@ impl IconButton {
         Self { colored, ..self }
     }
 
+    /// Make the button bigger (not the icon). Default: `None` (scale with icon)
+    pub fn size(self, size: f32) -> Self {
+        Self { size: Some(size), ..self }
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
 
@@ -33,7 +39,12 @@ impl IconButton {
         let galley =
             icon_text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, TextStyle::Body);
 
-        let desired_size = Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.);
+        let desired_size = if let Some(size) = self.size {
+            let min_size = galley.mesh_bounds.size().max_elem();
+            Vec2::splat(size.max(min_size))
+        } else {
+            Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
+        };
         let (rect, mut resp) = ui.allocate_exact_size(desired_size, Sense::click());
 
         if resp.hovered() {
