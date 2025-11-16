@@ -24,6 +24,7 @@ impl Icon {
     pub const ARROW_UP: Self = ic("\u{f0360}"); // 󰍠
     pub const ARROW_LEFT: Self = ic("\u{e5de}"); // 󰍜
     pub const ARROW_RIGHT: Self = ic("\u{e5df}"); // 󰍜
+    pub const ARROW_BACK: Self = ic("\u{e5c4}");
     pub const BRING_TO_BACK: Self = ic("\u{f0600}");
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}");
     pub const BRING_FRONT: Self = ic("\u{e5cc}");

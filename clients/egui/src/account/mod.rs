@@ -164,7 +164,7 @@ impl AccountScreen {
                                     self.tree.reveal_selection();
                                     self.tree.scroll_to_cursor = true;
                                 } else {
-                                    self.workspace.open_file(file.id, false, true);
+                                    self.workspace.open_file(file.id, false, true, false);
                                 }
                             }
                         }
@@ -245,7 +245,7 @@ impl AccountScreen {
         if self.is_new_user {
             if let Ok(metas) = self.core.list_metadatas() {
                 if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
-                    self.workspace.open_file(welcome_doc.id, false, true);
+                    self.workspace.open_file(welcome_doc.id, false, true, false);
                 }
             }
             self.is_new_user = false;
@@ -494,7 +494,7 @@ impl AccountScreen {
         }
 
         for id in resp.open_requests {
-            self.workspace.open_file(id, false, true);
+            self.workspace.open_file(id, false, true, false);
         }
 
         if !resp.delete_requests.is_empty() {
@@ -807,7 +807,7 @@ impl AccountScreen {
                 self.tree.update_files(files);
 
                 if is_doc {
-                    self.workspace.open_file(id, true, true);
+                    self.workspace.open_file(id, true, true, true);
                 }
                 self.modals.new_folder = None;
                 ctx.request_repaint();
