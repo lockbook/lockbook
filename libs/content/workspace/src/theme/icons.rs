@@ -22,13 +22,10 @@ impl Icon {
     pub const ACCOUNT: Self = ic("\u{f0004}"); // 󰀄
     pub const ARROW_DOWN: Self = ic("\u{f035d}"); // 󰍝
     pub const ARROW_UP: Self = ic("\u{f0360}"); // 󰍠
-    pub const ARROW_LEFT: Self = ic("\u{e5de}"); // 󰍜
-    pub const ARROW_RIGHT: Self = ic("\u{e5df}"); // 󰍜
-    pub const ARROW_BACK: Self = ic("\u{e5c4}"); // 
+    pub const ARROW_LEFT: Self = Self::CHEVRON_LEFT;
+    pub const ARROW_RIGHT: Self = Self::CHEVRON_RIGHT;
     pub const BRING_TO_BACK: Self = ic("\u{f0600}"); // 󰘀
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}"); // 󰘁
-    pub const BRING_FRONT: Self = ic("\u{e5cc}"); // 
-    pub const BRING_BACK: Self = ic("\u{e5cb}"); // 
     pub const BRUSH: Self = ic("\u{f00e3}"); // 󰃣
     pub const BOLD: Self = ic("\u{f0264}"); // 󰉤
     pub const CHECK_CIRCLE: Self = ic("\u{f05e0}"); // 󰗠
