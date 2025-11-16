@@ -1,10 +1,15 @@
 use comrak::nodes::AstNode;
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
+};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, ROW_SPACING};
+use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_SPACING};
+use crate::tab::markdown_editor::{Editor, Event};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
 
 impl<'ast> Editor {
     pub fn text_format_heading(&self, parent: &AstNode<'_>, level: u8) -> TextFormat {
@@ -148,6 +153,50 @@ impl<'ast> Editor {
             self.show_setext_heading(ui, node, top_left, level);
         } else {
             self.show_atx_heading(ui, node, top_left, level);
+        }
+
+        // show/hide button (fold)
+        // todo: factor (copied for headings)
+        let first_line = self.node_first_line(node);
+        let row_height = self.node_line_row_height(node, first_line);
+        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_space = Rect::from_min_size(top_left, annotation_size);
+        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        let fold_button_size = (self.row_height(node) * 0.6).min(INDENT / 2.);
+        if let Some(fold) = self.fold(node) {
+            ui.allocate_ui_at_rect(fold_button_space, |ui| {
+                let icon = Icon::CHEVRON_RIGHT
+                    .size(fold_button_size)
+                    .color(self.theme.fg().neutral_quarternary);
+                if IconButton::new(icon)
+                    .tooltip("Show Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(fold).into(),
+                        text: "".into(),
+                        advance_cursor: false,
+                    });
+                }
+            });
+        } else if let Some(foldable) = self.foldable(node) {
+            ui.allocate_ui_at_rect(fold_button_space, |ui| {
+                let icon = Icon::CHEVRON_DOWN
+                    .size(fold_button_size)
+                    .color(self.theme.fg().neutral_quarternary);
+                if IconButton::new(icon)
+                    .tooltip("Hide Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(foldable).end().into_range().into(),
+                        text: FOLD_TAG.into(),
+                        advance_cursor: false,
+                    });
+                }
+            });
         }
     }
 

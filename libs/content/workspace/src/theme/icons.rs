@@ -34,6 +34,8 @@ impl Icon {
     pub const CIRCLE: Self = ic("\u{eabc}");
     pub const CHEVRON_LEFT: Self = ic("\u{f0141}");
     pub const CHEVRON_RIGHT: Self = ic("\u{f0142}");
+    pub const CHEVRON_UP: Self = ic("\u{f0143}");
+    pub const CHEVRON_DOWN: Self = ic("\u{f0140}");
     pub const CLOSE: Self = ic("\u{f0156}");
     pub const CODE: Self = ic("\u{f0174}");
     pub const CONTENT_COPY: Self = ic("\u{f018f}");

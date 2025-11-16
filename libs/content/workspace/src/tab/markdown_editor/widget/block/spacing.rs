@@ -17,6 +17,11 @@ impl<'ast> Editor {
             // table rows never spaced
             return 0.;
         }
+        if self.hidden_by_fold(node) {
+            // folded nodes unspaced
+            return 0.;
+        }
+
         let width = self.width(node);
 
         let mut result = 0.;
@@ -68,6 +73,11 @@ impl<'ast> Editor {
             // table rows never spaced
             return;
         }
+        if self.hidden_by_fold(node) {
+            // folded nodes unspaced
+            return;
+        }
+
         let width = self.width(node);
 
         let sibling_index = self.sibling_index(node, siblings);
@@ -122,6 +132,11 @@ impl<'ast> Editor {
             // table rows never spaced
             return 0.;
         }
+        if self.hidden_by_fold(node) {
+            // folded nodes unspaced
+            return 0.;
+        }
+
         let width = self.width(node);
 
         let mut result = 0.;
@@ -161,6 +176,11 @@ impl<'ast> Editor {
             // table rows never spaced
             return;
         }
+        if self.hidden_by_fold(node) {
+            // folded nodes unspaced
+            return;
+        }
+
         let width = self.width(node);
 
         let sibling_index = self.sibling_index(node, siblings);
