@@ -67,10 +67,15 @@ impl<'ast> Editor {
         }
 
         // show/hide button (fold)
+        // todo: factor (copied for headings)
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        let fold_button_size = self.row_height(node) * 0.6;
         if let Some(fold) = self.fold(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                if IconButton::new(Icon::CHEVRON_RIGHT.size(self.row_height(node) * 0.6))
+                let icon = Icon::CHEVRON_RIGHT
+                    .size(fold_button_size)
+                    .color(self.theme.fg().neutral_quarternary);
+                if IconButton::new(icon)
                     .tooltip("Show Contents")
                     .show(ui)
                     .clicked()
@@ -84,7 +89,10 @@ impl<'ast> Editor {
             });
         } else if let Some(foldable) = self.foldable(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                if IconButton::new(Icon::CHEVRON_DOWN.size(self.row_height(node) * 0.6))
+                let icon = Icon::CHEVRON_DOWN
+                    .size(fold_button_size)
+                    .color(self.theme.fg().neutral_quarternary);
+                if IconButton::new(icon)
                     .tooltip("Hide Contents")
                     .show(ui)
                     .clicked()

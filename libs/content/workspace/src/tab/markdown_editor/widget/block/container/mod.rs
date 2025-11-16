@@ -5,7 +5,6 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::{INDENT, MARGIN};
 
 pub(crate) mod alert;
@@ -81,11 +80,6 @@ impl<'ast> Editor {
             height_sum += self.block_pre_spacing_height(child, &children);
             height_sum += self.height(child);
             height_sum += self.block_post_spacing_height(child, &children);
-
-            // folded list items: show only first contained block
-            if self.fold(node).is_some() {
-                break;
-            }
         }
         height_sum
     }
@@ -161,76 +155,7 @@ impl<'ast> Editor {
                 break;
             }
             top_left.y += post_spacing;
-
-            // folded list items: show only first contained block
-            if self.fold(node).is_some() {
-                break;
-            }
         }
-    }
-
-    /// Returns the fold node - the node that is causing this node to be folded - if there is one
-    pub fn fold(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
-        if let Some(first_child_block) = self.foldable(node) {
-            for inline in first_child_block.children() {
-                if let NodeValue::HtmlInline(html) = &inline.data.borrow().value {
-                    if html == FOLD_TAG {
-                        return Some(inline);
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    /// Returns the node that should have a fold node appended to make this node folded, if there is one
-    pub fn foldable(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
-        // must have paragraph to add fold html tag + something to fold
-        if node.children().count() < 2 {
-            return None;
-        }
-
-        // uh, must also not be the first block in a list or in a block quote,
-        // since then we have no space to render the fold button (matches Bear)
-        if let Some(parent) = node.parent() {
-            if matches!(parent.data.borrow().value, NodeValue::List(_)) {
-                if let Some(grandparent) = parent.parent() {
-                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_)) {
-                        return None;
-                    }
-                    if matches!(grandparent.data.borrow().value, NodeValue::BlockQuote) {
-                        return None;
-                    }
-                }
-            }
-        }
-
-        if matches!(node.data.borrow().value, NodeValue::Item(_)) {
-            if let Some(first_child_block) = node.first_child() {
-                if first_child_block.data.borrow().value == NodeValue::Paragraph {
-                    return Some(first_child_block);
-                }
-            }
-        }
-        None
-    }
-
-    /// Returns the node that this node is folding, if there is one
-    pub fn foldee(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
-        let mut root = node;
-        while let Some(parent) = root.parent() {
-            root = parent;
-        }
-
-        for descendant in root.descendants() {
-            if let Some(fold) = self.fold(descendant) {
-                if self.node_range(fold) == self.node_range(node) {
-                    return Some(fold);
-                }
-            }
-        }
-
-        None
     }
 
     /// How many leading characters on the given line belong to the given node
