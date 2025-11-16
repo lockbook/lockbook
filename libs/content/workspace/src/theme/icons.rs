@@ -22,8 +22,8 @@ impl Icon {
     pub const ACCOUNT: Self = ic("\u{f0004}"); // 󰀄
     pub const ARROW_DOWN: Self = ic("\u{f035d}"); // 󰍝
     pub const ARROW_UP: Self = ic("\u{f0360}"); // 󰍠
-    pub const ARROW_LEFT: Self = Self::CHEVRON_LEFT;
-    pub const ARROW_RIGHT: Self = Self::CHEVRON_RIGHT;
+    pub const ARROW_LEFT: Self = ic("\u{f060}"); // 
+    pub const ARROW_RIGHT: Self = ic("\u{f061}"); // 
     pub const BRING_TO_BACK: Self = ic("\u{f0600}"); // 󰘀
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}"); // 󰘁
     pub const BRUSH: Self = ic("\u{f00e3}"); // 󰃣
