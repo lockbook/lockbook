@@ -16,7 +16,7 @@ use tracing::instrument;
 use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::widgets::{Button, IconButton};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -454,7 +454,7 @@ impl Workspace {
                                 }
 
                                 if let Some(open_file) = open_file {
-                                    self.open_file(open_file, false, true);
+                                    self.open_file(open_file, false, true, false);
                                 }
                             });
                             strip.cell(|_| {});
@@ -475,6 +475,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 let mut open_id = None;
+                let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -522,7 +523,7 @@ impl Workspace {
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
                                     if let Some(value) = response {
-                                        self.open_file(value, false, true);
+                                        self.open_file(value, false, true, false);
                                     }
                                 }
                                 TabContent::SpaceInspector(sv) => {
@@ -553,6 +554,8 @@ impl Workspace {
 
                             // if all that found something then open within lockbook
                             open_id = Some(file.id);
+                            new_tab = url.new_tab;
+
                             w.open_url = None;
                         }
                     });
@@ -561,7 +564,7 @@ impl Workspace {
                     self.rename_file(req, false);
                 }
                 if let Some(id) = open_id {
-                    self.open_file(id, false, true);
+                    self.open_file(id, false, true, new_tab);
                 }
             });
         });
@@ -571,8 +574,26 @@ impl Workspace {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
 
+        let mut back = false;
+        let mut forward = false;
+
         let cursor = ui
             .horizontal(|ui| {
+                if IconButton::new(Icon::ARROW_LEFT.size(22.))
+                    .tooltip("Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    back = true;
+                }
+                if IconButton::new(Icon::ARROW_RIGHT.size(22.))
+                    .tooltip("Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    forward = true;
+                }
+
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
@@ -666,6 +687,13 @@ impl Workspace {
 
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn process_keys(&mut self) {
@@ -673,6 +701,7 @@ impl Workspace {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const CTRL: Modifiers = Modifiers::CTRL;
         const SHIFT: Modifiers = Modifiers::SHIFT;
+        const ALT: Modifiers = Modifiers::ALT;
         const NUM_KEYS: [Key; 10] = [
             Key::Num0,
             Key::Num1,
@@ -808,6 +837,36 @@ impl Workspace {
 
         if let Some(goto_tab) = goto_tab {
             self.make_current(goto_tab);
+        }
+
+        // forward/back
+        // non-apple: alt + arrows
+        // apple: command + brackets
+        let mut back = false;
+        let mut forward = false;
+        self.ctx.input_mut(|input| {
+            if APPLE {
+                if input.consume_key_exact(COMMAND, Key::OpenBracket) {
+                    back = true;
+                }
+                if input.consume_key_exact(COMMAND, Key::CloseBracket) {
+                    forward = true;
+                }
+            } else {
+                if input.consume_key_exact(ALT, Key::ArrowLeft) {
+                    back = true;
+                }
+                if input.consume_key_exact(ALT, Key::ArrowRight) {
+                    forward = true;
+                }
+            }
+        });
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
         }
     }
 

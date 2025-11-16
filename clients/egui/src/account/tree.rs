@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -383,7 +383,7 @@ impl FileTree {
 
 #[derive(Debug, Default)]
 pub struct Response {
-    pub open_requests: HashSet<Uuid>,
+    pub open_requests: HashMap<Uuid, OpenRequest>,
     pub new_file: Option<bool>,
     pub new_drawing: Option<bool>,
     pub export_file: Option<(File, PathBuf)>,
@@ -396,6 +396,23 @@ pub struct Response {
     pub space_inspector_root: Option<File>,
     pub clear_suggested: bool,
     pub clear_suggested_id: Option<Uuid>,
+}
+
+#[derive(Debug)]
+pub struct OpenRequest {
+    pub is_new_file: bool,
+    pub make_current: bool,
+    pub in_new_tab: bool,
+}
+
+impl OpenRequest {
+    fn new_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: true }
+    }
+
+    fn same_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: false }
+    }
 }
 
 impl Response {
@@ -859,7 +876,9 @@ impl FileTree {
                 }
 
                 if !documents.is_empty() {
-                    resp.open_requests.extend(documents);
+                    for document in documents {
+                        resp.open_requests.insert(document, OpenRequest::new_tab());
+                    }
                 } else if !collapsed_folders.is_empty() {
                     self.expanded.extend(collapsed_folders);
                 } else {
@@ -979,7 +998,7 @@ impl FileTree {
                     self.cut.clear();
                     self.cursor = Some(self.suggested_docs_folder_id);
 
-                    resp.open_requests.insert(id);
+                    resp.open_requests.insert(id, OpenRequest::same_tab());
                 }
             }
         }
@@ -1201,7 +1220,7 @@ impl FileTree {
                 self.selected.insert(id);
 
                 if file.is_document() {
-                    resp.open_requests.insert(id);
+                    resp.open_requests.insert(id, OpenRequest::same_tab());
                 } else if !is_expanded {
                     self.expand(&[id]);
                 } else {
@@ -1441,6 +1460,20 @@ impl FileTree {
 
         if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
             ui.close_menu();
+        }
+
+        if let Some(file) = file {
+            if ui.button("Open").clicked() {
+                resp.open_requests.insert(file, OpenRequest::same_tab());
+                ui.close_menu();
+            }
+
+            if ui.button("Open In New Tab").clicked() {
+                resp.open_requests.insert(file, OpenRequest::new_tab());
+                ui.close_menu();
+            }
+
+            ui.separator();
         }
 
         if ui.button("New Document").clicked() {

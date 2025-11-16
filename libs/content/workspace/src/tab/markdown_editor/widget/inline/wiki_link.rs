@@ -27,7 +27,10 @@ impl<'ast> Editor {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
         if response.clicked {
-            ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(&node_wiki_link.url)));
+            let cmd = ui.input(|i| i.modifiers.command);
+            ui.output_mut(|o| {
+                o.open_url = Some(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd })
+            });
         }
 
         response
