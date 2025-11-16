@@ -216,7 +216,7 @@ import SwiftUI
                     self.mtkView.currentWrapper = nil
                 case .Svg, .Image, .Graph:
                     if let currentWrapper = self.currentWrapper
-                        as? iOSMTKDrawingWrapper,
+                        as? SvgView,
                         currentWrapper.currentHeaderSize
                             == headerSize
                     {
@@ -226,7 +226,7 @@ import SwiftUI
 
                     self.currentWrapper?.removeFromSuperview()
 
-                    let drawingWrapper = iOSMTKDrawingWrapper(
+                    let drawingWrapper = SvgView(
                         mtkView: self.mtkView,
                         headerSize: headerSize
 
@@ -254,7 +254,7 @@ import SwiftUI
                     ])
                 case .PlainText, .Markdown:
                     if let currentWrapper = self.currentWrapper
-                        as? iOSMTKTextInputWrapper,
+                        as? MdView,
                         currentWrapper.currentHeaderSize
                             == headerSize
                     {
@@ -263,7 +263,7 @@ import SwiftUI
 
                     self.currentWrapper?.removeFromSuperview()
 
-                    let textWrapper = iOSMTKTextInputWrapper(
+                    let textWrapper = MdView(
                         mtkView: self.mtkView,
                         headerSize: headerSize
                     )
@@ -286,7 +286,7 @@ import SwiftUI
                         ),
                         textWrapper.bottomAnchor.constraint(
                             equalTo: self.bottomAnchor,
-                            constant: -iOSMTKTextInputWrapper
+                            constant: -MdView
                                 .TOOL_BAR_HEIGHT
                         ),
                     ])
