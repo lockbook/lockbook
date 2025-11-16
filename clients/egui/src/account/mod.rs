@@ -24,6 +24,7 @@ use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
+use crate::account::tree::OpenRequest;
 use crate::settings::Settings;
 
 use self::full_doc_search::FullDocSearch;
@@ -493,8 +494,9 @@ impl AccountScreen {
             self.workspace.rename_file(rename_req, true);
         }
 
-        for id in resp.open_requests {
-            self.workspace.open_file(id, false, true, false);
+        for (id, OpenRequest { is_new_file, make_current, in_new_tab }) in resp.open_requests {
+            self.workspace
+                .open_file(id, is_new_file, make_current, in_new_tab);
         }
 
         if !resp.delete_requests.is_empty() {
