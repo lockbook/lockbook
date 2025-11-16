@@ -2,12 +2,15 @@ use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
+use crate::tab::markdown_editor::{Editor, Event};
+use crate::theme::icons::Icon;
+use crate::widgets::IconButton;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -61,6 +64,38 @@ impl<'ast> Editor {
                 ui.painter()
                     .galley(annotation_space.left_top(), galley, Default::default());
             }
+        }
+
+        // show/hide button (fold)
+        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        if let Some(fold) = self.fold(node) {
+            ui.allocate_ui_at_rect(fold_button_space, |ui| {
+                if IconButton::new(Icon::CHEVRON_RIGHT.size(self.row_height(node) * 0.6))
+                    .tooltip("Show Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(fold).into(),
+                        text: "".into(),
+                        advance_cursor: false,
+                    });
+                }
+            });
+        } else if let Some(foldable) = self.foldable(node) {
+            ui.allocate_ui_at_rect(fold_button_space, |ui| {
+                if IconButton::new(Icon::CHEVRON_DOWN.size(self.row_height(node) * 0.6))
+                    .tooltip("Hide Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(foldable).end().into_range().into(),
+                        text: FOLD_TAG.into(),
+                        advance_cursor: false,
+                    });
+                }
+            });
         }
 
         top_left.x += INDENT;
