@@ -698,6 +698,7 @@ impl Workspace {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const CTRL: Modifiers = Modifiers::CTRL;
         const SHIFT: Modifiers = Modifiers::SHIFT;
+        const ALT: Modifiers = Modifiers::ALT;
         const NUM_KEYS: [Key; 10] = [
             Key::Num0,
             Key::Num1,
@@ -836,14 +837,25 @@ impl Workspace {
         }
 
         // forward/back
+        // non-apple: alt + arrows
+        // apple: command + brackets
         let mut back = false;
         let mut forward = false;
         self.ctx.input_mut(|input| {
-            if input.consume_key_exact(COMMAND, Key::OpenBracket) {
-                back = true;
-            }
-            if input.consume_key_exact(COMMAND, Key::CloseBracket) {
-                forward = true;
+            if APPLE {
+                if input.consume_key_exact(COMMAND, Key::OpenBracket) {
+                    back = true;
+                }
+                if input.consume_key_exact(COMMAND, Key::CloseBracket) {
+                    forward = true;
+                }
+            } else {
+                if input.consume_key_exact(ALT, Key::ArrowLeft) {
+                    back = true;
+                }
+                if input.consume_key_exact(ALT, Key::ArrowRight) {
+                    forward = true;
+                }
             }
         });
 
