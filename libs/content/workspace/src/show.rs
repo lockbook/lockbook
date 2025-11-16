@@ -580,14 +580,14 @@ impl Workspace {
         let cursor = ui
             .horizontal(|ui| {
                 if IconButton::new(Icon::ARROW_LEFT.size(22.))
-                    .tooltip("Back")
+                    .tooltip("Go Back")
                     .show(ui)
                     .clicked()
                 {
                     back = true;
                 }
                 if IconButton::new(Icon::ARROW_RIGHT.size(22.))
-                    .tooltip("Back")
+                    .tooltip("Go Forward")
                     .show(ui)
                     .clicked()
                 {
