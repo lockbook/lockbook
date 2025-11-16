@@ -475,6 +475,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 let mut open_id = None;
+                let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -553,6 +554,8 @@ impl Workspace {
 
                             // if all that found something then open within lockbook
                             open_id = Some(file.id);
+                            new_tab = url.new_tab;
+
                             w.open_url = None;
                         }
                     });
@@ -561,7 +564,7 @@ impl Workspace {
                     self.rename_file(req, false);
                 }
                 if let Some(id) = open_id {
-                    self.open_file(id, false, true, false);
+                    self.open_file(id, false, true, new_tab);
                 }
             });
         });

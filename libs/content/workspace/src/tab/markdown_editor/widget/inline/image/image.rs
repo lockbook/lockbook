@@ -107,7 +107,10 @@ impl<'ast> Editor {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
                     if resp.clicked() {
-                        ui.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(url)));
+                        let cmd = ui.input(|i| i.modifiers.command);
+                        ui.output_mut(|o| {
+                            o.open_url = Some(OpenUrl { url: url.into(), new_tab: cmd })
+                        });
                     }
 
                     ui.allocate_ui_at_rect(rect, |ui| {
