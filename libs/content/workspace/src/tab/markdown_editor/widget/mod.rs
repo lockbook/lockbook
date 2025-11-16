@@ -11,7 +11,7 @@ pub(crate) mod inline;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-pub const MARGIN: f32 = 30.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
+pub const MARGIN: f32 = 45.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
 
 pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
