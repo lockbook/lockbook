@@ -61,14 +61,11 @@ public class MdView: UIView, UITextInput {
         self.addInteraction(textInteraction)
 
         for gestureRecognizer in self.gestureRecognizers ?? [] {
-            // receive touch events even if they are part of one of these recognized gestures
+            // receive touch events immediately even if they are part of any recognized gestures
             // this supports checkboxes and other interactive markdown elements in the text area (crudely)
-            if gestureRecognizer.name == "UITextInteractionNameSingleTap"
-                || gestureRecognizer.name == "UITextInteractionNameTapAndAHalf"
-                || gestureRecognizer.name == "UITextInteractionNameLinkTap"
-            {
-                gestureRecognizer.cancelsTouchesInView = false
-            }
+            gestureRecognizer.cancelsTouchesInView = false
+            gestureRecognizer.delaysTouchesBegan = false
+            gestureRecognizer.delaysTouchesEnded = false
 
             // send interactive refinements to our handler
             // this is the intended way to support a floating cursor
