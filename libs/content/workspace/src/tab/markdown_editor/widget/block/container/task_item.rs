@@ -25,6 +25,12 @@ impl<'ast> Editor {
 
         ui.allocate_ui_at_rect(annotation_space, |ui| {
             let mut checked = maybe_check.is_some();
+
+            let icon_width = ui.style_mut().spacing.icon_width;
+            ui.style_mut().spacing.icon_width = 16.;
+            let scale_factor = ui.style_mut().spacing.icon_width / icon_width;
+            ui.style_mut().spacing.icon_width_inner *= scale_factor;
+
             ui.checkbox(&mut checked, "");
             if checked != maybe_check.is_some() {
                 let check_offset = self.check_offset(node);
