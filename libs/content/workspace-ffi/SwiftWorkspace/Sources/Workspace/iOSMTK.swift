@@ -124,7 +124,7 @@ public class MdView: UIView, UITextInput {
     }
 
     @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
-        mtkView.handleTrackpadScroll(sender)
+        mtkView.handleMdPan(sender)
     }
 
     @objc private func handleInteractiveRefinement(_ recognizer: UIGestureRecognizer) {
@@ -926,7 +926,7 @@ public class SvgView: UIView {
     }
 
     @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
-        mtkView.handlePan(sender)
+        mtkView.handleSvgPan(sender)
     }
 
     @objc func handlePinch(_ sender: UIPinchGestureRecognizer? = nil) {
@@ -1272,9 +1272,6 @@ public class iOSMTK: MTKView {
     var pointerInteraction: UIPointerInteraction?
     var pointerDelegate: UIPointerInteractionDelegate?
 
-    // gestures
-    var panRecognizer: UIPanGestureRecognizer?
-
     // mtk
     var mtkDelegate: iOSMTKViewDelegate?
     var redrawTask: DispatchWorkItem? = nil
@@ -1313,15 +1310,6 @@ public class iOSMTK: MTKView {
         self.pointerDelegate = pointerDelegate
         self.pointerInteraction = pointer
 
-        // gestures
-        let pan = UIPanGestureRecognizer(
-            target: self, action: #selector(self.handleTrackpadScroll(_:)))
-        pan.allowedScrollTypesMask = .all
-        pan.maximumNumberOfTouches = 0
-
-        self.addGestureRecognizer(pan)
-        self.panRecognizer = pan
-
         // mtk
         self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
 
@@ -1336,7 +1324,7 @@ public class iOSMTK: MTKView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
+    @objc func handleMdPan(_ sender: UIPanGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
         }
@@ -1391,7 +1379,7 @@ public class iOSMTK: MTKView {
     }
 
     // used in canvas
-    @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
+    @objc func handleSvgPan(_ sender: UIPanGestureRecognizer? = nil) {
         guard let event = sender, event.state != .cancelled, event.state != .failed else {
             return
         }
