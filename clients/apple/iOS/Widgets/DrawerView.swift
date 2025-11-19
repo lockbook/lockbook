@@ -16,6 +16,11 @@ struct DrawerView<Main: View, Side: View>: View {
                 width: geometry.size.width
             )
 
+            let dragClosedMinX = calculatedSidebarWidth - Constants.dragActivationX / 2
+            let dragClosedMaxX = calculatedSidebarWidth + Constants.dragActivationX / 2
+            let dragOpenMinX: CGFloat = 0
+            let dragOpenMaxX = Constants.dragActivationX
+
             ZStack(alignment: .leading) {
                 NavigationView {
                     mainView
@@ -79,15 +84,14 @@ struct DrawerView<Main: View, Side: View>: View {
                     setSidebarOffset(newOffset: Constants.sidebarOffsetClosed)
                 }
             }
-
-            if homeState.sidebarState == .closed {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
+            // note: despite being a simultaneous gesture, this cancels touches in view and there's nothing you can do about it
+            // unless you're prepared to require iOS 18.0+... then you could implement this protocol with a recognizer you configure:
+            // https://developer.apple.com/documentation/swiftui/uigesturerecognizerrepresentable
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if homeState.sidebarState == .closed {
+                            if dragOpenMinX < value.startLocation.x && value.startLocation.x < dragOpenMaxX {
                                 setSidebarOffset(
                                     newOffset: min(
                                         value.translation.width,
@@ -95,41 +99,32 @@ struct DrawerView<Main: View, Side: View>: View {
                                     )
                                 )
                             }
-                            .onEnded { value in
+                        } else {
+                            if dragClosedMinX < value.startLocation.x && value.startLocation.x < dragClosedMaxX {
+                                setSidebarOffset(
+                                    newOffset: calculatedSidebarWidth
+                                    + value.translation.width
+                                )
+                            }
+                        }
+                    }
+                    .onEnded { value in
+                        if homeState.sidebarState == .closed {
+                            if dragOpenMinX < value.startLocation.x && value.startLocation.x < dragOpenMaxX {
                                 onOpenEnd(
                                     velocity: value.velocity.width,
                                     sidebarWidth: calculatedSidebarWidth
                                 )
                             }
-                    )
-            }
-
-            if homeState.sidebarState == .open {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                setSidebarOffset(
-                                    newOffset: calculatedSidebarWidth
-                                        + value.translation.width
-                                )
-                            }
-                            .onEnded { value in
+                        } else {
+                            if dragClosedMinX < value.startLocation.x && value.startLocation.x < dragClosedMaxX {
                                 onCloseEnd(
                                     velocity: value.velocity.width,
                                     sidebarWidth: calculatedSidebarWidth
                                 )
                             }
-                    )
-                    .padding(
-                        .leading,
-                        calculatedSidebarWidth
-                            - (Constants.dragActivationClosedX / 3)
-                    )
-            }
+                        }
+                    })
         }
         .ignoresSafeArea(.container, edges: .all)
     }
@@ -217,9 +212,8 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let dragActivationClosedX: CGFloat = 40
-    static let dragActivationOpenX: CGFloat = 50
-    static let velocityActivationX: CGFloat = 300
+    static let dragActivationX: CGFloat = 100
+    static let velocityActivationX: CGFloat = 500
     static let successThreshold: CGFloat = 0.6
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
