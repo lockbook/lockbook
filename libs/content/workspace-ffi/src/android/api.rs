@@ -209,7 +209,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    obj.workspace.open_file(id, new_file == 1, true);
+    obj.workspace.open_file(id, new_file == 1, true, false);
 }
 
 // todo: can't close non-file tabs (mind map)
@@ -229,6 +229,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         .position(|tab| tab.id() == Some(id))
     {
         obj.workspace.close_tab(tab_id);
+    } else {
+        for i in 0..obj.workspace.tabs.len() {
+            obj.workspace.close_tab(i);
+        }
     }
 }
 

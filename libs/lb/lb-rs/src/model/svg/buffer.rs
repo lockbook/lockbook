@@ -7,13 +7,13 @@ use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use usvg::fontdb::Database;
 use usvg::tiny_skia_path::{PathSegment, Point};
-use usvg::{Color, Options, Paint, Transform};
+use usvg::{Options, Paint, Transform};
 use uuid::Uuid;
 
 use super::WeakTransform;
 use super::diff::DiffState;
 use super::element::{
-    DynamicColor, Element, ManipulatorGroupId, Path, Stroke, WeakImage, WeakImages,
+    Color, DynamicColor, Element, ManipulatorGroupId, Path, Stroke, WeakImage, WeakImages,
     WeakPathPressures,
 };
 
@@ -365,7 +365,8 @@ pub fn parse_child(
 
             let stroke = if let Some(s) = path.stroke() {
                 if let Paint::Color(color) = *s.paint() {
-                    let maybe_dynamic_color = get_dyn_color(color);
+                    let maybe_dynamic_color =
+                        get_dyn_color(Color::new_rgb(color.red, color.green, color.blue));
 
                     Some(Stroke {
                         color: maybe_dynamic_color,
@@ -471,6 +472,24 @@ pub fn get_pen_colors() -> Vec<DynamicColor> {
     let fg = DynamicColor { light: Color::black(), dark: Color::white() };
 
     vec![fg, red, orange, yellow, green, teal, cyan, blue, indigo, purple, brown, magenta, pink]
+}
+
+pub fn get_background_colors() -> Vec<DynamicColor> {
+    let pastel_blue =
+        DynamicColor { light: Color::new_rgb(226, 235, 240), dark: Color::new_rgb(5, 15, 26) };
+
+    let soft_pink_beige =
+        DynamicColor { light: Color::new_rgb(240, 230, 230), dark: Color::new_rgb(25, 16, 14) };
+
+    let warm_gray =
+        DynamicColor { light: Color::new_rgb(238, 236, 230), dark: Color::new_rgb(22, 21, 20) };
+
+    let nice_green =
+        DynamicColor { light: Color::new_rgb(226, 240, 228), dark: Color::new_rgb(10, 23, 16) };
+
+    let bg = DynamicColor { light: Color::white(), dark: Color::black() };
+
+    vec![soft_pink_beige, warm_gray, nice_green, pastel_blue, bg]
 }
 
 fn usvg_d_to_subpath(path: &usvg::Path) -> Subpath<ManipulatorGroupId> {

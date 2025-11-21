@@ -98,7 +98,7 @@ impl Workspace {
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 info!(id = ?file_id, "opening persisted tab");
-                ws.open_file(file_id, false, false);
+                ws.open_file(file_id, false, false, true);
             }
         });
         if let Some(current_tab) = current_tab {
@@ -122,7 +122,7 @@ impl Workspace {
         }
 
         for id in ids {
-            self.open_file(id, false, false)
+            self.open_file(id, false, false, true)
         }
 
         if let Some(current_tab_id) = maybe_current_tab_id {
@@ -130,22 +130,22 @@ impl Workspace {
         }
     }
 
-    /// Creates a loading-state tab for a file if needed and returns true if a tab was created
-    pub fn upsert_loading_tab(&mut self, id: Uuid) -> bool {
-        let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
-        if !tab_exists {
-            self.create_tab(ContentState::Loading(id));
-        }
-        !tab_exists
-    }
-
-    /// Creates a tab and returns the index for the created tab
-    pub fn create_tab(&mut self, content: ContentState) -> usize {
+    pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
         let now = Instant::now();
-        let new_tab =
-            Tab { content, last_changed: now, last_saved: now, rename: None, is_closing: false };
+        let new_tab = Tab {
+            content,
+            back: Vec::new(),
+            forward: Vec::new(),
+            last_changed: now,
+            last_saved: now,
+            rename: None,
+            is_closing: false,
+        };
         self.tabs.push(new_tab);
-        self.tabs.len() - 1
+        if make_current {
+            self.current_tab = self.tabs.len() - 1;
+            self.current_tab_changed = true;
+        }
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
@@ -241,10 +241,74 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        let tab_created = self.upsert_loading_tab(id);
-        self.tasks
-            .queue_load(LoadRequest { id, is_new_file, tab_created, make_current });
+    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool, in_new_tab: bool) {
+        let mut create_tab = || {
+            if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
+                self.current_tab = pos;
+                self.current_tab_changed = true;
+                return false;
+            }
+            if in_new_tab {
+                return true;
+            }
+            let Some(current_tab) = self.current_tab_mut() else {
+                return true;
+            };
+            if let Some(id) = current_tab.id() {
+                current_tab.back.push(id);
+                current_tab.forward.clear();
+            }
+            current_tab.content = ContentState::Loading(id);
+            false
+        };
+        let create_tab = create_tab();
+
+        if create_tab {
+            self.create_tab(ContentState::Loading(id), make_current);
+        }
+
+        self.tasks.queue_load(LoadRequest {
+            id,
+            is_new_file,
+            tab_created: create_tab,
+            make_current,
+        });
+    }
+
+    pub fn back(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(back_id) = current_tab.back.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.forward.push(current_id);
+
+                    current_tab.content = ContentState::Loading(back_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: back_id,
+                        is_new_file: false,
+                        tab_created: true,
+                        make_current: false,
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn forward(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(forward_id) = current_tab.forward.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.back.push(current_id);
+
+                    current_tab.content = ContentState::Loading(forward_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: forward_id,
+                        is_new_file: false,
+                        tab_created: true,
+                        make_current: false,
+                    });
+                }
+            }
+        }
     }
 
     pub fn close_tab(&mut self, i: usize) {
@@ -297,7 +361,7 @@ impl Workspace {
                     self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false);
+                            self.open_file(id, false, false, false);
                         }
                     }
                 }
@@ -308,7 +372,7 @@ impl Workspace {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
+    // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves, completed_sync } =
             self.tasks.update();
@@ -326,7 +390,6 @@ impl Workspace {
 
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-                    let writeable_dir = &self.core.get_config().writeable_path;
                     let show_tabs = self.show_tabs;
 
                     if let Some(tab) = self.tabs.get_mut_by_id(id) {
@@ -363,14 +426,12 @@ impl Workspace {
                             )));
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id,
-                                &bytes,
-                                &ctx,
-                                writeable_dir,
+                                id, bytes, &ctx,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
                         } else if ext == "svg" {
-                            if tab_created {
+                            let reload = if tab.svg().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
                                     &bytes,
                                     &ctx,
@@ -396,7 +457,9 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if ext == "md" || ext == "txt" {
-                            if tab_created {
+                            let reload =
+                                if tab.markdown().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         self.ctx.clone(),
@@ -485,7 +548,7 @@ impl Workspace {
                                         "reloading file after save failed with re-read required: {}",
                                         id
                                     );
-                                    self.open_file(id, false, false);
+                                    self.open_file(id, false, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
                                         format!("{err:?}"),
@@ -617,6 +680,7 @@ impl Workspace {
     pub fn create_doc(&mut self, is_drawing: bool) {
         let focused_parent = self
             .focused_parent
+            .or_else(|| self.current_tab_id())
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
 
         let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
@@ -634,8 +698,7 @@ impl Workspace {
         if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
             self.make_current(i);
         } else {
-            let i = self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))));
-            self.make_current(i);
+            self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
         };
     }
 
@@ -644,10 +707,14 @@ impl Workspace {
         if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
             self.close_tab(i);
         }
-        let i = self.create_tab(ContentState::Open(TabContent::SpaceInspector(
-            SpaceInspector::new(&core, folder, self.ctx.clone()),
-        )));
-        self.make_current(i);
+        self.create_tab(
+            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
+                &core,
+                folder,
+                self.ctx.clone(),
+            ))),
+            true,
+        );
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
@@ -681,7 +748,7 @@ impl Workspace {
         }
 
         if different_file_type {
-            self.open_file(id, false, false);
+            self.open_file(id, false, false, false);
         }
 
         self.out.file_renamed = Some((id, new_name));

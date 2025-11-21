@@ -89,7 +89,6 @@ struct FileTreeView: NSViewRepresentable {
                 }
                 
                 DispatchQueue.main.async {
-                    workspaceInput.selectFolder(id: file.parent)
                     self?.selectAndReveal(selected: openDoc, treeView: treeView)
                 }
             }

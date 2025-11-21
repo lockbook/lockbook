@@ -21,6 +21,7 @@ pub struct MacOSResponse {
     pub new_folder_btn_pressed: bool,
     pub status_updated: bool,
     pub tabs_changed: bool,
+    pub selected_folder_changed: bool,
 }
 
 impl From<crate::Response> for MacOSResponse {
@@ -42,6 +43,7 @@ impl From<crate::Response> for MacOSResponse {
                     markdown_editor_scroll_updated: _,
                     tabs_changed,
                     failure_messages: _,
+                    selected_folder_changed,
                 },
             redraw_in,
             copied_text,
@@ -72,6 +74,7 @@ impl From<crate::Response> for MacOSResponse {
             url_opened,
             cursor: cursor.into(),
             request_paste,
+            selected_folder_changed,
         }
     }
 }

@@ -140,7 +140,7 @@ impl GestureHandler {
     fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan: Option<egui::Vec2> = get_pan(ui);
+        let pan: Option<egui::Vec2> = get_pan(ui, gesture_ctx.settings.pencil_only_drawing);
 
         let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();

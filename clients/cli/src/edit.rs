@@ -169,14 +169,14 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match editor {
-        Editor::Vim => format!("</dev/tty vim {path_str}"),
-        Editor::Nvim => format!("</dev/tty nvim {path_str}"),
-        Editor::Emacs => format!("</dev/tty emacs {path_str}"),
-        Editor::Helix => format!("</dev/tty hx {path_str}"),
-        Editor::Nano => format!("</dev/tty nano {path_str}"),
-        Editor::Sublime => format!("subl --wait {path_str}"),
-        Editor::Code => format!("code --wait {path_str}"),
-        Editor::Custom(s) => format!("{s} {path_str}"),
+        Editor::Vim => format!("</dev/tty vim '{path_str}'"),
+        Editor::Nvim => format!("</dev/tty nvim '{path_str}'"),
+        Editor::Emacs => format!("</dev/tty emacs '{path_str}'"),
+        Editor::Helix => format!("</dev/tty hx '{path_str}'"),
+        Editor::Nano => format!("</dev/tty nano '{path_str}'"),
+        Editor::Sublime => format!("subl --wait '{path_str}'"),
+        Editor::Code => format!("code --wait '{path_str}'"),
+        Editor::Custom(s) => format!("{s} '{path_str}'"),
     };
 
     std::process::Command::new("/bin/sh")

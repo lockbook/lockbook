@@ -16,7 +16,7 @@ use tracing::instrument;
 use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::widgets::{Button, IconButton};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -454,7 +454,7 @@ impl Workspace {
                                 }
 
                                 if let Some(open_file) = open_file {
-                                    self.open_file(open_file, false, true);
+                                    self.open_file(open_file, false, true, false);
                                 }
                             });
                             strip.cell(|_| {});
@@ -475,6 +475,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| {
                 let mut rename_req = None;
                 let mut open_id = None;
+                let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -522,7 +523,7 @@ impl Workspace {
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
                                     if let Some(value) = response {
-                                        self.open_file(value, false, true);
+                                        self.open_file(value, false, true, false);
                                     }
                                 }
                                 TabContent::SpaceInspector(sv) => {
@@ -556,6 +557,8 @@ impl Workspace {
 
                             // if all that found something then open within lockbook
                             open_id = Some(file.id);
+                            new_tab = url.new_tab;
+
                             w.open_url = None;
                         }
                     });
@@ -564,7 +567,7 @@ impl Workspace {
                     self.rename_file(req, false);
                 }
                 if let Some(id) = open_id {
-                    self.open_file(id, false, true);
+                    self.open_file(id, false, true, new_tab);
                 }
             });
         });
@@ -574,8 +577,28 @@ impl Workspace {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
 
+        let mut back = false;
+        let mut forward = false;
+
         let cursor = ui
             .horizontal(|ui| {
+                if IconButton::new(Icon::ARROW_LEFT)
+                    .size(37.)
+                    .tooltip("Go Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    back = true;
+                }
+                if IconButton::new(Icon::ARROW_RIGHT)
+                    .size(37.)
+                    .tooltip("Go Forward")
+                    .show(ui)
+                    .clicked()
+                {
+                    forward = true;
+                }
+
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
@@ -669,6 +692,13 @@ impl Workspace {
 
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn process_keys(&mut self) {
@@ -676,6 +706,7 @@ impl Workspace {
         const COMMAND: Modifiers = Modifiers::COMMAND;
         const CTRL: Modifiers = Modifiers::CTRL;
         const SHIFT: Modifiers = Modifiers::SHIFT;
+        const ALT: Modifiers = Modifiers::ALT;
         const NUM_KEYS: [Key; 10] = [
             Key::Num0,
             Key::Num1,
@@ -812,6 +843,36 @@ impl Workspace {
         if let Some(goto_tab) = goto_tab {
             self.make_current(goto_tab);
         }
+
+        // forward/back
+        // non-apple: alt + arrows
+        // apple: command + brackets
+        let mut back = false;
+        let mut forward = false;
+        self.ctx.input_mut(|input| {
+            if APPLE {
+                if input.consume_key_exact(COMMAND, Key::OpenBracket) {
+                    back = true;
+                }
+                if input.consume_key_exact(COMMAND, Key::CloseBracket) {
+                    forward = true;
+                }
+            } else {
+                if input.consume_key_exact(ALT, Key::ArrowLeft) {
+                    back = true;
+                }
+                if input.consume_key_exact(ALT, Key::ArrowRight) {
+                    forward = true;
+                }
+            }
+        });
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn tab_label(
@@ -872,7 +933,7 @@ impl Workspace {
 
                     // close button - the x
                     let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
-                        .font(egui::FontId::monospace(x_icon.size))
+                        .font(egui::FontId::monospace(10.))
                         .into();
                     let close_button = close_button.into_galley(
                         ui,
@@ -1234,11 +1295,12 @@ impl ElapsedHumanString for u64 {
 pub enum DocType {
     PlainText,
     Markdown,
-    Drawing,
+    SVG,
     Image,
     ImageUnsupported,
     Code,
     Audio,
+    PDF,
     Unknown,
 }
 
@@ -1246,24 +1308,41 @@ impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
         match ext {
-            "draw" | "svg" => Self::Drawing,
+            "draw" | "svg" => Self::SVG,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "go" => Self::Code,
             "mp3" | "wav" | "m4a" | "flac" => Self::Audio,
+            "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
     }
+
     pub fn to_icon(&self) -> Icon {
         match self {
-            DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
-            DocType::Drawing => Icon::DRAW,
+            DocType::Markdown => Icon::DOC_MD,
+            DocType::PlainText => Icon::DOC_TEXT,
+            DocType::SVG => Icon::DRAW,
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
             DocType::Audio => Icon::AUDIO,
+            DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn hide_ext(&self) -> bool {
+        match self {
+            DocType::PlainText => false,
+            DocType::Markdown => true,
+            DocType::SVG => true,
+            DocType::Image => false,
+            DocType::ImageUnsupported => false,
+            DocType::Code => false,
+            DocType::PDF => true,
+            DocType::Unknown => false,
         }
     }
 }

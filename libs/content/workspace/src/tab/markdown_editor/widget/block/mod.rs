@@ -10,6 +10,7 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::BLOCK_SPACING;
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
@@ -107,6 +108,11 @@ impl<'ast> Editor {
             return height;
         }
 
+        // hide folded nodes only if they are not revealed
+        if self.hidden_by_fold(node) {
+            return 0.;
+        }
+
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         let height = match value {
@@ -193,6 +199,11 @@ impl<'ast> Editor {
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 
+            return;
+        }
+
+        // hide folded nodes only if they are not revealed
+        if self.hidden_by_fold(node) {
             return;
         }
 
@@ -284,7 +295,7 @@ impl<'ast> Editor {
     /// Returns the siblings of the given node in sourcepos order (unlike
     /// `node.siblings()`).
     pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        self.sorted_children(node.parent().unwrap())
+        if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
     }
 
     pub fn sibling_index(
@@ -342,6 +353,131 @@ impl<'ast> Editor {
     /// of the given node.
     pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
         self.bounds.source_lines[self.node_last_line_idx(node)]
+    }
+
+    /// Returns the node that should have a fold node appended to make this node folded, if there is one
+    pub fn foldable(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        // must not be the first block in a list or in a block quote, since then
+        // we have no space to render the fold button (matches Bear)
+        if let Some(parent) = node.parent() {
+            if matches!(parent.data.borrow().value, NodeValue::List(_)) {
+                if let Some(grandparent) = parent.parent() {
+                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_)) {
+                        return None;
+                    }
+                    if matches!(grandparent.data.borrow().value, NodeValue::BlockQuote) {
+                        return None;
+                    }
+                }
+            } else {
+                if matches!(parent.data.borrow().value, NodeValue::Item(_)) {
+                    return None;
+                }
+                if matches!(parent.data.borrow().value, NodeValue::BlockQuote) {
+                    return None;
+                }
+            }
+        }
+
+        // list items
+        if matches!(node.data.borrow().value, NodeValue::Item(_)) {
+            // must have paragraph to add fold html tag + something to fold
+            if node.children().count() < 2 {
+                return None;
+            }
+
+            if let Some(first_child_block) = node.first_child() {
+                if first_child_block.data.borrow().value == NodeValue::Paragraph {
+                    return Some(first_child_block);
+                }
+            }
+        }
+
+        // headings
+        if let NodeValue::Heading(heading) = node.data.borrow().value {
+            // must have something to fold
+            if let Some(next_sibling) = node.next_sibling() {
+                if let NodeValue::Heading(next_heading) = next_sibling.data.borrow().value {
+                    if next_heading.level <= heading.level {
+                        return None;
+                    }
+                }
+            } else {
+                return None;
+            }
+
+            return Some(node);
+        }
+
+        None
+    }
+
+    /// Returns the fold node - the node that is causing this node to be folded - if there is one
+    pub fn fold(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        if let Some(foldable) = self.foldable(node) {
+            for inline in foldable.children() {
+                if let NodeValue::HtmlInline(html) = &inline.data.borrow().value {
+                    if html == FOLD_TAG {
+                        return Some(inline);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Returns the node that this node is folding, if there is one
+    pub fn foldee(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        let mut root = node;
+        while let Some(parent) = root.parent() {
+            root = parent;
+        }
+
+        for descendant in root.descendants() {
+            if let Some(fold) = self.fold(descendant) {
+                if fold.same_node(node) {
+                    return Some(fold);
+                }
+            }
+        }
+
+        None
+    }
+
+    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+        // show only the first block in folded ancestor blocks
+        if node.previous_sibling().is_some() {
+            for ancestor in node.ancestors().skip(1) {
+                if self.fold(ancestor).is_some() {
+                    return true;
+                }
+            }
+        }
+
+        // show only the blocks that have no folded heading; headings with
+        // another equal or more significant heading between them and the target
+        // node don't count
+        let sorted_siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let mut most_significant_unfolded_heading =
+            if let NodeValue::Heading(heading) = &node.data.borrow().value {
+                heading.level
+            } else {
+                7 // max heading level + 1
+            };
+
+        for sibling in sorted_siblings[0..sibling_index].iter().rev() {
+            if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
+                if heading.level < most_significant_unfolded_heading {
+                    if self.fold(sibling).is_some() {
+                        return true;
+                    }
+                    most_significant_unfolded_heading = heading.level;
+                }
+            }
+        }
+
+        false
     }
 }
 

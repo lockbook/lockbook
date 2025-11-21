@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
@@ -8,7 +8,7 @@ use std::{mem, thread};
 use egui::text_edit::TextEditState;
 use egui::{
     Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId, Modifiers, Order, Pos2,
-    Rect, Sense, TextEdit, Ui, Vec2, WidgetText,
+    Rect, Sense, TextEdit, Ui, Vec2, WidgetText, vec2,
 };
 use egui_notify::Toasts;
 use lb::Uuid;
@@ -383,7 +383,7 @@ impl FileTree {
 
 #[derive(Debug, Default)]
 pub struct Response {
-    pub open_requests: HashSet<Uuid>,
+    pub open_requests: HashMap<Uuid, OpenRequest>,
     pub new_file: Option<bool>,
     pub new_drawing: Option<bool>,
     pub export_file: Option<(File, PathBuf)>,
@@ -396,6 +396,23 @@ pub struct Response {
     pub space_inspector_root: Option<File>,
     pub clear_suggested: bool,
     pub clear_suggested_id: Option<Uuid>,
+}
+
+#[derive(Debug)]
+pub struct OpenRequest {
+    pub is_new_file: bool,
+    pub make_current: bool,
+    pub in_new_tab: bool,
+}
+
+impl OpenRequest {
+    fn new_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: true }
+    }
+
+    fn same_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: false }
+    }
 }
 
 impl Response {
@@ -859,7 +876,9 @@ impl FileTree {
                 }
 
                 if !documents.is_empty() {
-                    resp.open_requests.extend(documents);
+                    for document in documents {
+                        resp.open_requests.insert(document, OpenRequest::new_tab());
+                    }
                 } else if !collapsed_folders.is_empty() {
                     self.expanded.extend(collapsed_folders);
                 } else {
@@ -907,12 +926,13 @@ impl FileTree {
         }
 
         let suggested_docs_btn = Button::default()
-            .icon(&Icon::FOLDER)
+            .icon(&Icon::FOLDER.size(19.0))
             .icon_color(ui.style().visuals.widgets.active.bg_fill)
             .text("Suggested Documents")
             .default_fill(default_fill)
             .frame(true)
             .hexpand(true)
+            .padding(vec2(15., 7.))
             .show(ui);
 
         suggested_docs_btn.context_menu(|ui| {
@@ -978,7 +998,7 @@ impl FileTree {
                     self.cut.clear();
                     self.cursor = Some(self.suggested_docs_folder_id);
 
-                    resp.open_requests.insert(id);
+                    resp.open_requests.insert(id, OpenRequest::same_tab());
                 }
             }
         }
@@ -1006,7 +1026,16 @@ impl FileTree {
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
-        let mut text = WidgetText::from(&file.name);
+        let doc_type = DocType::from_name(&file.name);
+        let mut text = if doc_type.hide_ext() {
+            let wo = Path::new(&file.name)
+                .file_stem()
+                .map(|stem| stem.to_str().unwrap())
+                .unwrap_or(&file.name);
+            WidgetText::from(wo)
+        } else {
+            WidgetText::from(&file.name)
+        };
         let mut default_fill = ui.style().visuals.extreme_bg_color;
         if is_selected {
             default_fill = ui.visuals().code_bg_color;
@@ -1082,17 +1111,23 @@ impl FileTree {
         }
 
         // render
+        let button = Button::default()
+            .text(text)
+            .default_fill(default_fill)
+            .rounding(btn_rounding)
+            .margin(btn_margin)
+            .frame(true)
+            .hexpand(true)
+            .indent(indent)
+            .padding(vec2(15., 7.));
+
+        let icon_size = 19.0;
+
         let file_resp = if file.is_document() {
-            let icon = DocType::from_name(&file.name).to_icon();
-            let file_resp = Button::default()
+            let icon = doc_type.to_icon().size(icon_size);
+            let file_resp = button
                 .icon(&icon)
-                .text(text)
-                .default_fill(default_fill)
-                .rounding(btn_rounding)
-                .margin(btn_margin)
-                .frame(true)
-                .hexpand(true)
-                .indent(indent)
+                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
                 .show(ui);
 
             file_resp
@@ -1100,23 +1135,17 @@ impl FileTree {
             let is_shared = !file.shares.is_empty();
 
             let icon = if is_expanded {
-                &Icon::FOLDER_OPEN
+                Icon::FOLDER_OPEN
             } else if is_shared {
-                &Icon::SHARED_FOLDER
+                Icon::SHARED_FOLDER
             } else {
-                &Icon::FOLDER
-            };
+                Icon::FOLDER
+            }
+            .size(icon_size);
 
-            let file_resp = Button::default()
-                .icon(icon)
+            let file_resp = button
+                .icon(&icon)
                 .icon_color(ui.style().visuals.widgets.active.bg_fill)
-                .text(text)
-                .default_fill(default_fill)
-                .margin(btn_margin)
-                .rounding(btn_rounding)
-                .frame(true)
-                .hexpand(true)
-                .indent(indent)
                 .show(ui);
             if is_expanded {
                 resp = resp.union(self.show_children_recursive(
@@ -1191,7 +1220,7 @@ impl FileTree {
                 self.selected.insert(id);
 
                 if file.is_document() {
-                    resp.open_requests.insert(id);
+                    resp.open_requests.insert(id, OpenRequest::same_tab());
                 } else if !is_expanded {
                     self.expand(&[id]);
                 } else {
@@ -1433,6 +1462,20 @@ impl FileTree {
             ui.close_menu();
         }
 
+        if let Some(file) = file {
+            if ui.button("Open").clicked() {
+                resp.open_requests.insert(file, OpenRequest::same_tab());
+                ui.close_menu();
+            }
+
+            if ui.button("Open In New Tab").clicked() {
+                resp.open_requests.insert(file, OpenRequest::new_tab());
+                ui.close_menu();
+            }
+
+            ui.separator();
+        }
+
         if ui.button("New Document").clicked() {
             resp.new_file = Some(true);
             ui.close_menu();
@@ -1532,7 +1575,6 @@ pub trait FilesExt {
     fn root(&self) -> Uuid;
     fn get_by_id(&self, id: Uuid) -> &File;
     fn children(&self, id: Uuid) -> Vec<&File>;
-    fn descendents(&self, id: Uuid) -> Vec<&File>;
 }
 
 impl FilesExt for [File] {
@@ -1564,15 +1606,6 @@ impl FilesExt for [File] {
             (_, _) => a.name.cmp(&b.name),
         });
         children
-    }
-
-    fn descendents(&self, id: Uuid) -> Vec<&File> {
-        let mut descendents = vec![];
-        for child in self.children(id) {
-            descendents.extend(self.descendents(child.id));
-            descendents.push(child);
-        }
-        descendents
     }
 }
 

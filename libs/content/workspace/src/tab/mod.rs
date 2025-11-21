@@ -21,6 +21,7 @@ use lb_rs::model::svg;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use urlencoding::decode;
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -29,6 +30,8 @@ pub mod svg_editor;
 
 pub struct Tab {
     pub content: ContentState,
+    pub back: Vec<Uuid>,
+    pub forward: Vec<Uuid>,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
@@ -588,6 +591,10 @@ pub fn core_get_by_relative_path<P: AsRef<Path>>(
 
     #[cfg(windows)]
     let target_path = target_path.replace('\\', "/");
+
+    let target_path = decode(&target_path)
+        .map(|cow| cow.to_string())
+        .unwrap_or(target_path);
 
     core.get_by_path(&target_path).map_err(|e| e.to_string())
 }
