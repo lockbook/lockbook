@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
-use egui::{Pos2, Ui};
+use egui::{Id, Pos2, Rect, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -268,6 +268,30 @@ impl<'ast> Editor {
             NodeValue::TableCell => self.show_table_cell(ui, node, top_left),
             NodeValue::ThematicBreak => self.show_thematic_break(ui, node, top_left),
         }
+    }
+
+    /// Creates a UI at the given position that assigns ids via the node range.
+    // By default, egui ids are assigned to ui's and widgets based on the parent
+    // ui's id and incremented with each addition to a given parent. Because
+    // editor text may be clickable, text allocates ids and affects future ids.
+    // When the editor reveal state changes, more or fewer interactable text
+    // units may be shown, and all assigned ids may change. When an iOS user
+    // taps the editor, iOS first sends a selection event in a standalone frame
+    // which affects the reveal state, then by the time the tap is released, the
+    // widget being tapped may have had its id changed and will not register as
+    // clicked. This function creates a consistently idenified ui based on the
+    // node range to prevent ids from changing mid tap and therefore prevents
+    // taps from failing. Note that this range does not and need not survive
+    // edits to the document itself.
+    fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) -> Ui {
+        Ui::new(
+            ui.ctx().clone(),
+            ui.layer_id(),
+            Id::new(self.node_range(node)), // <- the magic
+            Rect::from_pos(top_left),
+            ui.painter().clip_rect(),
+            Default::default(),
+        )
     }
 
     /// Returns true if the given block node is selected for the purposes of

@@ -1,5 +1,5 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -17,17 +17,12 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         maybe_check: Option<char>,
     ) {
-        let first_line = self.node_first_line(node);
-        let row_height = self.node_line_row_height(node, first_line);
-
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
-        ui.allocate_ui_at_rect(annotation_space, |ui| {
+        {
+            let ui = &mut self.node_ui(ui, node, top_left);
             let mut checked = maybe_check.is_some();
 
             let icon_width = ui.style_mut().spacing.icon_width;
-            ui.style_mut().spacing.icon_width = 16.;
+            ui.style_mut().spacing.icon_width = 18.;
             let scale_factor = ui.style_mut().spacing.icon_width / icon_width;
             ui.style_mut().spacing.icon_width_inner *= scale_factor;
 
@@ -42,7 +37,7 @@ impl<'ast> Editor {
                     advance_cursor: false,
                 });
             }
-        });
+        }
 
         top_left.x += INDENT;
 
