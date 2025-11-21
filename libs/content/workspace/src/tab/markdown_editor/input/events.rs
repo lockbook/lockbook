@@ -90,7 +90,14 @@ impl<'ast> Editor {
     fn get_pointer_events(&mut self, ctx: &Context) -> Vec<Event> {
         let modifiers = ctx.input(|i| i.modifiers);
 
+        let focused = self.focused(ctx);
         if let Some(response) = ctx.read_response(self.id()) {
+            // read response surrenders focus if clicked elsewhere, doesn't understand click target is our child
+            // why not surrender the focus when the click happens? why wait until response is read? just egui things
+            if focused && !self.focused(ctx) {
+                self.focus(ctx);
+            }
+
             ctx.style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
             ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
             ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
@@ -208,8 +215,6 @@ impl<'ast> Editor {
                 // iOS handles cursor placement using virtual keyboard FFI fn's
                 return Vec::new();
             }
-
-            ctx.memory_mut(|m| m.request_focus(self.id()));
 
             return vec![Event::Select { region }];
         }
