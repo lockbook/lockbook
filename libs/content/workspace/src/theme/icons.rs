@@ -24,6 +24,7 @@ impl Icon {
     pub const ARROW_UP: Self = ic("\u{f0360}"); // 󰍠
     pub const ARROW_LEFT: Self = ic("\u{f060}"); // 
     pub const ARROW_RIGHT: Self = ic("\u{f061}"); // 
+    pub const AUDIO: Self = ic("\u{f0223}"); // 󰈣
     pub const BRING_TO_BACK: Self = ic("\u{f0600}"); // 󰘀
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}"); // 󰘁
     pub const BRUSH: Self = ic("\u{f00e3}"); // 󰃣
