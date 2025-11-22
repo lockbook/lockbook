@@ -1341,6 +1341,7 @@ impl DocType {
             DocType::Image => false,
             DocType::ImageUnsupported => false,
             DocType::Code => false,
+            DocType::Audio => false,
             DocType::PDF => true,
             DocType::Unknown => false,
         }
