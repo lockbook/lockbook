@@ -79,27 +79,28 @@ struct HomeView: View {
         SidebarView()
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    HStack(spacing: 0) {
-                        Button {
-                            homeState.sheetInfo = .importPicker
-                        } label: {
-                            Label(
-                                "Import",
-                                systemImage: "square.and.arrow.down.fill"
-                            )
-                        }
+                    Button {
+                        homeState.showPendingShares = true
+                    } label: {
+                        Label("Pending Shares", systemImage: "person.2.fill")
+                    }
+                }
+                
+                if #available(iOS 26.0, *) {
+                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
+                }
 
-                        Button {
-                            homeState.showPendingShares = true
-                        } label: {
-                            PendingSharesIcon(homeState: homeState)
-                        }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        homeState.sheetInfo = .importPicker
+                    } label: {
+                        Label("Import", systemImage: "square.and.arrow.down.fill")
+                    }
 
-                        Button {
-                            homeState.showSettings = true
-                        } label: {
-                            Label("Settings", systemImage: "gearshape.fill")
-                        }
+                    Button {
+                        homeState.showSettings = true
+                    } label: {
+                        Label("Settings", systemImage: "gearshape.fill")
                     }
                 }
             }
