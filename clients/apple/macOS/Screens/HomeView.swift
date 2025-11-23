@@ -117,7 +117,7 @@ struct SidebarView: View {
                             homeState.showPendingShares = true
                         },
                         label: {
-                            PendingSharesIcon(homeState: homeState)
+                            Label("Pending Shares", systemImage: "person.2.fill")
                         }
                     )
                 }
