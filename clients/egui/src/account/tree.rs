@@ -918,22 +918,21 @@ impl FileTree {
 
         // suggested "folder"
         let is_expanded = self.expanded.contains(&self.suggested_docs_folder_id);
-        let is_cursored = self.cursor == Some(self.suggested_docs_folder_id);
-        let mut default_fill = ui.style().visuals.extreme_bg_color;
 
-        if focused && is_cursored {
-            default_fill = ui.style().visuals.selection.bg_fill;
-        }
-
-        let suggested_docs_btn = Button::default()
-            .icon(&Icon::FOLDER.size(19.0))
-            .icon_color(ui.style().visuals.widgets.active.bg_fill)
-            .text("Suggested Documents")
-            .default_fill(default_fill)
-            .frame(true)
-            .hexpand(true)
-            .padding(vec2(15., 7.))
-            .show(ui);
+        let suggested_docs_btn = self.show_file_cell(
+            ui,
+            &File {
+                id: self.suggested_docs_folder_id,
+                parent: Uuid::nil(),
+                name: "Suggested Docs".into(),
+                file_type: FileType::Folder,
+                last_modified: 0,
+                last_modified_by: Default::default(),
+                shares: vec![],
+            },
+            0.,
+            focused,
+        );
 
         suggested_docs_btn.context_menu(|ui| {
             if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -962,29 +961,9 @@ impl FileTree {
         // suggested docs
         if is_expanded {
             for &id in &suggested_docs {
-                let file = self.files.get_by_id(id);
-                let is_selected = self.selected.contains(&id);
-                let is_cursored = self.cursor == Some(id);
+                let file = self.files.get_by_id(id).clone();
 
-                let mut text = WidgetText::from(&file.name);
-                let mut default_fill = ui.style().visuals.extreme_bg_color;
-                if is_selected && focused && !is_cursored {
-                    text = text.color(ui.style().visuals.widgets.active.bg_fill);
-                }
-                if is_cursored && focused {
-                    default_fill = ui.style().visuals.selection.bg_fill
-                }
-
-                let icon = DocType::from_name(&file.name).to_icon();
-                let file_resp = Button::default()
-                    .icon(&icon)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(15.)
-                    .show(ui);
-
+                let file_resp = self.show_file_cell(ui, &file, 15., focused);
                 file_resp.context_menu(|ui| {
                     if ui.button("Remove Suggestion").clicked() {
                         resp.clear_suggested_id = Some(id);
@@ -1013,48 +992,12 @@ impl FileTree {
 
         let file = self.files.get_by_id(id).clone();
 
-        let is_selected = self.selected.contains(&id);
         let is_expanded = self.expanded.contains(&id);
-        let is_cursored = self.cursor == Some(id);
-        let is_cut = self.cut.contains(&id);
         let is_renaming = self.rename_target == Some(id);
         let indent = depth as f32 * 15.;
 
-        let btn_margin = egui::vec2(10.0, 0.0);
-        let btn_rounding = 5.0;
-
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
-
-        let doc_type = DocType::from_name(&file.name);
-        let mut text = if doc_type.hide_ext() {
-            let wo = Path::new(&file.name)
-                .file_stem()
-                .map(|stem| stem.to_str().unwrap())
-                .unwrap_or(&file.name);
-            WidgetText::from(wo)
-        } else {
-            WidgetText::from(&file.name)
-        };
-        let mut default_fill = ui.style().visuals.extreme_bg_color;
-        if is_selected {
-            default_fill = ui.visuals().code_bg_color;
-
-            ui.visuals_mut().widgets.hovered.bg_fill =
-                default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
-        } else {
-            ui.visuals_mut().widgets.hovered.bg_fill = ui
-                .visuals()
-                .code_bg_color
-                .linear_multiply(if ui.visuals().dark_mode { 0.1 } else { 0.9 });
-        }
-
-        if is_cursored && focused {
-            default_fill = ui.style().visuals.selection.bg_fill;
-        }
-        if is_cut {
-            text = text.strikethrough();
-        }
 
         // renaming
         if is_renaming {
@@ -1065,7 +1008,7 @@ impl FileTree {
                     ui.add(
                         TextEdit::singleline(&mut self.rename_buffer)
                             .frame(false)
-                            .margin(ui.spacing().button_padding + btn_margin)
+                            .margin(ui.spacing().button_padding + Self::BTN_MARGIN)
                             .id(Id::new("rename_file")),
                     )
                 })
@@ -1073,7 +1016,7 @@ impl FileTree {
 
             ui.painter().rect_stroke(
                 rename_resp.rect.expand(5.0),
-                btn_rounding,
+                Self::BTN_ROUNDING,
                 egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill),
             );
 
@@ -1111,55 +1054,17 @@ impl FileTree {
         }
 
         // render
-        let button = Button::default()
-            .text(text)
-            .default_fill(default_fill)
-            .rounding(btn_rounding)
-            .margin(btn_margin)
-            .frame(true)
-            .hexpand(true)
-            .indent(indent)
-            .padding(vec2(15., 7.));
+        let file_resp = self.show_file_cell(ui, &file, indent, focused);
 
-        let icon_size = 19.0;
-
-        let file_resp = if file.is_document() {
-            let icon = doc_type.to_icon().size(icon_size);
-            let file_resp = button
-                .icon(&icon)
-                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
-                .show(ui);
-
-            file_resp
-        } else {
-            let is_shared = !file.shares.is_empty();
-
-            let icon = if is_expanded {
-                Icon::FOLDER_OPEN
-            } else if is_shared {
-                Icon::SHARED_FOLDER
-            } else {
-                Icon::FOLDER
-            }
-            .size(icon_size);
-
-            let file_resp = button
-                .icon(&icon)
-                .icon_color(ui.style().visuals.widgets.active.bg_fill)
-                .show(ui);
-            if is_expanded {
-                resp = resp.union(self.show_children_recursive(
-                    ui,
-                    toasts,
-                    id,
-                    depth + 1,
-                    scroll_to_cursor,
-                ));
-            };
-
-            file_resp
-        };
-
+        if is_expanded {
+            resp = resp.union(self.show_children_recursive(
+                ui,
+                toasts,
+                id,
+                depth + 1,
+                scroll_to_cursor,
+            ));
+        }
         // init rename
         if file_resp.double_clicked() {
             self.init_rename(ui.ctx(), file.id);
@@ -1376,7 +1281,7 @@ impl FileTree {
             }
         }
 
-        if is_cursored && scroll_to_cursor {
+        if Some(id) == self.cursor && scroll_to_cursor {
             // todo: sometimes this doesn't scroll far enough to actually reveal the rect
             // it works more reliably when the usage/nav/sync panel is commented out
             // perhaps egui has a bug related to how we're mixing top-down and bottom-up layouts
@@ -1400,6 +1305,83 @@ impl FileTree {
             resp = resp.union(self.show_recursive(ui, toasts, child, depth, scroll_to_cursor));
         }
         resp
+    }
+
+    fn show_file_cell(
+        &self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
+    ) -> egui::Response {
+        let doc_type = DocType::from_name(&file.name);
+        let mut text = if doc_type.hide_ext() {
+            let wo = Path::new(&file.name)
+                .file_stem()
+                .map(|stem| stem.to_str().unwrap())
+                .unwrap_or(&file.name);
+            WidgetText::from(wo)
+        } else {
+            WidgetText::from(&file.name)
+        };
+
+        if self.cut.contains(&file.id) {
+            text = text.strikethrough();
+        }
+
+        let mut default_fill = ui.style().visuals.extreme_bg_color;
+        if self.selected.contains(&file.id) {
+            default_fill = ui.visuals().code_bg_color;
+
+            ui.visuals_mut().widgets.hovered.bg_fill =
+                default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
+        } else {
+            ui.visuals_mut().widgets.hovered.bg_fill = ui
+                .visuals()
+                .code_bg_color
+                .linear_multiply(if ui.visuals().dark_mode { 0.1 } else { 0.9 });
+        }
+
+        if self.cursor == Some(file.id) && focused {
+            default_fill = ui.style().visuals.selection.bg_fill;
+        }
+        let button = Button::default()
+            .text(text)
+            .default_fill(default_fill)
+            .rounding(Self::BTN_ROUNDING)
+            .margin(Self::BTN_MARGIN)
+            .frame(true)
+            .hexpand(true)
+            .indent(indent)
+            .padding(vec2(15., 7.));
+
+        let icon_size = 19.0;
+
+        let file_resp = if file.is_document() {
+            let icon = doc_type.to_icon().size(icon_size);
+            let file_resp = button
+                .icon(&icon)
+                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
+                .show(ui);
+
+            file_resp
+        } else {
+            let is_shared = !file.shares.is_empty();
+
+            let icon = if self.expanded.contains(&file.id) {
+                Icon::FOLDER_OPEN
+            } else if is_shared {
+                Icon::SHARED_FOLDER
+            } else {
+                Icon::FOLDER
+            }
+            .size(icon_size);
+
+            let file_resp = button
+                .icon(&icon)
+                .icon_color(ui.style().visuals.widgets.active.bg_fill)
+                .show(ui);
+
+            file_resp
+        };
+
+        file_resp
     }
 
     fn show_padding(&mut self, ui: &mut Ui, toasts: &mut Toasts, max_rect: Rect) -> Response {
@@ -1569,6 +1551,9 @@ impl FileTree {
             }));
         TextEdit::store_state(ctx, Id::new("rename_file"), rename_edit_state);
     }
+
+    const BTN_ROUNDING: f32 = 5.0;
+    const BTN_MARGIN: Vec2 = egui::vec2(10.0, 0.0);
 }
 
 pub trait FilesExt {

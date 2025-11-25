@@ -3299,9 +3299,9 @@ dependencies = [
 
 [[package]]
 name = "hayro"
-version = "0.4.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "048488ba88552bb0fb2a7e4001c64d5bed65d1a92167186a1bb9151571f32e60"
+checksum = "de8c3e40c99d7d73e716727a72a18ecc72d79675aea7838594f2da107a942dce"
 dependencies = [
  "bytemuck",
  "hayro-interpret",
@@ -3311,9 +3311,9 @@ dependencies = [
 
 [[package]]
 name = "hayro-font"
-version = "0.3.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10e7e97ce840a6a70e7901e240ec65ba61106b66b37a4a1b899a2ce484248463"
+checksum = "bf9c560ca88aa8eda7fe2d7090b729c9c18fac92058d5798e47b9b01906b711a"
 dependencies = [
  "log",
  "phf 0.13.1",
@@ -3321,9 +3321,9 @@ dependencies = [
 
 [[package]]
 name = "hayro-interpret"
-version = "0.4.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56204c972d08e844f3db13b1e14be769f846e576699b46d4f4637cc4f8f70102"
+checksum = "dfbe476998ee62d7ccccf8400a87773b3188cce120e989ab1a48936f50804abb"
 dependencies = [
  "bitflags 2.10.0",
  "hayro-font",
@@ -3341,9 +3341,9 @@ dependencies = [
 
 [[package]]
 name = "hayro-syntax"
-version = "0.4.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f9e5c7dbc0f11dc42775d1a6cc00f5f5137b90b6288dd7fe5f71d17b14d10be"
+checksum = "e53a0d41a5cd82ec2090f54656ec98a4e79035197cbbd3a0b63087c831450f51"
 dependencies = [
  "flate2",
  "kurbo 0.12.0",
