@@ -580,6 +580,11 @@ impl Workspace {
         let cursor = ui
             .horizontal(|ui| {
                 if IconButton::new(Icon::ARROW_LEFT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.back.is_empty())
+                            .unwrap_or_default(),
+                    )
                     .size(37.)
                     .tooltip("Go Back")
                     .show(ui)
@@ -588,6 +593,11 @@ impl Workspace {
                     back = true;
                 }
                 if IconButton::new(Icon::ARROW_RIGHT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.forward.is_empty())
+                            .unwrap_or_default(),
+                    )
                     .size(37.)
                     .tooltip("Go Forward")
                     .show(ui)
