@@ -826,7 +826,7 @@ public class SvgView: UIView {
         let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
         let pencilInteraction = UIPencilInteraction()
 
-        pencilInteraction.delegate = self.pencilDelegate
+        pencilInteraction.delegate = pencilDelegate
         addInteraction(pencilInteraction)
 
         self.pencilDelegate = pencilDelegate
