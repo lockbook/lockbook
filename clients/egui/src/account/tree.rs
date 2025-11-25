@@ -893,7 +893,7 @@ impl FileTree {
 
         resp
             // show suggested docs
-            .union(ui.vertical(|ui| self.show_suggested(ui, toasts)).inner)
+            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
             // show file tree
             .union({
                 ui.vertical(|ui| {
@@ -904,7 +904,7 @@ impl FileTree {
             })
     }
 
-    fn show_suggested(&mut self, ui: &mut Ui, toasts: &mut Toasts) -> Response {
+    fn show_suggested(&mut self, ui: &mut Ui) -> Response {
         let mut resp = Response::default();
 
         let suggested_docs_id = Id::new("suggested_docs");
@@ -918,22 +918,21 @@ impl FileTree {
 
         // suggested "folder"
         let is_expanded = self.expanded.contains(&self.suggested_docs_folder_id);
-        let is_cursored = self.cursor == Some(self.suggested_docs_folder_id);
-        let mut default_fill = ui.style().visuals.extreme_bg_color;
 
-        if focused && is_cursored {
-            default_fill = ui.style().visuals.selection.bg_fill;
-        }
-
-        let suggested_docs_btn = Button::default()
-            .icon(&Icon::FOLDER.size(19.0))
-            .icon_color(ui.style().visuals.widgets.active.bg_fill)
-            .text("Suggested Documents")
-            .default_fill(default_fill)
-            .frame(true)
-            .hexpand(true)
-            .padding(vec2(15., 7.))
-            .show(ui);
+        let suggested_docs_btn = self.show_file_cell(
+            ui,
+            &File {
+                id: self.suggested_docs_folder_id,
+                parent: Uuid::nil(),
+                name: "Suggested Docs".into(),
+                file_type: FileType::Folder,
+                last_modified: 0,
+                last_modified_by: Default::default(),
+                shares: vec![],
+            },
+            0.,
+            focused,
+        );
 
         suggested_docs_btn.context_menu(|ui| {
             if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -962,7 +961,24 @@ impl FileTree {
         // suggested docs
         if is_expanded {
             for &id in &suggested_docs {
-                resp = resp.union(self.show_recursive(ui, toasts, id, 0, false));
+                let file = self.files.get_by_id(id).clone();
+
+                let file_resp = self.show_file_cell(ui, &file, 15., focused);
+                file_resp.context_menu(|ui| {
+                    if ui.button("Remove Suggestion").clicked() {
+                        resp.clear_suggested_id = Some(id);
+                        ui.close_menu();
+                    }
+                });
+
+                if file_resp.clicked() {
+                    ui.memory_mut(|m| m.surrender_focus(suggested_docs_id));
+                    self.selected.clear();
+                    self.cut.clear();
+                    self.cursor = Some(self.suggested_docs_folder_id);
+
+                    resp.open_requests.insert(id, OpenRequest::same_tab());
+                }
             }
         }
 
@@ -1292,7 +1308,7 @@ impl FileTree {
     }
 
     fn show_file_cell(
-        &mut self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
+        &self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
     ) -> egui::Response {
         let doc_type = DocType::from_name(&file.name);
         let mut text = if doc_type.hide_ext() {
