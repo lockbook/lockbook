@@ -893,7 +893,7 @@ impl FileTree {
 
         resp
             // show suggested docs
-            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
+            .union(ui.vertical(|ui| self.show_suggested(ui, toasts)).inner)
             // show file tree
             .union({
                 ui.vertical(|ui| {
@@ -904,7 +904,7 @@ impl FileTree {
             })
     }
 
-    fn show_suggested(&mut self, ui: &mut Ui) -> Response {
+    fn show_suggested(&mut self, ui: &mut Ui, toasts: &mut Toasts) -> Response {
         let mut resp = Response::default();
 
         let suggested_docs_id = Id::new("suggested_docs");
@@ -962,44 +962,7 @@ impl FileTree {
         // suggested docs
         if is_expanded {
             for &id in &suggested_docs {
-                let file = self.files.get_by_id(id);
-                let is_selected = self.selected.contains(&id);
-                let is_cursored = self.cursor == Some(id);
-
-                let mut text = WidgetText::from(&file.name);
-                let mut default_fill = ui.style().visuals.extreme_bg_color;
-                if is_selected && focused && !is_cursored {
-                    text = text.color(ui.style().visuals.widgets.active.bg_fill);
-                }
-                if is_cursored && focused {
-                    default_fill = ui.style().visuals.selection.bg_fill
-                }
-
-                let icon = DocType::from_name(&file.name).to_icon();
-                let file_resp = Button::default()
-                    .icon(&icon)
-                    .text(text)
-                    .default_fill(default_fill)
-                    .frame(true)
-                    .hexpand(true)
-                    .indent(15.)
-                    .show(ui);
-
-                file_resp.context_menu(|ui| {
-                    if ui.button("Remove Suggestion").clicked() {
-                        resp.clear_suggested_id = Some(id);
-                        ui.close_menu();
-                    }
-                });
-
-                if file_resp.clicked() {
-                    ui.memory_mut(|m| m.surrender_focus(suggested_docs_id));
-                    self.selected.clear();
-                    self.cut.clear();
-                    self.cursor = Some(self.suggested_docs_folder_id);
-
-                    resp.open_requests.insert(id, OpenRequest::same_tab());
-                }
+                resp = resp.union(self.show_recursive(ui, toasts, id, 0, false));
             }
         }
 
