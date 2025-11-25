@@ -213,6 +213,8 @@ import SwiftUI
                     }
 
                     self.currentWrapper?.removeFromSuperview()
+                    
+                    self.currentWrapper = nil
                     self.mtkView.currentWrapper = nil
                 case .Svg, .Image, .Graph:
                     if let currentWrapper = self.currentWrapper
