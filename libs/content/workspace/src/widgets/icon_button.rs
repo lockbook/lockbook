@@ -8,13 +8,14 @@ pub struct IconButton {
     icon: Icon,
     tooltip: Option<String>,
     colored: bool,
+    disabled: bool,
     size: Option<f32>,
 }
 
 impl IconButton {
     /// Create an icon button with the given icon.
     pub fn new(icon: Icon) -> Self {
-        Self { icon, tooltip: None, colored: false, size: None }
+        Self { icon, tooltip: None, colored: false, size: None, disabled: false }
     }
 
     /// Add a tooltip for the button. Default: `None`.
@@ -32,6 +33,11 @@ impl IconButton {
         Self { size: Some(size), ..self }
     }
 
+    /// Disable the button, making it visually dim, and physically unclickable
+    pub fn disabled(self, disabled: bool) -> Self {
+        Self { disabled, ..self }
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
 
@@ -45,7 +51,10 @@ impl IconButton {
         } else {
             Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
         };
-        let (rect, mut resp) = ui.allocate_exact_size(desired_size, Sense::click());
+        let (rect, mut resp) = ui.allocate_exact_size(
+            desired_size,
+            if self.disabled { Sense::hover() } else { Sense::click() },
+        );
 
         if resp.hovered() {
             ui.painter()
@@ -55,11 +64,16 @@ impl IconButton {
             });
         }
 
-        let icon_color = if self.colored || resp.is_pointer_button_down_on() {
+        let mut icon_color = if self.colored || resp.is_pointer_button_down_on() {
             ui.visuals().widgets.active.bg_fill
         } else {
             ui.visuals().text_color()
         };
+
+        if self.disabled {
+            icon_color = icon_color.gamma_multiply(0.5);
+        }
+
         ui.painter().galley(
             ((rect.min - galley.mesh_bounds.min)
                 + ((rect.size() - galley.mesh_bounds.size()) / 2.0))
