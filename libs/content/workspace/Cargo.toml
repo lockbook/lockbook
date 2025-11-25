@@ -18,7 +18,7 @@ epaint = "0.28.1"
 glam = "0.22.0"
 image = "0.24"
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
-hayro = "0.3.0"
+hayro = "0.4.0"
 linkify = "0.10.0"
 lyon = "1.0.1"
 pulldown-cmark = { version = "0.9.2", default-features = false }
