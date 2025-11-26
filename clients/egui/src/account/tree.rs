@@ -17,9 +17,10 @@ use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use lb::service::activity::RankingWeights;
 use rfd::FileDialog;
+use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::Button;
+use workspace_rs::widgets::{Button, IconButton};
 
 #[derive(Debug, Default)]
 pub struct FileTree {
@@ -59,12 +60,42 @@ pub struct FileTree {
 
     /// Pending shares view is an alternate view to the file tree in which users can browse &
     /// preview pending shares
-    pub pending_shares: bool,
+    pub show_pending_shares: bool,
+
+    // todo: add a update_pending_shares fn
+    pub pending_shares: HashMap<String, ShareCell>,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ShareCell {
+    expanded: bool,
+    shares: Vec<File>,
 }
 
 // init & ui
 impl FileTree {
-    pub fn new(files: Vec<File>) -> Self {
+    pub fn new(files: Vec<File>, pending_shares: Vec<File>, username: String) -> Self {
+        let mut share_cells = HashMap::new();
+        for file in &pending_shares {
+            for share in &file.shares {
+                if share.shared_with == username {
+                    let target_username = &share.shared_by;
+                    if !share_cells.contains_key(target_username) {
+                        share_cells.insert(
+                            target_username.clone(),
+                            ShareCell { expanded: true, shares: vec![] },
+                        );
+                    }
+
+                    share_cells
+                        .get_mut(target_username)
+                        .unwrap()
+                        .shares
+                        .push(file.clone());
+                }
+            }
+        }
+
         Self {
             expanded: [files.root()].into_iter().collect(),
             // Is this strange? A little, could we use nil? Perhaps, but that may conflict
@@ -72,6 +103,7 @@ impl FileTree {
             // could become a vector for abuse. This is probably fine.
             suggested_docs_folder_id: Uuid::new_v4(),
             files,
+            pending_shares: share_cells,
             ..Default::default()
         }
     }
@@ -82,17 +114,21 @@ impl FileTree {
 
         self.process_input(ui, &mut resp, &mut scroll_to_cursor);
 
-        resp
-            // show suggested docs
-            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
-            // show file tree
-            .union({
-                ui.vertical(|ui| {
-                    self.show_recursive(ui, toasts, self.files.root(), 0, scroll_to_cursor)
+        if self.show_pending_shares {
+            self.show_pending_shares(ui)
+        } else {
+            resp
+                // show suggested docs
+                .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
+                // show file tree
+                .union({
+                    ui.vertical(|ui| {
+                        self.show_recursive(ui, toasts, self.files.root(), 0, scroll_to_cursor)
+                    })
+                    .inner
+                    .union(self.show_padding(ui, toasts, max_rect))
                 })
-                .inner
-                .union(self.show_padding(ui, toasts, max_rect))
-            })
+        }
     }
 
     fn process_input(&mut self, ui: &mut Ui, resp: &mut Response, scroll_to_cursor: &mut bool) {
@@ -100,7 +136,8 @@ impl FileTree {
         let suggested_docs_id = Id::from("suggested_docs");
         let file_tree_id = Id::from("file_tree");
 
-        let tab_input = ui.input(|i| i.key_pressed(Key::Tab));        if ui.memory(|m| m.has_focus(suggested_docs_id)) {
+        let tab_input = ui.input(|i| i.key_pressed(Key::Tab));
+        if ui.memory(|m| m.has_focus(suggested_docs_id)) {
             // left arrow: collapse folder or move to folder (or surrender focus)
             if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowLeft)
@@ -232,19 +269,19 @@ impl FileTree {
                 if !collapsed_any {
                     let mut new_selection = HashSet::new();
                     for &id in &self.selected {
-                        let parent = self.files.get_by_id(id).parent;
+                        let parent = self.files.get_by_id(id).unwrap().parent;
                         if id != parent {
                             selected_any_parents = true;
                         }
-                        new_selection.insert(self.files.get_by_id(id).parent);
+                        new_selection.insert(self.files.get_by_id(id).unwrap().parent);
                     }
                     self.selected = new_selection;
                     if let Some(cursor) = self.cursor {
-                        let parent = self.files.get_by_id(cursor).parent;
+                        let parent = self.files.get_by_id(cursor).unwrap().parent;
                         if cursor != parent {
                             selected_any_parents = true;
                         }
-                        self.cursor = Some(self.files.get_by_id(cursor).parent);
+                        self.cursor = Some(self.files.get_by_id(cursor).unwrap().parent);
                     }
                 }
 
@@ -278,13 +315,13 @@ impl FileTree {
                 // prefer to expand all selected folders
                 let mut expanded_any = false;
                 for id in self.selected.clone() {
-                    if self.files.get_by_id(id).is_folder() && !self.expanded.contains(&id) {
+                    if self.files.get_by_id(id).unwrap().is_folder() && !self.expanded.contains(&id) {
                         self.expand(&[id]);
                         expanded_any = true;
                     }
                 }
                 if let Some(cursor) = self.cursor {
-                    if self.files.get_by_id(cursor).is_folder() && !self.expanded.contains(&cursor)
+                    if self.files.get_by_id(cursor).unwrap().is_folder() && !self.expanded.contains(&cursor)
                     {
                         self.expand(&[cursor]);
                         expanded_any = true;
@@ -325,7 +362,7 @@ impl FileTree {
                 if !advanced_to_children {
                     new_selection.clear();
                     for &id in &self.selected {
-                        let file = self.files.get_by_id(id);
+                        let file = self.files.get_by_id(id).unwrap();
                         let mut advanced_to_sibling = false;
                         if let Some(next) = self.next(id, false) {
                             if self
@@ -344,7 +381,7 @@ impl FileTree {
                         }
                     }
                     if let Some(cursor) = self.cursor {
-                        let file = self.files.get_by_id(cursor);
+                        let file = self.files.get_by_id(cursor).unwrap();
                         if let Some(next) = self.next(cursor, false) {
                             if self
                                 .files
@@ -363,8 +400,8 @@ impl FileTree {
                 if !advanced_to_children && !advanced_to_siblings {
                     new_selection.clear();
                     for &id in &self.selected {
-                        let file = self.files.get_by_id(id);
-                        let parent = self.files.get_by_id(file.parent);
+                        let file = self.files.get_by_id(id).unwrap();
+                        let parent = self.files.get_by_id(file.parent).unwrap();
                         let mut advanced_to_parent_sibling = false;
                         if let Some(next) = self.next(id, false) {
                             if self
@@ -382,8 +419,8 @@ impl FileTree {
                         }
                     }
                     if let Some(cursor) = self.cursor {
-                        let file = self.files.get_by_id(cursor);
-                        let parent = self.files.get_by_id(file.parent);
+                        let file = self.files.get_by_id(cursor).unwrap();
+                        let parent = self.files.get_by_id(file.parent).unwrap();
                         if let Some(next) = self.next(cursor, false) {
                             if self
                                 .files
@@ -465,7 +502,7 @@ impl FileTree {
                 || ui.input(|i| i.events.iter().any(|e| matches!(e, &Event::Paste(_))))
             {
                 if let Some(cursor) = self.cursor {
-                    let cursor_file = self.files.get_by_id(cursor);
+                    let cursor_file = self.files.get_by_id(cursor).unwrap();
                     let dest = if cursor_file.is_folder() { cursor } else { cursor_file.parent };
                     for id in mem::take(&mut self.cut) {
                         resp.move_requests.push((id, dest));
@@ -485,7 +522,7 @@ impl FileTree {
             // cmd + a: select all files in folder containing cursor
             if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::A)) {
                 if let Some(cursor) = self.cursor {
-                    let parent = self.files.get_by_id(cursor).parent;
+                    let parent = self.files.get_by_id(cursor).unwrap().parent;
                     self.selected.clear();
                     for file in self.files.children(parent) {
                         self.selected.insert(file.id);
@@ -520,7 +557,7 @@ impl FileTree {
                         } else {
                             collapsed_folders.push(id);
                         }
-                    } else if self.files.get_by_id(id).is_document() {
+                    } else if self.files.get_by_id(id).unwrap().is_document() {
                         documents.push(id);
                     } else if self.expanded.contains(&id) {
                         expanded_folders.push(id);
@@ -544,8 +581,28 @@ impl FileTree {
         if !ui.memory(|m| m.has_focus(file_tree_id)) {
             self.cut.clear();
         }
+    }
 
+    fn show_pending_shares(&mut self, ui: &mut Ui) -> Response {
+        ui.vertical(|ui| {
+            for (user, cell) in &self.pending_shares.clone() {
+                Button::default()
+                    .icon(&Icon::PERSON)
+                    .text(user)
+                    .rounding(Self::BTN_ROUNDING)
+                    .margin(Self::BTN_MARGIN)
+                    .hexpand(true)
+                    .padding(vec2(15., 7.))
+                    .show(ui);
 
+                for file in &cell.shares {
+                    self.show_recursive(ui, &mut Toasts::default(), file.id, 0, false);
+                    // self.show_file_cell(ui, file, 15., false);
+                }
+            }
+        });
+
+        Response::default()
     }
 
     fn show_suggested(&mut self, ui: &mut Ui) -> Response {
@@ -605,7 +662,7 @@ impl FileTree {
         // suggested docs
         if is_expanded {
             for &id in &suggested_docs {
-                let file = self.files.get_by_id(id).clone();
+                let file = self.files.get_by_id(id).unwrap().clone();
 
                 let file_resp = self.show_file_cell(ui, &file, 15., focused);
                 file_resp.context_menu(|ui| {
@@ -634,7 +691,7 @@ impl FileTree {
     ) -> Response {
         let mut resp = Response::default();
 
-        let file = self.files.get_by_id(id).clone();
+        let file = self.files.get_by_id(id).unwrap().clone();
 
         let is_expanded = self.expanded.contains(&id);
         let is_renaming = self.rename_target == Some(id);
@@ -827,7 +884,7 @@ impl FileTree {
             }
         }
 
-        let file = self.files.get_by_id(id);
+        let file = self.files.get_by_id(id).unwrap();
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
         if let (Some(pointer), true) =
@@ -1114,7 +1171,7 @@ impl FileTree {
 
         if ui.button("New Folder").clicked() {
             let file = if let Some(file) = file { file } else { self.files.root() };
-            resp.new_folder_modal = Some(self.files.get_by_id(file).clone());
+            resp.new_folder_modal = Some(self.files.get_by_id(file).unwrap().clone());
             ui.close_menu();
         }
 
@@ -1138,7 +1195,7 @@ impl FileTree {
             ui.separator();
 
             if ui.button("Export").clicked() {
-                let file = self.files.get_by_id(file).clone();
+                let file = self.files.get_by_id(file).unwrap().clone();
                 let export = self.export.clone();
                 let ctx = ui.ctx().clone();
 
@@ -1153,7 +1210,7 @@ impl FileTree {
             }
 
             if ui.button("Share").clicked() {
-                let file = self.files.get_by_id(file).clone();
+                let file = self.files.get_by_id(file).unwrap().clone();
                 resp.create_share_modal = Some(file);
                 ui.close_menu();
             }
@@ -1165,7 +1222,7 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            let file = self.files.get_by_id(file).clone();
+            let file = self.files.get_by_id(file).unwrap().clone();
             if file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
@@ -1178,7 +1235,7 @@ impl FileTree {
     }
 
     fn init_rename(&mut self, ctx: &Context, file: Uuid) {
-        let file = self.files.get_by_id(file);
+        let file = self.files.get_by_id(file).unwrap();
 
         self.rename_target = Some(file.id);
         self.rename_buffer = file.name.clone();
@@ -1252,7 +1309,7 @@ impl FileTree {
         let ids = ids
             .iter()
             .copied()
-            .filter(|&id| self.files.get_by_id(id).is_folder())
+            .filter(|&id| self.files.get_by_id(id).unwrap().is_folder())
             .collect::<Vec<_>>();
         self.expanded.extend(ids.iter().copied());
         if depth == Some(0) {
@@ -1280,7 +1337,7 @@ impl FileTree {
 
     /// Helper that returns the shortest distance from `id` to a collapsed descendent.
     fn shortest_collapsed_distance(&self, id: Uuid) -> Option<usize> {
-        if self.files.get_by_id(id).is_document() {
+        if self.files.get_by_id(id).unwrap().is_document() {
             return None;
         }
         if !self.expanded.contains(&id) {
@@ -1340,7 +1397,7 @@ impl FileTree {
         let selected = mem::take(&mut self.selected);
         for mut id in selected {
             while !self.is_visible(id) {
-                id = self.files.get_by_id(id).parent;
+                id = self.files.get_by_id(id).unwrap().parent;
             }
             self.selected.insert(id);
         }
@@ -1355,7 +1412,7 @@ impl FileTree {
                     break;
                 }
 
-                let parent = self.files.get_by_id(id).parent;
+                let parent = self.files.get_by_id(id).unwrap().parent;
                 if parent == id {
                     break;
                 }
@@ -1379,7 +1436,7 @@ impl FileTree {
         // otherwise, return the next sibling of the file's closest ancestor (including itself) that has a next sibling
         let mut ancestor = id;
         loop {
-            let parent = self.files.get_by_id(ancestor).parent;
+            let parent = self.files.get_by_id(ancestor).unwrap().parent;
             if !visible_only || self.is_visible(ancestor) {
                 let siblings = self.files.children(parent);
                 let mut found_file = false;
@@ -1401,7 +1458,7 @@ impl FileTree {
 
     /// Returns the file before id in depth-first order, folders first then alphabetically.
     fn prev(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
-        let parent = self.files.get_by_id(id).parent;
+        let parent = self.files.get_by_id(id).unwrap().parent;
         if id == parent {
             return None;
         }
@@ -1435,20 +1492,20 @@ impl FileTree {
                     if self.is_visible(last_descendent) {
                         break;
                     }
-                    last_descendent = self.files.get_by_id(last_descendent).parent;
+                    last_descendent = self.files.get_by_id(last_descendent).unwrap().parent;
                 }
             }
             Some(last_descendent)
         } else {
             // if the file is the first child of its parent, return the parent
             // if `visible_only` is true then return the first visible ancestor of the parent (including the parent)
-            let mut ancestor = self.files.get_by_id(id).parent;
+            let mut ancestor = self.files.get_by_id(id).unwrap().parent;
             if visible_only {
                 loop {
                     if self.is_visible(ancestor) {
                         break;
                     }
-                    ancestor = self.files.get_by_id(ancestor).parent;
+                    ancestor = self.files.get_by_id(ancestor).unwrap().parent;
                 }
             }
             Some(ancestor)
@@ -1499,7 +1556,7 @@ impl FileTree {
 
     /// A file is visible if all its ancestors are expanded.
     fn is_visible(&self, id: Uuid) -> bool {
-        let file = self.files.get_by_id(id);
+        let file = self.files.get_by_id(id).unwrap();
         if file.parent == file.id {
             return true;
         }
@@ -1561,46 +1618,6 @@ impl Response {
     }
 }
 
-
-
-pub trait FilesExt {
-    fn root(&self) -> Uuid;
-    fn get_by_id(&self, id: Uuid) -> &File;
-    fn children(&self, id: Uuid) -> Vec<&File>;
-}
-
-impl FilesExt for [File] {
-    fn root(&self) -> Uuid {
-        for file in self {
-            if file.parent == file.id {
-                return file.id;
-            }
-        }
-        unreachable!("unable to find root in metadata list")
-    }
-
-    fn get_by_id(&self, id: Uuid) -> &File {
-        if let Some(file) = self.iter().find(|f| f.id == id) {
-            file
-        } else {
-            unreachable!("unable to find file with id: {:?}", id)
-        }
-    }
-
-    fn children(&self, id: Uuid) -> Vec<&File> {
-        let mut children: Vec<_> = self
-            .iter()
-            .filter(|f| f.parent == id && f.parent != f.id)
-            .collect();
-        children.sort_by(|a, b| match (a.file_type, b.file_type) {
-            (FileType::Folder, FileType::Document) => Ordering::Less,
-            (FileType::Document, FileType::Folder) => Ordering::Greater,
-            (_, _) => a.name.cmp(&b.name),
-        });
-        children
-    }
-}
-
 #[cfg(test)]
 mod test {
     use lb::Uuid;
@@ -1628,7 +1645,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1677,7 +1694,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1742,7 +1759,7 @@ mod test {
             file(7, 6, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1804,7 +1821,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert_eq!(tree.next(ids[0], false), Some(ids[1]));
         assert_eq!(tree.next(ids[1], false), Some(ids[2]));
@@ -1866,7 +1883,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert_eq!(tree.prev(ids[0], false), None);
         assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
@@ -1928,7 +1945,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], "".into());
 
         assert!(tree.is_visible(ids[0]));
         assert!(tree.is_visible(ids[1]));

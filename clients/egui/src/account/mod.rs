@@ -62,6 +62,7 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
 
         let core_clone = core.clone();
+        let pending_shares = core.get_pending_shares().unwrap_or_default();
 
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(20.0, 20.0))
@@ -74,7 +75,11 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(files),
+            tree: FileTree::new(
+                files,
+                pending_shares,
+                core.get_account().unwrap().username.clone(),
+            ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone(), true),
@@ -562,7 +567,7 @@ impl AccountScreen {
             .show(ui);
 
         if incoming_shares_btn.clicked() {
-            self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+            self.tree.show_pending_shares = !self.tree.show_pending_shares;
             ui.ctx().request_repaint();
         };
         incoming_shares_btn.on_hover_text("Incoming shares");
