@@ -27,13 +27,15 @@ impl AdvanceExt for DocCharOffset {
         match offset {
             Offset::To(bound) => self.advance_to_bound(bound, backwards, bounds),
             Offset::Next(bound) => self.advance_to_next_bound(bound, backwards, bounds),
-            Offset::By(Increment::Line) => {
-                let x_target = maybe_x_target_value.unwrap_or(self.x(galleys));
-                let result = self.advance_by_line(x_target, backwards, galleys);
-                if self != 0 && self != segs.last_cursor_position() {
-                    *maybe_x_target = Some(x_target);
+            Offset::By(Increment::Lines(n)) => {
+                let mut result = self;
+                for _ in 0..n {
+                    let x_target = maybe_x_target_value.unwrap_or(result.x(galleys));
+                    result = result.advance_by_line(x_target, backwards, galleys);
+                    if result != 0 && result != segs.last_cursor_position() {
+                        *maybe_x_target = Some(x_target);
+                    }
                 }
-
                 result
             }
         }
