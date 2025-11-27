@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -20,7 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::{Button, IconButton};
+use workspace_rs::widgets::{Button};
 
 #[derive(Debug, Default)]
 pub struct FileTree {
@@ -74,6 +73,8 @@ pub struct ShareCell {
 
 // init & ui
 impl FileTree {
+    // todo we need to create a get_pending_shares_with_children endpoint
+    // we can calculate all the roots here and then construct the tree
     pub fn new(files: Vec<File>, pending_shares: Vec<File>, username: String) -> Self {
         let mut share_cells = HashMap::new();
         for file in &pending_shares {
@@ -884,7 +885,6 @@ impl FileTree {
             }
         }
 
-        let file = self.files.get_by_id(id).unwrap();
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
         if let (Some(pointer), true) =
