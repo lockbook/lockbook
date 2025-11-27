@@ -19,7 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::{Button};
+use workspace_rs::widgets::Button;
 
 #[derive(Debug, Default)]
 pub struct FileTree {
@@ -316,13 +316,15 @@ impl FileTree {
                 // prefer to expand all selected folders
                 let mut expanded_any = false;
                 for id in self.selected.clone() {
-                    if self.files.get_by_id(id).unwrap().is_folder() && !self.expanded.contains(&id) {
+                    if self.files.get_by_id(id).unwrap().is_folder() && !self.expanded.contains(&id)
+                    {
                         self.expand(&[id]);
                         expanded_any = true;
                     }
                 }
                 if let Some(cursor) = self.cursor {
-                    if self.files.get_by_id(cursor).unwrap().is_folder() && !self.expanded.contains(&cursor)
+                    if self.files.get_by_id(cursor).unwrap().is_folder()
+                        && !self.expanded.contains(&cursor)
                     {
                         self.expand(&[cursor]);
                         expanded_any = true;

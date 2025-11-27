@@ -1,9 +1,7 @@
 use crate::Lb;
-use crate::io::CoreDb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
-use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
 use libsecp256k1::PublicKey;

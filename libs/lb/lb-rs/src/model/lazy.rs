@@ -346,7 +346,6 @@ impl<T: TreeLike> LazyTree<T> {
         let mut result = vec![];
 
         for id in roots {
-
             result.push(id);
             let descendants = self.descendants(&id)?;
 
