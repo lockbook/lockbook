@@ -24,20 +24,23 @@ impl From<Modifiers> for Offset {
     }
 }
 
+const PAGE_LINES: usize = 50;
+
 impl Editor {
     pub fn translate_egui_keyboard_event(&self, event: egui::Event) -> Option<Event> {
         match event {
             egui::Event::Key { key, pressed: true, modifiers, .. }
-                if matches!(key, Key::ArrowUp | Key::ArrowDown) =>
+                if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown) =>
             {
+                let lines = if matches!(key, Key::PageUp | Key::PageDown) { PAGE_LINES } else { 1 };
                 Some(Event::Select {
                     region: Region::ToOffset {
                         offset: if modifiers.mac_cmd {
                             Offset::To(Bound::Doc)
                         } else {
-                            Offset::By(Increment::Line)
+                            Offset::By(Increment::Lines(lines))
                         },
-                        backwards: key == Key::ArrowUp,
+                        backwards: matches!(key, Key::ArrowUp | Key::PageUp),
                         extend_selection: modifiers.shift,
                     },
                 })
