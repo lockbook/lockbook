@@ -470,7 +470,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
             Offset::Next(Bound::Char)
         } else {
-            Offset::By(Increment::Line)
+            Offset::By(Increment::Lines(1))
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 

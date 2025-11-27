@@ -38,7 +38,7 @@ pub enum Bound {
 /// text unit you can increment or decrement a location by
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Increment {
-    Line,
+    Lines(usize),
 }
 
 /// text location relative to some absolute text location
