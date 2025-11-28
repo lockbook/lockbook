@@ -62,7 +62,6 @@ impl AccountScreen {
         let (update_tx, update_rx) = mpsc::channel();
 
         let core_clone = core.clone();
-        let pending_shares = core.get_pending_shares().unwrap_or_default();
 
         let toasts = egui_notify::Toasts::default()
             .with_margin(egui::vec2(20.0, 20.0))
@@ -75,11 +74,7 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(
-                files,
-                pending_shares,
-                core.get_account().unwrap().username.clone(),
-            ),
+            tree: FileTree::new(files),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone(), true),
@@ -89,6 +84,11 @@ impl AccountScreen {
             lb_status: core.status(),
         };
         result.tree.recalc_suggested_files(&core, ctx);
+        result.tree.update_pending_shares(
+            &core.get_account().unwrap().username,
+            core.get_pending_shares().unwrap(),
+            core.get_pending_share_files().unwrap(),
+        );
         result
     }
 
@@ -278,7 +278,7 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged => {
+                Event::MetadataChanged | Event::PendingSharesChanged => {
                     self.refresh_tree(ctx);
                 }
                 Event::StatusUpdated => {
@@ -339,8 +339,13 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(files) => {
+                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
                     self.tree.update_files(files);
+                    self.tree.update_pending_shares(
+                        &self.core.get_account().unwrap().username,
+                        share_roots,
+                        share_files,
+                    );
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
 
@@ -592,9 +597,11 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
+            let files = core.list_metadatas().unwrap();
+            let share_roots = core.get_pending_shares().unwrap();
+            let share_files = core.get_pending_share_files().unwrap();
             update_tx
-                .send(AccountUpdate::ReloadTree(all_metas))
+                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -844,7 +851,11 @@ pub enum AccountUpdate {
 
     DoneDeleting,
 
-    ReloadTree(Vec<File>),
+    ReloadTree {
+        files: Vec<File>,
+        share_roots: Vec<File>,
+        share_files: Vec<File>,
+    },
 
     FinalSyncAttemptDone,
 }

@@ -63,6 +63,7 @@ pub struct FileTree {
 
     // todo: add a update_pending_shares fn
     pub pending_shares: HashMap<String, ShareCell>,
+    pub pending_files: Vec<File>,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -75,28 +76,7 @@ pub struct ShareCell {
 impl FileTree {
     // todo we need to create a get_pending_shares_with_children endpoint
     // we can calculate all the roots here and then construct the tree
-    pub fn new(files: Vec<File>, pending_shares: Vec<File>, username: String) -> Self {
-        let mut share_cells = HashMap::new();
-        for file in &pending_shares {
-            for share in &file.shares {
-                if share.shared_with == username {
-                    let target_username = &share.shared_by;
-                    if !share_cells.contains_key(target_username) {
-                        share_cells.insert(
-                            target_username.clone(),
-                            ShareCell { expanded: true, shares: vec![] },
-                        );
-                    }
-
-                    share_cells
-                        .get_mut(target_username)
-                        .unwrap()
-                        .shares
-                        .push(file.clone());
-                }
-            }
-        }
-
+    pub fn new(files: Vec<File>) -> Self {
         Self {
             expanded: [files.root()].into_iter().collect(),
             // Is this strange? A little, could we use nil? Perhaps, but that may conflict
@@ -104,7 +84,6 @@ impl FileTree {
             // could become a vector for abuse. This is probably fine.
             suggested_docs_folder_id: Uuid::new_v4(),
             files,
-            pending_shares: share_cells,
             ..Default::default()
         }
     }
@@ -518,7 +497,10 @@ impl FileTree {
                 i.consume_key(Modifiers::COMMAND, Key::R) || i.consume_key(Modifiers::NONE, Key::F2)
             }) {
                 if let Some(cursor) = self.cursor {
-                    self.init_rename(ui.ctx(), cursor);
+                    if !self.show_pending_shares {
+                        let cursor = self.files.get_by_id(cursor).unwrap().clone();
+                        self.init_rename(ui.ctx(), &cursor);
+                    }
                 }
             }
 
@@ -588,6 +570,7 @@ impl FileTree {
 
     fn show_pending_shares(&mut self, ui: &mut Ui) -> Response {
         ui.vertical(|ui| {
+            let mut resp = Response::default();
             for (user, cell) in &self.pending_shares.clone() {
                 Button::default()
                     .icon(&Icon::PERSON)
@@ -599,13 +582,19 @@ impl FileTree {
                     .show(ui);
 
                 for file in &cell.shares {
-                    self.show_recursive(ui, &mut Toasts::default(), file.id, 0, false);
+                    resp = resp.union(self.show_recursive(
+                        ui,
+                        &mut Toasts::default(),
+                        file.id,
+                        1,
+                        false,
+                    ));
                     // self.show_file_cell(ui, file, 15., false);
                 }
             }
-        });
-
-        Response::default()
+            resp
+        })
+        .inner
     }
 
     fn show_suggested(&mut self, ui: &mut Ui) -> Response {
@@ -694,7 +683,10 @@ impl FileTree {
     ) -> Response {
         let mut resp = Response::default();
 
-        let file = self.files.get_by_id(id).unwrap().clone();
+        let file = if self.show_pending_shares { &self.pending_files } else { &self.files }
+            .get_by_id(id)
+            .unwrap()
+            .clone();
 
         let is_expanded = self.expanded.contains(&id);
         let is_renaming = self.rename_target == Some(id);
@@ -770,15 +762,17 @@ impl FileTree {
             ));
         }
         // init rename
-        if file_resp.double_clicked() {
-            self.init_rename(ui.ctx(), file.id);
+        // no renames for pending shares
+        if !self.show_pending_shares && file_resp.double_clicked() {
+            self.init_rename(ui.ctx(), &file);
         }
         // select
         else if file_resp.clicked() {
             let mut shift_clicked = false;
             if let Some(cursored_file) = self.cursor {
                 // shift-click to add visible files between cursor and target to selection
-                if ui.input(|i| i.raw.modifiers.shift) {
+                // no shift clicking for pending shares
+                if !self.show_pending_shares && ui.input(|i| i.raw.modifiers.shift) {
                     shift_clicked = true;
 
                     // inefficient but works
@@ -818,7 +812,8 @@ impl FileTree {
             }
 
             let mut cmd_clicked = false;
-            if !shift_clicked && ui.input(|i| i.raw.modifiers.command) {
+            if !shift_clicked && !self.show_pending_shares && ui.input(|i| i.raw.modifiers.command)
+            {
                 cmd_clicked = true;
 
                 self.selected.insert(id);
@@ -849,7 +844,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, toasts, Some(id));
+            context_menu_resp = self.context_menu(ui, toasts, Some(&file));
         });
         resp = resp.union(context_menu_resp);
 
@@ -1138,7 +1133,7 @@ impl FileTree {
     }
 
     fn context_menu(
-        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<Uuid>,
+        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<&File>,
     ) -> Response {
         let mut resp = Response::default();
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
@@ -1149,12 +1144,12 @@ impl FileTree {
 
         if let Some(file) = file {
             if ui.button("Open").clicked() {
-                resp.open_requests.insert(file, OpenRequest::same_tab());
+                resp.open_requests.insert(file.id, OpenRequest::same_tab());
                 ui.close_menu();
             }
 
             if ui.button("Open In New Tab").clicked() {
-                resp.open_requests.insert(file, OpenRequest::new_tab());
+                resp.open_requests.insert(file.id, OpenRequest::new_tab());
                 ui.close_menu();
             }
 
@@ -1172,7 +1167,7 @@ impl FileTree {
         }
 
         if ui.button("New Folder").clicked() {
-            let file = if let Some(file) = file { file } else { self.files.root() };
+            let file = if let Some(file) = file { file.id } else { self.files.root() };
             resp.new_folder_modal = Some(self.files.get_by_id(file).unwrap().clone());
             ui.close_menu();
         }
@@ -1186,10 +1181,10 @@ impl FileTree {
             }
 
             if ui.button("Delete").clicked() {
-                if self.selected.contains(&file) {
+                if self.selected.contains(&file.id) {
                     resp.delete_requests.extend(&self.selected);
                 } else {
-                    resp.delete_requests.insert(file);
+                    resp.delete_requests.insert(file.id);
                 }
                 ui.close_menu();
             }
@@ -1197,7 +1192,7 @@ impl FileTree {
             ui.separator();
 
             if ui.button("Export").clicked() {
-                let file = self.files.get_by_id(file).unwrap().clone();
+                let file = self.files.get_by_id(file.id).unwrap().clone();
                 let export = self.export.clone();
                 let ctx = ui.ctx().clone();
 
@@ -1211,24 +1206,24 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            if ui.button("Share").clicked() {
-                let file = self.files.get_by_id(file).unwrap().clone();
+            if !self.show_pending_shares && ui.button("Share").clicked() {
+                let file = self.files.get_by_id(file.id).unwrap().clone();
                 resp.create_share_modal = Some(file);
                 ui.close_menu();
             }
 
             if ui.button("Copy Link").clicked() {
+                let id = file.id;
                 ui.ctx()
-                    .output_mut(|o| o.copied_text = format!("lb://{file}"));
+                    .output_mut(|o| o.copied_text = format!("lb://{id}"));
                 toasts.success("Copied link!");
                 ui.close_menu();
             }
 
-            let file = self.files.get_by_id(file).unwrap().clone();
             if file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
-                    resp.space_inspector_root = Some(file);
+                    resp.space_inspector_root = Some(file.clone());
                     ui.close_menu();
                 }
             }
@@ -1236,9 +1231,7 @@ impl FileTree {
         resp
     }
 
-    fn init_rename(&mut self, ctx: &Context, file: Uuid) {
-        let file = self.files.get_by_id(file).unwrap();
-
+    fn init_rename(&mut self, ctx: &Context, file: &File) {
         self.rename_target = Some(file.id);
         self.rename_buffer = file.name.clone();
 
@@ -1278,6 +1271,32 @@ impl FileTree {
         }
     }
 
+    pub fn update_pending_shares(&mut self, username: &str, roots: Vec<File>, files: Vec<File>) {
+        let mut share_cells = HashMap::new();
+        for file in &roots {
+            for share in &file.shares {
+                if share.shared_with == username {
+                    let target_username = &share.shared_by;
+                    if !share_cells.contains_key(target_username) {
+                        share_cells.insert(
+                            target_username.clone(),
+                            ShareCell { expanded: true, shares: vec![] },
+                        );
+                    }
+
+                    share_cells
+                        .get_mut(target_username)
+                        .unwrap()
+                        .shares
+                        .push(file.clone());
+                }
+            }
+        }
+
+        self.pending_shares = share_cells;
+        self.pending_files = files;
+    }
+
     /// Asynchronously recalculates the suggested files; requests repaint when complete.
     pub fn recalc_suggested_files(&mut self, core: &Lb, ctx: &egui::Context) {
         let core = core.clone();
@@ -1311,6 +1330,10 @@ impl FileTree {
         let ids = ids
             .iter()
             .copied()
+            // this panics, I think it may make sense for files to be a superset of all files
+            // there's a few places we need seamless distinction
+            // we probably need to be able to set pending_shares based on what file is being
+            // attempted to open. Links could be one example.
             .filter(|&id| self.files.get_by_id(id).unwrap().is_folder())
             .collect::<Vec<_>>();
         self.expanded.extend(ids.iter().copied());
@@ -1408,6 +1431,7 @@ impl FileTree {
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
     /// See also `select_visible_ancestors`.
     pub fn reveal_selection(&mut self) {
+        return; // todo
         for mut id in self.selected.clone() {
             loop {
                 if id == self.suggested_docs_folder_id {
