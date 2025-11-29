@@ -61,15 +61,15 @@ pub struct FileTree {
     /// preview pending shares
     pub show_pending_shares: bool,
 
-    // todo: add a update_pending_shares fn
     pub pending_shares: HashMap<String, ShareCell>,
     pub pending_files: Vec<File>,
 }
 
 #[derive(Debug, Default, Clone)]
 pub struct ShareCell {
-    expanded: bool,
+    id: Uuid,
     shares: Vec<File>,
+    max_child_timestamp: i64,
 }
 
 // init & ui
@@ -571,25 +571,44 @@ impl FileTree {
     fn show_pending_shares(&mut self, ui: &mut Ui) -> Response {
         ui.vertical(|ui| {
             let mut resp = Response::default();
-            for (user, cell) in &self.pending_shares.clone() {
-                Button::default()
-                    .icon(&Icon::PERSON)
+
+            let mut keys: Vec<String> = self.pending_shares.keys().cloned().collect();
+            keys.sort_by_key(|user| {
+                self.pending_shares.get(user).unwrap().max_child_timestamp
+            });
+
+            for user in keys {
+                let cell = self.pending_shares.get(&user).unwrap().clone();
+                let expanded = self.expanded.contains(&cell.id);
+                let expand = Button::default()
+                    .icon(if expanded { &Icon::CHEVRON_DOWN } else { &Icon::CHEVRON_RIGHT })
                     .text(user)
                     .rounding(Self::BTN_ROUNDING)
                     .margin(Self::BTN_MARGIN)
                     .hexpand(true)
                     .padding(vec2(15., 7.))
-                    .show(ui);
+                    .show(ui)
+                    .clicked();
 
-                for file in &cell.shares {
-                    resp = resp.union(self.show_recursive(
-                        ui,
-                        &mut Toasts::default(),
-                        file.id,
-                        1,
-                        false,
-                    ));
-                    // self.show_file_cell(ui, file, 15., false);
+                if expand {
+                    if expanded {
+                        self.expanded.remove(&cell.id);
+                    } else {
+                        self.expanded.insert(cell.id);
+                    }
+                }
+
+                if expanded {
+                    for file in &cell.shares {
+                        resp = resp.union(self.show_recursive(
+                            ui,
+                            &mut Toasts::default(),
+                            file.id,
+                            1,
+                            false,
+                        ));
+                        // self.show_file_cell(ui, file, 15., false);
+                    }
                 }
             }
             resp
@@ -1258,33 +1277,65 @@ impl FileTree {
     pub fn update_files(&mut self, files: Vec<File>) {
         self.files = files;
         self.expanded.retain(|&id| {
-            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || self.pending_files.iter().any(|f| f.id == id)
+                || self.pending_shares.values().any(|cell| cell.id == id)
         });
         self.selected.retain(|&id| {
-            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || self.pending_files.iter().any(|f| f.id == id)
+                || self.pending_shares.values().any(|cell| cell.id == id)
         });
         if let Some(cursor) = self.cursor {
-            if !self.files.iter().any(|f| f.id == cursor) && cursor != self.suggested_docs_folder_id
+            if !self.files.iter().any(|f| f.id == cursor)
+                && cursor != self.suggested_docs_folder_id
+                && !self.pending_files.iter().any(|f| f.id == cursor)
+                && !self.pending_shares.values().any(|cell| cell.id == cursor)
             {
                 self.cursor = Some(self.files.root());
             }
         }
     }
 
-    pub fn update_pending_shares(&mut self, username: &str, roots: Vec<File>, files: Vec<File>) {
-        let mut share_cells = HashMap::new();
+    pub fn update_pending_shares(
+        &mut self, username: &str, mut roots: Vec<File>, files: Vec<File>,
+    ) {
+        self.pending_shares
+            .values_mut()
+            .for_each(|cell| cell.shares.clear());
+
+        let mut max_timestamp: HashMap<Uuid, i64> = Default::default();
+        roots.iter().for_each(|root| {
+            max_timestamp.insert(
+                root.id,
+                files
+                    .descendents(root.id)
+                    .iter()
+                    .map(|child| child.last_modified)
+                    .max()
+                    .unwrap_or_default() as i64,
+            );
+        });
+        roots.sort_by_key(|root| -1 * max_timestamp.get(&root.id).unwrap());
+
+        self.pending_files = files;
+
         for file in &roots {
             for share in &file.shares {
                 if share.shared_with == username {
                     let target_username = &share.shared_by;
-                    if !share_cells.contains_key(target_username) {
-                        share_cells.insert(
+                    if !self.pending_shares.contains_key(target_username) {
+                        let id = Uuid::new_v4();
+                        self.expanded.insert(id);
+                        self.pending_shares.insert(
                             target_username.clone(),
-                            ShareCell { expanded: true, shares: vec![] },
+                            ShareCell { id, shares: vec![], max_child_timestamp: 0 },
                         );
                     }
 
-                    share_cells
+                    self.pending_shares
                         .get_mut(target_username)
                         .unwrap()
                         .shares
@@ -1293,8 +1344,15 @@ impl FileTree {
             }
         }
 
-        self.pending_shares = share_cells;
-        self.pending_files = files;
+        for cell in self.pending_shares.values_mut() {
+            cell.max_child_timestamp = cell
+                .shares
+                .iter()
+                .map(|f| max_timestamp.get(&f.id).unwrap())
+                .max()
+                .copied()
+                .unwrap_or_default();
+        }
     }
 
     /// Asynchronously recalculates the suggested files; requests repaint when complete.
@@ -1334,7 +1392,12 @@ impl FileTree {
             // there's a few places we need seamless distinction
             // we probably need to be able to set pending_shares based on what file is being
             // attempted to open. Links could be one example.
-            .filter(|&id| self.files.get_by_id(id).unwrap().is_folder())
+            .filter(|&id| {
+                if self.show_pending_shares { &self.pending_files } else { &self.files }
+                    .get_by_id(id)
+                    .unwrap()
+                    .is_folder()
+            })
             .collect::<Vec<_>>();
         self.expanded.extend(ids.iter().copied());
         if depth == Some(0) {
@@ -1431,8 +1494,18 @@ impl FileTree {
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
     /// See also `select_visible_ancestors`.
     pub fn reveal_selection(&mut self) {
-        return; // todo
+        if self.selected.len() == 1 {
+            let selected = self.selected.iter().next().unwrap();
+            if self.pending_files.iter().any(|f| f.id == *selected) {
+                self.show_pending_shares = true;
+                return;
+            }
+        }
+
         for mut id in self.selected.clone() {
+            if self.files.iter().any(|f| f.id == id) {
+                self.show_pending_shares = false;
+            }
             loop {
                 if id == self.suggested_docs_folder_id {
                     break;
