@@ -1,3 +1,4 @@
+use crate::audio::show::Audio;
 use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
@@ -119,6 +120,20 @@ impl Tab {
         }
     }
 
+    pub fn audio(&self) -> Option<&Audio> {
+        match &self.content {
+            ContentState::Open(TabContent::Audio(a)) => Some(a),
+            _ => None,
+        }
+    }
+
+    pub fn audio_mut(&mut self) -> Option<&mut Audio> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Audio(a)) => Some(a),
+            _ => None,
+        }
+    }
+
     /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
     /// tab does not have an editable file type open.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
@@ -174,6 +189,7 @@ pub enum TabContent {
     Svg(SVGEditor),
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
+    Audio(Audio),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -185,6 +201,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
+            TabContent::Audio(_) => write!(f, "TabContent::Audio"),
         }
     }
 }
@@ -198,6 +215,7 @@ impl TabContent {
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
+            TabContent::Audio(audio_viewer) => Some(audio_viewer.id),
         }
     }
 
