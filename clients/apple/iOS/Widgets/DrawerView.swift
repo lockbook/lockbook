@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
+// MARK: - DrawerView
 struct DrawerView<Main: View, Side: View>: View {
 
     @ObservedObject var homeState: HomeState
@@ -15,6 +16,11 @@ struct DrawerView<Main: View, Side: View>: View {
             let calculatedSidebarWidth = sidebarWidth(
                 width: geometry.size.width
             )
+
+            let dragClosedMinX = calculatedSidebarWidth - Constants.dragActivationX / 2
+            let dragClosedMaxX = calculatedSidebarWidth + Constants.dragActivationX / 2
+            let dragOpenMinX: CGFloat = 0
+            let dragOpenMaxX = Constants.dragActivationX
 
             ZStack(alignment: .leading) {
                 NavigationView {
@@ -79,57 +85,43 @@ struct DrawerView<Main: View, Side: View>: View {
                     setSidebarOffset(newOffset: Constants.sidebarOffsetClosed)
                 }
             }
-
-            if homeState.sidebarState == .closed {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                setSidebarOffset(
-                                    newOffset: min(
-                                        value.translation.width,
-                                        calculatedSidebarWidth
-                                    )
+            .gesture(
+                NonCancellingDragGesture(minimumDistance: 0) { value in
+                    if homeState.sidebarState == .closed {
+                        if dragOpenMinX < value.startLocation.x && value.startLocation.x < dragOpenMaxX {
+                            setSidebarOffset(
+                                newOffset: min(
+                                    value.translation.width,
+                                    calculatedSidebarWidth
                                 )
-                            }
-                            .onEnded { value in
-                                onOpenEnd(
-                                    velocity: value.velocity.width,
-                                    sidebarWidth: calculatedSidebarWidth
-                                )
-                            }
-                    )
-            }
-
-            if homeState.sidebarState == .open {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                setSidebarOffset(
-                                    newOffset: calculatedSidebarWidth
-                                        + value.translation.width
-                                )
-                            }
-                            .onEnded { value in
-                                onCloseEnd(
-                                    velocity: value.velocity.width,
-                                    sidebarWidth: calculatedSidebarWidth
-                                )
-                            }
-                    )
-                    .padding(
-                        .leading,
-                        calculatedSidebarWidth
-                            - (Constants.dragActivationClosedX / 3)
-                    )
-            }
+                            )
+                        }
+                    } else {
+                        if dragClosedMinX < value.startLocation.x && value.startLocation.x < dragClosedMaxX {
+                            setSidebarOffset(
+                                newOffset: calculatedSidebarWidth
+                                + value.translation.width
+                            )
+                        }
+                    }
+                } onEnded: { value in
+                    if homeState.sidebarState == .closed {
+                        if dragOpenMinX < value.startLocation.x && value.startLocation.x < dragOpenMaxX {
+                            onOpenEnd(
+                                velocity: value.velocity.dx,
+                                sidebarWidth: calculatedSidebarWidth
+                            )
+                        }
+                    } else {
+                        if dragClosedMinX < value.startLocation.x && value.startLocation.x < dragClosedMaxX {
+                            onCloseEnd(
+                                velocity: value.velocity.dx,
+                                sidebarWidth: calculatedSidebarWidth
+                            )
+                        }
+                    }
+                }
+            )
         }
         .ignoresSafeArea(.container, edges: .all)
     }
@@ -216,10 +208,105 @@ struct DrawerView<Main: View, Side: View>: View {
     }
 }
 
+// MARK: - DragValue
+struct DragValue {
+    let location: CGPoint
+    let startLocation: CGPoint
+    let translation: CGSize
+    let velocity: CGVector
+}
+
+// MARK: - NonCancellingDragGesture
+/// Like a DragGesture, but with `cancelsTouchesInView = false`
+struct NonCancellingDragGesture: UIGestureRecognizerRepresentable {
+    typealias UIGestureRecognizerType = UIPanGestureRecognizer
+
+    let minimumDistance: CGFloat
+    let onChanged: (DragValue) -> Void
+    let onEnded: (DragValue) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator(
+            minimumDistance: minimumDistance,
+            onChanged: onChanged,
+            onEnded: onEnded
+        )
+    }
+
+    @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.cancelsTouchesInView = false // <- the only meaningful line in this struct
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    @MainActor func updateUIGestureRecognizer(
+        _ uiGestureRecognizer: UIGestureRecognizerType,
+        context: Context
+    ) {}
+
+    @MainActor func handleUIGestureRecognizerAction(
+        _ recognizer: UIGestureRecognizerType,
+        context: Context
+    ) {
+        context.coordinator.handle(recognizer)
+    }
+
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        let minimumDistance: CGFloat
+        let onChanged: (DragValue) -> Void
+        let onEnded: (DragValue) -> Void
+        var startLocation: CGPoint?
+
+        init(minimumDistance: CGFloat, onChanged: @escaping (DragValue) -> Void, onEnded: @escaping (DragValue) -> Void) {
+            self.minimumDistance = minimumDistance
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+        }
+
+        @objc func handle(_ gesture: UIPanGestureRecognizer) {
+            guard let view = gesture.view else { return }
+
+            let location = gesture.location(in: view)
+            let translation = gesture.translation(in: view)
+
+            switch gesture.state {
+            case .began:
+                startLocation = location
+            case .changed:
+                guard let start = startLocation else { return }
+                let distance = hypot(location.x - start.x, location.y - start.y)
+                guard distance >= minimumDistance else { return }
+
+                let value = DragValue(
+                    location: location,
+                    startLocation: start,
+                    translation: CGSize(width: translation.x, height: translation.y),
+                    velocity: CGVector()
+                )
+                onChanged(value)
+            case .ended, .cancelled:
+                guard let start = startLocation else { return }
+                let velocityValue = gesture.velocity(in: view)
+
+                let value = DragValue(
+                    location: location,
+                    startLocation: start,
+                    translation: CGSize(width: translation.x, height: translation.y),
+                    velocity: CGVector(dx: velocityValue.x, dy: velocityValue.y)
+                )
+                onEnded(value)
+                startLocation = nil
+            default:
+                break
+            }
+        }
+    }
+}
+
 private struct Constants {
-    static let dragActivationClosedX: CGFloat = 40
-    static let dragActivationOpenX: CGFloat = 50
-    static let velocityActivationX: CGFloat = 300
+    static let dragActivationX: CGFloat = 100
+    static let velocityActivationX: CGFloat = 500
     static let successThreshold: CGFloat = 0.6
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350

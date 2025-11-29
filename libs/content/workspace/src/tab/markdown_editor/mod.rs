@@ -514,11 +514,16 @@ impl Editor {
                             let rect = rect.expand2(Vec2::X * MARGIN); // clickable margins (more forgivable to click beginning of line)
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
+                            let focused = self.focused(ui.ctx());
                             let response = ui.interact(
                                 rect,
                                 self.id(),
                                 Sense { click: true, drag: !self.touch_mode, focusable: true },
                             );
+                            if focused && !self.focused(ui.ctx()) {
+                                // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
+                                self.focus(ui.ctx());
+                            }
                             if response.hovered() || response.clicked() {
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
