@@ -45,7 +45,9 @@ pub struct SyncContext {
     last_synced: u64,
     remote_changes: Vec<SignedMeta>,
     update_as_of: u64,
-    root: Option<Uuid>,
+
+    /// is this the sync that populated root?
+    new_root: Option<Uuid>,
     pushed_metas: Vec<FileDiff<SignedMeta>>,
     pushed_docs: Vec<FileDiff<SignedMeta>>,
     pulled_docs: Vec<Uuid>,
@@ -135,6 +137,12 @@ impl Lb {
         if got_updates {
             // did it?
             self.events.meta_changed();
+            let owner = self.keychain.get_pk().map(Owner).ok();
+            // this is overly agressive as it'll notify on shares that have been accepted
+            // another strategy could be to diff the changes coming before and after a sync
+            if ctx.remote_changes.iter().any(|f| Some(f.owner()) != owner) {
+                self.events.pending_shares_changed();
+            }
             for id in &ctx.pulled_docs {
                 self.events.doc_written(*id, Some(Actor::Sync));
             }
@@ -163,7 +171,7 @@ impl Lb {
             current,
             total,
 
-            root: Default::default(),
+            new_root: Default::default(),
             update_as_of: Default::default(),
             remote_changes: Default::default(),
             pushed_docs: Default::default(),
@@ -230,7 +238,7 @@ impl Lb {
 
         ctx.remote_changes = remote;
         ctx.update_as_of = as_of;
-        ctx.root = root;
+        ctx.new_root = root;
 
         Ok(!empty)
     }
@@ -1140,7 +1148,7 @@ impl Lb {
         let db = tx.db();
         db.last_synced.insert(ctx.update_as_of as i64)?;
 
-        if let Some(root) = ctx.root {
+        if let Some(root) = ctx.new_root {
             db.root.insert(root)?;
         }
 

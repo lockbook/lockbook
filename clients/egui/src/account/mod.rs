@@ -84,6 +84,11 @@ impl AccountScreen {
             lb_status: core.status(),
         };
         result.tree.recalc_suggested_files(&core, ctx);
+        result.tree.update_pending_shares(
+            &core.get_account().unwrap().username,
+            core.get_pending_shares().unwrap(),
+            core.get_pending_share_files().unwrap(),
+        );
         result
     }
 
@@ -273,7 +278,7 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged => {
+                Event::MetadataChanged | Event::PendingSharesChanged => {
                     self.refresh_tree(ctx);
                 }
                 Event::StatusUpdated => {
@@ -334,8 +339,13 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(files) => {
+                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
                     self.tree.update_files(files);
+                    self.tree.update_pending_shares(
+                        &self.core.get_account().unwrap().username,
+                        share_roots,
+                        share_files,
+                    );
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
 
@@ -562,7 +572,7 @@ impl AccountScreen {
             .show(ui);
 
         if incoming_shares_btn.clicked() {
-            self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
+            self.tree.show_pending_shares = !self.tree.show_pending_shares;
             ui.ctx().request_repaint();
         };
         incoming_shares_btn.on_hover_text("Incoming shares");
@@ -587,9 +597,11 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
+            let files = core.list_metadatas().unwrap();
+            let share_roots = core.get_pending_shares().unwrap();
+            let share_files = core.get_pending_share_files().unwrap();
             update_tx
-                .send(AccountUpdate::ReloadTree(all_metas))
+                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -839,7 +851,11 @@ pub enum AccountUpdate {
 
     DoneDeleting,
 
-    ReloadTree(Vec<File>),
+    ReloadTree {
+        files: Vec<File>,
+        share_roots: Vec<File>,
+        share_files: Vec<File>,
+    },
 
     FinalSyncAttemptDone,
 }

@@ -10,7 +10,7 @@ use crate::settings::Settings;
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub maybe_acct_data: Option<Vec<File>>,
+    pub maybe_files: Option<Vec<File>>,
 }
 
 #[allow(clippy::large_enum_variant)]
@@ -103,7 +103,7 @@ impl SplashScreen {
                     resp = Some(SplashHandOff {
                         settings: self.settings.clone(),
                         core,
-                        maybe_acct_data,
+                        maybe_files: maybe_acct_data,
                     });
                 }
             }

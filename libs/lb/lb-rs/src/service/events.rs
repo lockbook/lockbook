@@ -43,23 +43,23 @@ impl Default for EventSubs {
 }
 
 impl EventSubs {
-    pub fn pending_shares_changed(&self) {
+    pub(crate) fn pending_shares_changed(&self) {
         self.queue(Event::PendingSharesChanged);
     }
 
-    pub fn meta_changed(&self) {
+    pub(crate) fn meta_changed(&self) {
         self.queue(Event::MetadataChanged);
     }
 
-    pub fn doc_written(&self, id: Uuid, actor: Option<Actor>) {
+    pub(crate) fn doc_written(&self, id: Uuid, actor: Option<Actor>) {
         self.queue(Event::DocumentWritten(id, actor));
     }
 
-    pub fn sync(&self, s: SyncIncrement) {
+    pub(crate) fn sync(&self, s: SyncIncrement) {
         self.queue(Event::Sync(s));
     }
 
-    pub fn status_updated(&self) {
+    pub(crate) fn status_updated(&self) {
         self.queue(Event::StatusUpdated);
     }
 

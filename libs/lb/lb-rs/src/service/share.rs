@@ -2,7 +2,6 @@ use crate::Lb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
-use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
 use libsecp256k1::PublicKey;
@@ -40,42 +39,31 @@ impl Lb {
         Ok(())
     }
 
-    // todo: move to tree
+    /// returns pending shares -- files shared with us that we haven't accepted or rejected
+    /// this function just returns the actual files that were shared -- or the roots of shared
+    /// trees. For the full set of shares see [Self::get_pending_share_files]
     #[instrument(level = "debug", skip(self))]
     pub async fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let owner = Owner(self.keychain.get_pk()?);
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let pending_roots = tree.pending_roots(&self.keychain)?.into_iter();
 
-        let mut result = Vec::new();
-        for id in tree.ids() {
-            // file must be owned by another user
-            if tree.find(&id)?.owner() == owner {
-                continue;
-            }
+        tree.decrypt_all(&self.keychain, pending_roots, &db.pub_key_lookup, false)
+    }
 
-            // file must be shared with this user
-            if tree.find(&id)?.access_mode(&owner).is_none() {
-                continue;
-            }
+    /// returns *all* the files associated with any pending shares (the share as well as it's
+    /// descendants).
+    #[instrument(level = "debug", skip(self))]
+    pub async fn get_pending_share_files(&self) -> LbResult<Vec<File>> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
 
-            // file must not be deleted
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
+        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+        let pending_files = tree.non_deleted_pending_files(&self.keychain)?.into_iter();
 
-            // file must not have any links pointing to it
-            if tree.linked_by(&id)?.is_some() {
-                continue;
-            }
-
-            let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
-
-            result.push(file);
-        }
-        Ok(result)
+        tree.decrypt_all(&self.keychain, pending_files, &db.pub_key_lookup, false)
     }
 
     #[instrument(level = "debug", skip(self))]

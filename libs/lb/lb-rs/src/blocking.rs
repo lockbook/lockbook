@@ -136,6 +136,10 @@ impl Lb {
         self.rt.block_on(self.lb.get_pending_shares())
     }
 
+    pub fn get_pending_share_files(&self) -> LbResult<Vec<File>> {
+        self.rt.block_on(self.lb.get_pending_share_files())
+    }
+
     pub fn delete_pending_share(&self, id: &Uuid) -> LbResult<()> {
         self.rt.block_on(async { self.lb.reject_share(id).await })
     }

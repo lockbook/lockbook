@@ -241,6 +241,8 @@ impl Lb {
                 if status.dirty_locally.is_empty() {
                     status.sync_status = self.get_last_synced_human().await.ok();
                 }
+                // @smailbarkouch has requested that this be a Vec<Uuid> instead of a bool
+                // we also could consume the PendingSharesChanged event
                 status.pending_shares = !self.get_pending_shares().await?.is_empty();
                 match maybe_problem {
                     Some(LbErrKind::ClientUpdateRequired) => {
