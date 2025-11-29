@@ -826,12 +826,15 @@ public class SvgView: UIView {
         let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
         let pencilInteraction = UIPencilInteraction()
 
-        pencilInteraction.delegate = self.pencilDelegate
+        pencilInteraction.delegate = pencilDelegate
         addInteraction(pencilInteraction)
 
         self.pencilDelegate = pencilDelegate
         self.pencilInteraction = pencilInteraction
 
+        // gestures
+        self.gestureDelegate = SvgGestureDelegate()
+        
         // gestures: tap
         let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
         tap.allowedTouchTypes = [
