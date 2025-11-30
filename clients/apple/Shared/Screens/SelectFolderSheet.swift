@@ -94,7 +94,6 @@ struct SelectFolderSheet: View {
                     
                     if showExitButton {
                         ExitSheetButton()
-                            .padding(.leading)
                     }
                 }
                 .padding(.horizontal)
@@ -192,7 +191,6 @@ struct SelectFolderSheet: View {
                     
                     if showExitButton {
                         ExitSheetButton()
-                            .padding(.leading)
                     }
                 }
                 .padding(.bottom, 10)
