@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId "app.lockbook"
-        minSdkVersion 27
+        minSdkVersion 24
         targetSdk=36
 
         versionCode 78
