@@ -8,7 +8,7 @@ use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{Level, event, trace};
+use tracing::{Level, debug, event, trace};
 use tracing_test::traced_test;
 
 use crate::tab::ExtendedInput;
@@ -108,7 +108,7 @@ impl Pen {
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
         if pen_ctx.toolbar_has_interaction {
-            self.end_path(pen_ctx, false);
+            self.cancel_path(pen_ctx);
         }
 
         let input_state =
