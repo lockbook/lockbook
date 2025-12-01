@@ -6,7 +6,7 @@ struct SelectFolderSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for macOS
     #if os(macOS)
     static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 300
+    static let FORM_HEIGHT: CGFloat = 340
     #endif
 
     @Environment(\.dismiss) private var dismiss
@@ -18,10 +18,13 @@ struct SelectFolderSheet: View {
     
     let action: SelectFolderAction
     
-    init(homeState: HomeState, filesModel: FilesViewModel, action: SelectFolderAction) {
+    let showExitButton: Bool
+    
+    init(homeState: HomeState, filesModel: FilesViewModel, action: SelectFolderAction, showExitButton: Bool) {
         self._model = StateObject(wrappedValue: SelectFolderViewModel(homeState: homeState, filesModel: filesModel))
         self._filesModel = ObservedObject(wrappedValue: filesModel)
         self.action = action
+        self.showExitButton = true
     }
     
     var actionMsg: String {
@@ -88,6 +91,10 @@ struct SelectFolderSheet: View {
                     })
                     .padding(.leading)
                     .selectFolderButton()
+                    
+                    if showExitButton {
+                        ExitSheetButton()
+                    }
                 }
                 .padding(.horizontal)
                 .padding(.bottom, 4)
@@ -181,6 +188,10 @@ struct SelectFolderSheet: View {
                     })
                     .padding(.leading)
                     .selectFolderButton()
+                    
+                    if showExitButton {
+                        ExitSheetButton()
+                    }
                 }
                 .padding(.bottom, 10)
                 .padding(.horizontal)
@@ -258,7 +269,8 @@ struct HighlightedText: View {
             SelectFolderSheet(
                 homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                 filesModel: .preview,
-                action: .move(files: [(AppState.lb as! MockLb).file1])
+                action: .move(files: [(AppState.lb as! MockLb).file1]),
+                showExitButton: true
             )
         }
 }
@@ -269,7 +281,8 @@ struct HighlightedText: View {
             SelectFolderSheet(
                 homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                 filesModel: .preview,
-                action: .acceptShare(name: "work.md", id: UUID())
+                action: .acceptShare(name: "work.md", id: UUID()),
+                showExitButton: true
             )
         }
 }
@@ -280,7 +293,8 @@ struct HighlightedText: View {
             SelectFolderSheet(
                 homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                 filesModel: .preview,
-                action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")])
+                action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
+                showExitButton: true
             )
         }
 }
@@ -289,7 +303,8 @@ struct HighlightedText: View {
     SelectFolderSheet(
         homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
         filesModel: .preview,
-        action: .move(files: [(AppState.lb as! MockLb).file1])
+        action: .move(files: [(AppState.lb as! MockLb).file1]),
+        showExitButton: true
     )
     .withMacPreviewSize(height: 300)
 }
@@ -298,7 +313,8 @@ struct HighlightedText: View {
     SelectFolderSheet(
         homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
         filesModel: .preview,
-        action: .acceptShare(name: "work.md", id: UUID())
+        action: .acceptShare(name: "work.md", id: UUID()),
+        showExitButton: true
     )
     .withMacPreviewSize(height: 300)
 }
@@ -307,7 +323,8 @@ struct HighlightedText: View {
     SelectFolderSheet(
         homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
         filesModel: .preview,
-        action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")])
+        action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
+        showExitButton: true
     )
     .withMacPreviewSize(height: 300)
 }

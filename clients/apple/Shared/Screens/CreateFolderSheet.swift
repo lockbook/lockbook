@@ -5,10 +5,10 @@ struct CreateFolderSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
     #if os(iOS)
     static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 190
+    static let FORM_HEIGHT: CGFloat = 200
     #else
     static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 150
+    static let FORM_HEIGHT: CGFloat = 170
     #endif
     
     
@@ -16,17 +16,25 @@ struct CreateFolderSheet: View {
     
     @StateObject var model: CreateFolderViewModel
     
-    init(homeState: HomeState, parentId: UUID) {
+    let showExitButton: Bool
+    
+    init(homeState: HomeState, parentId: UUID, showExitButton: Bool) {
         self._model = StateObject(wrappedValue: CreateFolderViewModel(homeState: homeState, parentId: parentId))
+        self.showExitButton = showExitButton
     }
     
     var body: some View {
         VStack(spacing: 10) {
             HStack {
                 Text("New Folder")
+                    .font(.title2)
                     .bold()
                 
                 Spacer()
+                
+                if showExitButton {
+                    ExitSheetButton()
+                }
             }
             
             HStack {
@@ -141,14 +149,15 @@ class CreateFolderViewModel: ObservableObject {
             presentedContent: { item in
                 CreateFolderSheet(
                     homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-                    parentId: item.id
+                    parentId: item.id,
+                    showExitButton: true
                 )
             }
         )
 }
 #else
 #Preview {
-    CreateFolderSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), parentId: (AppState.lb as! MockLb).file1.id)
+    CreateFolderSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), parentId: (AppState.lb as! MockLb).file1.id, showExitButton: true)
         .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT
         )
 }

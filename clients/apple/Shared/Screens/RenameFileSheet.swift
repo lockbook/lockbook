@@ -5,10 +5,10 @@ struct RenameFileSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
     #if os(iOS)
     static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 190
+    static let FORM_HEIGHT: CGFloat = 200
     #else
     static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 150
+    static let FORM_HEIGHT: CGFloat = 170
     #endif
     
     @StateObject var model: RenameFileViewModel
@@ -16,18 +16,33 @@ struct RenameFileSheet: View {
     
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     
-    init(homeState: HomeState, id: UUID, name: String) {
-        self._model = StateObject(wrappedValue: RenameFileViewModel(homeState: homeState, id: id, name: name))
+    let showExitButton: Bool
+    
+    init(homeState: HomeState, id: UUID, name: String, showExitButton: Bool) {
+        self._model = StateObject(
+            wrappedValue: RenameFileViewModel(
+                homeState: homeState,
+                id: id,
+                name: name,
+            )
+        )
+        self.showExitButton = showExitButton
     }
         
     var body: some View {
         VStack(spacing: 10) {
             HStack {
                 Text("Rename File")
+                    .font(.title2)
                     .bold()
                 
                 Spacer()
+                
+                if showExitButton {
+                    ExitSheetButton()
+                }
             }
+            .padding(.bottom, 5)
             
             HStack {
                 Text("Parent Folder:")
@@ -62,7 +77,6 @@ struct RenameFileSheet: View {
 
         }
         .padding(.horizontal)
-        .padding(.top, 3)
     }
     
     @ViewBuilder
@@ -145,14 +159,20 @@ class RenameFileViewModel: ObservableObject {
                 RenameFileSheet(
                     homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
                     id: item.id,
-                    name: item.name
+                    name: item.name,
+                    showExitButton: true
                 )
             }
         )
 }
 #else
 #Preview {
-    RenameFileSheet(homeState: HomeState(workspaceOutput: .preview, filesModel: .preview), id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name)
+    RenameFileSheet(
+        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+        id: (AppState.lb as! MockLb).file1.id,
+        name: (AppState.lb as! MockLb).file1.name,
+        showExitButton: true
+    )
         .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT
         )
 }

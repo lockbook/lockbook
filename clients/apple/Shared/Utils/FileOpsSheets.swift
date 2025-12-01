@@ -9,79 +9,138 @@ extension View {
     }
 }
 
-
 struct FileOpSheets: ViewModifier {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-        
+
     @Binding var compactSheetHeight: CGFloat
-    
+
     func body(content: Content) -> some View {
         // A little bit odd but not too bad
         #if os(iOS)
-        if horizontalSizeClass == .compact {
+            if horizontalSizeClass == .compact {
+                content
+                    .sheet(item: $homeState.sheetInfo) { info in
+                        Group {
+                            switch info {
+                            case .createFolder(let parent):
+                                CreateFolderSheet(
+                                    homeState: homeState,
+                                    parentId: parent.id,
+                                    showExitButton: false
+                                )
+                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
+                            case .rename(let file):
+                                RenameFileSheet(
+                                    homeState: homeState,
+                                    id: file.id,
+                                    name: file.name,
+                                    showExitButton: false
+                                )
+                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
+                            case .share(let file):
+                                ShareFileSheet(
+                                    id: file.id,
+                                    name: file.name,
+                                    shares: file.shares,
+                                    showExitButton: false
+                                )
+                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
+                            case .importPicker:
+                                ImportFilePicker()
+                            }
+                        }
+                        .environmentObject(workspaceInput)
+                    }
+            } else {
+                content
+                    .formSheet(item: $homeState.sheetInfo) { info in
+                        Group {
+                            switch info {
+                            case .createFolder(let parent):
+                                CreateFolderSheet(
+                                    homeState: homeState,
+                                    parentId: parent.id,
+                                    showExitButton: true
+                                )
+                                .frame(
+                                    width: CreateFolderSheet.FORM_WIDTH,
+                                    height: CreateFolderSheet.FORM_HEIGHT
+                                )
+                            case .rename(let file):
+                                RenameFileSheet(
+                                    homeState: homeState,
+                                    id: file.id,
+                                    name: file.name,
+                                    showExitButton: true
+                                )
+                                .frame(
+                                    width: RenameFileSheet.FORM_WIDTH,
+                                    height: RenameFileSheet.FORM_HEIGHT
+                                )
+                            case .share(let file):
+                                ShareFileSheet(
+                                    id: file.id,
+                                    name: file.name,
+                                    shares: file.shares,
+                                    showExitButton: true
+                                )
+                                .frame(
+                                    width: ShareFileSheet.FORM_WIDTH,
+                                    height: ShareFileSheet.FORM_HEIGHT
+                                )
+                            case .importPicker:
+                                ImportFilePicker()
+                            }
+                        }
+                        .environmentObject(workspaceInput)
+                    }
+            }
+        #else
             content
                 .sheet(item: $homeState.sheetInfo) { info in
                     Group {
                         switch info {
-                        case .createFolder(parent: let parent):
-                            CreateFolderSheet(homeState: homeState, parentId: parent.id)
-                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
-                        case .rename(file: let file):
-                            RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
-                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
-                        case .share(file: let file):
-                            ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
-                                .autoSizeSheet(sheetHeight: $compactSheetHeight)
+                        case .createFolder(let parent):
+                            CreateFolderSheet(
+                                homeState: homeState,
+                                parentId: parent.id,
+                                showExitButton: true
+                            )
+                            .frame(
+                                width: CreateFolderSheet.FORM_WIDTH,
+                                height: CreateFolderSheet.FORM_HEIGHT
+                            )
+                        case .rename(let file):
+                            RenameFileSheet(
+                                homeState: homeState,
+                                id: file.id,
+                                name: file.name,
+                                showExitButton: true
+                            )
+                            .frame(
+                                width: RenameFileSheet.FORM_WIDTH,
+                                height: RenameFileSheet.FORM_HEIGHT
+                            )
+                        case .share(let file):
+                            ShareFileSheet(
+                                id: file.id,
+                                name: file.name,
+                                shares: file.shares,
+                                showExitButton: true
+                            )
+                            .frame(
+                                width: ShareFileSheet.FORM_WIDTH,
+                                height: ShareFileSheet.FORM_HEIGHT
+                            )
                         case .importPicker:
-                            ImportFilePicker()
+                            // Unused
+                            EmptyView()
                         }
                     }
                     .environmentObject(workspaceInput)
                 }
-        } else {
-            content
-                .formSheet(item: $homeState.sheetInfo) { info in
-                    Group {
-                        switch info {
-                        case .createFolder(parent: let parent):
-                            CreateFolderSheet(homeState: homeState, parentId: parent.id)
-                                .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT)
-                        case .rename(file: let file):
-                            RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
-                                .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT)
-                        case .share(file: let file):
-                            ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
-                                .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
-                        case .importPicker:
-                            ImportFilePicker()
-                        }
-                    }
-                    .environmentObject(workspaceInput)
-                }
-        }
-        #else
-        content
-            .sheet(item: $homeState.sheetInfo) { info in
-                Group {
-                    switch info {
-                    case .createFolder(parent: let parent):
-                        CreateFolderSheet(homeState: homeState, parentId: parent.id)
-                            .frame(width: CreateFolderSheet.FORM_WIDTH, height: CreateFolderSheet.FORM_HEIGHT)
-                    case .rename(file: let file):
-                        RenameFileSheet(homeState: homeState, id: file.id, name: file.name)
-                            .frame(width: RenameFileSheet.FORM_WIDTH, height: RenameFileSheet.FORM_HEIGHT)
-                    case .share(file: let file):
-                        ShareFileSheet(id: file.id, name: file.name, shares: file.shares)
-                            .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT)
-                    case .importPicker:
-                        // Unused
-                        EmptyView()
-                    }
-                }
-                .environmentObject(workspaceInput)
-            }
         #endif
     }
 }
@@ -92,7 +151,6 @@ extension View {
     }
 }
 
-
 struct SelectFolderSheets: ViewModifier {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
@@ -101,25 +159,43 @@ struct SelectFolderSheets: ViewModifier {
 
     func body(content: Content) -> some View {
         #if os(iOS)
-        if horizontalSizeClass == .compact {
-            content
-                .sheet(item: $homeState.selectSheetInfo) { action in
-                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+            if horizontalSizeClass == .compact {
+                content
+                    .sheet(item: $homeState.selectSheetInfo) { action in
+                        SelectFolderSheet(
+                            homeState: homeState,
+                            filesModel: filesModel,
+                            action: action,
+                            showExitButton: false
+                        )
                         .presentationDetents([.medium, .large])
-                }
+                    }
 
-        } else {
+            } else {
+                content
+                    .sheet(item: $homeState.selectSheetInfo) { action in
+                        SelectFolderSheet(
+                            homeState: homeState,
+                            filesModel: filesModel,
+                            action: action,
+                            showExitButton: false
+                        )
+                    }
+            }
+        #else
             content
                 .sheet(item: $homeState.selectSheetInfo) { action in
-                    SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
+                    SelectFolderSheet(
+                        homeState: homeState,
+                        filesModel: filesModel,
+                        action: action,
+                        showExitButton: true
+                    )
+                    .frame(
+                        width: SelectFolderSheet.FORM_WIDTH,
+                        height: SelectFolderSheet.FORM_HEIGHT
+                    )
                 }
-        }
-        #else
-        content
-            .sheet(item: $homeState.selectSheetInfo) { action in
-                SelectFolderSheet(homeState: homeState, filesModel: filesModel, action: action)
-                    .frame(width: SelectFolderSheet.FORM_WIDTH, height: SelectFolderSheet.FORM_HEIGHT)
-            }
         #endif
     }
 }
