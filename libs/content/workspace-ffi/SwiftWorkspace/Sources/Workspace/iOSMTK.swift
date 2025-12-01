@@ -715,11 +715,42 @@ public class iOSMTKDrawingWrapper: UIView, UIPencilInteractionDelegate, UIEditMe
 
         isMultipleTouchEnabled = true
 
-        // pen support
-        pencilInteraction.delegate = self
+        // pointer
+        let pointerInteraction = UIPointerInteraction(delegate: mtkView.pointerDelegate)
+
+        self.addInteraction(pointerInteraction)
+
+        self.pointerInteraction = pointerInteraction
+
+        // pencil
+        let pencilDelegate = SvgPencilDelegate(mtkView: mtkView)
+        let pencilInteraction = UIPencilInteraction()
+
+        pencilInteraction.delegate = pencilDelegate
         addInteraction(pencilInteraction)
+
+        self.pencilDelegate = pencilDelegate
+        self.pencilInteraction = pencilInteraction
+
+        // gestures
+        self.gestureDelegate = SvgGestureDelegate()
         
-        // ipad trackpad support
+        // gestures: tap
+        let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+        tap.allowedTouchTypes = [
+            NSNumber(value: UITouch.TouchType.direct.rawValue),
+            NSNumber(value: UITouch.TouchType.indirect.rawValue),
+            // NSNumber(value: UITouch.TouchType.pencil.rawValue),
+            NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
+        ]
+        tap.numberOfTouchesRequired = 1
+        tap.cancelsTouchesInView = false
+
+        self.addGestureRecognizer(tap)
+
+        self.tapRecognizer = tap
+
+        // gestures: pan
         let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
         pan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue), NSNumber(value: UITouch.TouchType.indirect.rawValue), NSNumber(value: UITouch.TouchType.indirectPointer.rawValue)]
         pan.delegate = self

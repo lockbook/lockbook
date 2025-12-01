@@ -580,6 +580,11 @@ impl Workspace {
         let cursor = ui
             .horizontal(|ui| {
                 if IconButton::new(Icon::ARROW_LEFT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.back.is_empty())
+                            .unwrap_or_default(),
+                    )
                     .size(37.)
                     .tooltip("Go Back")
                     .show(ui)
@@ -588,6 +593,11 @@ impl Workspace {
                     back = true;
                 }
                 if IconButton::new(Icon::ARROW_RIGHT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.forward.is_empty())
+                            .unwrap_or_default(),
+                    )
                     .size(37.)
                     .tooltip("Go Forward")
                     .show(ui)
@@ -1037,6 +1047,13 @@ impl Workspace {
                     if tab_label_resp.clicked() {
                         result = Some(TabLabelResponse::Clicked);
                     }
+                    tab_label_resp.context_menu(|ui| {
+                        if ui.button("Close tab").clicked() {
+                            result = Some(TabLabelResponse::Closed);
+                            ui.close_menu();
+                        }
+                    });
+
                     ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
 
                     // drag 'n' drop
