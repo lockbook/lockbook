@@ -8,7 +8,7 @@ use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use std::time::{Duration, Instant};
-use tracing::{Level, debug, event, trace};
+use tracing::{Level, event, trace};
 use tracing_test::traced_test;
 
 use crate::tab::ExtendedInput;
