@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use lb_rs::Lb;
 use lb_rs::model::file::ShareMode;
 use test_utils::*;
@@ -61,6 +62,34 @@ async fn new_files() {
 
     assert_stuff(&cores[0], &cores[1]).await;
     assert::all_pending_shares(&cores[1], &["a", "e"]).await;
+
+    // pending descendants tests
+    let mut names = cores[1]
+        .get_pending_share_files()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.name)
+        .collect_vec();
+    names.sort();
+    assert_eq!(names, ["a", "b", "c", "d", "e", "f", "g", "h"]);
+
+    cores[0]
+        .delete(&cores[0].get_by_path("a/b/c").await.unwrap().id)
+        .await
+        .unwrap();
+    cores[0].sync(None).await.unwrap();
+    cores[1].sync(None).await.unwrap();
+
+    let mut names = cores[1]
+        .get_pending_share_files()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|f| f.name)
+        .collect_vec();
+    names.sort();
+    assert_eq!(names, ["a", "b", "e", "f", "g", "h"]);
 }
 
 #[tokio::test]
