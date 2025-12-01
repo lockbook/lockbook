@@ -311,6 +311,54 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(result)
     }
 
+    pub fn pending_roots(&mut self, keychain: &Keychain) -> LbResult<Vec<Uuid>> {
+        let mut result = Vec::new();
+        let owner = Owner(keychain.get_pk()?);
+        for id in self.ids() {
+            // file must be owned by another user
+            if self.find(&id)?.owner() == owner {
+                continue;
+            }
+
+            // file must be shared with this user
+            if self.find(&id)?.access_mode(&owner).is_none() {
+                continue;
+            }
+
+            // file must not be deleted
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+
+            // file must not have any links pointing to it
+            if self.linked_by(&id)?.is_some() {
+                continue;
+            }
+
+            result.push(id);
+        }
+
+        Ok(result)
+    }
+
+    pub fn non_deleted_pending_files(&mut self, keychain: &Keychain) -> LbResult<Vec<Uuid>> {
+        let roots = self.pending_roots(keychain)?;
+        let mut result = vec![];
+
+        for id in roots {
+            result.push(id);
+            let descendants = self.descendants(&id)?;
+
+            for id in descendants {
+                if !self.calculate_deleted(&id)? {
+                    result.push(id);
+                }
+            }
+        }
+
+        Ok(result)
+    }
+
     pub fn stage<T2: TreeLikeMut<F = T::F>>(self, staged: T2) -> LazyTree<StagedTree<T, T2>> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {

@@ -19,9 +19,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import androidx.activity.addCallback
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.ActivityCompat.finishAffinity
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
@@ -131,7 +129,6 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-        val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         uiScope.launch {
             try {
@@ -274,7 +271,7 @@ class ImportFragment : Fragment() {
         }
 
         importBinding.onBoardingImportAccountInput.setOnFocusChangeListener { _, hasFocus ->
-            if (hasFocus) {
+            if (hasFocus && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 requireContext()
                     .getSystemService(AutofillManager::class.java)
                     .requestAutofill(importBinding.onBoardingImportAccountInput)
@@ -312,9 +309,11 @@ class ImportFragment : Fragment() {
     }
 
     private fun forceAutoFillCheckSave() {
-        requireContext()
-            .getSystemService(AutofillManager::class.java)
-            .commit()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            requireContext()
+                .getSystemService(AutofillManager::class.java)
+                .commit()
+        }
     }
 
     private fun importAccount(account: String, surfaceError: Boolean) {
