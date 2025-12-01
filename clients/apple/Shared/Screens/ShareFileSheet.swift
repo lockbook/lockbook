@@ -7,10 +7,10 @@ struct ShareFileSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for iPadOS and macOS
     #if os(iOS)
     static let FORM_WIDTH: CGFloat = 500
-    static let FORM_HEIGHT: CGFloat = 355
+    static let FORM_HEIGHT: CGFloat = 365
     #else
     static let FORM_WIDTH: CGFloat = 500
-    static let FORM_HEIGHT: CGFloat = 300
+    static let FORM_HEIGHT: CGFloat = 320
     #endif
         
     @Environment(\.colorScheme) var colorScheme
@@ -19,17 +19,25 @@ struct ShareFileSheet: View {
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @StateObject var model: ShareFileViewModel
     
-    init(id: UUID, name: String, shares: [Share]) {
+    let showExitButton: Bool
+    
+    init(id: UUID, name: String, shares: [Share], showExitButton: Bool) {
         self._model = StateObject(wrappedValue: ShareFileViewModel(id: id, name: name, shares: shares))
+        self.showExitButton = showExitButton
     }
     
     var body: some View {
         VStack(spacing: 10) {
             HStack {
                 Text("Share File")
+                    .font(.title2)
                     .bold()
                 
                 Spacer()
+                
+                if showExitButton {
+                    ExitSheetButton()
+                }
             }
             
             HStack {
@@ -214,14 +222,20 @@ struct ShareFileTextField: ViewModifier {
                 ShareFileSheet(
                     id: item.id,
                     name: item.name,
-                    shares: item.shares
+                    shares: item.shares,
+                    showExitButton: true
                 )
             }
         )
 }
 #else
 #Preview {
-    ShareFileSheet(id: (AppState.lb as! MockLb).file1.id, name: (AppState.lb as! MockLb).file1.name, shares: (AppState.lb as! MockLb).file1.shares)
+    ShareFileSheet(
+        id: (AppState.lb as! MockLb).file1.id,
+        name: (AppState.lb as! MockLb).file1.name,
+        shares: (AppState.lb as! MockLb).file1.shares,
+        showExitButton: true
+    )
         .frame(width: ShareFileSheet.FORM_WIDTH, height: ShareFileSheet.FORM_HEIGHT
         )
 }
