@@ -74,7 +74,11 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(files),
+            tree: FileTree::new(
+                files,
+                core.get_pending_shares().unwrap(),
+                core.get_pending_share_files().unwrap(),
+            ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone(), true),
@@ -84,11 +88,6 @@ impl AccountScreen {
             lb_status: core.status(),
         };
         result.tree.recalc_suggested_files(&core, ctx);
-        result.tree.update_pending_shares(
-            &core.get_account().unwrap().username,
-            core.get_pending_shares().unwrap(),
-            core.get_pending_share_files().unwrap(),
-        );
         result
     }
 
@@ -340,12 +339,7 @@ impl AccountScreen {
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
                 AccountUpdate::ReloadTree { files, share_roots, share_files } => {
-                    self.tree.update_files(files);
-                    self.tree.update_pending_shares(
-                        &self.core.get_account().unwrap().username,
-                        share_roots,
-                        share_files,
-                    );
+                    self.tree.update_files(files, share_roots, share_files);
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
 
@@ -810,15 +804,11 @@ impl AccountScreen {
         });
     }
 
+    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
-
-                // inefficient but works
-                let mut files = self.tree.files.clone();
-                files.push(f);
-                self.tree.update_files(files);
 
                 if is_doc {
                     self.workspace.open_file(id, true, true, true);
