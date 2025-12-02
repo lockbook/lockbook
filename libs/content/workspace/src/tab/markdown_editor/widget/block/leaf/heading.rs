@@ -157,46 +157,38 @@ impl<'ast> Editor {
 
         // show/hide button (fold)
         // todo: factor (copied for headings)
-        let first_line = self.node_first_line(node);
-        let row_height = self.node_line_row_height(node, first_line);
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
         let fold_button_size = (self.row_height(node) * 0.6).min(INDENT / 2.);
+        let ui = &mut self.node_ui(ui, node, top_left - INDENT * Vec2::X);
         if let Some(fold) = self.fold(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_RIGHT
-                    .size(fold_button_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .tooltip("Show Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(fold).into(),
-                        text: "".into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
+            let icon = Icon::CHEVRON_RIGHT
+                .size(fold_button_size)
+                .color(self.theme.fg().neutral_quarternary);
+            if IconButton::new(icon)
+                .tooltip("Show Contents")
+                .show(ui)
+                .clicked()
+            {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
         } else if let Some(foldable) = self.foldable(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_DOWN
-                    .size(fold_button_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .tooltip("Hide Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(foldable).end().into_range().into(),
-                        text: FOLD_TAG.into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
+            let icon = Icon::CHEVRON_DOWN
+                .size(fold_button_size)
+                .color(self.theme.fg().neutral_quarternary);
+            if IconButton::new(icon)
+                .tooltip("Hide Contents")
+                .show(ui)
+                .clicked()
+            {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+            }
         }
     }
 
