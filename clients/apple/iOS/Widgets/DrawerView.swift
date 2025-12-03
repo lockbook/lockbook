@@ -127,7 +127,7 @@ struct DrawerView<Main: View, Side: View>: View {
                     .padding(
                         .leading,
                         calculatedSidebarWidth
-                            - (Constants.dragActivationClosedX / 3)
+                            - (Constants.dragActivationClosedX / 2)
                     )
             }
         }
@@ -217,7 +217,7 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let dragActivationClosedX: CGFloat = 40
+    static let dragActivationClosedX: CGFloat = 20
     static let dragActivationOpenX: CGFloat = 50
     static let velocityActivationX: CGFloat = 300
     static let successThreshold: CGFloat = 0.6
