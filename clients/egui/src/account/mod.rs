@@ -10,7 +10,7 @@ use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
-use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use egui::{Color32, EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -561,15 +561,6 @@ impl AccountScreen {
         };
         settings_btn.on_hover_text("Settings");
 
-        let incoming_shares_btn = Button::default()
-            .icon(&Icon::SHARED_FOLDER.badge(self.lb_status.pending_shares))
-            .show(ui);
-
-        if incoming_shares_btn.clicked() {
-            self.tree.show_pending_shares = !self.tree.show_pending_shares;
-            ui.ctx().request_repaint();
-        };
-        incoming_shares_btn.on_hover_text("Incoming shares");
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {

@@ -57,11 +57,9 @@ pub struct FileTree {
     /// Set to `true` and the cursor will be scrolled to on the next frame
     pub scroll_to_cursor: bool,
 
-    /// Pending shares view is an alternate view to the file tree in which users can browse &
-    /// preview pending shares
-    pub show_pending_shares: bool,
-
     pub pending_shares: HashMap<String, ShareCell>,
+    pub pending_shares_id: Uuid,
+    pub pending_shares_height: f32,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -78,10 +76,9 @@ impl FileTree {
     pub fn new(files: Vec<File>, pending_shares: Vec<File>, pending_files: Vec<File>) -> Self {
         let mut s = Self {
             expanded: [files.root().id].into_iter().collect(),
-            // Is this strange? A little, could we use nil? Perhaps, but that may conflict
-            // with other ideas in the future. Could we use a const value? Perhaps, but it
-            // could become a vector for abuse. This is probably fine.
             suggested_docs_folder_id: Uuid::new_v4(),
+            pending_shares_id: Uuid::new_v4(),
+            pending_shares_height: 0.,
             ..Default::default()
         };
 
@@ -96,21 +93,18 @@ impl FileTree {
 
         self.process_input(ui, &mut resp, &mut scroll_to_cursor);
 
-        if self.show_pending_shares {
-            self.show_pending_shares(ui)
-        } else {
-            resp
-                // show suggested docs
-                .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
-                // show file tree
-                .union({
-                    ui.vertical(|ui| {
-                        self.show_recursive(ui, toasts, self.files.root().id, 0, scroll_to_cursor)
-                    })
-                    .inner
-                    .union(self.show_padding(ui, toasts, max_rect))
+        resp
+            // show suggested docs
+            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
+            .union(self.show_pending_shares(ui, scroll_to_cursor))
+            // show file tree
+            .union({
+                ui.vertical(|ui| {
+                    self.show_recursive(ui, toasts, self.files.root().id, 0, scroll_to_cursor)
                 })
-        }
+                .inner
+                .union(self.show_padding(ui, toasts, max_rect))
+            })
     }
 
     fn process_input(&mut self, ui: &mut Ui, resp: &mut Response, scroll_to_cursor: &mut bool) {
@@ -499,10 +493,8 @@ impl FileTree {
                 i.consume_key(Modifiers::COMMAND, Key::R) || i.consume_key(Modifiers::NONE, Key::F2)
             }) {
                 if let Some(cursor) = self.cursor {
-                    if !self.show_pending_shares {
-                        let cursor = self.files.get_by_id(cursor).unwrap().clone();
-                        self.init_rename(ui.ctx(), &cursor);
-                    }
+                    let cursor = self.files.get_by_id(cursor).unwrap().clone();
+                    self.init_rename(ui.ctx(), &cursor);
                 }
             }
 
@@ -570,50 +562,86 @@ impl FileTree {
         }
     }
 
-    fn show_pending_shares(&mut self, ui: &mut Ui) -> Response {
-        ui.vertical(|ui| {
+    fn show_pending_shares(&mut self, ui: &mut Ui, scroll_to_cursor: bool) -> Response {
+        let pending_shares_id = Id::new("pending_shares");
+        let focused = ui.memory(|m| m.has_focus(pending_shares_id));
+        let is_expanded = self.expanded.contains(&self.pending_shares_id);
+
+        let resp = ui.vertical(|ui| {
+            let shares_btn = self.show_file_cell(
+                ui,
+                &File {
+                    id: self.pending_shares_id,
+                    parent: Uuid::nil(),
+                    name: "Shared with you".into(),
+                    file_type: FileType::Folder,
+                    last_modified_by: Default::default(),
+                    shares: Default::default(),
+                    last_modified: Default::default(),
+                },
+                0.,
+                false,
+            );
+
+            if shares_btn.clicked() {
+                ui.memory_mut(|m| m.request_focus(pending_shares_id));
+                self.selected.clear();
+                self.cut.clear();
+                self.cursor = Some(self.suggested_docs_folder_id);
+
+                if is_expanded {
+                    self.expanded.remove(&self.pending_shares_id);
+                } else {
+                    self.expanded.insert(self.pending_shares_id);
+                }
+            }
             let mut resp = Response::default();
 
-            let mut keys: Vec<String> = self.pending_shares.keys().cloned().collect();
-            keys.sort_by_key(|user| self.pending_shares.get(user).unwrap().max_child_timestamp);
+            if is_expanded {
+                let mut keys: Vec<String> = self.pending_shares.keys().cloned().collect();
+                keys.sort_by_key(|user| self.pending_shares.get(user).unwrap().max_child_timestamp);
 
-            for user in keys {
-                let cell = self.pending_shares.get(&user).unwrap().clone();
-                let expanded = self.expanded.contains(&cell.id);
-                let expand = Button::default()
-                    .icon(if expanded { &Icon::CHEVRON_DOWN } else { &Icon::CHEVRON_RIGHT })
-                    .text(user)
-                    .rounding(Self::BTN_ROUNDING)
-                    .margin(Self::BTN_MARGIN)
-                    .hexpand(true)
-                    .padding(vec2(15., 7.))
-                    .show(ui)
-                    .clicked();
+                for user in keys {
+                    let cell = self.pending_shares.get(&user).unwrap().clone();
+                    let expanded = self.expanded.contains(&cell.id);
+                    let expand = Button::default()
+                        .icon(&Icon::PERSON)
+                        .text(user)
+                        .indent(15.)
+                        .rounding(Self::BTN_ROUNDING)
+                        .margin(Self::BTN_MARGIN)
+                        .hexpand(true)
+                        .padding(vec2(15., 7.))
+                        .show(ui)
+                        .clicked();
 
-                if expand {
-                    if expanded {
-                        self.expanded.remove(&cell.id);
-                    } else {
-                        self.expanded.insert(cell.id);
+                    if expand {
+                        if expanded {
+                            self.expanded.remove(&cell.id);
+                        } else {
+                            self.expanded.insert(cell.id);
+                        }
                     }
-                }
 
-                if expanded {
-                    for file in &cell.shares {
-                        resp = resp.union(self.show_recursive(
-                            ui,
-                            &mut Toasts::default(),
-                            file.id,
-                            1,
-                            false,
-                        ));
-                        // self.show_file_cell(ui, file, 15., false);
+                    if expanded {
+                        for file in &cell.shares {
+                            resp = resp.union(self.show_recursive(
+                                ui,
+                                &mut Toasts::default(),
+                                file.id,
+                                2,
+                                scroll_to_cursor,
+                            ));
+                        }
                     }
                 }
             }
             resp
-        })
-        .inner
+        });
+
+        self.pending_shares_height = resp.response.rect.height();
+
+        resp.inner
     }
 
     fn show_suggested(&mut self, ui: &mut Ui) -> Response {
@@ -779,7 +807,7 @@ impl FileTree {
         }
         // init rename
         // no renames for pending shares
-        if !self.show_pending_shares && file_resp.double_clicked() {
+        if file_resp.double_clicked() {
             self.init_rename(ui.ctx(), &file);
         }
         // select
@@ -788,7 +816,7 @@ impl FileTree {
             if let Some(cursored_file) = self.cursor {
                 // shift-click to add visible files between cursor and target to selection
                 // no shift clicking for pending shares
-                if !self.show_pending_shares && ui.input(|i| i.raw.modifiers.shift) {
+                if ui.input(|i| i.raw.modifiers.shift) {
                     shift_clicked = true;
 
                     // inefficient but works
@@ -828,8 +856,7 @@ impl FileTree {
             }
 
             let mut cmd_clicked = false;
-            if !shift_clicked && !self.show_pending_shares && ui.input(|i| i.raw.modifiers.command)
-            {
+            if !shift_clicked && ui.input(|i| i.raw.modifiers.command) {
                 cmd_clicked = true;
 
                 self.selected.insert(id);
@@ -1078,7 +1105,11 @@ impl FileTree {
         } else {
             let is_shared = !file.shares.is_empty();
 
-            let icon = if self.expanded.contains(&file.id) {
+            let icon = if file.id == self.pending_shares_id {
+                Icon::PEOPLE
+            } else if file.id == self.suggested_docs_folder_id {
+                Icon::SPARKLE
+            } else if self.expanded.contains(&file.id) {
                 Icon::FOLDER_OPEN
             } else if is_shared {
                 Icon::SHARED_FOLDER
@@ -1222,7 +1253,7 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            if !self.show_pending_shares && ui.button("Share").clicked() {
+            if self.descends_from_root(file.id) && ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file.id).unwrap().clone();
                 resp.create_share_modal = Some(file);
                 ui.close_menu();
@@ -1478,39 +1509,40 @@ impl FileTree {
         }
     }
 
+    fn descends_from_root(&self, id: Uuid) -> bool {
+        self.files
+            .ancestors(id)
+            .iter()
+            .any(|id| *id == self.files.root().id)
+    }
+
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
     /// See also `select_visible_ancestors`.
     pub fn reveal_selection(&mut self) {
-        if self.selected.len() == 1 {
-            let selected = self.selected.iter().next().unwrap();
-            if !self
-                .files
-                .ancestors(*selected)
-                .iter()
-                .any(|id| *id == self.files.root().id)
-            {
-                // if self.pending_files.iter().any(|f| f.id == *selected) {
-                self.show_pending_shares = true;
-                return;
-            }
-        }
-
         for mut id in self.selected.clone() {
-            if self.files.iter().any(|f| f.id == id) {
-                self.show_pending_shares = false;
-            }
             loop {
+                if !self.descends_from_root(id) {
+                    self.expanded.insert(self.pending_shares_id);
+                }
+
                 if id == self.suggested_docs_folder_id {
                     break;
                 }
 
-                let parent = self.files.get_by_id(id).unwrap().parent;
-                if parent == id {
+                let Some(selection) = self.files.get_by_id(id) else {
+                    break;
+                };
+
+                let Some(parent) = self.files.get_by_id(selection.parent) else {
+                    break;
+                };
+
+                if parent.is_root() {
                     break;
                 }
 
-                self.expanded.insert(parent);
-                id = parent;
+                self.expanded.insert(parent.id);
+                id = parent.id;
             }
         }
     }
