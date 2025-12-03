@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-egui"
-version = "25.12.2"
+version = "25.12.3"
 edition = "2021"
 
 [dependencies]
