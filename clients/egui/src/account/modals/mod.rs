@@ -1,4 +1,3 @@
-mod accept_share;
 mod confirm_delete;
 mod create_share;
 mod error;
@@ -8,7 +7,6 @@ mod new_file;
 mod search;
 mod settings;
 
-pub use accept_share::AcceptShareModal;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
@@ -19,11 +17,8 @@ pub use search::SearchModal;
 pub use settings::SettingsModal;
 use workspace_rs::file_cache::FilesExt;
 
-use super::OpenModal;
-
 #[derive(Default)]
 pub struct Modals {
-    pub accept_share: Option<AcceptShareModal>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
     pub create_share: Option<CreateShareModal>,
     pub error: Option<ErrorModal>,
@@ -39,23 +34,6 @@ impl super::AccountScreen {
         show(ctx, x_offset, &mut self.modals.error);
 
         show(ctx, x_offset, &mut self.modals.help);
-
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
-            if let Some(submission) = response.inner {
-                if submission.is_accept {
-                    self.update_tx
-                        .send(OpenModal::PickShareParent(submission.target).into())
-                        .unwrap();
-                    self.modals.accept_share = None;
-                } else {
-                    self.delete_share(submission.target);
-
-                    // close and reopen the modal to force a state reload and make the deleted share disappear
-                    self.modals.accept_share = None;
-                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                }
-            }
-        }
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
@@ -122,7 +100,6 @@ impl super::AccountScreen {
     pub fn is_any_modal_open(&self) -> bool {
         let m = &self.modals;
         m.settings.is_some()
-            || m.accept_share.is_some()
             || m.new_folder.is_some()
             || m.create_share.is_some()
             || m.file_picker.is_some()
@@ -155,10 +132,6 @@ impl super::AccountScreen {
             return true;
         }
         if m.confirm_delete.is_some() {
-            m.confirm_delete = None;
-            return true;
-        }
-        if m.accept_share.is_some() {
             m.confirm_delete = None;
             return true;
         }

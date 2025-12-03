@@ -580,7 +580,7 @@ impl FileTree {
                     last_modified: Default::default(),
                 },
                 0.,
-                false,
+                focused,
             );
 
             if shares_btn.clicked() {
@@ -1267,10 +1267,23 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            if file.is_folder() {
+            if self.descends_from_root(file.id) && file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
                     resp.space_inspector_root = Some(file.clone());
+                    ui.close_menu();
+                }
+            }
+
+            if !self.descends_from_root(file.id) { 
+                ui.separator();
+                if ui.button("Accept Share").clicked() {
+                    resp.accepted_share = Some(file.clone());
+                    ui.close_menu();
+                }
+                
+                if ui.button("Reject Share").clicked() {
+                    resp.rejected_share = Some(file.clone());
                     ui.close_menu();
                 }
             }
@@ -1707,6 +1720,8 @@ pub struct Response {
     pub space_inspector_root: Option<File>,
     pub clear_suggested: bool,
     pub clear_suggested_id: Option<Uuid>,
+    pub accepted_share: Option<File>,
+    pub rejected_share: Option<File>,
 }
 
 #[derive(Debug)]
@@ -1742,6 +1757,8 @@ impl Response {
         this.space_inspector_root = this.space_inspector_root.or(other.space_inspector_root);
         this.clear_suggested = this.clear_suggested || other.clear_suggested;
         this.clear_suggested_id = this.clear_suggested_id.or(other.clear_suggested_id);
+        this.accepted_share = this.accepted_share.or(other.accepted_share);
+        this.rejected_share = this.rejected_share.or(other.rejected_share);
         this
     }
 }

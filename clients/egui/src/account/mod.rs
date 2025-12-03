@@ -10,7 +10,7 @@ use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
-use egui::{Color32, EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -294,9 +294,6 @@ impl AccountScreen {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
-                    OpenModal::AcceptShare => {
-                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
-                    }
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
@@ -515,6 +512,17 @@ impl AccountScreen {
                 .unwrap();
         }
 
+        if let Some(file) = resp.accepted_share {
+            self.update_tx
+                .send(OpenModal::PickShareParent(file).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
+        if let Some(file) = resp.rejected_share {
+            self.delete_share(file);
+        }
+
         if let Some(id) = resp.dropped_on {
             // todo: async
             self.move_selected_files_to(ui.ctx(), id);
@@ -560,7 +568,6 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         };
         settings_btn.on_hover_text("Settings");
-
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {
@@ -845,7 +852,6 @@ pub enum OpenModal {
     NewFolder(Option<File>),
     InitiateShare(File),
     Settings,
-    AcceptShare,
     PickShareParent(File),
     PickDropParent(Vec<egui::DroppedFile>),
     ConfirmDelete(Vec<File>),
