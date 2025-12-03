@@ -1,6 +1,6 @@
 [package]
 name = "lbdev"
-version = "25.11.12"
+version = "25.12.2"
 edition = "2021"
 
 [dependencies]

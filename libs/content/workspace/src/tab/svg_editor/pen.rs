@@ -108,7 +108,7 @@ impl Pen {
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
         if pen_ctx.toolbar_has_interaction {
-            self.end_path(pen_ctx, false);
+            self.cancel_path(pen_ctx);
         }
 
         let input_state =

@@ -11,11 +11,11 @@ android {
 
     defaultConfig {
         applicationId "app.lockbook"
-        minSdkVersion 27
+        minSdkVersion 24
         targetSdk=36
 
-        versionCode 78
-        versionName "25.11.12"
+        versionCode 80
+        versionName "25.12.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
