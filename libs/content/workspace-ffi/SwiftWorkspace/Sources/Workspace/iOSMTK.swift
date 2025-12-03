@@ -46,6 +46,9 @@ public class MdView: UIView, UITextInput {
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
     var autoScroll: Timer? = nil
+    
+    // range adjustment (selection handles)
+    var rangeAdjustmentInProgress = false
 
     init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
@@ -75,6 +78,13 @@ public class MdView: UIView, UITextInput {
             if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
                 gestureRecognizer.addTarget(
                     self, action: #selector(handleInteractiveRefinement(_:)))
+            }
+            
+            // send range adjustments to our handler
+            // this supports automatic scrolling when dragging selection handles
+            if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
+                gestureRecognizer.addTarget(
+                    self, action: #selector(handleRangeAdjustment(_:)))
             }
         }
 
@@ -144,6 +154,23 @@ public class MdView: UIView, UITextInput {
         default:
             break
         }
+    }
+
+    @objc private func handleRangeAdjustment(_ recognizer: UIGestureRecognizer) {
+        switch recognizer.state {
+        case .possible:
+            return
+        case .began:
+            rangeAdjustmentInProgress = true
+        case .changed:
+            let location = recognizer.location(in: recognizer.view)
+            self.scrollTo(location.y)
+        case .ended, .cancelled, .failed:
+            rangeAdjustmentInProgress = false
+        default:
+            break
+        }
+        
     }
 
     required init(coder: NSCoder) {
@@ -238,28 +265,7 @@ public class MdView: UIView, UITextInput {
         let x = point.x - self.floatingCursorNewStartX
         let y = point.y - self.floatingCursorNewStartY
 
-        let scrollUp = y >= bounds.height - 20
-        let scrollDown = y <= 20
-
-        if (scrollUp || scrollDown) && autoScroll == nil {
-            autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
-                [self] timer in
-                if floatingCursor.isHidden {
-                    timer.invalidate()
-                }
-
-                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-                scroll_wheel(wsHandle, 0, scrollUp ? -20 : 20, false, false, false, false)
-                mouse_gone(wsHandle)
-
-                mtkView.drawImmediately()
-            }
-        } else if let autoScroll,
-            !scrollUp && !scrollDown
-        {
-            autoScroll.invalidate()
-            self.autoScroll = nil
-        }
+        self.scrollTo(y)
 
         if animate {
             UIView.animate(
@@ -276,6 +282,31 @@ public class MdView: UIView, UITextInput {
             floatingCursor.frame = CGRect(
                 x: x, y: y - (cursorRect.height / 2), width: floatingCursorWidth,
                 height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+        }
+    }
+    
+    func scrollTo(_ y: CGFloat) {
+        let scrollUp = y >= bounds.height - 20
+        let scrollDown = y <= 20
+
+        if (scrollUp || scrollDown) && autoScroll == nil {
+            autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
+                [self] timer in
+                if floatingCursor.isHidden && !rangeAdjustmentInProgress {
+                    timer.invalidate()
+                }
+
+                mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+                scroll_wheel(wsHandle, 0, scrollUp ? -20 : 20, false, false, false, false)
+                mouse_gone(wsHandle)
+
+                mtkView.drawImmediately()
+            }
+        } else if let autoScroll,
+            !scrollUp && !scrollDown
+        {
+            autoScroll.invalidate()
+            self.autoScroll = nil
         }
     }
 
