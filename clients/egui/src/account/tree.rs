@@ -1790,7 +1790,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1839,7 +1839,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1904,7 +1904,7 @@ mod test {
             file(7, 6, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1966,7 +1966,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.next(ids[0], false), Some(ids[1]));
         assert_eq!(tree.next(ids[1], false), Some(ids[2]));
@@ -2028,7 +2028,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.prev(ids[0], false), None);
         assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
@@ -2090,7 +2090,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files, vec![], "".into());
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert!(tree.is_visible(ids[0]));
         assert!(tree.is_visible(ids[1]));
