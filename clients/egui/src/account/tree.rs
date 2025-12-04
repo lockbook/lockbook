@@ -211,15 +211,8 @@ impl FileTree {
                 }
             }
         } else if ui.memory(|m| m.has_focus(file_tree_id)) {
-            // shift + left arrow: incremental recursive collapse
-            if ui.input_mut(|i| {
-                i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)
-                    || i.consume_key(Modifiers::SHIFT, Key::A)
-            }) {
-                self.collapse_leaves(&Vec::from_iter(self.selected.iter().cloned()));
-            }
             // left arrow: collapse selected or move selection to parent
-            else if ui.input_mut(|i| {
+            if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowLeft)
                     || i.consume_key(Modifiers::NONE, Key::A)
             }) {
@@ -274,13 +267,6 @@ impl FileTree {
                 }
             }
 
-            // shift + right arrow: incremental recursive expand
-            if ui.input_mut(|i| {
-                i.consume_key(Modifiers::SHIFT, Key::ArrowRight)
-                    || i.consume_key(Modifiers::SHIFT, Key::D)
-            }) {
-                self.expand_incremental(&Vec::from_iter(self.selected.clone()));
-            }
             // right arrow: expand selected or move selection to first child
             else if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowRight)
@@ -1446,67 +1432,10 @@ impl FileTree {
         }
     }
 
-    /// Expands nodes to increment the shortest distance from any id in `ids` to a collapsed descendent.
-    fn expand_incremental(&mut self, ids: &[Uuid]) {
-        for &id in ids {
-            self.expand_recursive(ids, self.shortest_collapsed_distance(id));
-        }
-    }
-
-    /// Helper that returns the shortest distance from `id` to a collapsed descendent.
-    fn shortest_collapsed_distance(&self, id: Uuid) -> Option<usize> {
-        if self.files.get_by_id(id).unwrap().is_document() {
-            return None;
-        }
-        if !self.expanded.contains(&id) {
-            return Some(0);
-        }
-        let mut distance = None;
-        for child in self.files.children(id) {
-            let child_distance = self.shortest_collapsed_distance(child.id);
-            distance = match (distance, child_distance) {
-                (None, None) => None,
-                (None, Some(child_distance)) => Some(child_distance + 1),
-                (Some(distance), None) => Some(distance),
-                (Some(distance), Some(child_distance)) => Some(distance.min(child_distance + 1)),
-            };
-        }
-        distance
-    }
-
     /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
     fn collapse(&mut self, ids: &[Uuid]) {
         self.expanded.retain(|&id| !ids.contains(&id));
         self.select_visible_ancestors();
-    }
-
-    /// Collapses all leaves under `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    fn collapse_leaves(&mut self, ids: &[Uuid]) {
-        let mut all_children = Vec::new();
-        for &id in ids {
-            let mut leaf_node = true; // guilty until proven innocent
-            let children = self
-                .files
-                .children(id)
-                .iter()
-                .map(|f| f.id)
-                .collect::<Vec<_>>();
-            for child in &children {
-                if self.expanded.contains(child) {
-                    leaf_node = false; // sacrifice at least one child to live
-                    break;
-                }
-            }
-            if leaf_node {
-                self.expanded.remove(&id); // else you will be collapsed
-                self.select_visible_ancestors();
-            }
-
-            all_children.extend(children);
-        }
-        if !all_children.is_empty() {
-            self.collapse_leaves(&all_children); // your descendants are cursed to repeat the cycle
-        }
     }
 
     /// Helper that replaces each file in selection with its first visible ancestor (including itself). One option for
@@ -1869,82 +1798,6 @@ mod test {
 
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[1]].into_iter().collect());
-    }
-
-    #[test]
-    fn collapse_leafs_expand_incremental() {
-        /*
-         * 0
-         * ├── 1
-         * ├── 2
-         * │   └── 3
-         * └── 4
-         *     ├── 5
-         *     └── 6
-         *         └── 7
-         */
-        let ids = vec![
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-        ];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Document, &ids),
-            file(2, 0, FileType::Folder, &ids),
-            file(3, 2, FileType::Document, &ids),
-            file(4, 0, FileType::Folder, &ids),
-            file(5, 4, FileType::Document, &ids),
-            file(6, 4, FileType::Folder, &ids),
-            file(7, 6, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert_eq!(tree.selected, vec![].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.selected.insert(ids[3]);
-        tree.selected.insert(ids[7]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[3], ids[7]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[2], ids[6]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[4]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[2], ids[4]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4]].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
     }
 
     #[test]
