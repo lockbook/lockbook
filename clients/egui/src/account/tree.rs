@@ -886,7 +886,7 @@ impl FileTree {
 
         // drag 'n' drop:
         // when drag starts, dragged file sets dnd payload
-        if file_resp.dragged()
+        if self.descends_from_root(file.id) && file_resp.dragged()
             && ui.input(|i| {
                 let (Some(pos), Some(origin)) =
                     (i.pointer.interact_pos(), i.pointer.press_origin())
@@ -1260,7 +1260,11 @@ impl FileTree {
                 }
             }
 
-            if !self.descends_from_root(file.id) {
+            if self
+                .pending_shares
+                .values()
+                .any(|cell| cell.shares.iter().any(|f| f.id == file.id))
+            {
                 ui.separator();
                 if ui.button("Accept Share").clicked() {
                     resp.accepted_share = Some(file.clone());
@@ -1310,16 +1314,19 @@ impl FileTree {
         self.expanded.retain(|&id| {
             self.files.iter().any(|f| f.id == id)
                 || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
                 || self.pending_shares.values().any(|cell| cell.id == id)
         });
         self.selected.retain(|&id| {
             self.files.iter().any(|f| f.id == id)
                 || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
                 || self.pending_shares.values().any(|cell| cell.id == id)
         });
         if let Some(cursor) = self.cursor {
             if !self.files.iter().any(|f| f.id == cursor)
                 && cursor != self.suggested_docs_folder_id
+                && cursor != self.pending_shares_id
                 && !self.pending_shares.values().any(|cell| cell.id == cursor)
             {
                 self.cursor = Some(self.files.root().id);
@@ -1504,7 +1511,7 @@ impl FileTree {
         // otherwise, return the next sibling of the file's closest ancestor (including itself) that has a next sibling
         let mut ancestor = id;
         loop {
-            let parent = self.files.get_by_id(ancestor).unwrap().parent;
+            let parent = self.files.get_by_id(ancestor).map(|f| f.parent)?;
             if !visible_only || self.is_visible(ancestor) {
                 let siblings = self.files.children(parent);
                 let mut found_file = false;
@@ -1573,7 +1580,7 @@ impl FileTree {
                     if self.is_visible(ancestor) {
                         break;
                     }
-                    ancestor = self.files.get_by_id(ancestor).unwrap().parent;
+                    ancestor = self.files.get_by_id(ancestor).map(|f| f.parent)?;
                 }
             }
             Some(ancestor)
