@@ -266,7 +266,6 @@ impl FileTree {
                     };
                 }
             }
-
             // right arrow: expand selected or move selection to first child
             else if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowRight)
