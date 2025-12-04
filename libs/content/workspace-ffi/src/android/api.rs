@@ -269,6 +269,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
+                TabContent::Audio(_) => 9,
             },
             _ => 1,
         },
