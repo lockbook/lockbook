@@ -1433,7 +1433,7 @@ impl FileTree {
 
     /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
     fn collapse(&mut self, ids: &[Uuid]) {
-        self.expanded.retain(|&id| !ids.contains(&id));
+        self.expanded.retain(|id| !ids.contains(id));
         self.select_visible_ancestors();
     }
 
@@ -1443,18 +1443,21 @@ impl FileTree {
         let selected = mem::take(&mut self.selected);
         for id in selected {
             for id in self.files.ancestors(id) {
-                if !self.is_visible(id) {
+                if self.is_visible(id) {
                     self.selected.insert(id);
+                    break;
                 }
             }
         }
     }
 
     fn descends_from_root(&self, id: Uuid) -> bool {
-        self.files
-            .ancestors(id)
-            .iter()
-            .any(|id| *id == self.files.root().id)
+        let root = self.files.root().id;
+        if id == root {
+            return true;
+        }
+
+        self.files.ancestors(id).contains(&root)
     }
 
     /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
@@ -1795,8 +1798,8 @@ mod test {
 
         tree.collapse(&[ids[0]]);
 
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[1]].into_iter().collect());
+        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
     }
 
     #[test]
@@ -1968,6 +1971,7 @@ mod test {
     }
 
     fn file(idx: usize, parent_idx: usize, file_type: FileType, ids: &[Uuid]) -> File {
+        println!("{idx} = {}", ids[idx]);
         File {
             id: ids[idx],
             parent: ids[parent_idx],
