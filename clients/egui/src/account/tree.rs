@@ -1275,13 +1275,13 @@ impl FileTree {
                 }
             }
 
-            if !self.descends_from_root(file.id) { 
+            if !self.descends_from_root(file.id) {
                 ui.separator();
                 if ui.button("Accept Share").clicked() {
                     resp.accepted_share = Some(file.clone());
                     ui.close_menu();
                 }
-                
+
                 if ui.button("Reject Share").clicked() {
                     resp.rejected_share = Some(file.clone());
                     ui.close_menu();
