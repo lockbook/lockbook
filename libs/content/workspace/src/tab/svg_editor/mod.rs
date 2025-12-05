@@ -38,7 +38,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, span};
+use tracing::{Level, info, span, warn};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -61,6 +61,8 @@ pub struct SVGEditor {
     allow_viewport_changes: bool,
     pub settings: CanvasSettings,
     input_ctx: InputContext,
+
+    read_only: bool,
 }
 #[derive(Debug, Clone, Copy)]
 pub struct ViewportSettings {
@@ -148,7 +150,7 @@ enum BackgroundOverlay {
 impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
-        hmac: Option<DocumentHmac>, cfg: &WsPersistentStore,
+        hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
@@ -178,6 +180,10 @@ impl SVGEditor {
             viewport_settings.bounded_rect = Some(ctx.available_rect());
         }
 
+        if read_only {
+            info!(id=?open_file, "creating canvas with read only mode");
+        }
+
         Self {
             buffer,
             opened_content: Buffer::new(content),
@@ -200,6 +206,7 @@ impl SVGEditor {
             settings,
             viewport_settings,
             cfg,
+            read_only,
         }
     }
 
@@ -267,7 +274,7 @@ impl SVGEditor {
         self.has_islands_interaction = false;
         self.buffer.master_transform_changed = false;
         ui.ctx().pop_events();
-        Response { request_save: needs_save_and_frame_is_cheap }
+        Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }
 
     fn show_toolbar(&mut self, ui: &mut egui::Ui) -> bool {
@@ -279,6 +286,7 @@ impl SVGEditor {
             viewport_settings: &mut self.viewport_settings,
             cfg: &mut self.cfg,
             input_ctx: &self.input_ctx,
+            read_only: self.read_only,
         };
 
         ui.with_layer_id(
@@ -299,6 +307,7 @@ impl SVGEditor {
             return;
         }
 
+        // if !self.read_only {
         if ui.input_mut(|r| {
             r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
         }) {
@@ -310,6 +319,7 @@ impl SVGEditor {
         }
 
         self.handle_clip_input(ui);
+        // }
 
         let has_click_outside_islands = ui.input(|r| {
             r.events.iter().any(|e| match *e {
@@ -348,20 +358,24 @@ impl SVGEditor {
             return;
         }
 
-        match self.toolbar.active_tool {
-            Tool::Pen => {
-                self.toolbar.pen.handle_input(ui, &mut tool_context);
+        if !self.read_only {
+            match self.toolbar.active_tool {
+                Tool::Pen => {
+                    self.toolbar.pen.handle_input(ui, &mut tool_context);
+                }
+                Tool::Highlighter => {
+                    self.toolbar.highlighter.handle_input(ui, &mut tool_context);
+                }
+                Tool::Eraser => {
+                    self.toolbar.eraser.handle_input(ui, &mut tool_context);
+                }
+                Tool::Selection => {
+                    self.toolbar.selection.handle_input(ui, &mut tool_context);
+                }
+                Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
             }
-            Tool::Highlighter => {
-                self.toolbar.highlighter.handle_input(ui, &mut tool_context);
-            }
-            Tool::Eraser => {
-                self.toolbar.eraser.handle_input(ui, &mut tool_context);
-            }
-            Tool::Selection => {
-                self.toolbar.selection.handle_input(ui, &mut tool_context);
-            }
-            Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
+        } else {
+            *tool_context.allow_viewport_changes = true;
         }
 
         if !self.has_islands_interaction {
