@@ -37,6 +37,7 @@ pub struct Tab {
 
     pub rename: Option<String>,
     pub is_closing: bool,
+    pub read_only: bool,
 }
 
 impl Tab {
