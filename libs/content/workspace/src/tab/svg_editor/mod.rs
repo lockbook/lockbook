@@ -38,7 +38,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, info, span, warn};
+use tracing::{Level, info, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
