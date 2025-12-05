@@ -3,8 +3,9 @@ use egui::{Context, ViewportCommand};
 
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
-use lb_rs::model::file::File;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -37,6 +38,7 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub user_last_seen: Instant,
+    pub account: Option<Account>,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -72,6 +74,7 @@ impl Workspace {
             tabs: Default::default(),
             current_tab: Default::default(),
             user_last_seen: Instant::now(),
+            account: core.get_account().cloned().ok(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
@@ -139,6 +142,7 @@ impl Workspace {
             last_saved: now,
             rename: None,
             is_closing: false,
+            read_only: false,
         };
         self.tabs.push(new_tab);
         if make_current {
@@ -409,13 +413,27 @@ impl Workspace {
                             }
                         };
 
-                        let ext = match self.core.get_file_by_id(id) {
-                            Ok(file) => file
-                                .name
-                                .split('.')
-                                .next_back()
-                                .unwrap_or_default()
-                                .to_owned(),
+                        let (ext, read_only) = match self.core.get_file_by_id(id) {
+                            Ok(file) => {
+                                let ext = file
+                                    .name
+                                    .split('.')
+                                    .next_back()
+                                    .unwrap_or_default()
+                                    .to_owned();
+
+                                let read_only = if let Some(account) = &self.account {
+                                    file.shares.iter().any(|share| {
+                                        share.mode == ShareMode::Read
+                                            && share.shared_with == account.username
+                                            && share.shared_by != account.username
+                                    })
+                                } else {
+                                    false
+                                };
+
+                                (ext, read_only)
+                            }
                             Err(e) => {
                                 self.out
                                     .failure_messages
@@ -423,6 +441,8 @@ impl Workspace {
                                 continue;
                             }
                         };
+
+                        tab.read_only = read_only;
 
                         if is_supported_image_fmt(&ext) {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
@@ -443,6 +463,7 @@ impl Workspace {
                                     id,
                                     maybe_hmac,
                                     &self.cfg,
+                                    tab.read_only,
                                 )));
                             } else {
                                 let svg = tab.svg_mut().unwrap();

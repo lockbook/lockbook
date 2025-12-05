@@ -91,6 +91,7 @@ pub struct ToolbarContext<'a> {
     pub viewport_settings: &'a mut ViewportSettings,
     pub cfg: &'a mut WsPersistentStore,
     pub input_ctx: &'a InputContext,
+    pub read_only: bool,
 }
 
 impl ViewportSettings {
@@ -298,6 +299,10 @@ impl Toolbar {
 
         // shows the viewport island + popovers + bring home button
         let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
+
+        if tlbr_ctx.read_only {
+            return res;
+        }
 
         let tools_island = self.show_tools_island(ui);
         let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
