@@ -1,4 +1,3 @@
-use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -17,11 +16,12 @@ use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use lb::service::activity::RankingWeights;
 use rfd::FileDialog;
+use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct FileTree {
     /// This is where the egui app caches files.
     pub files: Vec<File>,
@@ -56,396 +56,63 @@ pub struct FileTree {
 
     /// Set to `true` and the cursor will be scrolled to on the next frame
     pub scroll_to_cursor: bool,
+
+    pub pending_shares: HashMap<String, ShareCell>,
+    pub pending_shares_id: Uuid,
+    pub pending_shares_height: f32,
 }
 
+#[derive(Debug, Default, Clone)]
+pub struct ShareCell {
+    id: Uuid,
+    shares: Vec<File>,
+    max_child_timestamp: i64,
+}
+
+// init & ui
 impl FileTree {
-    pub fn new(files: Vec<File>) -> Self {
-        Self {
-            selected: Default::default(),
-            expanded: [files.root()].into_iter().collect(),
-            files,
-            cursor: Default::default(),
-            cut: Default::default(),
+    // todo we need to create a get_pending_shares_with_children endpoint
+    // we can calculate all the roots here and then construct the tree
+    pub fn new(files: Vec<File>, pending_shares: Vec<File>, pending_files: Vec<File>) -> Self {
+        let mut s = Self {
+            expanded: [files.root().id].into_iter().collect(),
             suggested_docs_folder_id: Uuid::new_v4(),
-            suggested_docs: Default::default(),
-            rename_target: Default::default(),
-            rename_buffer: Default::default(),
-            export: Default::default(),
-            drop: Default::default(),
-            scroll_to_cursor: Default::default(),
-        }
-    }
-
-    /// Updates the files in the tree. The selection and expansion are preserved.
-    pub fn update_files(&mut self, files: Vec<File>) {
-        self.files = files;
-        self.expanded.retain(|&id| {
-            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
-        });
-        self.selected.retain(|&id| {
-            self.files.iter().any(|f| f.id == id) || id == self.suggested_docs_folder_id
-        });
-        if let Some(cursor) = self.cursor {
-            if !self.files.iter().any(|f| f.id == cursor) && cursor != self.suggested_docs_folder_id
-            {
-                self.cursor = Some(self.files.root());
-            }
-        }
-    }
-
-    /// Asynchronously recalculates the suggested files; requests repaint when complete.
-    pub fn recalc_suggested_files(&mut self, core: &Lb, ctx: &egui::Context) {
-        let core = core.clone();
-        let suggested = self.suggested_docs.clone();
-        let ctx = ctx.clone();
-
-        thread::spawn(move || {
-            let suggested_docs = core.suggested_docs(RankingWeights::default());
-            match suggested_docs {
-                Ok(docs) => {
-                    let mut suggested = suggested.lock().unwrap();
-                    *suggested = docs.into_iter().take(5).collect();
-                }
-                Err(err) => {
-                    // todo: better error surfacing
-                    println!("Failed to calculate suggested files: {err:?}");
-                }
-            }
-            ctx.request_repaint();
-        });
-    }
-
-    /// Expands `ids`. Does not select or deselect anything.
-    fn expand(&mut self, ids: &[Uuid]) {
-        self.expand_recursive(ids, Some(0));
-    }
-
-    /// Expands `ids` recursively to a maximum depth of `depth`. If `depth` is `None`, expands all the way. Does not
-    /// select or deselect anything.
-    fn expand_recursive(&mut self, ids: &[Uuid], depth: Option<usize>) {
-        let ids = ids
-            .iter()
-            .copied()
-            .filter(|&id| self.files.get_by_id(id).is_folder())
-            .collect::<Vec<_>>();
-        self.expanded.extend(ids.iter().copied());
-        if depth == Some(0) {
-            return;
-        }
-        for id in ids {
-            let children = self
-                .files
-                .children(id)
-                .into_iter()
-                .cloned()
-                .collect::<Vec<_>>();
-            for child in children {
-                self.expand_recursive(&[child.id], depth.map(|d| d - 1));
-            }
-        }
-    }
-
-    /// Expands nodes to increment the shortest distance from any id in `ids` to a collapsed descendent.
-    fn expand_incremental(&mut self, ids: &[Uuid]) {
-        for &id in ids {
-            self.expand_recursive(ids, self.shortest_collapsed_distance(id));
-        }
-    }
-
-    /// Helper that returns the shortest distance from `id` to a collapsed descendent.
-    fn shortest_collapsed_distance(&self, id: Uuid) -> Option<usize> {
-        if self.files.get_by_id(id).is_document() {
-            return None;
-        }
-        if !self.expanded.contains(&id) {
-            return Some(0);
-        }
-        let mut distance = None;
-        for child in self.files.children(id) {
-            let child_distance = self.shortest_collapsed_distance(child.id);
-            distance = match (distance, child_distance) {
-                (None, None) => None,
-                (None, Some(child_distance)) => Some(child_distance + 1),
-                (Some(distance), None) => Some(distance),
-                (Some(distance), Some(child_distance)) => Some(distance.min(child_distance + 1)),
-            };
-        }
-        distance
-    }
-
-    /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    fn collapse(&mut self, ids: &[Uuid]) {
-        self.expanded.retain(|&id| !ids.contains(&id));
-        self.select_visible_ancestors();
-    }
-
-    /// Collapses all leaves under `ids`. Selections that are hidden are replaced with their closest visible ancestor.
-    fn collapse_leaves(&mut self, ids: &[Uuid]) {
-        let mut all_children = Vec::new();
-        for &id in ids {
-            let mut leaf_node = true; // guilty until proven innocent
-            let children = self
-                .files
-                .children(id)
-                .iter()
-                .map(|f| f.id)
-                .collect::<Vec<_>>();
-            for child in &children {
-                if self.expanded.contains(child) {
-                    leaf_node = false; // sacrifice at least one child to live
-                    break;
-                }
-            }
-            if leaf_node {
-                self.expanded.remove(&id); // else you will be collapsed
-                self.select_visible_ancestors();
-            }
-
-            all_children.extend(children);
-        }
-        if !all_children.is_empty() {
-            self.collapse_leaves(&all_children); // your descendants are cursed to repeat the cycle
-        }
-    }
-
-    /// Helper that replaces each file in selection with its first visible ancestor (including itself). One option for
-    /// making sure all selections are visible. See also `reveal_selection`.
-    fn select_visible_ancestors(&mut self) {
-        let selected = mem::take(&mut self.selected);
-        for mut id in selected {
-            while !self.is_visible(id) {
-                id = self.files.get_by_id(id).parent;
-            }
-            self.selected.insert(id);
-        }
-    }
-
-    /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
-    /// See also `select_visible_ancestors`.
-    pub fn reveal_selection(&mut self) {
-        for mut id in self.selected.clone() {
-            loop {
-                if id == self.suggested_docs_folder_id {
-                    break;
-                }
-
-                let parent = self.files.get_by_id(id).parent;
-                if parent == id {
-                    break;
-                }
-
-                self.expanded.insert(parent);
-                id = parent;
-            }
-        }
-    }
-
-    /// Returns the file after id in depth-first order, folders first then alphabetically.
-    fn next(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
-        // if the file has children, return the first child
-        // if `visible_only` is true then the child must be visible i.e. the file must be visible and expanded
-        if !visible_only || (self.is_visible(id) && self.expanded.contains(&id)) {
-            if let Some(first_child) = self.files.children(id).first() {
-                return Some(first_child.id);
-            }
-        }
-
-        // otherwise, return the next sibling of the file's closest ancestor (including itself) that has a next sibling
-        let mut ancestor = id;
-        loop {
-            let parent = self.files.get_by_id(ancestor).parent;
-            if !visible_only || self.is_visible(ancestor) {
-                let siblings = self.files.children(parent);
-                let mut found_file = false;
-                for sibling in siblings {
-                    if sibling.id == ancestor {
-                        found_file = true;
-                    } else if found_file {
-                        return Some(sibling.id);
-                    }
-                }
-            }
-
-            if ancestor == parent {
-                return None;
-            }
-            ancestor = parent;
-        }
-    }
-
-    /// Returns the file before id in depth-first order, folders first then alphabetically.
-    fn prev(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
-        let parent = self.files.get_by_id(id).parent;
-        if id == parent {
-            return None;
-        }
-
-        let siblings = self.files.children(parent);
-        let mut prev_sibling = None;
-        let mut found_file = false;
-        for sibling in siblings.into_iter().rev() {
-            if sibling.id == id {
-                found_file = true;
-            } else if found_file {
-                prev_sibling = Some(sibling.id);
-                break;
-            }
-        }
-
-        if let Some(prev_sibling) = prev_sibling {
-            // if the file has a previous sibling, return the last descendent of the previous sibling
-            // if `visible_only` is true then return the first visible ancestor of that descendent (including itself)
-            let mut last_descendent = prev_sibling;
-            loop {
-                let children = self.files.children(last_descendent);
-                if let Some(last_child) = children.last() {
-                    last_descendent = last_child.id;
-                } else {
-                    break;
-                }
-            }
-            if visible_only {
-                loop {
-                    if self.is_visible(last_descendent) {
-                        break;
-                    }
-                    last_descendent = self.files.get_by_id(last_descendent).parent;
-                }
-            }
-            Some(last_descendent)
-        } else {
-            // if the file is the first child of its parent, return the parent
-            // if `visible_only` is true then return the first visible ancestor of the parent (including the parent)
-            let mut ancestor = self.files.get_by_id(id).parent;
-            if visible_only {
-                loop {
-                    if self.is_visible(ancestor) {
-                        break;
-                    }
-                    ancestor = self.files.get_by_id(ancestor).parent;
-                }
-            }
-            Some(ancestor)
-        }
-    }
-
-    /// Returns the file after id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
-    /// is not suggested, or if there is no next suggested doc.
-    fn next_suggested(&self, id: Uuid) -> Option<Uuid> {
-        let Ok(suggested_docs) = self.suggested_docs.lock() else {
-            return None;
+            pending_shares_id: Uuid::new_v4(),
+            pending_shares_height: 0.,
+            ..Default::default()
         };
 
-        if !self.expanded.contains(&self.suggested_docs_folder_id) {
-            None // folder collapsed -> none
-        } else if id == self.suggested_docs_folder_id {
-            suggested_docs.first().copied() // folder -> first item
-        } else {
-            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
-            if idx + 1 < suggested_docs.len() {
-                Some(suggested_docs[idx + 1]) // child -> next sibling
-            } else {
-                None // last child -> none
-            }
-        }
+        s.update_files(files, pending_shares, pending_files);
+
+        s
     }
 
-    /// Returns the file before id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
-    /// is not suggested, or if there is no previous suggested doc.
-    fn prev_suggested(&self, id: Uuid) -> Option<Uuid> {
-        let Ok(suggested_docs) = self.suggested_docs.lock() else {
-            return None;
-        };
-
-        if id == self.suggested_docs_folder_id {
-            None // folder -> none
-        } else if !self.expanded.contains(&self.suggested_docs_folder_id) {
-            Some(self.suggested_docs_folder_id) // invisible item -> folder
-        } else {
-            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
-            if idx > 0 {
-                Some(suggested_docs[idx - 1]) // child -> prev sibling
-            } else {
-                Some(self.suggested_docs_folder_id) // last child -> folder
-            }
-        }
-    }
-
-    /// A file is visible if all its ancestors are expanded.
-    fn is_visible(&self, id: Uuid) -> bool {
-        let file = self.files.get_by_id(id);
-        if file.parent == file.id {
-            return true;
-        }
-        self.expanded.contains(&file.parent) && self.is_visible(file.parent)
-    }
-}
-
-#[derive(Debug, Default)]
-pub struct Response {
-    pub open_requests: HashMap<Uuid, OpenRequest>,
-    pub new_file: Option<bool>,
-    pub new_drawing: Option<bool>,
-    pub export_file: Option<(File, PathBuf)>,
-    pub new_folder_modal: Option<File>,
-    pub create_share_modal: Option<File>,
-    pub move_requests: Vec<(Uuid, Uuid)>,
-    pub rename_request: Option<(Uuid, String)>,
-    pub delete_requests: HashSet<Uuid>,
-    pub dropped_on: Option<Uuid>,
-    pub space_inspector_root: Option<File>,
-    pub clear_suggested: bool,
-    pub clear_suggested_id: Option<Uuid>,
-}
-
-#[derive(Debug)]
-pub struct OpenRequest {
-    pub is_new_file: bool,
-    pub make_current: bool,
-    pub in_new_tab: bool,
-}
-
-impl OpenRequest {
-    fn new_tab() -> Self {
-        OpenRequest { is_new_file: false, make_current: true, in_new_tab: true }
-    }
-
-    fn same_tab() -> Self {
-        OpenRequest { is_new_file: false, make_current: true, in_new_tab: false }
-    }
-}
-
-impl Response {
-    fn union(self, other: Self) -> Self {
-        let mut this = self;
-        this.new_file = this.new_file.or(other.new_file);
-        this.new_drawing = this.new_drawing.or(other.new_drawing);
-        this.new_folder_modal = this.new_folder_modal.or(other.new_folder_modal);
-        this.create_share_modal = this.create_share_modal.or(other.create_share_modal);
-        this.export_file = this.export_file.or(other.export_file);
-        this.open_requests.extend(other.open_requests);
-        this.move_requests.extend(other.move_requests);
-        this.rename_request = this.rename_request.or(other.rename_request);
-        this.delete_requests.extend(other.delete_requests);
-        this.dropped_on = this.dropped_on.or(other.dropped_on);
-        this.space_inspector_root = this.space_inspector_root.or(other.space_inspector_root);
-        this.clear_suggested = this.clear_suggested || other.clear_suggested;
-        this.clear_suggested_id = this.clear_suggested_id.or(other.clear_suggested_id);
-        this
-    }
-}
-
-impl FileTree {
     pub fn show(&mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts) -> Response {
         let mut resp = Response::default();
         let mut scroll_to_cursor = mem::take(&mut self.scroll_to_cursor);
 
+        self.process_input(ui, &mut resp, &mut scroll_to_cursor);
+
+        resp
+            // show suggested docs
+            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
+            .union(self.show_pending_shares(ui, scroll_to_cursor))
+            // show file tree
+            .union({
+                ui.vertical(|ui| {
+                    self.show_recursive(ui, toasts, self.files.root().id, 0, scroll_to_cursor)
+                })
+                .inner
+                .union(self.show_padding(ui, toasts, max_rect))
+            })
+    }
+
+    fn process_input(&mut self, ui: &mut Ui, resp: &mut Response, scroll_to_cursor: &mut bool) {
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
         let file_tree_id = Id::from("file_tree");
 
         let tab_input = ui.input(|i| i.key_pressed(Key::Tab));
-
         if ui.memory(|m| m.has_focus(suggested_docs_id)) {
             // left arrow: collapse folder or move to folder (or surrender focus)
             if ui.input_mut(|i| {
@@ -491,9 +158,9 @@ impl FileTree {
                     } else {
                         // focus to tree
                         ui.memory_mut(|m| m.request_focus(file_tree_id));
-                        self.cursor = Some(self.files.root());
+                        self.cursor = Some(self.files.root().id);
                         self.selected.clear();
-                        self.selected.insert(self.files.root());
+                        self.selected.insert(self.files.root().id);
                     }
                 }
             }
@@ -538,25 +205,18 @@ impl FileTree {
                     } else {
                         // focus to tree
                         ui.memory_mut(|m| m.request_focus(file_tree_id));
-                        self.cursor = Some(self.files.root());
+                        self.cursor = Some(self.files.root().id);
                         self.selected.clear();
                     }
                 }
             }
         } else if ui.memory(|m| m.has_focus(file_tree_id)) {
-            // shift + left arrow: incremental recursive collapse
-            if ui.input_mut(|i| {
-                i.consume_key(Modifiers::SHIFT, Key::ArrowLeft)
-                    || i.consume_key(Modifiers::SHIFT, Key::A)
-            }) {
-                self.collapse_leaves(&Vec::from_iter(self.selected.iter().cloned()));
-            }
             // left arrow: collapse selected or move selection to parent
-            else if ui.input_mut(|i| {
+            if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowLeft)
                     || i.consume_key(Modifiers::NONE, Key::A)
             }) {
-                scroll_to_cursor = true;
+                *scroll_to_cursor = true;
 
                 // prefer to collapse all selected folders
                 let mut collapsed_any = false;
@@ -578,19 +238,19 @@ impl FileTree {
                 if !collapsed_any {
                     let mut new_selection = HashSet::new();
                     for &id in &self.selected {
-                        let parent = self.files.get_by_id(id).parent;
+                        let parent = self.files.get_by_id(id).unwrap().parent;
                         if id != parent {
                             selected_any_parents = true;
                         }
-                        new_selection.insert(self.files.get_by_id(id).parent);
+                        new_selection.insert(self.files.get_by_id(id).unwrap().parent);
                     }
                     self.selected = new_selection;
                     if let Some(cursor) = self.cursor {
-                        let parent = self.files.get_by_id(cursor).parent;
+                        let parent = self.files.get_by_id(cursor).unwrap().parent;
                         if cursor != parent {
                             selected_any_parents = true;
                         }
-                        self.cursor = Some(self.files.get_by_id(cursor).parent);
+                        self.cursor = Some(self.files.get_by_id(cursor).unwrap().parent);
                     }
                 }
 
@@ -606,31 +266,25 @@ impl FileTree {
                     };
                 }
             }
-
-            // shift + right arrow: incremental recursive expand
-            if ui.input_mut(|i| {
-                i.consume_key(Modifiers::SHIFT, Key::ArrowRight)
-                    || i.consume_key(Modifiers::SHIFT, Key::D)
-            }) {
-                self.expand_incremental(&Vec::from_iter(self.selected.clone()));
-            }
             // right arrow: expand selected or move selection to first child
             else if ui.input_mut(|i| {
                 i.consume_key(Modifiers::NONE, Key::ArrowRight)
                     || i.consume_key(Modifiers::NONE, Key::D)
             }) {
-                scroll_to_cursor = true;
+                *scroll_to_cursor = true;
 
                 // prefer to expand all selected folders
                 let mut expanded_any = false;
                 for id in self.selected.clone() {
-                    if self.files.get_by_id(id).is_folder() && !self.expanded.contains(&id) {
+                    if self.files.get_by_id(id).unwrap().is_folder() && !self.expanded.contains(&id)
+                    {
                         self.expand(&[id]);
                         expanded_any = true;
                     }
                 }
                 if let Some(cursor) = self.cursor {
-                    if self.files.get_by_id(cursor).is_folder() && !self.expanded.contains(&cursor)
+                    if self.files.get_by_id(cursor).unwrap().is_folder()
+                        && !self.expanded.contains(&cursor)
                     {
                         self.expand(&[cursor]);
                         expanded_any = true;
@@ -671,7 +325,7 @@ impl FileTree {
                 if !advanced_to_children {
                     new_selection.clear();
                     for &id in &self.selected {
-                        let file = self.files.get_by_id(id);
+                        let file = self.files.get_by_id(id).unwrap();
                         let mut advanced_to_sibling = false;
                         if let Some(next) = self.next(id, false) {
                             if self
@@ -690,7 +344,7 @@ impl FileTree {
                         }
                     }
                     if let Some(cursor) = self.cursor {
-                        let file = self.files.get_by_id(cursor);
+                        let file = self.files.get_by_id(cursor).unwrap();
                         if let Some(next) = self.next(cursor, false) {
                             if self
                                 .files
@@ -709,8 +363,8 @@ impl FileTree {
                 if !advanced_to_children && !advanced_to_siblings {
                     new_selection.clear();
                     for &id in &self.selected {
-                        let file = self.files.get_by_id(id);
-                        let parent = self.files.get_by_id(file.parent);
+                        let file = self.files.get_by_id(id).unwrap();
+                        let parent = self.files.get_by_id(file.parent).unwrap();
                         let mut advanced_to_parent_sibling = false;
                         if let Some(next) = self.next(id, false) {
                             if self
@@ -728,8 +382,8 @@ impl FileTree {
                         }
                     }
                     if let Some(cursor) = self.cursor {
-                        let file = self.files.get_by_id(cursor);
-                        let parent = self.files.get_by_id(file.parent);
+                        let file = self.files.get_by_id(cursor).unwrap();
+                        let parent = self.files.get_by_id(file.parent).unwrap();
                         if let Some(next) = self.next(cursor, false) {
                             if self
                                 .files
@@ -754,7 +408,7 @@ impl FileTree {
                     || i.consume_key(Modifiers::NONE, Key::W)
                     || i.consume_key(Modifiers::SHIFT, Key::Tab)
             }) {
-                scroll_to_cursor = true;
+                *scroll_to_cursor = true;
 
                 if let Some(cursor) = self.cursor {
                     if let Some(prev) = self.prev(cursor, true) {
@@ -782,7 +436,7 @@ impl FileTree {
                     || i.consume_key(Modifiers::NONE, Key::S)
                     || i.consume_key(Modifiers::NONE, Key::Tab)
             }) {
-                scroll_to_cursor = true;
+                *scroll_to_cursor = true;
 
                 if let Some(cursor) = self.cursor {
                     if let Some(next) = self.next(cursor, true) {
@@ -811,7 +465,7 @@ impl FileTree {
                 || ui.input(|i| i.events.iter().any(|e| matches!(e, &Event::Paste(_))))
             {
                 if let Some(cursor) = self.cursor {
-                    let cursor_file = self.files.get_by_id(cursor);
+                    let cursor_file = self.files.get_by_id(cursor).unwrap();
                     let dest = if cursor_file.is_folder() { cursor } else { cursor_file.parent };
                     for id in mem::take(&mut self.cut) {
                         resp.move_requests.push((id, dest));
@@ -824,14 +478,15 @@ impl FileTree {
                 i.consume_key(Modifiers::COMMAND, Key::R) || i.consume_key(Modifiers::NONE, Key::F2)
             }) {
                 if let Some(cursor) = self.cursor {
-                    self.init_rename(ui.ctx(), cursor);
+                    let cursor = self.files.get_by_id(cursor).unwrap().clone();
+                    self.init_rename(ui.ctx(), &cursor);
                 }
             }
 
             // cmd + a: select all files in folder containing cursor
             if ui.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::A)) {
                 if let Some(cursor) = self.cursor {
-                    let parent = self.files.get_by_id(cursor).parent;
+                    let parent = self.files.get_by_id(cursor).unwrap().parent;
                     self.selected.clear();
                     for file in self.files.children(parent) {
                         self.selected.insert(file.id);
@@ -866,7 +521,7 @@ impl FileTree {
                         } else {
                             collapsed_folders.push(id);
                         }
-                    } else if self.files.get_by_id(id).is_document() {
+                    } else if self.files.get_by_id(id).unwrap().is_document() {
                         documents.push(id);
                     } else if self.expanded.contains(&id) {
                         expanded_folders.push(id);
@@ -890,18 +545,88 @@ impl FileTree {
         if !ui.memory(|m| m.has_focus(file_tree_id)) {
             self.cut.clear();
         }
+    }
 
-        resp
-            // show suggested docs
-            .union(ui.vertical(|ui| self.show_suggested(ui)).inner)
-            // show file tree
-            .union({
-                ui.vertical(|ui| {
-                    self.show_recursive(ui, toasts, self.files.root(), 0, scroll_to_cursor)
-                })
-                .inner
-                .union(self.show_padding(ui, toasts, max_rect))
-            })
+    fn show_pending_shares(&mut self, ui: &mut Ui, scroll_to_cursor: bool) -> Response {
+        let pending_shares_id = Id::new("pending_shares");
+        let focused = ui.memory(|m| m.has_focus(pending_shares_id));
+        let is_expanded = self.expanded.contains(&self.pending_shares_id);
+
+        let resp = ui.vertical(|ui| {
+            let shares_btn = self.show_file_cell(
+                ui,
+                &File {
+                    id: self.pending_shares_id,
+                    parent: Uuid::nil(),
+                    name: "Shared with you".into(),
+                    file_type: FileType::Folder,
+                    last_modified_by: Default::default(),
+                    shares: Default::default(),
+                    last_modified: Default::default(),
+                },
+                0.,
+                focused,
+            );
+
+            if shares_btn.clicked() {
+                ui.memory_mut(|m| m.request_focus(pending_shares_id));
+                self.selected.clear();
+                self.cut.clear();
+                self.cursor = Some(self.suggested_docs_folder_id);
+
+                if is_expanded {
+                    self.expanded.remove(&self.pending_shares_id);
+                } else {
+                    self.expanded.insert(self.pending_shares_id);
+                }
+            }
+            let mut resp = Response::default();
+
+            if is_expanded {
+                let mut keys: Vec<String> = self.pending_shares.keys().cloned().collect();
+                keys.sort_by_key(|user| self.pending_shares.get(user).unwrap().max_child_timestamp);
+
+                for user in keys {
+                    let cell = self.pending_shares.get(&user).unwrap().clone();
+                    let expanded = self.expanded.contains(&cell.id);
+                    let expand = Button::default()
+                        .icon(&Icon::PERSON)
+                        .text(user)
+                        .indent(15.)
+                        .rounding(Self::BTN_ROUNDING)
+                        .margin(Self::BTN_MARGIN)
+                        .hexpand(true)
+                        .padding(vec2(15., 7.))
+                        .show(ui)
+                        .clicked();
+
+                    if expand {
+                        if expanded {
+                            self.expanded.remove(&cell.id);
+                        } else {
+                            self.expanded.insert(cell.id);
+                        }
+                    }
+
+                    if expanded {
+                        for file in &cell.shares {
+                            resp = resp.union(self.show_recursive(
+                                ui,
+                                &mut Toasts::default(),
+                                file.id,
+                                2,
+                                scroll_to_cursor,
+                            ));
+                        }
+                    }
+                }
+            }
+            resp
+        });
+
+        self.pending_shares_height = resp.response.rect.height();
+
+        resp.inner
     }
 
     fn show_suggested(&mut self, ui: &mut Ui) -> Response {
@@ -961,7 +686,7 @@ impl FileTree {
         // suggested docs
         if is_expanded {
             for &id in &suggested_docs {
-                let file = self.files.get_by_id(id).clone();
+                let file = self.files.get_by_id(id).unwrap().clone();
 
                 let file_resp = self.show_file_cell(ui, &file, 15., focused);
                 file_resp.context_menu(|ui| {
@@ -990,7 +715,7 @@ impl FileTree {
     ) -> Response {
         let mut resp = Response::default();
 
-        let file = self.files.get_by_id(id).clone();
+        let file = self.files.get_by_id(id).unwrap().clone();
 
         let is_expanded = self.expanded.contains(&id);
         let is_renaming = self.rename_target == Some(id);
@@ -1066,14 +791,16 @@ impl FileTree {
             ));
         }
         // init rename
+        // no renames for pending shares
         if file_resp.double_clicked() {
-            self.init_rename(ui.ctx(), file.id);
+            self.init_rename(ui.ctx(), &file);
         }
         // select
         else if file_resp.clicked() {
             let mut shift_clicked = false;
             if let Some(cursored_file) = self.cursor {
                 // shift-click to add visible files between cursor and target to selection
+                // no shift clicking for pending shares
                 if ui.input(|i| i.raw.modifiers.shift) {
                     shift_clicked = true;
 
@@ -1145,7 +872,7 @@ impl FileTree {
         // context menu
         let mut context_menu_resp = Response::default();
         file_resp.context_menu(|ui| {
-            context_menu_resp = self.context_menu(ui, toasts, Some(id));
+            context_menu_resp = self.context_menu(ui, toasts, Some(&file));
         });
         resp = resp.union(context_menu_resp);
 
@@ -1159,7 +886,7 @@ impl FileTree {
 
         // drag 'n' drop:
         // when drag starts, dragged file sets dnd payload
-        if file_resp.dragged()
+        if self.descends_from_root(file.id) && file_resp.dragged()
             && ui.input(|i| {
                 let (Some(pos), Some(origin)) =
                     (i.pointer.interact_pos(), i.pointer.press_origin())
@@ -1183,7 +910,6 @@ impl FileTree {
             }
         }
 
-        let file = self.files.get_by_id(id);
         // during drag, drop target renders indicator
         let mut hovering_file_center = false;
         if let (Some(pointer), true) =
@@ -1364,7 +1090,11 @@ impl FileTree {
         } else {
             let is_shared = !file.shares.is_empty();
 
-            let icon = if self.expanded.contains(&file.id) {
+            let icon = if file.id == self.pending_shares_id {
+                Icon::PEOPLE
+            } else if file.id == self.suggested_docs_folder_id {
+                Icon::SPARKLE
+            } else if self.expanded.contains(&file.id) {
                 Icon::FOLDER_OPEN
             } else if is_shared {
                 Icon::SHARED_FOLDER
@@ -1427,7 +1157,7 @@ impl FileTree {
         // the dnd payload itself is ignored because we always move the selection
         if padding_resp.dnd_release_payload::<Uuid>().is_some() {
             for &selected in &self.selected {
-                resp.move_requests.push((selected, self.files.root()));
+                resp.move_requests.push((selected, self.files.root().id));
             }
         }
 
@@ -1435,7 +1165,7 @@ impl FileTree {
     }
 
     fn context_menu(
-        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<Uuid>,
+        &mut self, ui: &mut egui::Ui, toasts: &mut Toasts, file: Option<&File>,
     ) -> Response {
         let mut resp = Response::default();
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
@@ -1446,12 +1176,12 @@ impl FileTree {
 
         if let Some(file) = file {
             if ui.button("Open").clicked() {
-                resp.open_requests.insert(file, OpenRequest::same_tab());
+                resp.open_requests.insert(file.id, OpenRequest::same_tab());
                 ui.close_menu();
             }
 
             if ui.button("Open In New Tab").clicked() {
-                resp.open_requests.insert(file, OpenRequest::new_tab());
+                resp.open_requests.insert(file.id, OpenRequest::new_tab());
                 ui.close_menu();
             }
 
@@ -1469,8 +1199,8 @@ impl FileTree {
         }
 
         if ui.button("New Folder").clicked() {
-            let file = if let Some(file) = file { file } else { self.files.root() };
-            resp.new_folder_modal = Some(self.files.get_by_id(file).clone());
+            let file = if let Some(file) = file { file.id } else { self.files.root().id };
+            resp.new_folder_modal = Some(self.files.get_by_id(file).unwrap().clone());
             ui.close_menu();
         }
 
@@ -1483,10 +1213,10 @@ impl FileTree {
             }
 
             if ui.button("Delete").clicked() {
-                if self.selected.contains(&file) {
+                if self.selected.contains(&file.id) {
                     resp.delete_requests.extend(&self.selected);
                 } else {
-                    resp.delete_requests.insert(file);
+                    resp.delete_requests.insert(file.id);
                 }
                 ui.close_menu();
             }
@@ -1494,7 +1224,7 @@ impl FileTree {
             ui.separator();
 
             if ui.button("Export").clicked() {
-                let file = self.files.get_by_id(file).clone();
+                let file = self.files.get_by_id(file.id).unwrap().clone();
                 let export = self.export.clone();
                 let ctx = ui.ctx().clone();
 
@@ -1508,24 +1238,41 @@ impl FileTree {
                 ui.close_menu();
             }
 
-            if ui.button("Share").clicked() {
-                let file = self.files.get_by_id(file).clone();
+            if self.descends_from_root(file.id) && ui.button("Share").clicked() {
+                let file = self.files.get_by_id(file.id).unwrap().clone();
                 resp.create_share_modal = Some(file);
                 ui.close_menu();
             }
 
             if ui.button("Copy Link").clicked() {
+                let id = file.id;
                 ui.ctx()
-                    .output_mut(|o| o.copied_text = format!("lb://{file}"));
+                    .output_mut(|o| o.copied_text = format!("lb://{id}"));
                 toasts.success("Copied link!");
                 ui.close_menu();
             }
 
-            let file = self.files.get_by_id(file).clone();
-            if file.is_folder() {
+            if self.descends_from_root(file.id) && file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
-                    resp.space_inspector_root = Some(file);
+                    resp.space_inspector_root = Some(file.clone());
+                    ui.close_menu();
+                }
+            }
+
+            if self
+                .pending_shares
+                .values()
+                .any(|cell| cell.shares.iter().any(|f| f.id == file.id))
+            {
+                ui.separator();
+                if ui.button("Accept Share").clicked() {
+                    resp.accepted_share = Some(file.clone());
+                    ui.close_menu();
+                }
+
+                if ui.button("Reject Share").clicked() {
+                    resp.rejected_share = Some(file.clone());
                     ui.close_menu();
                 }
             }
@@ -1533,9 +1280,7 @@ impl FileTree {
         resp
     }
 
-    fn init_rename(&mut self, ctx: &Context, file: Uuid) {
-        let file = self.files.get_by_id(file);
-
+    fn init_rename(&mut self, ctx: &Context, file: &File) {
         self.rename_target = Some(file.id);
         self.rename_buffer = file.name.clone();
 
@@ -1556,41 +1301,403 @@ impl FileTree {
     const BTN_MARGIN: Vec2 = egui::vec2(10.0, 0.0);
 }
 
-pub trait FilesExt {
-    fn root(&self) -> Uuid;
-    fn get_by_id(&self, id: Uuid) -> &File;
-    fn children(&self, id: Uuid) -> Vec<&File>;
-}
-
-impl FilesExt for [File] {
-    fn root(&self) -> Uuid {
-        for file in self {
-            if file.parent == file.id {
-                return file.id;
+/// Model related things
+impl FileTree {
+    /// Updates the files in the tree. The selection and expansion are preserved.
+    pub fn update_files(
+        &mut self, files: Vec<File>, pending_shares: Vec<File>, shared_files: Vec<File>,
+    ) {
+        let my_username = files.root().name.clone();
+        self.files = files;
+        self.files.extend(shared_files);
+        self.update_pending_shares(&my_username, pending_shares);
+        self.expanded.retain(|&id| {
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
+                || self.pending_shares.values().any(|cell| cell.id == id)
+        });
+        self.selected.retain(|&id| {
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
+                || self.pending_shares.values().any(|cell| cell.id == id)
+        });
+        if let Some(cursor) = self.cursor {
+            if !self.files.iter().any(|f| f.id == cursor)
+                && cursor != self.suggested_docs_folder_id
+                && cursor != self.pending_shares_id
+                && !self.pending_shares.values().any(|cell| cell.id == cursor)
+            {
+                self.cursor = Some(self.files.root().id);
             }
         }
-        unreachable!("unable to find root in metadata list")
     }
 
-    fn get_by_id(&self, id: Uuid) -> &File {
-        if let Some(file) = self.iter().find(|f| f.id == id) {
-            file
-        } else {
-            unreachable!("unable to find file with id: {:?}", id)
+    fn update_pending_shares(&mut self, my_username: &str, mut roots: Vec<File>) {
+        self.pending_shares
+            .values_mut()
+            .for_each(|cell| cell.shares.clear());
+
+        let mut max_timestamp: HashMap<Uuid, i64> = Default::default();
+        roots.iter().for_each(|root| {
+            max_timestamp.insert(
+                root.id,
+                self.files
+                    .descendents(root.id)
+                    .iter()
+                    .map(|child| child.last_modified)
+                    .max()
+                    .unwrap_or_default() as i64,
+            );
+        });
+        roots.sort_by_key(|root| -1 * max_timestamp.get(&root.id).unwrap());
+
+        for file in &roots {
+            for share in &file.shares {
+                if share.shared_with == my_username {
+                    let target_username = &share.shared_by;
+                    if !self.pending_shares.contains_key(target_username) {
+                        let id = Uuid::new_v4();
+                        self.expanded.insert(id);
+                        self.pending_shares.insert(
+                            target_username.clone(),
+                            ShareCell { id, shares: vec![], max_child_timestamp: 0 },
+                        );
+                    }
+
+                    self.pending_shares
+                        .get_mut(target_username)
+                        .unwrap()
+                        .shares
+                        .push(file.clone());
+                }
+            }
+        }
+
+        for cell in self.pending_shares.values_mut() {
+            cell.max_child_timestamp = cell
+                .shares
+                .iter()
+                .map(|f| max_timestamp.get(&f.id).unwrap())
+                .max()
+                .copied()
+                .unwrap_or_default();
         }
     }
 
-    fn children(&self, id: Uuid) -> Vec<&File> {
-        let mut children: Vec<_> = self
-            .iter()
-            .filter(|f| f.parent == id && f.parent != f.id)
-            .collect();
-        children.sort_by(|a, b| match (a.file_type, b.file_type) {
-            (FileType::Folder, FileType::Document) => Ordering::Less,
-            (FileType::Document, FileType::Folder) => Ordering::Greater,
-            (_, _) => a.name.cmp(&b.name),
+    /// Asynchronously recalculates the suggested files; requests repaint when complete.
+    pub fn recalc_suggested_files(&mut self, core: &Lb, ctx: &egui::Context) {
+        let core = core.clone();
+        let suggested = self.suggested_docs.clone();
+        let ctx = ctx.clone();
+
+        thread::spawn(move || {
+            let suggested_docs = core.suggested_docs(RankingWeights::default());
+            match suggested_docs {
+                Ok(docs) => {
+                    let mut suggested = suggested.lock().unwrap();
+                    *suggested = docs.into_iter().take(5).collect();
+                }
+                Err(err) => {
+                    // todo: better error surfacing
+                    println!("Failed to calculate suggested files: {err:?}");
+                }
+            }
+            ctx.request_repaint();
         });
-        children
+    }
+
+    /// Expands `ids`. Does not select or deselect anything.
+    fn expand(&mut self, ids: &[Uuid]) {
+        self.expand_recursive(ids, Some(0));
+    }
+
+    /// Expands `ids` recursively to a maximum depth of `depth`. If `depth` is `None`, expands all the way. Does not
+    /// select or deselect anything.
+    fn expand_recursive(&mut self, ids: &[Uuid], depth: Option<usize>) {
+        let ids = ids
+            .iter()
+            .copied()
+            .filter(|&id| self.files.get_by_id(id).unwrap().is_folder())
+            .collect::<Vec<_>>();
+        self.expanded.extend(ids.iter().copied());
+        if depth == Some(0) {
+            return;
+        }
+        for id in ids {
+            let children = self
+                .files
+                .children(id)
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            for child in children {
+                self.expand_recursive(&[child.id], depth.map(|d| d - 1));
+            }
+        }
+    }
+
+    /// Collapses `ids`. Selections that are hidden are replaced with their closest visible ancestor.
+    fn collapse(&mut self, ids: &[Uuid]) {
+        self.expanded.retain(|id| !ids.contains(id));
+        self.select_visible_ancestors();
+    }
+
+    /// Helper that replaces each file in selection with its first visible ancestor (including itself). One option for
+    /// making sure all selections are visible. See also `reveal_selection`.
+    fn select_visible_ancestors(&mut self) {
+        let selected = mem::take(&mut self.selected);
+        for id in selected {
+            for id in self.files.ancestors(id) {
+                if self.is_visible(id) {
+                    self.selected.insert(id);
+                    break;
+                }
+            }
+        }
+    }
+
+    fn descends_from_root(&self, id: Uuid) -> bool {
+        let root = self.files.root().id;
+        if id == root {
+            return true;
+        }
+
+        self.files.ancestors(id).contains(&root)
+    }
+
+    /// Helper that expands the ancestors of the selected files. One option for making sure all selections are visible.
+    /// See also `select_visible_ancestors`.
+    pub fn reveal_selection(&mut self) {
+        for mut id in self.selected.clone() {
+            loop {
+                if !self.descends_from_root(id) {
+                    self.expanded.insert(self.pending_shares_id);
+                }
+
+                if id == self.suggested_docs_folder_id {
+                    break;
+                }
+
+                let Some(selection) = self.files.get_by_id(id) else {
+                    break;
+                };
+
+                let Some(parent) = self.files.get_by_id(selection.parent) else {
+                    break;
+                };
+
+                if parent.is_root() {
+                    break;
+                }
+
+                self.expanded.insert(parent.id);
+                id = parent.id;
+            }
+        }
+    }
+
+    /// Returns the file after id in depth-first order, folders first then alphabetically.
+    fn next(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
+        // if the file has children, return the first child
+        // if `visible_only` is true then the child must be visible i.e. the file must be visible and expanded
+        if !visible_only || (self.is_visible(id) && self.expanded.contains(&id)) {
+            if let Some(first_child) = self.files.children(id).first() {
+                return Some(first_child.id);
+            }
+        }
+
+        // otherwise, return the next sibling of the file's closest ancestor (including itself) that has a next sibling
+        let mut ancestor = id;
+        loop {
+            let parent = self.files.get_by_id(ancestor).map(|f| f.parent)?;
+            if !visible_only || self.is_visible(ancestor) {
+                let siblings = self.files.children(parent);
+                let mut found_file = false;
+                for sibling in siblings {
+                    if sibling.id == ancestor {
+                        found_file = true;
+                    } else if found_file {
+                        return Some(sibling.id);
+                    }
+                }
+            }
+
+            if ancestor == parent {
+                return None;
+            }
+            ancestor = parent;
+        }
+    }
+
+    /// Returns the file before id in depth-first order, folders first then alphabetically.
+    fn prev(&self, id: Uuid, visible_only: bool) -> Option<Uuid> {
+        let parent = self.files.get_by_id(id).unwrap().parent;
+        if id == parent {
+            return None;
+        }
+
+        let siblings = self.files.children(parent);
+        let mut prev_sibling = None;
+        let mut found_file = false;
+        for sibling in siblings.into_iter().rev() {
+            if sibling.id == id {
+                found_file = true;
+            } else if found_file {
+                prev_sibling = Some(sibling.id);
+                break;
+            }
+        }
+
+        if let Some(prev_sibling) = prev_sibling {
+            // if the file has a previous sibling, return the last descendent of the previous sibling
+            // if `visible_only` is true then return the first visible ancestor of that descendent (including itself)
+            let mut last_descendent = prev_sibling;
+            loop {
+                let children = self.files.children(last_descendent);
+                if let Some(last_child) = children.last() {
+                    last_descendent = last_child.id;
+                } else {
+                    break;
+                }
+            }
+            if visible_only {
+                loop {
+                    if self.is_visible(last_descendent) {
+                        break;
+                    }
+                    last_descendent = self.files.get_by_id(last_descendent).unwrap().parent;
+                }
+            }
+            Some(last_descendent)
+        } else {
+            // if the file is the first child of its parent, return the parent
+            // if `visible_only` is true then return the first visible ancestor of the parent (including the parent)
+            let mut ancestor = self.files.get_by_id(id).unwrap().parent;
+            if visible_only {
+                loop {
+                    if self.is_visible(ancestor) {
+                        break;
+                    }
+                    ancestor = self.files.get_by_id(ancestor).map(|f| f.parent)?;
+                }
+            }
+            Some(ancestor)
+        }
+    }
+
+    /// Returns the file after id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
+    /// is not suggested, or if there is no next suggested doc.
+    fn next_suggested(&self, id: Uuid) -> Option<Uuid> {
+        let Ok(suggested_docs) = self.suggested_docs.lock() else {
+            return None;
+        };
+
+        if !self.expanded.contains(&self.suggested_docs_folder_id) {
+            None // folder collapsed -> none
+        } else if id == self.suggested_docs_folder_id {
+            suggested_docs.first().copied() // folder -> first item
+        } else {
+            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
+            if idx + 1 < suggested_docs.len() {
+                Some(suggested_docs[idx + 1]) // child -> next sibling
+            } else {
+                None // last child -> none
+            }
+        }
+    }
+
+    /// Returns the file before id in the order of suggested docs. Returns None if suggested docs are collapsed, if id
+    /// is not suggested, or if there is no previous suggested doc.
+    fn prev_suggested(&self, id: Uuid) -> Option<Uuid> {
+        let Ok(suggested_docs) = self.suggested_docs.lock() else {
+            return None;
+        };
+
+        if id == self.suggested_docs_folder_id {
+            None // folder -> none
+        } else if !self.expanded.contains(&self.suggested_docs_folder_id) {
+            Some(self.suggested_docs_folder_id) // invisible item -> folder
+        } else {
+            let idx = suggested_docs.iter().position(|&doc_id| doc_id == id)?;
+            if idx > 0 {
+                Some(suggested_docs[idx - 1]) // child -> prev sibling
+            } else {
+                Some(self.suggested_docs_folder_id) // last child -> folder
+            }
+        }
+    }
+
+    /// A file is visible if all its ancestors are expanded.
+    fn is_visible(&self, id: Uuid) -> bool {
+        let Some(file) = self.files.get_by_id(id) else {
+            return false;
+        };
+
+        if file.is_root() {
+            return true;
+        }
+
+        self.expanded.contains(&file.parent) && self.is_visible(file.parent)
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct Response {
+    pub open_requests: HashMap<Uuid, OpenRequest>,
+    pub new_file: Option<bool>,
+    pub new_drawing: Option<bool>,
+    pub export_file: Option<(File, PathBuf)>,
+    pub new_folder_modal: Option<File>,
+    pub create_share_modal: Option<File>,
+    pub move_requests: Vec<(Uuid, Uuid)>,
+    pub rename_request: Option<(Uuid, String)>,
+    pub delete_requests: HashSet<Uuid>,
+    pub dropped_on: Option<Uuid>,
+    pub space_inspector_root: Option<File>,
+    pub clear_suggested: bool,
+    pub clear_suggested_id: Option<Uuid>,
+    pub accepted_share: Option<File>,
+    pub rejected_share: Option<File>,
+}
+
+#[derive(Debug)]
+pub struct OpenRequest {
+    pub is_new_file: bool,
+    pub make_current: bool,
+    pub in_new_tab: bool,
+}
+
+impl OpenRequest {
+    fn new_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: true }
+    }
+
+    fn same_tab() -> Self {
+        OpenRequest { is_new_file: false, make_current: true, in_new_tab: false }
+    }
+}
+
+impl Response {
+    fn union(self, other: Self) -> Self {
+        let mut this = self;
+        this.new_file = this.new_file.or(other.new_file);
+        this.new_drawing = this.new_drawing.or(other.new_drawing);
+        this.new_folder_modal = this.new_folder_modal.or(other.new_folder_modal);
+        this.create_share_modal = this.create_share_modal.or(other.create_share_modal);
+        this.export_file = this.export_file.or(other.export_file);
+        this.open_requests.extend(other.open_requests);
+        this.move_requests.extend(other.move_requests);
+        this.rename_request = this.rename_request.or(other.rename_request);
+        this.delete_requests.extend(other.delete_requests);
+        this.dropped_on = this.dropped_on.or(other.dropped_on);
+        this.space_inspector_root = this.space_inspector_root.or(other.space_inspector_root);
+        this.clear_suggested = this.clear_suggested || other.clear_suggested;
+        this.clear_suggested_id = this.clear_suggested_id.or(other.clear_suggested_id);
+        this.accepted_share = this.accepted_share.or(other.accepted_share);
+        this.rejected_share = this.rejected_share.or(other.rejected_share);
+        this
     }
 }
 
@@ -1621,7 +1728,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1670,7 +1777,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.selected, vec![].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
@@ -1698,84 +1805,8 @@ mod test {
 
         tree.collapse(&[ids[0]]);
 
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
         assert_eq!(tree.expanded, vec![ids[1]].into_iter().collect());
-    }
-
-    #[test]
-    fn collapse_leafs_expand_incremental() {
-        /*
-         * 0
-         * ├── 1
-         * ├── 2
-         * │   └── 3
-         * └── 4
-         *     ├── 5
-         *     └── 6
-         *         └── 7
-         */
-        let ids = vec![
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-        ];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Document, &ids),
-            file(2, 0, FileType::Folder, &ids),
-            file(3, 2, FileType::Document, &ids),
-            file(4, 0, FileType::Folder, &ids),
-            file(5, 4, FileType::Document, &ids),
-            file(6, 4, FileType::Folder, &ids),
-            file(7, 6, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files);
-
-        assert_eq!(tree.selected, vec![].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.selected.insert(ids[3]);
-        tree.selected.insert(ids[7]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[3], ids[7]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[2], ids[6]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[4]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[2], ids[4]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.collapse_leaves(&[ids[0]]);
-
         assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4]].into_iter().collect());
-
-        tree.expand_incremental(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[2], ids[4], ids[6]].into_iter().collect());
     }
 
     #[test]
@@ -1797,7 +1828,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.next(ids[0], false), Some(ids[1]));
         assert_eq!(tree.next(ids[1], false), Some(ids[2]));
@@ -1859,7 +1890,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert_eq!(tree.prev(ids[0], false), None);
         assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
@@ -1921,7 +1952,7 @@ mod test {
             file(4, 0, FileType::Document, &ids),
         ];
 
-        let mut tree = FileTree::new(files);
+        let mut tree = FileTree::new(files, vec![], vec![]);
 
         assert!(tree.is_visible(ids[0]));
         assert!(tree.is_visible(ids[1]));
@@ -1947,6 +1978,7 @@ mod test {
     }
 
     fn file(idx: usize, parent_idx: usize, file_type: FileType, ids: &[Uuid]) -> File {
+        println!("{idx} = {}", ids[idx]);
         File {
             id: ids[idx],
             parent: ids[parent_idx],

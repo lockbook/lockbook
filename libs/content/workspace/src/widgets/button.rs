@@ -1,4 +1,4 @@
-use egui::{Rounding, TextStyle, TextWrapMode, WidgetText};
+use egui::{Rounding, Stroke, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 
@@ -72,6 +72,10 @@ impl<'a> Button<'a> {
 
     pub fn indent(self, indent: f32) -> Self {
         Self { indent, ..self }
+    }
+
+    pub fn stroke(self, stroke: Stroke) -> Self {
+        Self { stroke, ..self }
     }
 
     pub fn default_fill(self, default_fill: egui::Color32) -> Self {

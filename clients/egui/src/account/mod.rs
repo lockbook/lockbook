@@ -74,7 +74,11 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(files),
+            tree: FileTree::new(
+                files,
+                core.get_pending_shares().unwrap(),
+                core.get_pending_share_files().unwrap(),
+            ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone(), true),
@@ -273,7 +277,7 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged => {
+                Event::MetadataChanged | Event::PendingSharesChanged => {
                     self.refresh_tree(ctx);
                 }
                 Event::StatusUpdated => {
@@ -290,9 +294,6 @@ impl AccountScreen {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
-                    OpenModal::AcceptShare => {
-                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
-                    }
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
@@ -334,8 +335,8 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(files) => {
-                    self.tree.update_files(files);
+                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
+                    self.tree.update_files(files, share_roots, share_files);
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
 
@@ -511,6 +512,17 @@ impl AccountScreen {
                 .unwrap();
         }
 
+        if let Some(file) = resp.accepted_share {
+            self.update_tx
+                .send(OpenModal::PickShareParent(file).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
+        if let Some(file) = resp.rejected_share {
+            self.delete_share(file);
+        }
+
         if let Some(id) = resp.dropped_on {
             // todo: async
             self.move_selected_files_to(ui.ctx(), id);
@@ -556,16 +568,6 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         };
         settings_btn.on_hover_text("Settings");
-
-        let incoming_shares_btn = Button::default()
-            .icon(&Icon::SHARED_FOLDER.badge(self.lb_status.pending_shares))
-            .show(ui);
-
-        if incoming_shares_btn.clicked() {
-            self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-            ui.ctx().request_repaint();
-        };
-        incoming_shares_btn.on_hover_text("Incoming shares");
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {
@@ -587,9 +589,11 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
+            let files = core.list_metadatas().unwrap();
+            let share_roots = core.get_pending_shares().unwrap();
+            let share_files = core.get_pending_share_files().unwrap();
             update_tx
-                .send(AccountUpdate::ReloadTree(all_metas))
+                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -798,15 +802,11 @@ impl AccountScreen {
         });
     }
 
+    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
-
-                // inefficient but works
-                let mut files = self.tree.files.clone();
-                files.push(f);
-                self.tree.update_files(files);
 
                 if is_doc {
                     self.workspace.open_file(id, true, true, true);
@@ -839,7 +839,11 @@ pub enum AccountUpdate {
 
     DoneDeleting,
 
-    ReloadTree(Vec<File>),
+    ReloadTree {
+        files: Vec<File>,
+        share_roots: Vec<File>,
+        share_files: Vec<File>,
+    },
 
     FinalSyncAttemptDone,
 }
@@ -848,7 +852,6 @@ pub enum OpenModal {
     NewFolder(Option<File>),
     InitiateShare(File),
     Settings,
-    AcceptShare,
     PickShareParent(File),
     PickDropParent(Vec<egui::DroppedFile>),
     ConfirmDelete(Vec<File>),

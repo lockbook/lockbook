@@ -343,7 +343,12 @@ impl Workspace {
                         let mut tabs_to_delete = vec![];
                         for tab in &self.tabs {
                             if let Some(id) = tab.id() {
-                                if !files.files.iter().any(|f| Some(f.id) == tab.id()) {
+                                if !files
+                                    .files
+                                    .iter()
+                                    .chain(&files.shared)
+                                    .any(|f| Some(f.id) == tab.id())
+                                {
                                     tabs_to_delete.push(id);
                                 }
                             }

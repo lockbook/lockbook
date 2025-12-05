@@ -69,6 +69,8 @@ impl Icon {
     pub const NUMBER_LIST: Self = ic("\u{f027b}"); // 󰉻
     pub const NEW_FOLDER: Self = ic("\u{ea80}"); // 
     pub const NEW_FILE: Self = ic("\u{ea7f}"); // 
+    pub const PERSON: Self = ic("\u{f007}"); // 
+    pub const PEOPLE: Self = ic("\u{f0c0}"); // 
     pub const SETTINGS: Self = ic("\u{f0493}"); // 󰒓
     pub const SPARKLE: Self = ic("\u{f51b}"); // 
     pub const SAVE: Self = ic("\u{f0193}"); // 󰆓
