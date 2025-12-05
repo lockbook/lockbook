@@ -40,7 +40,7 @@ pub struct StorageCell {
 
 impl Data {
     pub fn init(potential_root: Option<File>, usage: Vec<FileUsage>, meta_data: Vec<File>) -> Self {
-        let root = meta_data.root();
+        let root = meta_data.root().id;
         let data = Self::get_filerows(usage, meta_data);
         let mut all_files = HashMap::new();
         for datum in data.clone() {

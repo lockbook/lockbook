@@ -1,4 +1,3 @@
-use crate::file_cache::FilesExt as _;
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
@@ -345,7 +344,7 @@ impl Workspace {
     pub fn tab_title(&self, tab: &Tab) -> String {
         match (tab.id(), &self.files) {
             (Some(id), Some(files)) => {
-                if let Some(file) = files.files.get_by_id(id) {
+                if let Some(file) = files.files.iter().chain(&files.shared).find(|f| f.id == id) {
                     file.name.clone()
                 } else if let Ok(file) = self.core.get_file_by_id(id) {
                     // read-through (can remove when we master cache refreshes)

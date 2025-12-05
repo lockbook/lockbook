@@ -9,12 +9,17 @@ use lb_rs::model::file_metadata::FileType;
 
 pub struct FileCache {
     pub files: Vec<File>,
+    pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
 }
 
 impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
-        Ok(Self { files: lb.list_metadatas()?, suggested: lb.suggested_docs(Default::default())? })
+        Ok(Self {
+            files: lb.list_metadatas()?,
+            suggested: lb.suggested_docs(Default::default())?,
+            shared: lb.get_pending_share_files()?,
+        })
     }
 }
 
@@ -28,17 +33,32 @@ impl Debug for FileCache {
 }
 
 pub trait FilesExt {
-    fn root(&self) -> Uuid;
+    fn root(&self) -> &File;
     fn get_by_id(&self, id: Uuid) -> Option<&File>;
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn descendents(&self, id: Uuid) -> Vec<&File>;
+
+    /// returns all known parents until we can't find one (share) or we hit root
+    fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
+        let mut ancestors = vec![];
+        if let Some(us) = self.get_by_id(id) {
+            if us.is_root() {
+                return ancestors;
+            }
+
+            let parent = us.parent;
+            ancestors.push(parent);
+            ancestors.extend_from_slice(&self.ancestors(parent));
+        }
+        ancestors
+    }
 }
 
 impl FilesExt for [File] {
-    fn root(&self) -> Uuid {
+    fn root(&self) -> &File {
         for file in self {
-            if file.parent == file.id {
-                return file.id;
+            if file.is_root() {
+                return file;
             }
         }
         unreachable!("unable to find root in metadata list")
@@ -72,7 +92,7 @@ impl FilesExt for [File] {
 }
 
 impl FilesExt for Vec<File> {
-    fn root(&self) -> Uuid {
+    fn root(&self) -> &File {
         self.as_slice().root()
     }
 
