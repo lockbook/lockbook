@@ -307,19 +307,19 @@ impl SVGEditor {
             return;
         }
 
-        // if !self.read_only {
-        if ui.input_mut(|r| {
-            r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
-        }) {
-            self.history.redo(&mut self.buffer);
-        }
+        if !self.read_only {
+            if ui.input_mut(|r| {
+                r.consume_key(egui::Modifiers::COMMAND.plus(egui::Modifiers::SHIFT), egui::Key::Z)
+            }) {
+                self.history.redo(&mut self.buffer);
+            }
 
-        if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
-            self.history.undo(&mut self.buffer);
-        }
+            if ui.input_mut(|r| r.consume_key(egui::Modifiers::COMMAND, egui::Key::Z)) {
+                self.history.undo(&mut self.buffer);
+            }
 
-        self.handle_clip_input(ui);
-        // }
+            self.handle_clip_input(ui);
+        }
 
         let has_click_outside_islands = ui.input(|r| {
             r.events.iter().any(|e| match *e {
