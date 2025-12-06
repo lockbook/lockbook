@@ -9,19 +9,25 @@ import SwiftUI
     import UIKit
     import ObjectiveC.runtime
 
+    // MARK: - WorkspaceView
     public struct WorkspaceView: UIViewControllerRepresentable {
         @EnvironmentObject public var workspaceInput: WorkspaceInputState
         @EnvironmentObject public var workspaceOutput: WorkspaceOutputState
         @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
-        public init() {}
+        
+        @Binding var mtkView: iOSMTK?
+        
+        public init(mtkView: Binding<iOSMTK?>) {
+            _mtkView = mtkView
+        }
 
         public func makeUIViewController(context: Context)
             -> ContainerController
         {
             return ContainerController(
                 workspaceInput: workspaceInput,
-                workspaceOutput: workspaceOutput
+                workspaceOutput: workspaceOutput,
+                mtkView: $mtkView
             )
         }
 
@@ -34,13 +40,17 @@ import SwiftUI
         public class ContainerController: UIViewController {
             let workspaceInput: WorkspaceInputState
             let workspaceOutput: WorkspaceOutputState
+            
+            @Binding var mtkView: iOSMTK?
 
             init(
                 workspaceInput: WorkspaceInputState,
-                workspaceOutput: WorkspaceOutputState
+                workspaceOutput: WorkspaceOutputState,
+                mtkView: Binding<iOSMTK?>
             ) {
                 self.workspaceInput = workspaceInput
                 self.workspaceOutput = workspaceOutput
+                self._mtkView = mtkView
 
                 super.init(nibName: nil, bundle: nil)
             }
@@ -51,7 +61,6 @@ import SwiftUI
 
             public override func viewDidLoad() {
                 let workspaceController: WorkspaceController
-
                 if let wsHandle = workspaceInput.wsHandle {
                     workspaceController =
                         objc_getAssociatedObject(UIApplication.shared, wsHandle)
@@ -69,6 +78,8 @@ import SwiftUI
                     )
                     workspaceController = new
                 }
+
+                mtkView = workspaceController.inputManager.mtkView
 
                 if workspaceController.parent != nil {
                     workspaceController.willMove(toParent: nil)
@@ -92,6 +103,7 @@ import SwiftUI
         }
     }
 
+    // MARK: - WorkspaceController
     public class WorkspaceController: UIViewController {
         let inputManager: iOSMTKInputManager
         var cancellables: Set<AnyCancellable> = []
@@ -157,6 +169,7 @@ import SwiftUI
         }
     }
 
+    // MARK: - iOSMTKInputManager
     public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         public var mtkView: iOSMTK
 
@@ -302,6 +315,7 @@ import SwiftUI
     }
 
 #else
+    // MARK: - WorkspaceView
     public struct WorkspaceView: View, Equatable {
         @FocusState var focused: Bool
         @ObservedObject var workspaceInput: WorkspaceInputState
@@ -339,6 +353,7 @@ import SwiftUI
         }
     }
 
+    // MARK: - NSWS
     public struct NSWS: NSViewRepresentable {
         @ObservedObject public var workspaceInput: WorkspaceInputState
         @ObservedObject public var workspaceOutput: WorkspaceOutputState

@@ -10,6 +10,7 @@ struct DrawerView<Main: View, Side: View>: View {
     @ViewBuilder let sideView: Side
 
     @State private var sidebarOffset: CGFloat = Constants.sidebarOffsetClosed
+    @State private var mtkView: iOSMTK?
 
     var body: some View {
         GeometryReader { geometry in
@@ -237,6 +238,7 @@ struct NonCancellingDragGesture: UIGestureRecognizerRepresentable {
         let recognizer = UIPanGestureRecognizer()
         recognizer.cancelsTouchesInView = false // <- the only meaningful line in this struct
         recognizer.delegate = context.coordinator
+        recognizer.name = "DRAWER RECOGNIZER"
         return recognizer
     }
 
@@ -265,6 +267,23 @@ struct NonCancellingDragGesture: UIGestureRecognizerRepresentable {
         }
 
         @objc func handle(_ gesture: UIPanGestureRecognizer) {
+            switch gesture.state {
+            case .possible:
+                print("drawer: state -> possible")
+            case .began:
+                print("drawer: state -> began")
+            case .changed:
+                print("drawer: state -> changed")
+            case .ended:
+                print("drawer: state -> ended")
+            case .cancelled:
+                print("drawer: state -> cancelled")
+            case .failed:
+                print("drawer: state -> failed")
+            default:
+                break
+            }
+            
             guard let view = gesture.view else { return }
 
             let location = gesture.location(in: view)
@@ -300,6 +319,23 @@ struct NonCancellingDragGesture: UIGestureRecognizerRepresentable {
             default:
                 break
             }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let view = gestureRecognizer.view,
+                  let otherView = otherGestureRecognizer.view else { return false }
+
+//            let result = false
+            let result = otherView.isDescendant(of: view)
+//            let result = gestureRecognizer.name == "DRAWER RECOGNIZER" && otherGestureRecognizer.name == "WORKSPACE GESTURE RECOGNIZER"
+                
+            if (gestureRecognizer.name ?? "").contains("RECOGNIZER") && (otherGestureRecognizer.name ?? "").contains("RECOGNIZER") {
+                print("DRAWER: \(gestureRecognizer.name ?? "nil") shouldBeRequiredToFailBy \(otherGestureRecognizer.name ?? "nil"): \(result)")
+            }
+                
+            return result
         }
     }
 }

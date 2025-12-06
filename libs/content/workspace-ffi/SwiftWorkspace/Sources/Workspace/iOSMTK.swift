@@ -46,9 +46,6 @@ public class MdView: UIView, UITextInput {
     var floatingCursorNewStartY = 0.0
     var floatingCursorNewEndY = 0.0
     var autoScroll: Timer? = nil
-    
-    // touch
-    var touchRecognizer: WsTouchGestureRecognizer?
 
     init(mtkView: iOSMTK, headerSize: Double) {
         self.mtkView = mtkView
@@ -121,13 +118,6 @@ public class MdView: UIView, UITextInput {
         floatingCursor.isHidden = true
 
         addSubview(floatingCursor)
-        
-        // touch
-        let touch = WsTouchGestureRecognizer(mtkView: self.mtkView)
-        
-        self.addGestureRecognizer(touch)
-        
-        self.touchRecognizer = touch
     }
 
     @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
@@ -777,9 +767,6 @@ public class SvgView: UIView {
 
     let mtkView: iOSMTK
     var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
-    
-    // touch
-    var touchRecognizer: WsTouchGestureRecognizer?
 
     // pointer
     var pointerInteraction: UIPointerInteraction?
@@ -827,7 +814,8 @@ public class SvgView: UIView {
         self.pencilInteraction = pencilInteraction
 
         // gestures
-        self.gestureDelegate = SvgGestureDelegate()
+        let gestureDelegate = SvgGestureDelegate()
+        self.gestureDelegate = gestureDelegate
 
         // gestures: tap
         let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
@@ -883,13 +871,6 @@ public class SvgView: UIView {
 
         self.menuDelegate = menuDelegate
         self.menuInteraction = menuInteraction
-        
-        // touch
-        let touch = WsTouchGestureRecognizer(mtkView: self.mtkView)
-        
-        self.addGestureRecognizer(touch)
-        
-        self.touchRecognizer = touch
     }
 
     @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
@@ -1244,6 +1225,10 @@ public class iOSMTK: MTKView {
     public var wsHandle: UnsafeMutableRawPointer?
     weak var currentWrapper: UIView? = nil
 
+    // touch
+    var touchRecognizer: WsTouchGestureRecognizer?
+    var touchDelegate: WsTouchDelegate?
+
     // pointer
     var pointerInteraction: UIPointerInteraction?
     var pointerDelegate: UIPointerInteractionDelegate?
@@ -1277,6 +1262,10 @@ public class iOSMTK: MTKView {
     override init(frame frameRect: CGRect, device: MTLDevice?) {
         super.init(frame: frameRect, device: device)
 
+        // touch
+        self.touchRecognizer = WsTouchGestureRecognizer(mtkView: self)
+        self.touchDelegate = WsTouchDelegate()
+        
         // pointer
         let pointerDelegate = iOSPointerDelegate(mtkView: self)
         let pointer = UIPointerInteraction(delegate: pointerDelegate)
@@ -1711,17 +1700,49 @@ class LBTextSelectionRect: UITextSelectionRect {
 // MARK: - WsTouchGestureRecognizer
 /// Forwards raw events from `touchesBegan` etc to workspace by invoking FFI fns
 public class WsTouchGestureRecognizer: UIGestureRecognizer {
+//    @Binding var mtkView: iOSMTK?
+//
+//    init(mtkView: Binding<iOSMTK?>) {
+//        self._mtkView = mtkView
+//
+//        super.init(target: nil, action: nil)
+//        
+//        self.name = "WORKSPACE GESTURE RECOGNIZER"
+//    }
+    
     weak var mtkView: iOSMTK?
 
-    init(mtkView: iOSMTK) {
+    init(mtkView: iOSMTK?) {
         self.mtkView = mtkView
-        
+
         super.init(target: nil, action: nil)
+        
+        self.name = "WORKSPACE GESTURE RECOGNIZER"
     }
 
     public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let mtkView else { return }
+        print("ws: touchesBegan")
+        switch self.state {
+        case .possible:
+            print("ws: state = possible")
+        case .began:
+            print("ws: state = began")
+        case .changed:
+            print("ws: state = changed")
+        case .ended:
+            print("ws: state = ended")
+        case .cancelled:
+            print("ws: state = cancelled")
+        case .failed:
+            print("ws: state = failed")
+        default:
+            break
+        }
         
+        guard let mtkView else { return }
+        guard state == .possible else { return }
+        self.state = .began
+
         set_pencil_only_drawing(mtkView.wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
 
         if mtkView.kineticTimer != nil {
@@ -1730,78 +1751,133 @@ public class WsTouchGestureRecognizer: UIGestureRecognizer {
 
         for touch in touches {
             let touchId = self.touchId(for: touch)
-            
+
             let location = touch.preciseLocation(in: mtkView)
             let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-            
-            touches_began(mtkView.wsHandle, touchId, Float(location.x), Float(location.y), Float(force))
 
-            if event!.coalescedTouches(for: touch)!.count > 1 {
-                fatalError("we assume touchesBegan events are not coalesced")
-            }
+            touches_began(
+                mtkView.wsHandle, touchId, Float(location.x), Float(location.y), Float(force))
         }
-        
+
         mtkView.setNeedsDisplay()
     }
 
     public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        print("ws: touchesMoved")
+        switch self.state {
+        case .possible:
+            print("ws: state = possible")
+        case .began:
+            print("ws: state = began")
+        case .changed:
+            print("ws: state = changed")
+        case .ended:
+            print("ws: state = ended")
+        case .cancelled:
+            print("ws: state = cancelled")
+        case .failed:
+            print("ws: state = failed")
+        default:
+            break
+        }
+        
         guard let mtkView else { return }
+        guard state == .began || state == .changed else {
+            return
+        }
+        self.state = .failed
         
         for touch in touches {
             let id = self.touchId(for: touch)
-            
+
             for touch in event!.coalescedTouches(for: touch)! {
                 let location = touch.preciseLocation(in: mtkView)
                 let force = self.force(for: touch)
-                
-                touches_moved(mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
+
+                touches_moved(
+                    mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
             }
-            
+
             for touch in event!.predictedTouches(for: touch)! {
                 let location = touch.preciseLocation(in: mtkView)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                
-                touches_predicted(mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
+
+                touches_predicted(
+                    mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
             }
 
         }
-        
+
         mtkView.setNeedsDisplay()
     }
 
     public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let mtkView else { return }
+        print("ws: touchesEnded")
+        switch self.state {
+        case .possible:
+            print("ws: state = possible")
+        case .began:
+            print("ws: state = began")
+        case .changed:
+            print("ws: state = changed")
+        case .ended:
+            print("ws: state = ended")
+        case .cancelled:
+            print("ws: state = cancelled")
+        case .failed:
+            print("ws: state = failed")
+        default:
+            break
+        }
         
+        guard let mtkView else { return }
+        guard state == .began || state == .changed else { return }
+        self.state = .ended
+
         for touch in touches {
             let id = self.touchId(for: touch)
             let location = touch.preciseLocation(in: mtkView)
             let force = self.force(for: touch)
-            
-            touches_ended(mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
 
-            if event!.coalescedTouches(for: touch)!.count > 1 {
-                fatalError("we assume touchesEnded events are not coalesced")
-            }
+            touches_ended(
+                mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
         }
-        
+
         mtkView.setNeedsDisplay()
     }
 
     public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let mtkView else { return }
+        print("ws: touchesCancelled")
+        switch self.state {
+        case .possible:
+            print("ws: state = possible")
+        case .began:
+            print("ws: state = began")
+        case .changed:
+            print("ws: state = changed")
+        case .ended:
+            print("ws: state = ended")
+        case .cancelled:
+            print("ws: state = cancelled")
+        case .failed:
+            print("ws: state = failed")
+        default:
+            break
+        }
         
+        guard let mtkView else { return }
+        guard state == .began || state == .changed else { return }
+        self.state = .cancelled
+
         for touch in touches {
             let id = self.touchId(for: touch)
             let location = touch.preciseLocation(in: mtkView)
             let force = self.force(for: touch)
 
-            touches_cancelled(mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
-
-            if event!.coalescedTouches(for: touch)!.count > 1 {
-                fatalError("we assume touchesCancelled events are not coalesced")
-            }
+            touches_cancelled(
+                mtkView.wsHandle, id, Float(location.x), Float(location.y), Float(force))
         }
-        
+
         mtkView.setNeedsDisplay()
     }
 
@@ -1809,7 +1885,7 @@ public class WsTouchGestureRecognizer: UIGestureRecognizer {
         let pointer = Unmanaged.passUnretained(touch).toOpaque()
         return UInt64(UInt(bitPattern: pointer))
     }
-    
+
     private func force(for touch: UITouch) -> CGFloat {
         touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
     }
@@ -1818,11 +1894,97 @@ public class WsTouchGestureRecognizer: UIGestureRecognizer {
         false
     }
 
-    public override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool
+    public override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer)
+        -> Bool
     {
         false
     }
 }
+
+// MARK: - WsTouchDelegate
+public class WsTouchDelegate: NSObject, UIGestureRecognizerDelegate {
+//    public func gestureRecognizer(
+//        _ gestureRecognizer: UIGestureRecognizer,
+//        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+//    ) -> Bool {
+//        return true
+//    }
+//
+//    public func gestureRecognizer(
+//        _ gestureRecognizer: UIGestureRecognizer,
+//        shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+//    ) -> Bool {
+//        guard let view = gestureRecognizer.view,
+//             let otherView = otherGestureRecognizer.view else { return false }
+//
+//        if (gestureRecognizer.name ?? "").contains("RECOGNIZER") && (otherGestureRecognizer.name ?? "").contains("RECOGNIZER") {
+//            print("WS: \(gestureRecognizer.name ?? "") requires failure of \(otherGestureRecognizer.name ?? ""): \(otherView.isDescendant(of: view))")
+//        }
+//        
+//        return view.isDescendant(of: otherView)
+//    }
+//
+//    public func gestureRecognizer(
+//        _ gestureRecognizer: UIGestureRecognizer,
+//       shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
+//    ) -> Bool {
+//        guard let view = gestureRecognizer.view,
+//             let otherView = otherGestureRecognizer.view else { return false }
+//        
+//        if (gestureRecognizer.name ?? "").contains("RECOGNIZER") && (otherGestureRecognizer.name ?? "").contains("RECOGNIZER") {
+//            print("WS: \(gestureRecognizer.name ?? "") required to fail by \(otherGestureRecognizer.name ?? ""): \(view.isDescendant(of: otherView))")
+//        }
+//
+//        return otherView.isDescendant(of: view)
+//    }
+}
+
+// MARK: - WsTouchRepresentable
+//public struct WsTouchRepresentable: UIGestureRecognizerRepresentable {
+//    public typealias UIGestureRecognizerType = WsTouchGestureRecognizer
+//    public typealias Coordinator = WsTouchDelegate
+//    
+//    @Binding var mtkView: iOSMTK?
+//    
+//    public init(mtkView: Binding<iOSMTK?>) {
+//        self._mtkView = mtkView
+//    }
+//
+//    public func makeCoordinator(converter: CoordinateSpaceConverter) -> WsTouchDelegate { WsTouchDelegate() }
+//
+//    @MainActor public func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
+//        let gr = WsTouchGestureRecognizer(mtkView: $mtkView)
+//        gr.delegate = context.coordinator
+//        return gr
+//    }
+//
+//    @MainActor public func updateUIGestureRecognizer(
+//        _ uiGestureRecognizer: UIGestureRecognizerType,
+//        context: Context
+//    ) {}
+//
+//    @MainActor public func handleUIGestureRecognizerAction(
+//        _ recognizer: UIGestureRecognizerType,
+//        context: Context
+//    ) {
+//        switch recognizer.state {
+//        case .possible:
+//            print("ws: state -> possible")
+//        case .began:
+//            print("ws: state -> began")
+//        case .changed:
+//            print("ws: state -> changed")
+//        case .ended:
+//            print("ws: state -> ended")
+//        case .cancelled:
+//            print("ws: state -> cancelled")
+//        case .failed:
+//            print("ws: state -> failed")
+//        default:
+//            break
+//        }
+//    }
+//}
 
 #endif
 

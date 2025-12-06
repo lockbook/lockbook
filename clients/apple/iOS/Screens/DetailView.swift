@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
+// MARK: - DetailView
 struct DetailView: View {
     @Environment(\.isPreview) var isPreview
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
@@ -10,15 +11,17 @@ struct DetailView: View {
     
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-            
-    @State var sheetHeight: CGFloat = 0
-    
+
+    @State private var sheetHeight: CGFloat = 0
+    @State private var mtkView: iOSMTK?
+
     var body: some View {
         Group {
             if isPreview {
                 Text("This is a preview.")
             } else {
-                WorkspaceView()
+                WorkspaceView(mtkView: $mtkView)
+//                    .gesture(WsTouchRepresentable(mtkView: $mtkView))
                     .modifier(OnLbLinkViewModifier())
             }
         }
@@ -71,9 +74,9 @@ struct DetailView: View {
             f(file)
         }
     }
-
 }
 
+// MARK: - CompactTitle
 struct CompactTitle: ViewModifier {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
