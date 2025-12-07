@@ -454,7 +454,7 @@ impl Workspace {
                                 }
 
                                 if let Some(open_file) = open_file {
-                                    self.open_file(open_file, false, true, false);
+                                    self.open_file(open_file, true, false);
                                 }
                             });
                             strip.cell(|_| {});
@@ -473,7 +473,6 @@ impl Workspace {
             }
 
             ui.centered_and_justified(|ui| {
-                let mut rename_req = None;
                 let mut open_id = None;
                 let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
@@ -495,10 +494,6 @@ impl Workspace {
                                     // check that this change was not from the initial frame.
                                     if !tab.read_only && resp.text_updated && !initialized {
                                         tab.last_changed = Instant::now();
-                                    }
-
-                                    if let Some(new_name) = resp.suggest_rename {
-                                        rename_req = tab.id().map(|id| (id, new_name));
                                     }
 
                                     if resp.text_updated {
@@ -523,7 +518,7 @@ impl Workspace {
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
                                     if let Some(value) = response {
-                                        self.open_file(value, false, true, false);
+                                        self.open_file(value, true, false);
                                     }
                                 }
                                 TabContent::SpaceInspector(sv) => {
@@ -560,11 +555,8 @@ impl Workspace {
                         }
                     });
                 }
-                if let Some(req) = rename_req {
-                    self.rename_file(req, false);
-                }
                 if let Some(id) = open_id {
-                    self.open_file(id, false, true, new_tab);
+                    self.open_file(id, true, new_tab);
                 }
             });
         });
@@ -656,9 +648,6 @@ impl Workspace {
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
-                                    if let Some(md) = self.current_tab_markdown_mut() {
-                                        md.needs_name = false;
-                                    }
                                     if let Some(id) = self.tabs[i].id() {
                                         self.rename_file((id, name.clone()), true);
                                     }

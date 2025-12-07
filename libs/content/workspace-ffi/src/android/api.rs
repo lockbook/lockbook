@@ -202,14 +202,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
-    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    obj.workspace.open_file(id, new_file == 1, true, false);
+    obj.workspace.open_file(id, true, false);
 }
 
 // todo: can't close non-file tabs (mind map)

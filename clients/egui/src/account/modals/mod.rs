@@ -51,7 +51,7 @@ impl super::AccountScreen {
                         self.tree.reveal_selection();
                         self.tree.scroll_to_cursor = true;
                     } else {
-                        self.workspace.open_file(submission.id, false, true, true);
+                        self.workspace.open_file(submission.id, true, true);
                     }
                 }
 
