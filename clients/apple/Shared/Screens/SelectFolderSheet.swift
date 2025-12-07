@@ -24,7 +24,7 @@ struct SelectFolderSheet: View {
         self._model = StateObject(wrappedValue: SelectFolderViewModel(homeState: homeState, filesModel: filesModel))
         self._filesModel = ObservedObject(wrappedValue: filesModel)
         self.action = action
-        self.showExitButton = true
+        self.showExitButton = showExitButton
     }
     
     var actionMsg: String {
@@ -210,7 +210,7 @@ struct SelectFolderSheet: View {
                             }, label: {
                                 Label {
                                     Text(dest.name)
-                                        .foregroundStyle(.foreground)
+                                        .foregroundStyle(.primary)
                                 } icon: {
                                     Image(systemName: FileIconHelper.fileToSystemImageName(file: dest))
                                         .foregroundStyle(Color.accentColor)

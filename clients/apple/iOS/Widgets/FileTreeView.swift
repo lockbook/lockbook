@@ -26,6 +26,9 @@ struct FileTreeView: View {
                 }
                 .listStyle(.sidebar)
                 .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
+                
+                Spacer()
+                    .frame(height: 70)
             }.contextMenu {
                 FileRowContextMenu(file: root)
             }
@@ -281,12 +284,10 @@ struct OpenDocModifier: ViewModifier {
     func body(content: Content) -> some View {
         if fileTreeModel.openDoc == file.id {
             content
-                .foregroundColor(Color.white)
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .foregroundStyle( Color.primary.opacity(colorScheme == .light ? 0.05 : 0.1))
                         .padding(.vertical, 2)
-                        .padding(.trailing)
                 )
         } else {
             content

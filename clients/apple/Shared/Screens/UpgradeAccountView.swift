@@ -68,7 +68,7 @@ struct UpgradeAccountView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .navigationTitle("Upgrade Account")
-        .modifier(LargeNavigationTitleBar())
+        .toolbarTitleDisplayMode(.large)
         .padding(.vertical, 10)
         .padding(.horizontal, 20)
     }

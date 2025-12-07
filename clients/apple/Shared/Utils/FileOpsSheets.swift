@@ -178,7 +178,7 @@ struct SelectFolderSheets: ViewModifier {
                             homeState: homeState,
                             filesModel: filesModel,
                             action: action,
-                            showExitButton: false
+                            showExitButton: true
                         )
                     }
             }

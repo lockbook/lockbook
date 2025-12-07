@@ -17,7 +17,7 @@ struct DrawerView<Main: View, Side: View>: View {
             )
 
             ZStack(alignment: .leading) {
-                NavigationView {
+                NavigationStack {
                     mainView
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
@@ -37,19 +37,7 @@ struct DrawerView<Main: View, Side: View>: View {
                 }
                 .overlay(mainOverlayTapGesture)
 
-                NavigationView {
-                    sideView
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button {
-                                    homeState.sidebarState = .closed
-                                } label: {
-                                    Image(systemName: "sidebar.left")
-                                        .imageScale(.large)
-                                }
-                            }
-                        }
-                }
+            sideView
                 .frame(width: calculatedSidebarWidth)
                 .offset(
                     x: min(

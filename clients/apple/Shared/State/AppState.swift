@@ -22,6 +22,7 @@ class AppState: ObservableObject {
     }()
     static var billingState: BillingState = BillingState()
     
+    @Published var account: Account? = nil
     @Published var isLoggedIn: Bool = false
     @Published var error: UIError? = nil
     
@@ -31,10 +32,12 @@ class AppState: ObservableObject {
     
     func checkIfLoggedIn() {
         switch AppState.lb.getAccount() {
-        case .success(_):
+        case .success(let account):
             self.isLoggedIn = true
+            self.account = account
         case .failure(_):
             self.isLoggedIn = false
+            self.account = nil
         }
     }
     
