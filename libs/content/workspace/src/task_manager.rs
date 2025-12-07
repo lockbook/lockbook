@@ -83,7 +83,6 @@ pub struct Response {
 #[derive(Clone, Debug)]
 pub struct LoadRequest {
     pub id: Uuid,
-    pub is_new_file: bool,
 
     // indicates whether the completed load should replace a tab or be merged
     // into one; unclear if we can just check for existing tabs when complete

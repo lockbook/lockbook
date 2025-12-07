@@ -1664,18 +1664,17 @@ pub struct Response {
 
 #[derive(Debug)]
 pub struct OpenRequest {
-    pub is_new_file: bool,
     pub make_current: bool,
     pub in_new_tab: bool,
 }
 
 impl OpenRequest {
     fn new_tab() -> Self {
-        OpenRequest { is_new_file: false, make_current: true, in_new_tab: true }
+        OpenRequest { make_current: true, in_new_tab: true }
     }
 
     fn same_tab() -> Self {
-        OpenRequest { is_new_file: false, make_current: true, in_new_tab: false }
+        OpenRequest { make_current: true, in_new_tab: false }
     }
 }
 

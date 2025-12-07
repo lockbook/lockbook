@@ -47,9 +47,6 @@ pub struct Response {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub scroll_updated: bool,
-
-    // actions taken
-    pub suggest_rename: Option<String>, // todo
 }
 
 pub struct Editor {
@@ -68,7 +65,6 @@ pub struct Editor {
     // input
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
-    pub needs_name: bool,
     pub initialized: bool,
     pub plaintext_mode: bool,
     pub touch_mode: bool,
@@ -119,7 +115,7 @@ static PRINT: bool = false;
 impl Editor {
     pub fn new(
         ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool, readonly: bool,
+        plaintext_mode: bool, readonly: bool,
     ) -> Self {
         let theme = Theme::new(ctx.clone());
 
@@ -155,7 +151,6 @@ impl Editor {
             readonly,
             file_id,
             hmac,
-            needs_name,
             initialized: Default::default(),
             plaintext_mode,
             touch_mode,
@@ -196,7 +191,6 @@ impl Editor {
             md,
             Uuid::new_v4(),
             None,
-            false,
             false,
             false,
         )
