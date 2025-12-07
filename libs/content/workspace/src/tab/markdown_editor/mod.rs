@@ -72,6 +72,7 @@ pub struct Editor {
     pub initialized: bool,
     pub plaintext_mode: bool,
     pub touch_mode: bool,
+    pub readonly: bool,
 
     // internal systems
     pub bounds: Bounds,
@@ -118,7 +119,7 @@ static PRINT: bool = false;
 impl Editor {
     pub fn new(
         ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        needs_name: bool, plaintext_mode: bool,
+        needs_name: bool, plaintext_mode: bool, readonly: bool,
     ) -> Self {
         let theme = Theme::new(ctx.clone());
 
@@ -151,6 +152,7 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
+            readonly,
             file_id,
             hmac,
             needs_name,
@@ -194,6 +196,7 @@ impl Editor {
             md,
             Uuid::new_v4(),
             None,
+            false,
             false,
             false,
         )
@@ -379,11 +382,13 @@ impl Editor {
                 );
 
                 // ...then show toolbar at the bottom
-                let (_, rect) =
-                    ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                ui.allocate_ui_at_rect(rect, |ui| {
-                    self.show_toolbar(root, ui);
-                });
+                if !self.readonly {
+                    let (_, rect) =
+                        ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                    ui.allocate_ui_at_rect(rect, |ui| {
+                        self.show_toolbar(root, ui);
+                    });
+                }
             } else {
                 let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
                 let scroll_area_offset = ui.data_mut(|d| {
@@ -394,7 +399,9 @@ impl Editor {
                 });
 
                 // non-touch devices: show toolbar...
-                self.show_toolbar(root, ui);
+                if !self.readonly {
+                    self.show_toolbar(root, ui);
+                }
 
                 // ...then show find...
                 let find_resp = self.find.show(&self.buffer, ui);

@@ -36,6 +36,10 @@ impl<'ast> Editor {
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
         let mut result = Vec::new();
+        if !self.readonly {
+            return result;
+        }
+
         for event in ctx.pop_events() {
             match event {
                 crate::Event::Markdown(modification) => result.push(modification),
@@ -104,6 +108,7 @@ impl<'ast> Editor {
 
                         if IconButton::new(Icon::CONTENT_CUT)
                             .tooltip("Cut")
+                            .disabled(self.readonly)
                             .show(ui)
                             .clicked()
                         {
@@ -122,6 +127,7 @@ impl<'ast> Editor {
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_PASTE)
                             .tooltip("Paste")
+                            .disabled(self.readonly)
                             .show(ui)
                             .clicked()
                         {
