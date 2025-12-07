@@ -1,5 +1,5 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Checkbox, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -25,7 +25,7 @@ impl<'ast> Editor {
 
         ui.allocate_ui_at_rect(annotation_space, |ui| {
             let mut checked = maybe_check.is_some();
-            ui.checkbox(&mut checked, "");
+            ui.add_enabled(!self.readonly, Checkbox::new(&mut checked, ""));
             if checked != maybe_check.is_some() {
                 let check_offset = self.check_offset(node);
                 let check = if checked { 'x' } else { ' ' };

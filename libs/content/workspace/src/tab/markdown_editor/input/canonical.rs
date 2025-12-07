@@ -65,6 +65,10 @@ impl Editor {
                 })
             }
             egui::Event::Paste(text) => {
+                if self.readonly {
+                    return None;
+                }
+
                 // with text selected, pasting a link turns selected text into a
                 // markdown link
                 let mut link_paste = false;
@@ -95,14 +99,22 @@ impl Editor {
                     })
                 }
             }
-            egui::Event::Text(text) => Some(Event::Replace {
-                region: Region::Selection,
-                text: text.clone(),
-                advance_cursor: true,
-            }),
+            egui::Event::Text(text) => {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::Replace {
+                    region: Region::Selection,
+                    text: text.clone(),
+                    advance_cursor: true,
+                })
+            }
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::Backspace | Key::Delete) =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::Delete {
                     region: Region::SelectionOrOffset {
                         offset: Offset::from(modifiers),
@@ -113,9 +125,15 @@ impl Editor {
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::Newline { shift: modifiers.shift })
             }
             egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
+                if self.readonly {
+                    return None;
+                }
                 if !modifiers.shift && cfg!(target_os = "ios") {
                     None
                 } else {
@@ -131,6 +149,9 @@ impl Editor {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::Cut)
             }
             egui::Event::Copy => Some(Event::Copy),
@@ -142,19 +163,24 @@ impl Editor {
             egui::Event::Key { key: Key::Z, pressed: true, modifiers, .. }
                 if modifiers.command && !cfg!(target_os = "ios") =>
             {
-                if !modifiers.shift {
-                    Some(Event::Undo)
-                } else {
-                    Some(Event::Redo)
+                if self.readonly {
+                    return None;
                 }
+                if !modifiers.shift { Some(Event::Undo) } else { Some(Event::Redo) }
             }
             egui::Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Bold),
                 })
             }
             egui::Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Italic),
@@ -163,6 +189,9 @@ impl Editor {
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
+                if self.readonly {
+                    return None;
+                }
                 if !modifiers.alt {
                     Some(Event::ToggleStyle {
                         region: Region::Selection,
@@ -175,12 +204,18 @@ impl Editor {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Strikethrough),
                 })
             }
             egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
                     style: MarkdownNode::Inline(InlineNode::Link(
@@ -193,56 +228,89 @@ impl Editor {
             egui::Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
             }
             egui::Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
             }
             egui::Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
             }
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
             }
             egui::Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
             }
             egui::Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
             }
             egui::Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
             }
             egui::Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
             }
             egui::Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
             }
             egui::Event::Key { key: Key::Q, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Quote))
             }
             egui::Event::Key { key: Key::R, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
+                if self.readonly {
+                    return None;
+                }
                 Some(Event::toggle_block_style(BlockNode::Rule))
             }
             egui::Event::Key { key: Key::F2, pressed: true, .. } => Some(Event::ToggleDebug),

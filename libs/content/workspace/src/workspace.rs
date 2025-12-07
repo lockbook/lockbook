@@ -494,6 +494,7 @@ impl Workspace {
                                         maybe_hmac,
                                         is_new_file,
                                         ext != "md",
+                                        tab.read_only,
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
