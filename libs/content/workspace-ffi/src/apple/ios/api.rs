@@ -816,7 +816,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.buffer.can_undo()
+    !markdown.readonly && markdown.buffer.can_undo()
 }
 
 /// # Safety
@@ -829,7 +829,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.buffer.can_redo()
+    !markdown.readonly && markdown.buffer.can_redo()
 }
 
 /// # Safety
