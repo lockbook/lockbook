@@ -100,7 +100,7 @@ impl Workspace {
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 info!(id = ?file_id, "opening persisted tab");
-                ws.open_file(file_id, false, false, true);
+                ws.open_file(file_id, false, true);
             }
         });
         if let Some(current_tab) = current_tab {
@@ -124,7 +124,7 @@ impl Workspace {
         }
 
         for id in ids {
-            self.open_file(id, false, false, true)
+            self.open_file(id, false, true)
         }
 
         if let Some(current_tab_id) = maybe_current_tab_id {
@@ -244,7 +244,7 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool, in_new_tab: bool) {
+    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let mut create_tab = || {
             if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
                 self.current_tab = pos;
@@ -270,12 +270,8 @@ impl Workspace {
             self.create_tab(ContentState::Loading(id), make_current);
         }
 
-        self.tasks.queue_load(LoadRequest {
-            id,
-            is_new_file,
-            tab_created: create_tab,
-            make_current,
-        });
+        self.tasks
+            .queue_load(LoadRequest { id, tab_created: create_tab, make_current });
     }
 
     pub fn back(&mut self) {
@@ -287,7 +283,6 @@ impl Workspace {
                     current_tab.content = ContentState::Loading(back_id);
                     self.tasks.queue_load(LoadRequest {
                         id: back_id,
-                        is_new_file: false,
                         tab_created: true,
                         make_current: false,
                     });
@@ -305,7 +300,6 @@ impl Workspace {
                     current_tab.content = ContentState::Loading(forward_id);
                     self.tasks.queue_load(LoadRequest {
                         id: forward_id,
-                        is_new_file: false,
                         tab_created: true,
                         make_current: false,
                     });
@@ -369,7 +363,7 @@ impl Workspace {
                     self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false, false);
+                            self.open_file(id, false, false);
                         }
                     }
                 }
@@ -391,7 +385,7 @@ impl Workspace {
             {
                 {
                     let CompletedLoad {
-                        request: LoadRequest { id, is_new_file, tab_created, make_current },
+                        request: LoadRequest { id, tab_created, make_current },
                         content_result,
                         timing: _,
                     } = load;
@@ -492,7 +486,6 @@ impl Workspace {
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
-                                        is_new_file,
                                         ext != "md",
                                         tab.read_only,
                                     )));
@@ -557,7 +550,7 @@ impl Workspace {
                                         "reloading file after save failed with re-read required: {}",
                                         id
                                     );
-                                    self.open_file(id, false, false, false);
+                                    self.open_file(id, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
                                         format!("{err:?}"),
@@ -757,7 +750,7 @@ impl Workspace {
         }
 
         if different_file_type {
-            self.open_file(id, false, false, false);
+            self.open_file(id, false, false);
         }
 
         self.out.file_renamed = Some((id, new_name));
