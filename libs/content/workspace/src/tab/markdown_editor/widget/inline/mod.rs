@@ -99,6 +99,8 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
+        let ui = &mut self.node_ui(ui, node);
+
         let span = self.span(node, wrap, range);
         let pre_offset = wrap.offset;
 

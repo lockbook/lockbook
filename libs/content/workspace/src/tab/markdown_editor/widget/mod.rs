@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeCodeBlock, NodeHeading, NodeValue};
-use egui::TextFormat;
+use egui::{Id, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use super::Editor;
@@ -109,6 +109,32 @@ impl<'ast> Editor {
         // Cache the result before returning
         self.set_cached_node_range(node, range);
         range
+    }
+
+    /// Creates a UI that assigns ids using the node range.
+    // By default, egui ids are assigned to ui's and widgets based on the parent
+    // ui's id and incremented with each addition to a given parent. Because
+    // editor text may be clickable, text allocates ids and affects future ids.
+    // When the editor reveal state changes, more or fewer interactable text
+    // units may be shown, and all assigned ids may change. When an iOS user
+    // taps the editor, iOS first sends a selection event in a standalone frame
+    // which affects the reveal state, then by the time the tap is released, the
+    // widget being tapped may have had its id changed and will not register as
+    // clicked. This function creates a consistently idenified ui based on the
+    // node range to prevent ids from changing mid tap and therefore prevents
+    // taps from failing. Note that this range does not and need not survive
+    // edits to the document itself.
+    pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
+        let mut result = Ui::new(
+            ui.ctx().clone(),
+            ui.layer_id(),
+            Id::new(self.node_range(node)), // <- the magic
+            ui.max_rect(),
+            ui.painter().clip_rect(),
+            Default::default(),
+        );
+        result.set_style(ui.style().clone());
+        result
     }
 
     /// Returns the lines spanned by the given range.
