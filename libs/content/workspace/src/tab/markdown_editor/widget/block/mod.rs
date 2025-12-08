@@ -175,6 +175,8 @@ impl<'ast> Editor {
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
+        let ui = &mut self.node_ui(ui, node);
+
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
             && node.data.borrow().value.is_container_block()
