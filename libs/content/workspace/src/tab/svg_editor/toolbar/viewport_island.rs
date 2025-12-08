@@ -158,9 +158,9 @@ impl Toolbar {
             ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
 
             let icon = if let Some(ViewportPopover::More) = self.viewport_popover {
-                Icon::ARROW_UP
+                Icon::CHEVRON_UP
             } else {
-                Icon::ARROW_DOWN
+                Icon::CHEVRON_DOWN
             }
             .size(size);
 
