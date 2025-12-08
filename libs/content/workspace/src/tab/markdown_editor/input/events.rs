@@ -36,7 +36,7 @@ impl<'ast> Editor {
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
         let mut result = Vec::new();
-        if !self.readonly {
+        if self.readonly {
             return result;
         }
 
