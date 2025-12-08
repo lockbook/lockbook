@@ -438,7 +438,7 @@ fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarConte
         for dyn_color in colors {
             let color = ThemePalette::resolve_dynamic_color(dyn_color, ui.visuals().dark_mode);
 
-            let (id, rect) = ui.allocate_space(egui::vec2(40.0, 20.0));
+            let (id, rect) = ui.allocate_space(egui::vec2(37.0, 20.0));
             let res = ui.interact(rect, id, egui::Sense::click_and_drag());
             if res.clicked() || res.drag_started() {
                 tlbr_ctx.settings.background_color = dyn_color;
@@ -458,7 +458,7 @@ fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarConte
                     egui::Stroke { width: 0.5, color: stroke_color }
                 },
             );
-            ui.add_space(7.0);
+            ui.add_space(5.0);
         }
     });
 }
