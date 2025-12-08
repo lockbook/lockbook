@@ -711,9 +711,11 @@ impl Selection {
             ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
         }
 
+        let chevron_size = 13.0;
+
         if self.show_selection_popover {
             if Button::default()
-                .icon(&Icon::ARROW_LEFT)
+                .icon(&Icon::CHEVRON_LEFT.size(chevron_size))
                 .margin(egui::vec2(0.0, btn_margin.y))
                 .show(ui)
                 .clicked()
@@ -748,7 +750,7 @@ impl Selection {
         ui.separator();
 
         if Button::default()
-            .icon(&Icon::ARROW_RIGHT)
+            .icon(&Icon::CHEVRON_RIGHT.size(chevron_size))
             .show(ui)
             .clicked()
         {
@@ -1106,6 +1108,8 @@ impl Selection {
     fn show_layer_controls(&mut self, selection_ctx: &mut ToolContext<'_>, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let btn_rounding = 5.0;
+            let icon_size = 14.0;
+
             let mut max_current_index = 0;
             let mut min_cureent_index = usize::MAX;
             self.selected_elements.iter().for_each(|selected_element| {
@@ -1118,7 +1122,7 @@ impl Selection {
             });
 
             if Button::default()
-                .icon(&Icon::BRING_TO_BACK.color(
+                .icon(&Icon::BRING_TO_BACK.size(icon_size).color(
                     if max_current_index == selection_ctx.buffer.elements.len() - 1 {
                         ui.visuals().text_color().linear_multiply(0.4)
                     } else {
@@ -1145,7 +1149,7 @@ impl Selection {
             }
 
             if Button::default()
-                .icon(&Icon::BRING_TO_BACK.color(
+                .icon(&Icon::CHEVRON_LEFT.size(icon_size).color(
                     if max_current_index == selection_ctx.buffer.elements.len() - 1 {
                         ui.visuals().text_color().linear_multiply(0.4)
                     } else {
@@ -1171,11 +1175,15 @@ impl Selection {
             }
 
             if Button::default()
-                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                }))
+                .icon(
+                    &Icon::CHEVRON_RIGHT
+                        .size(icon_size)
+                        .color(if min_cureent_index == 0 {
+                            ui.visuals().text_color().linear_multiply(0.4)
+                        } else {
+                            ui.visuals().text_color()
+                        }),
+                )
                 .frame(true)
                 .margin(egui::vec2(3.0, 0.0))
                 .rounding(btn_rounding)
@@ -1195,11 +1203,15 @@ impl Selection {
             }
 
             if Button::default()
-                .icon(&Icon::BRING_TO_FRONT.color(if min_cureent_index == 0 {
-                    ui.visuals().text_color().linear_multiply(0.4)
-                } else {
-                    ui.visuals().text_color()
-                }))
+                .icon(
+                    &Icon::BRING_TO_FRONT
+                        .size(icon_size)
+                        .color(if min_cureent_index == 0 {
+                            ui.visuals().text_color().linear_multiply(0.4)
+                        } else {
+                            ui.visuals().text_color()
+                        }),
+                )
                 .frame(true)
                 .margin(egui::vec2(3.0, 0.0))
                 .rounding(btn_rounding)
