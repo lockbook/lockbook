@@ -60,7 +60,7 @@
             self.isUserInteractionEnabled = true
 
             // touch
-            let touch = WsTouchGestureRecognizer(mtkView: mtkView)
+            let touch = WsTouchGestureRecognizer()
             self.addGestureRecognizer(touch)
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
@@ -837,7 +837,7 @@
             isMultipleTouchEnabled = true
 
             // touch
-            let touch = WsTouchGestureRecognizer(mtkView: mtkView)
+            let touch = WsTouchGestureRecognizer()
             self.addGestureRecognizer(touch)
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
@@ -1310,7 +1310,7 @@
             super.init(frame: frameRect, device: device)
 
             // touch
-            let touch = WsTouchGestureRecognizer(mtkView: self)
+            let touch = WsTouchGestureRecognizer()
             self.addGestureRecognizer(touch)
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
@@ -1842,13 +1842,10 @@
     // MARK: - WsTouchGestureRecognizer
     /// Forwards raw events from `touchesBegan` etc to workspace by invoking FFI fns
     public class WsTouchGestureRecognizer: UIGestureRecognizer {
-        weak var mtkView: iOSMTK?
-
         var touches: Set<UITouch> = []
         var event: UIEvent?
 
-        init(mtkView: iOSMTK?) {
-            self.mtkView = mtkView
+        init() {
             super.init(target: nil, action: nil)
             self.name = "WsTouchGestureRecognizer"
         }
