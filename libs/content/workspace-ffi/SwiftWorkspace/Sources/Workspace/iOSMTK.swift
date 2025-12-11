@@ -1855,6 +1855,7 @@
         init() {
             super.init(target: nil, action: nil)
             self.name = "WsTouchGestureRecognizer"
+            self.view?.isMultipleTouchEnabled = true
         }
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
