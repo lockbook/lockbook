@@ -202,12 +202,14 @@ impl Editor {
                         .rect_stroke(row_expanded_rect, 2., Stroke::new(1., background));
                 }
             } else if padded {
-                ui.painter().rect(
-                    row_expanded_rect,
-                    2.,
-                    background,
-                    Stroke::new(1., self.theme.bg().neutral_tertiary),
-                );
+                let stroke_color = if background == self.background_color_highlight() {
+                    self.background_color_highlight()
+                } else {
+                    self.theme.bg().neutral_tertiary
+                };
+
+                ui.painter()
+                    .rect(row_expanded_rect, 2., background, Stroke::new(1., stroke_color));
             }
 
             let row_text = row.text().to_string();
