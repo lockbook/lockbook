@@ -1,5 +1,3 @@
-use std::ops::Sub;
-
 use comrak::nodes::{AstNode, NodeShortCode};
 use egui::{Pos2, Sense, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
@@ -39,7 +37,7 @@ impl<'ast> Editor {
                 ui,
                 top_left,
                 wrap,
-                self.node_range(node).end().sub(1).into_range(),
+                self.node_range(node).end().into_range(),
                 self.text_format(node),
                 false,
                 Some(&node_short_code.emoji),
