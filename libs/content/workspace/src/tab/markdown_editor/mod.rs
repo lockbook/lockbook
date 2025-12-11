@@ -260,9 +260,11 @@ impl Editor {
         options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.highlight = true;
         options.extension.math_code = true; // rendered as code for now
         options.extension.math_dollars = true; // rendered as code for now
         options.extension.multiline_block_quotes = false; // todo
+        options.extension.shortcodes = true;
         options.extension.spoiler = true;
         options.extension.strikethrough = true;
         options.extension.subscript = true;

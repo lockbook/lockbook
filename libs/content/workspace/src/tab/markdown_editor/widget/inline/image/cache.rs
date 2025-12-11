@@ -33,7 +33,9 @@ pub fn calc<'ast>(
     let mut prior_cache = prior_cache.clone();
     result.updated = prior_cache.updated;
     for node in root.descendants() {
-        if let NodeValue::Image(NodeLink { url, .. }) = &node.data.borrow().value {
+        if let NodeValue::Image(node_link) = &node.data.borrow().value {
+            let NodeLink { url, .. } = &**node_link;
+
             if result.map.contains_key(url) {
                 // the second removal of the same image from the prior cache is always a cache miss and causes performance issues
                 // we need to remove cache hits from the prior cache to avoid freeing them from the texture manager

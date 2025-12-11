@@ -46,25 +46,28 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => indented_width(),
 
             // inline
-            NodeValue::Image(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
+            | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Subtext
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(_) => indented_width(),
@@ -134,25 +137,31 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => self.height_task_item(node),
 
             // inline
-            NodeValue::Image(NodeLink { url, .. }) => self.height_image(node, url), // used when rendering the image itself
-            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Image(node_link) => {
+                let NodeLink { url, .. } = &**node_link;
+                self.height_image(node, url) // used when rendering the image itself
+            }
+            NodeValue::Subtext
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(node_code_block) => self.height_code_block(node, node_code_block),
@@ -229,32 +238,36 @@ impl<'ast> Editor {
             NodeValue::TableRow(is_header_row) => {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
-            NodeValue::TaskItem(maybe_check) => {
-                self.show_task_item(ui, node, top_left, *maybe_check)
+            NodeValue::TaskItem(node_task_item) => {
+                self.show_task_item(ui, node, top_left, node_task_item)
             }
 
             // inline
-            NodeValue::Image(NodeLink { url, .. }) => {
+            NodeValue::Image(node_link) => {
+                let NodeLink { url, .. } = &**node_link;
                 self.show_image_block(ui, node, top_left, url)
             }
-            NodeValue::Code(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Emph => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Escaped => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::EscapedTag(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::FootnoteReference(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::HtmlInline(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::LineBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Link(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Math(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SoftBreak => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::SpoileredText => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strikethrough => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Strong => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Subscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Superscript => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Text(_) => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::Underline => unimplemented!("not a block: {} {:?}", sp, value),
-            NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
+            NodeValue::Subtext
+            | NodeValue::Code(_)
+            | NodeValue::Emph
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
+            | NodeValue::HtmlInline(_)
+            | NodeValue::LineBreak
+            | NodeValue::Link(_)
+            | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
+            | NodeValue::SoftBreak
+            | NodeValue::SpoileredText
+            | NodeValue::Strikethrough
+            | NodeValue::Strong
+            | NodeValue::Subscript
+            | NodeValue::Superscript
+            | NodeValue::Text(_)
+            | NodeValue::Underline
+            | NodeValue::WikiLink(_) => unimplemented!("not a block: {} {:?}", sp, value),
 
             // leaf_block
             NodeValue::CodeBlock(node_code_block) => {
@@ -262,7 +275,7 @@ impl<'ast> Editor {
             }
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(NodeHeading { level, setext }) => {
+            NodeValue::Heading(NodeHeading { level, setext, .. }) => {
                 self.show_heading(ui, node, top_left, *level, *setext)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
@@ -533,6 +546,9 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
         NodeValue::Paragraph => 39,
         NodeValue::TableCell => 40,
         NodeValue::ThematicBreak => 41,
+        NodeValue::Highlight => 42,
+        NodeValue::ShortCode(_) => 43,
+        NodeValue::Subtext => 44,
     }
 }
 

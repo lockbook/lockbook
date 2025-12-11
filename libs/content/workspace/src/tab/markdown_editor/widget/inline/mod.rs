@@ -10,11 +10,13 @@ pub(crate) mod emph;
 pub(crate) mod escaped;
 pub(crate) mod escaped_tag;
 pub(crate) mod footnote_reference;
+pub(crate) mod highlight;
 pub(crate) mod html_inline;
 pub(crate) mod image;
 pub(crate) mod line_break;
 pub(crate) mod link;
 pub(crate) mod math;
+pub(crate) mod short_code;
 pub(crate) mod soft_break;
 pub(crate) mod spoilered_text;
 pub(crate) mod strikethrough;
@@ -60,23 +62,29 @@ impl<'ast> Editor {
             NodeValue::TableRow(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(_) => self.span_image(node, wrap, range),
             NodeValue::Code(_) => self.span_code(node, wrap, range),
             NodeValue::Emph => self.span_emph(node, wrap, range),
             NodeValue::Escaped => self.span_escaped(node, wrap, range),
             NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap, range),
-            NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
+            NodeValue::FootnoteReference(node_footnote_reference) => {
+                let NodeFootnoteReference { ix, .. } = &**node_footnote_reference;
                 self.span_footnote_reference(node, wrap, *ix, range)
             }
+            NodeValue::Highlight => self.span_highlight(node, wrap, range),
             NodeValue::HtmlInline(_) => self.span_html_inline(node, wrap, range),
+            NodeValue::Image(_) => self.span_image(node, wrap, range),
             NodeValue::LineBreak => self.span_line_break(node, wrap, range),
             NodeValue::Link(_) => self.span_link(node, wrap, range),
             NodeValue::Math(_) => self.span_math(node, wrap, range),
+            NodeValue::ShortCode(node_short_code) => {
+                self.span_short_code(node, wrap, range, node_short_code)
+            }
             NodeValue::SoftBreak => self.span_soft_break(node, wrap, range),
             NodeValue::SpoileredText => self.span_spoilered_text(node, wrap, range),
             NodeValue::Strikethrough => self.span_strikethrough(node, wrap, range),
             NodeValue::Strong => self.span_strong(node, wrap, range),
             NodeValue::Subscript => self.span_subscript(node, wrap, range),
+            NodeValue::Subtext => unimplemented!("extension disabled"),
             NodeValue::Superscript => self.span_superscript(node, wrap, range),
             NodeValue::Text(_) => self.span_text(node, wrap, range),
             NodeValue::Underline => self.span_underline(node, wrap, range),
@@ -123,27 +131,33 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => unimplemented!("not an inline"),
 
             // inline
-            NodeValue::Image(node_link) => {
-                self.show_image(ui, node, top_left, wrap, node_link, range)
-            }
             NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap, range),
             NodeValue::Emph => self.show_emph(ui, node, top_left, wrap, range),
             NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap, range),
             NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap, range),
-            NodeValue::FootnoteReference(NodeFootnoteReference { ix, .. }) => {
+            NodeValue::FootnoteReference(node_footnote_reference) => {
+                let NodeFootnoteReference { ix, .. } = &**node_footnote_reference;
                 self.show_footnote_reference(ui, node, top_left, wrap, *ix, range)
             }
+            NodeValue::Highlight => self.show_highlight(ui, node, top_left, wrap, range),
             NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap, range),
+            NodeValue::Image(node_link) => {
+                self.show_image(ui, node, top_left, wrap, node_link, range)
+            }
             NodeValue::LineBreak => self.show_line_break(node, wrap, range),
             NodeValue::Link(node_link) => {
                 self.show_link(ui, node, top_left, wrap, node_link, range)
             }
             NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap, range),
+            NodeValue::ShortCode(node_short_code) => {
+                self.show_short_code(ui, node, top_left, wrap, range, node_short_code)
+            }
             NodeValue::SoftBreak => self.show_soft_break(node, wrap, range),
             NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap, range),
             NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap, range),
             NodeValue::Strong => self.show_strong(ui, node, top_left, wrap, range),
             NodeValue::Subscript => self.show_subscript(ui, node, top_left, wrap, range),
+            NodeValue::Subtext => unimplemented!("extension disabled"),
             NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap, range),
             NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, range),
             NodeValue::Underline => self.show_underline(ui, node, top_left, wrap, range),

@@ -170,21 +170,24 @@ impl NodeValueExt for NodeValue {
             | NodeValue::TaskItem(_) => false,
 
             // inline
-            NodeValue::Image(_)
-            | NodeValue::Code(_)
+            NodeValue::Code(_)
             | NodeValue::Emph
             | NodeValue::Escaped
             | NodeValue::EscapedTag(_)
             | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
             | NodeValue::SoftBreak
             | NodeValue::SpoileredText
             | NodeValue::Strikethrough
             | NodeValue::Strong
             | NodeValue::Subscript
+            | NodeValue::Subtext
             | NodeValue::Superscript
             | NodeValue::Text(_)
             | NodeValue::Underline
@@ -221,21 +224,24 @@ impl NodeValueExt for NodeValue {
             | NodeValue::TaskItem(_) => true,
 
             // inline
-            NodeValue::Image(_)
-            | NodeValue::Code(_)
+            NodeValue::Code(_)
             | NodeValue::Emph
             | NodeValue::Escaped
             | NodeValue::EscapedTag(_)
             | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
             | NodeValue::SoftBreak
             | NodeValue::SpoileredText
             | NodeValue::Strikethrough
             | NodeValue::Strong
             | NodeValue::Subscript
+            | NodeValue::Subtext
             | NodeValue::Superscript
             | NodeValue::Text(_)
             | NodeValue::Underline
@@ -272,21 +278,24 @@ impl NodeValueExt for NodeValue {
             | NodeValue::TaskItem(_) => false,
 
             // inline
-            NodeValue::Image(_)
-            | NodeValue::Code(_)
+            NodeValue::Code(_)
             | NodeValue::Emph
             | NodeValue::Escaped
             | NodeValue::EscapedTag(_)
             | NodeValue::FootnoteReference(_)
+            | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
             | NodeValue::SoftBreak
             | NodeValue::SpoileredText
             | NodeValue::Strikethrough
             | NodeValue::Strong
             | NodeValue::Subscript
+            | NodeValue::Subtext
             | NodeValue::Superscript
             | NodeValue::Text(_)
             | NodeValue::Underline

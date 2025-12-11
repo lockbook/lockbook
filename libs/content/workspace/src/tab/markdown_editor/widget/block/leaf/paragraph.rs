@@ -10,7 +10,8 @@ impl<'ast> Editor {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
         for descendant in node.descendants() {
-            if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                let NodeLink { url, .. } = &**node_link;
                 result += self.height_image(node, url);
                 result += BLOCK_SPACING;
             }
@@ -68,7 +69,8 @@ impl<'ast> Editor {
             let node_line = self.node_line(node, line);
 
             for descendant in node.descendants() {
-                if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                    let NodeLink { url, .. } = &**node_link;
                     if node_line.contains_inclusive(self.node_range(descendant).start()) {
                         self.show_image_block(ui, node, top_left, url);
                         top_left.y += self.height_image(node, url);
