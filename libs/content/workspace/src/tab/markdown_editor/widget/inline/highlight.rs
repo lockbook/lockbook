@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn background_color_highlight(&self) -> Color32 {
-        self.theme.bg().yellow.gamma_multiply(0.8)
+        self.theme.bg().yellow.gamma_multiply(0.35)
     }
 
     pub fn text_format_highlight(&self, parent: &AstNode<'_>) -> TextFormat {
