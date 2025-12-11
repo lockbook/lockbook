@@ -69,6 +69,8 @@ struct DrawerView<Main: View, Side: View>: View {
             }
             .gesture(
                 DrawerGesture(
+                    geometry: geometry,
+                    sidebarWidth: sidebarWidth(width: geometry.size.width),
                     sidebarOffset: $sidebarOffset,
                     onChanged: { value in
                         if homeState.sidebarState == .closed {
@@ -186,10 +188,11 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let velocityActivationX: CGFloat = 300
-    static let successThreshold: CGFloat = 0.6
-    static let activationDistance: CGFloat = 10.0
-    static let activationRatio: CGFloat = 2.0
+    static let velocityActivationX: CGFloat = 300 // fling this fast to open the drawer
+    static let successThreshold: CGFloat = 0.6 // drag this far of the way out to open the drawer
+    static let activationDistance: CGFloat = 10.0 // must drag at least this far or your drag is actually a tap
+    static let activationRatio: CGFloat = 2.0 // must drag at least this horizontally in terms of abs(x) / abs(y)
+    static let dragHandleWidth: CGFloat = 100 // must drag starting from within this distance of whichever edge
 
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
@@ -223,6 +226,8 @@ struct DragValue {
 struct DrawerGesture: UIGestureRecognizerRepresentable {
     typealias UIGestureRecognizerType = Recognizer
 
+    var geometry: GeometryProxy
+    var sidebarWidth: CGFloat
     @Binding var sidebarOffset: CGFloat
 
     let onChanged: (DragValue) -> Void
@@ -236,9 +241,8 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     }
 
     @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
-        let recognizer = UIGestureRecognizerType(sidebarOffset: $sidebarOffset)
+        let recognizer = Recognizer(geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset)
         recognizer.delegate = context.coordinator
-        recognizer.name = "PriorityDragGesture"
         return recognizer
     }
 
@@ -307,6 +311,8 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
 
     // MARK: - DrawerGesture.Recognizer
     final class Recognizer: UIGestureRecognizer {
+        var geometry: GeometryProxy
+        var sidebarWidth: CGFloat
         @Binding var sidebarOffset: CGFloat
 
         // continuously tracked state (reset upon completion)
@@ -318,7 +324,9 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
         private var translation: CGPoint = .zero
         private var velocity: CGPoint = .zero
 
-        init(sidebarOffset: Binding<CGFloat>) {
+        init(geometry: GeometryProxy, sidebarWidth: CGFloat, sidebarOffset: Binding<CGFloat>) {
+            self.geometry = geometry
+            self.sidebarWidth = sidebarWidth
             _sidebarOffset = sidebarOffset
             super.init(target: nil, action: nil)
             self.name = "DrawerGesture.Recognizer"
@@ -337,9 +345,16 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             translation = .zero
             velocity = .zero
 
-            // open: drag from anywhere; closed: drag from left side
-            if location.x > sidebarOffset + Constants.sidebarTrailingPadding {
-                state = .failed
+            // open: drag from right side; closed: drag from left side
+            let isOpen = sidebarOffset > sidebarWidth * Constants.successThreshold
+            if isOpen {
+                if location.x < geometry.size.width - Constants.dragHandleWidth {
+                    state = .failed
+                }
+            } else {
+                if location.x > Constants.dragHandleWidth {
+                    state = .failed
+                }
             }
         }
 
