@@ -81,6 +81,7 @@ struct DrawerView<Main: View, Side: View>: View {
             }
             .gesture(
                 DrawerGesture(
+                    sidebarOffset: $sidebarOffset,
                     onChanged: { value in
                         if homeState.sidebarState == .closed {
                             setSidebarOffset(
@@ -234,6 +235,8 @@ struct DragValue {
 struct DrawerGesture: UIGestureRecognizerRepresentable {
     typealias UIGestureRecognizerType = Recognizer
 
+    @Binding var sidebarOffset: CGFloat
+
     let onChanged: (DragValue) -> Void
     let onEnded: (DragValue) -> Void
 
@@ -245,7 +248,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     }
 
     @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
-        let recognizer = UIGestureRecognizerType()
+        let recognizer = UIGestureRecognizerType(sidebarOffset: $sidebarOffset)
         recognizer.delegate = context.coordinator
         recognizer.name = "PriorityDragGesture"
         return recognizer
@@ -316,6 +319,8 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
 
     // MARK: - DrawerGesture.Recognizer
     final class Recognizer: UIGestureRecognizer {
+        @Binding var sidebarOffset: CGFloat
+
         // continuously tracked state (reset upon completion)
         private var startLocation: CGPoint = .zero
         private var lastLocation: CGPoint = .zero
@@ -325,8 +330,9 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
         private var translation: CGPoint = .zero
         private var velocity: CGPoint = .zero
 
-        override init(target: Any?, action: Selector?) {
-            super.init(target: target, action: action)
+        init(sidebarOffset: Binding<CGFloat>) {
+            _sidebarOffset = sidebarOffset
+            super.init(target: nil, action: nil)
             self.name = "DrawerGesture.Recognizer"
         }
 
@@ -342,6 +348,11 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
 
             translation = .zero
             velocity = .zero
+
+            // open: drag from anywhere; closed: drag from left side
+            if location.x > sidebarOffset + Constants.sidebarTrailingPadding {
+                state = .failed
+            }
         }
 
         override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
