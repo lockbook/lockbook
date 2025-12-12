@@ -1,23 +1,50 @@
 use basic_human_duration::ChronoHumanDuration;
-use core::f32;
 use egui::os::OperatingSystem;
-use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align, Align2, CursorIcon, DragAndDrop, EventFilter, FontSelection, Galley, Id, Image, Key,
-    Label, LayerId, Modifiers, Order, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle,
-    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText, include_image, vec2,
+    Align2, Color32, DragAndDrop, EventFilter, FontId, Frame, Galley, Id, Image, Key, LayerId,
+    Modifiers, Order, Rangef, Rect, RichText, Sense, Stroke, TextStyle, TextWrapMode, Vec2,
+    ViewportCommand, include_image, vec2,
 };
-use egui_extras::{Size, StripBuilder};
+use lb_rs::model::usage::bytes_to_human;
 use std::collections::HashMap;
-use std::mem;
+use std::fmt::Display;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{f32, iter, mem};
 use tracing::instrument;
 
+use crate::file_cache::FilesExt;
 use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
-use crate::widgets::{Button, IconButton};
+use crate::widgets::IconButton;
 use crate::workspace::Workspace;
+
+#[derive(Default)]
+pub struct LandingPage {
+    search_term: String,
+    doc_types: Vec<DocType>,
+    last_modified: Option<LastModifiedFilter>,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum LastModifiedFilter {
+    Today,
+    ThisWeek,
+    ThisMonth,
+    ThisYear,
+}
+
+impl Display for LastModifiedFilter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LastModifiedFilter::Today => write!(f, "Today"),
+            LastModifiedFilter::ThisWeek => write!(f, "This Week"),
+            LastModifiedFilter::ThisMonth => write!(f, "This Month"),
+            LastModifiedFilter::ThisYear => write!(f, "This Year"),
+        }
+    }
+}
 
 impl Workspace {
     #[instrument(level="trace", skip_all, fields(frame = self.ctx.frame_nr()))]
@@ -124,344 +151,520 @@ impl Workspace {
     }
 
     fn show_landing_page(&mut self, ui: &mut egui::Ui) {
-        let blue = ui.visuals().widgets.active.bg_fill;
-        let weak_blue = blue.gamma_multiply(0.9);
-        let weaker_blue = blue.gamma_multiply(0.2);
-        let weakest_blue = blue.gamma_multiply(0.15);
-        let extreme_bg = ui.visuals().extreme_bg_color;
+        let Some(files) = &self.files else {
+            ui.ctx().request_repaint_after(Duration::from_millis(8));
+            return;
+        };
 
-        // StripBuilder has no way to configure unequal remainders after exact allocations so we must do our own math
-        // We must be careful to use layout wrapping when necessary, otherwise cells will expand and math will be wrong
-        let padding = if ui.available_height() > 800. { 100. } else { 50. };
-        let spacing = 50.;
-        let total_content_height = ui.available_height() - 2. * padding - 1. * spacing;
-        StripBuilder::new(ui)
-            .size(Size::exact(padding)) // padding
-            .size(Size::exact(total_content_height * 1. / 3.)) // logo
-            .size(Size::exact(spacing)) // spacing
-            .size(Size::exact(total_content_height * 2. / 3.)) // nested content
-            .size(Size::exact(padding)) // padding
-            .vertical(|mut strip| {
-                strip.cell(|_| {});
-                strip.cell(|ui| {
-                    ui.vertical_centered(|ui| {
-                        let punchout = if ui.visuals().dark_mode {
-                            include_image!("../punchout-dark.png")
-                        } else {
-                            include_image!("../punchout-light.png")
-                        };
-                        ui.add(Image::new(punchout).max_size(ui.max_rect().size()));
-                    });
-                });
-                strip.cell(|_| {});
-                strip.cell(|ui| {
-                    let padding = 100.;
-                    let spacing = 50.;
-                    let total_content_width = ui.available_width() - 2. * padding - 1. * spacing;
-                    let actions_and_tips_width = total_content_width * 1. / 3.;
-                    let suggestions_and_activity_width =
-                        total_content_width - actions_and_tips_width;
+        let folder = self
+            .focused_parent
+            .map(|p| files.files.get_by_id(p).unwrap())
+            .unwrap_or(files.files.root());
 
-                    StripBuilder::new(ui)
-                        .size(Size::exact(padding)) // padding
-                        .size(Size::exact(actions_and_tips_width)) // actions and tips
-                        .size(Size::exact(spacing)) // spacing
-                        .size(Size::exact(suggestions_and_activity_width)) // suggestions and activity
-                        .size(Size::exact(padding)) // padding
-                        .horizontal(|mut strip| {
-                            strip.cell(|_| {});
-                            strip.cell(|ui| {
-                                ui.label(WidgetText::from(RichText::from("CREATE").weak().small()));
-                                ui.horizontal_wrapped(|ui| {
-                                    ui.visuals_mut().widgets.inactive.bg_fill = blue;
-                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = extreme_bg;
+        const MARGIN: f32 = 45.0;
+        const MAX_WIDTH: f32 = 1000.0;
 
-                                    ui.visuals_mut().widgets.hovered.bg_fill = weak_blue;
-                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = extreme_bg;
+        let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let height = ui.available_size().y - 2. * MARGIN;
 
-                                    ui.visuals_mut().widgets.active.bg_fill = weak_blue;
-                                    ui.visuals_mut().widgets.active.fg_stroke.color = extreme_bg;
+        let mut open_file = None;
 
-                                    if Button::default()
-                                        .icon(&Icon::DOC_TEXT)
-                                        .text("New Document")
-                                        .frame(true)
-                                        .rounding(3.)
-                                        .show(ui)
+        ui.vertical_centered_justified(|ui| {
+            Frame::canvas(ui.style())
+                .inner_margin(MARGIN)
+                .stroke(Stroke::NONE)
+                .fill(Color32::TRANSPARENT)
+                .show(ui, |ui| {
+                    ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+
+                    let padding = (ui.available_width() - width) / 2.;
+                    let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+                    let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+
+                    ui.allocate_ui_at_rect(rect, |ui| {
+                        ui.style_mut().visuals.hyperlink_color = ui.visuals().text_color();
+                        ui.vertical(|ui| {
+                            if folder.id == files.files.root().id {
+                                ui.label(
+                                    RichText::new("Welcome,")
+                                        .font(FontId::proportional(24.0))
+                                        .weak(),
+                                );
+                            } else {
+                                ui.label(
+                                    RichText::new("Welcome,")
+                                        .font(FontId::proportional(24.0))
+                                        .weak()
+                                        .color(Color32::TRANSPARENT),
+                                );
+                            }
+
+                            // Breadcrumb / Folder name
+                            ui.horizontal(|ui| {
+                                if !folder.is_root() {
+                                    let parent = files.files.get_by_id(folder.parent).unwrap();
+                                    if ui
+                                        .link(
+                                            RichText::new(&parent.name)
+                                                .font(FontId::proportional(40.0)),
+                                        )
                                         .clicked()
                                     {
-                                        self.create_doc(false);
+                                        open_file = Some(parent.id);
                                     }
-
-                                    ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
-                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = blue;
-
-                                    ui.visuals_mut().widgets.hovered.bg_fill = weakest_blue;
-                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-
-                                    ui.visuals_mut().widgets.active.bg_fill = weakest_blue;
-                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
-
-                                    if Button::default()
-                                        .icon(&Icon::DRAW)
-                                        .text("New Drawing")
-                                        .frame(true)
-                                        .rounding(3.)
-                                        .show(ui)
-                                        .clicked()
-                                    {
-                                        self.create_doc(true);
-                                    }
-                                });
-
-                                ui.add_space(50.);
-
-                                ui.label(WidgetText::from(RichText::from("TIPS").weak().small()));
-                                for tip in TIPS {
-                                    let mut layout_job = LayoutJob::default();
-                                    RichText::new("- ").color(weak_blue).append_to(
-                                        &mut layout_job,
-                                        ui.style(),
-                                        FontSelection::Default,
-                                        Align::Center,
+                                    ui.label(
+                                        RichText::new(Icon::CHEVRON_RIGHT.icon)
+                                            .font(FontId::monospace(19.0))
+                                            .weak(),
                                     );
-                                    RichText::from(tip)
-                                        .color(ui.style().visuals.text_color())
-                                        .append_to(
-                                            &mut layout_job,
-                                            ui.style(),
-                                            FontSelection::Default,
-                                            Align::Center,
-                                        );
-
-                                    ui.label(layout_job);
                                 }
-                                ui.add_space(50.);
-
-                                    ui.label(WidgetText::from(
-                                        RichText::from("TOOLS").weak().small(),
-                                    ));
-
-                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
-                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
-
-                                    if Button::default()
-                                        .icon(&Icon::LANGUAGE)
-                                        .text("Space Inspector")
-                                        .frame(false)
-                                        .rounding(3.)
-                                        .show(ui)
-                                        .clicked()
-                                    {
-                                        self.start_space_inspector(self.core.clone(), None);
-                                    }
-
-                                    ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
-                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
-
-                                    if Button::default()
-                                        .icon(&Icon::LANGUAGE)
-                                        .text("Mind Map")
-                                        .frame(false)
-                                        .rounding(3.)
-                                        .show(ui)
-                                        .clicked()
-                                    {
-                                        self.upsert_mind_map(self.core.clone());
-                                    }
+                                ui.label(
+                                    RichText::new(&folder.name).font(FontId::proportional(40.0)),
+                                );
                             });
-                            strip.cell(|_| {});
-                            strip.cell(|ui| {
-                                ui.label(WidgetText::from(
-                                    RichText::from("SUGGESTED").weak().small(),
-                                ));
 
-                                let mut open_file = None;
-                                if let Some(files) = &mut self.files {
-                                    // this is a hacky way to quickly get the most recently modified files
-                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
-                                    if !files.suggested.is_sorted() {
-                                        files.suggested.sort();
-                                    }
+                            ui.add_space(40.0);
 
-                                    if files.suggested.is_empty() {
-                                        ui.label("Suggestions are based on your activity on this device. Suggestions will appear after some use.");
-                                    }
+                            // Search box and filters
+                            ui.horizontal_top(|ui| {
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::TOP),
+                                    |ui| {
+                                        // Last modified filter
+                                        egui::ComboBox::from_id_source(ui.next_auto_id())
+                                            .selected_text(
+                                                if let Some(filter) =
+                                                    &self.landing_page.last_modified
+                                                {
+                                                    format!("Modified: {}", filter)
+                                                } else {
+                                                    "Modified: Anytime".to_string()
+                                                },
+                                            )
+                                            .width(180.)
+                                            .height(f32::INFINITY)
+                                            .show_ui(ui, |ui| {
+                                                let last_modified_filters = [
+                                                    LastModifiedFilter::Today,
+                                                    LastModifiedFilter::ThisWeek,
+                                                    LastModifiedFilter::ThisMonth,
+                                                    LastModifiedFilter::ThisYear,
+                                                ];
 
-                                    ScrollArea::horizontal().show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            for &suggested_id in &files.suggested {
-                                                let Some(file) = files
-                                                    .files
-                                                    .iter()
-                                                    .find(|f| f.id == suggested_id)
-                                                else {
-                                                    continue;
-                                                };
+                                                for filter in &last_modified_filters {
+                                                    let is_selected = self
+                                                        .landing_page
+                                                        .last_modified
+                                                        .as_ref()
+                                                        .map(|f| f == filter)
+                                                        .unwrap_or(false);
 
-                                                let (id, rect) =
-                                                    ui.allocate_space(Vec2 { x: 120., y: 100. });
-                                                let resp = ui
-                                                    .interact(rect, id, Sense::click())
-                                                    .on_hover_text(&file.name);
-                                                if resp.hovered() {
-                                                    ui.output_mut(|o| {
-                                                        o.cursor_icon = CursorIcon::PointingHand
+                                                    if ui
+                                                        .selectable_label(
+                                                            is_selected,
+                                                            filter.to_string(),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        if is_selected {
+                                                            self.landing_page.last_modified = None;
+                                                        } else {
+                                                            self.landing_page.last_modified =
+                                                                Some(*filter);
+                                                        }
+                                                    }
+                                                }
+
+                                                if ui.button("Clear").clicked() {
+                                                    self.landing_page.last_modified = None;
+                                                }
+                                            });
+
+                                        // Document filter
+                                        egui::ComboBox::from_id_source(ui.next_auto_id())
+                                            .selected_text(
+                                                if self.landing_page.doc_types.is_empty() {
+                                                    "Types: All".to_string()
+                                                } else {
+                                                    format!(
+                                                        "Types: {}",
+                                                        self.landing_page.doc_types.len()
+                                                    )
+                                                },
+                                            )
+                                            .width(100.)
+                                            .height(f32::INFINITY)
+                                            .show_ui(ui, |ui| {
+                                                let doc_types = [
+                                                    DocType::Markdown,
+                                                    DocType::SVG,
+                                                    DocType::PlainText,
+                                                    DocType::Code,
+                                                    DocType::Image,
+                                                    DocType::PDF,
+                                                    DocType::Unknown,
+                                                ];
+
+                                                for doc_type in &doc_types {
+                                                    let mut is_selected = self
+                                                        .landing_page
+                                                        .doc_types
+                                                        .iter()
+                                                        .any(|dt| dt == doc_type);
+
+                                                    ui.horizontal(|ui| {
+                                                        if ui
+                                                            .checkbox(&mut is_selected, "")
+                                                            .changed()
+                                                        {
+                                                            if is_selected {
+                                                                // Add the doc type if not present
+                                                                if !self
+                                                                    .landing_page
+                                                                    .doc_types
+                                                                    .iter()
+                                                                    .any(|dt| dt == doc_type)
+                                                                {
+                                                                    self.landing_page
+                                                                        .doc_types
+                                                                        .push(*doc_type);
+                                                                }
+                                                            } else {
+                                                                // Remove the doc type
+                                                                self.landing_page
+                                                                    .doc_types
+                                                                    .retain(|dt| dt != doc_type);
+                                                            }
+                                                        }
+
+                                                        ui.label(
+                                                            RichText::new(doc_type.to_icon().icon)
+                                                                .font(FontId::monospace(16.0))
+                                                                .color(
+                                                                    ui.visuals().weak_text_color(),
+                                                                ),
+                                                        );
+                                                        ui.label(doc_type.to_string());
                                                     });
-                                                }
-                                                if resp.clicked() {
-                                                    open_file = Some(file.id);
+
+                                                    ui.add_space(5.);
                                                 }
 
-                                                ui.painter().rect_filled(
-                                                    rect,
-                                                    3.,
-                                                    if resp.hovered() || resp.clicked() {
-                                                        weakest_blue
-                                                    } else {
-                                                        weaker_blue
+                                                if ui.button("Clear").clicked() {
+                                                    self.landing_page.doc_types.clear();
+                                                }
+                                            });
+
+                                        // Search box - takes remaining space
+                                        let search_height = 40.0;
+                                        Frame::none()
+                                            .fill(ui.visuals().extreme_bg_color)
+                                            .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
+                                            .rounding(search_height / 2.0) // Make it capsule-shaped
+                                            .inner_margin(egui::Margin::symmetric(16.0, 8.0))
+                                            .show(ui, |ui| {
+                                                ui.allocate_ui_with_layout(
+                                                    Vec2::new(
+                                                        ui.available_width(),
+                                                        search_height - 16.0,
+                                                    ),
+                                                    egui::Layout::left_to_right(
+                                                        egui::Align::Center,
+                                                    ),
+                                                    |ui| {
+                                                        ui.label(
+                                                            RichText::new(Icon::SEARCH.icon)
+                                                                .font(FontId::monospace(19.0))
+                                                                .color(
+                                                                    ui.visuals().weak_text_color(),
+                                                                ),
+                                                        );
+                                                        ui.add_sized(
+                                                            [
+                                                                ui.available_width(),
+                                                                ui.available_height(),
+                                                            ],
+                                                            egui::TextEdit::singleline(
+                                                                &mut self.landing_page.search_term,
+                                                            )
+                                                            .hint_text(if folder.is_root() {
+                                                                "Search".to_string()
+                                                            } else {
+                                                                format!(
+                                                                    "Search in {}",
+                                                                    &folder.name
+                                                                )
+                                                            })
+                                                            .frame(false)
+                                                            .margin(Vec2::ZERO),
+                                                        );
+                                                    },
+                                                );
+                                            });
+                                    },
+                                );
+                            });
+
+                            ui.add_space(40.0);
+
+                            // Files table
+                            let children: Vec<_> = files
+                                .files
+                                .children(folder.id)
+                                .iter()
+                                .cloned()
+                                .filter(|child| {
+                                    // Search term filter
+                                    let search_match = if self.landing_page.search_term.is_empty() {
+                                        true
+                                    } else {
+                                        child
+                                            .name
+                                            .to_lowercase()
+                                            .contains(&self.landing_page.search_term.to_lowercase())
+                                    };
+
+                                    // Doc type filter
+                                    let doc_type_match = if self.landing_page.doc_types.is_empty() {
+                                        true
+                                    } else if child.is_folder() {
+                                        // hide folders
+                                        false
+                                    } else {
+                                        let child_doc_type = DocType::from_name(&child.name);
+                                        self.landing_page
+                                            .doc_types
+                                            .iter()
+                                            .any(|filter_type| filter_type == &child_doc_type)
+                                    };
+
+                                    // Last modified filter
+                                    let last_modified_match = if let Some(filter) =
+                                        &self.landing_page.last_modified
+                                    {
+                                        let now = lb_rs::model::clock::get_time().0;
+                                        let file_modified = files.last_modified_recursive(child.id);
+                                        let time_diff = now - file_modified as i64;
+
+                                        match filter {
+                                            LastModifiedFilter::Today => {
+                                                time_diff <= 24 * 60 * 60 * 1000
+                                            }
+                                            LastModifiedFilter::ThisWeek => {
+                                                time_diff <= 7 * 24 * 60 * 60 * 1000
+                                            }
+                                            LastModifiedFilter::ThisMonth => {
+                                                time_diff <= 30 * 24 * 60 * 60 * 1000
+                                            }
+                                            LastModifiedFilter::ThisYear => {
+                                                time_diff <= 365 * 24 * 60 * 60 * 1000
+                                            }
+                                        }
+                                    } else {
+                                        true
+                                    };
+
+                                    search_match && doc_type_match && last_modified_match
+                                })
+                                .collect();
+
+                            if !children.is_empty() {
+                                ui.ctx().style_mut(|style| {
+                                    style.spacing.scroll = egui::style::ScrollStyle::thin();
+                                });
+                                egui::ScrollArea::vertical().show(ui, |ui| {
+                                    egui::Grid::new("files_grid")
+                                        .num_columns(5)
+                                        .spacing([40.0, 10.0])
+                                        .with_row_color(|row, style| {
+                                            if row > 1 && row % 2 == 0 {
+                                                return Some(style.visuals.faint_bg_color);
+                                            }
+                                            None
+                                        })
+                                        .show(ui, |ui| {
+                                            // Header
+                                            let header_font = FontId::new(
+                                                16.0,
+                                                egui::FontFamily::Name(Arc::from("Bold")),
+                                            );
+                                            ui.horizontal(|ui| {
+                                                ui.add_space(20.0);
+                                                ui.label(
+                                                    RichText::new("Name")
+                                                        .font(header_font.clone())
+                                                        .weak(),
+                                                );
+                                            });
+                                            ui.label(
+                                                RichText::new("Type")
+                                                    .font(header_font.clone())
+                                                    .weak(),
+                                            );
+                                            ui.label(
+                                                RichText::new("Modified")
+                                                    .font(header_font.clone())
+                                                    .weak(),
+                                            );
+                                            ui.label(
+                                                RichText::new("Local Size")
+                                                    .font(header_font)
+                                                    .weak(),
+                                            );
+                                            ui.label("");
+                                            ui.end_row();
+
+                                            for child in children {
+                                                ui.vertical(|ui| {
+                                                    ui.add_space(5.0);
+                                                    ui.horizontal(|ui| {
+                                                        ui.add_space(20.0);
+
+                                                        // File icon
+                                                        if child.is_folder() {
+                                                            let folder_icon =
+                                                                if !child.shares.is_empty() {
+                                                                    Icon::SHARED_FOLDER
+                                                                } else {
+                                                                    Icon::FOLDER
+                                                                };
+                                                            ui.label(
+                                                                RichText::new(folder_icon.icon)
+                                                                    .font(FontId::monospace(19.0))
+                                                                    .color(
+                                                                        ui.style()
+                                                                            .visuals
+                                                                            .widgets
+                                                                            .active
+                                                                            .bg_fill,
+                                                                    ),
+                                                            );
+                                                        } else {
+                                                            ui.label(
+                                                                RichText::new(
+                                                                    DocType::from_name(&child.name)
+                                                                        .to_icon()
+                                                                        .icon,
+                                                                )
+                                                                .font(FontId::monospace(19.0))
+                                                                .color(
+                                                                    ui.visuals().weak_text_color(),
+                                                                ),
+                                                            );
+                                                        }
+
+                                                        // File name
+                                                        let doc_type =
+                                                            DocType::from_name(&child.name);
+                                                        let text = if doc_type.hide_ext() {
+                                                            let wo =
+                                                                std::path::Path::new(&child.name)
+                                                                    .file_stem()
+                                                                    .map(|stem| {
+                                                                        stem.to_str().unwrap()
+                                                                    })
+                                                                    .unwrap_or(&child.name);
+                                                            egui::WidgetText::from(wo)
+                                                        } else {
+                                                            egui::WidgetText::from(&child.name)
+                                                        };
+                                                        if ui.link(text).clicked() {
+                                                            open_file = Some(child.id);
+                                                        }
+                                                    });
+                                                });
+
+                                                // Type column
+                                                ui.label(RichText::new(if child.is_folder() {
+                                                    "Folder".to_string()
+                                                } else {
+                                                    DocType::from_name(&child.name).to_string()
+                                                }));
+
+                                                // Last modified
+                                                ui.horizontal(|ui| {
+                                                    ui.label(RichText::new(
+                                                        files
+                                                            .last_modified_recursive(child.id)
+                                                            .elapsed_human_string(),
+                                                    ));
+                                                    ui.label(
+                                                        RichText::new(format!(
+                                                            "by {}",
+                                                            files.last_modified_by_recursive(
+                                                                child.id
+                                                            )
+                                                        ))
+                                                        .weak(),
+                                                    );
+                                                });
+
+                                                // Local Size
+                                                ui.label(RichText::new({
+                                                    let bytes = files
+                                                        .files
+                                                        .descendents(child.id)
+                                                        .iter()
+                                                        .chain(iter::once(&child))
+                                                        .filter_map(|file| {
+                                                            files.usage.get(&file.id)
+                                                        })
+                                                        .sum::<usize>();
+                                                    bytes_to_human(bytes as _)
+                                                }));
+
+                                                // Usage bar chart
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(
+                                                        egui::Align::Center,
+                                                    ),
+                                                    |ui| {
+                                                        ui.add_space(20.);
+                                                        let (_, mut rect) =
+                                                            ui.allocate_space(Vec2::new(
+                                                                ui.available_width(),
+                                                                ui.available_height(),
+                                                            ));
+                                                        let target_width = rect.width()
+                                                            * files.usage_portion_scaled(child.id);
+                                                        let excess_width =
+                                                            rect.width() - target_width;
+                                                        rect.max.x -= excess_width;
+
+                                                        ui.painter().rect_filled(
+                                                            rect,
+                                                            2.0,
+                                                            ui.visuals()
+                                                                .widgets
+                                                                .active
+                                                                .bg_fill
+                                                                .gamma_multiply(0.5),
+                                                        );
                                                     },
                                                 );
 
-                                                ui.allocate_ui_at_rect(rect, |ui| {
-                                                    ui.vertical_centered(|ui| {
-                                                        ui.add_space(15.);
-
-                                                        Label::new(&DocType::from_name(&file.name).to_icon()).selectable(false).ui(ui);
-
-                                                        let truncated_name = WidgetText::from(
-                                                            WidgetText::from(&file.name)
-                                                                .into_galley_impl(
-                                                                    ui.ctx(),
-                                                                    ui.style(),
-                                                                    TextWrapping {
-                                                                        max_width: ui
-                                                                            .available_width(),
-                                                                        max_rows: 2,
-                                                                        break_anywhere: false,
-                                                                        overflow_character: Some(
-                                                                            '…',
-                                                                        ),
-                                                                    },
-                                                                    Default::default(),
-                                                                    Default::default(),
-                                                                ),
-                                                        );
-
-
-                                                        Label::new(truncated_name).selectable(false).ui(ui);
-                                                    });
-                                                });
+                                                ui.end_row();
                                             }
                                         });
-                                    });
-                                } else {
-                                    ui.label(WidgetText::from("Loading...").weak());
-                                }
-
-                                ui.add_space(50.);
-
-                                ui.label(WidgetText::from(
-                                    RichText::from("ACTIVITY").weak().small(),
-                                ));
-
-                                if let Some(files) = &mut self.files {
-                                    // this is a hacky way to quickly get the most recently modified files
-                                    // if someplace else we use the same technique but a different sort order, we will end up sorting every frame
-                                    if !files.files.is_sorted_by_key(|f| f.last_modified) {
-                                        files.files.sort_by_key(|f| f.last_modified);
-                                    }
-
-                                    for file in
-                                        files.files.iter().rev().filter(|&f| !f.is_folder()).take(5)
-                                    {
-                                        ui.horizontal(|ui| {
-                                            ui.style_mut().spacing.item_spacing.x = 0.0;
-                                            ui.spacing_mut().button_padding.x = 0.;
-                                            ui.spacing_mut().button_padding.y = 2.;
-
-                                            // In a classic egui move, when rendering a shorter widget before a taller
-                                            // widget in a horizontal layout, the shorter widget is vertically aligned
-                                            // as if the taller widget was not there. To solve this, we pre-allocate a
-                                            // zero-width rect the height of the button (referencing the button's
-                                            // implementation).
-                                            let button_height =
-                                                ui.text_style_height(&TextStyle::Body);
-                                            ui.allocate_exact_size(
-                                                Vec2 {
-                                                    x: 0.,
-                                                    y: button_height
-                                                        + 2. * ui.spacing().button_padding.y,
-                                                },
-                                                Sense::hover(),
-                                            );
-
-                                            ui.label(RichText::new("- ").color(weak_blue));
-
-                                            // This is enough width to show the year and month of a pasted_image_...
-                                            // but not the day, which seems sufficient
-                                            let truncate_width = 200.;
-                                            let truncated_name = WidgetText::from(
-                                                WidgetText::from(&file.name).into_galley_impl(
-                                                    ui.ctx(),
-                                                    ui.style(),
-                                                    TextWrapping::truncate_at_width(truncate_width),
-                                                    Default::default(),
-                                                    Default::default(),
-                                                ),
-                                            );
-
-                                            ui.visuals_mut().widgets.inactive.fg_stroke.color =
-                                                weak_blue;
-                                            ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
-                                            ui.visuals_mut().widgets.active.fg_stroke.color = blue;
-
-                                            let icon = DocType::from_name(&file.name).to_icon();
-                                            if Button::default()
-                                                .icon(&icon)
-                                                .text(truncated_name)
-                                                .show(ui)
-                                                .on_hover_text(&file.name)
-                                                .clicked()
-                                            {
-                                                open_file = Some(file.id);
-                                            }
-
-                                            // The rest of the space is available for the modified_at/by text
-                                            let modified_at = format!(
-                                                " was edited {} by @{}",
-                                                file.last_modified.elapsed_human_string(),
-                                                file.last_modified_by,
-                                            );
-                                            let truncate_width = ui.available_width();
-                                            let truncated_modified_at = WidgetText::from(
-                                                WidgetText::from(&modified_at).into_galley_impl(
-                                                    ui.ctx(),
-                                                    ui.style(),
-                                                    TextWrapping::truncate_at_width(truncate_width),
-                                                    Default::default(),
-                                                    Default::default(),
-                                                ),
-                                            );
-
-                                            ui.label(truncated_modified_at);
-                                        });
-                                    }
-                                } else {
-                                    ui.label(WidgetText::from("Loading...").weak());
-                                }
-
-                                if let Some(open_file) = open_file {
-                                    self.open_file(open_file, true, false);
-                                }
-                            });
-                            strip.cell(|_| {});
+                                });
+                            } else if !self.landing_page.search_term.is_empty() {
+                                ui.label(
+                                    RichText::new("No files found matching your search.")
+                                        .color(ui.visuals().weak_text_color()),
+                                );
+                            }
                         });
+                    });
                 });
-                strip.cell(|_| {});
-            });
+        });
+
+        if let Some(id) = open_file {
+            if files.files.get_by_id(id).unwrap().is_document() {
+                self.open_file(id, true, false);
+            } else {
+                self.out.selected_file = Some(id)
+            }
+        }
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
@@ -1301,6 +1504,7 @@ impl ElapsedHumanString for u64 {
     }
 }
 
+#[derive(PartialEq, Clone, Copy)]
 pub enum DocType {
     PlainText,
     Markdown,
@@ -1310,6 +1514,21 @@ pub enum DocType {
     Code,
     PDF,
     Unknown,
+}
+
+impl Display for DocType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DocType::PlainText => write!(f, "Plain Text"),
+            DocType::Markdown => write!(f, "Markdown"),
+            DocType::SVG => write!(f, "SVG"),
+            DocType::Image => write!(f, "Image"),
+            DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
+            DocType::Code => write!(f, "Code"),
+            DocType::PDF => write!(f, "PDF"),
+            DocType::Unknown => write!(f, "Unknown"),
+        }
+    }
 }
 
 impl DocType {
@@ -1352,9 +1571,3 @@ impl DocType {
         }
     }
 }
-
-const TIPS: [&str; 3] = [
-    "Import files by dragging and dropping them into the app",
-    "You can share and collaborate on files with other Lockbook users",
-    "Lockbook is end-to-end encrypted and 100% open source",
-];

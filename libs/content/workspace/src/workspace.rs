@@ -22,6 +22,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
+use crate::show::LandingPage;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
@@ -37,6 +38,7 @@ pub struct Workspace {
     // User activity
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
+    pub landing_page: LandingPage,
     pub user_last_seen: Instant,
     pub account: Option<Account>,
 
@@ -73,6 +75,7 @@ impl Workspace {
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
+            landing_page: Default::default(),
             user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
