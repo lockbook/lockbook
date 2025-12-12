@@ -39,6 +39,7 @@
         android:clickable="true"
         android:visibility="gone"
         android:background="?attr/colorSurface"
+
         tools:ignore="KeyboardInaccessibleWidget">
 
         <com.google.android.material.progressindicator.CircularProgressIndicator

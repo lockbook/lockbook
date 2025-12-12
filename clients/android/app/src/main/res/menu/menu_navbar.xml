@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/item_1"
+        android:enabled="true"
+        android:icon="@drawable/ic_baseline_data_usage_24"
+        android:title="@string/files_navbar_item"/>
+    <item
+        android:id="@+id/item_2"
+        android:enabled="true"
+        android:icon="@drawable/ic_baseline_share_24"
+        android:title="@string/shared_navbar_item"/>
+</menu>

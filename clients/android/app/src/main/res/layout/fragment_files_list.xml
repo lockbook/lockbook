@@ -119,36 +119,21 @@
             app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24"
             app:sdOverlayLayout="@id/fab_overlay" />
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_gravity="bottom|start"
-            android:orientation="vertical"
-            android:background="?attr/colorPrimaryContainer">
-
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/selectedMarkdownButtonBackground"/>
-
-            <TextView
-                android:id="@+id/workspace_msg"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:layout_marginTop="13dp"
-                android:layout_marginEnd="90dp"
-                android:textColor="?attr/colorOnPrimaryContainer"
-                android:textStyle="bold"/>
-
-        </LinearLayout>
-
         <include
             android:id="@+id/out_of_space"
             layout="@layout/out_of_space"
             android:visibility="gone"/>
 
+
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:menu="@menu/menu_navbar">
+    </com.google.android.material.bottomnavigation.BottomNavigationView>
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navigation_view"

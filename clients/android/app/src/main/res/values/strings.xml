@@ -76,6 +76,7 @@
 
     <string name="rename_file_rename">Rename</string>
     <string name="create">Create</string>
+    <string name="fab_info">Create files and folders</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
@@ -263,6 +264,8 @@
     <string name="accept_pending_share">Accept pending share</string>
     <string name="new_folder">New Folder</string>
     <string name="import_rcv_share_btn">Import</string>
+    <string name="files_navbar_item">files</string>
+    <string name="shared_navbar_item">shared</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>
