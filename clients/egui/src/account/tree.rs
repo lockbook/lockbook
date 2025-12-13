@@ -563,6 +563,7 @@ impl FileTree {
                     last_modified_by: Default::default(),
                     shares: Default::default(),
                     last_modified: Default::default(),
+                    size_bytes: Default::default(),
                 },
                 0.,
                 focused,
@@ -654,6 +655,7 @@ impl FileTree {
                 last_modified: 0,
                 last_modified_by: Default::default(),
                 shares: vec![],
+                size_bytes: Default::default(),
             },
             0.,
             focused,
@@ -1986,6 +1988,7 @@ mod test {
             last_modified: Default::default(),
             last_modified_by: Default::default(),
             shares: Default::default(),
+            size_bytes: Default::default(),
         }
     }
 }

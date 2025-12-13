@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{f32, iter, mem};
+use std::{f32, mem};
 use tracing::instrument;
 
 use crate::file_cache::FilesExt;
@@ -373,7 +373,7 @@ impl Workspace {
                                                     ),
                                                     |ui| {
                                                         ui.label(
-                                                            RichText::new(Icon::SEARCH.icon)
+                                                            RichText::new(Icon::FILTER.icon)
                                                                 .font(FontId::monospace(19.0))
                                                                 .color(
                                                                     ui.visuals().weak_text_color(),
@@ -388,10 +388,10 @@ impl Workspace {
                                                                 &mut self.landing_page.search_term,
                                                             )
                                                             .hint_text(if folder.is_root() {
-                                                                "Search".to_string()
+                                                                "Filter".to_string()
                                                             } else {
                                                                 format!(
-                                                                    "Search in {}",
+                                                                    "Filter in {}",
                                                                     &folder.name
                                                                 )
                                                             })
@@ -507,9 +507,7 @@ impl Workspace {
                                                     .weak(),
                                             );
                                             ui.label(
-                                                RichText::new("Local Size")
-                                                    .font(header_font)
-                                                    .weak(),
+                                                RichText::new("Usage").font(header_font).weak(),
                                             );
                                             ui.label("");
                                             ui.end_row();
@@ -601,16 +599,9 @@ impl Workspace {
 
                                                 // Local Size
                                                 ui.label(RichText::new({
-                                                    let bytes = files
-                                                        .files
-                                                        .descendents(child.id)
-                                                        .iter()
-                                                        .chain(iter::once(&child))
-                                                        .filter_map(|file| {
-                                                            files.usage.get(&file.id)
-                                                        })
-                                                        .sum::<usize>();
-                                                    bytes_to_human(bytes as _)
+                                                    bytes_to_human(
+                                                        files.size_bytes_recursive(child.id) as _,
+                                                    )
                                                 }));
 
                                                 // Usage bar chart
@@ -638,7 +629,7 @@ impl Workspace {
                                                                 .widgets
                                                                 .active
                                                                 .bg_fill
-                                                                .gamma_multiply(0.5),
+                                                                .gamma_multiply(0.8),
                                                         );
                                                     },
                                                 );

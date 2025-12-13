@@ -44,9 +44,9 @@ pub struct File {
     pub name: String,
     pub file_type: FileType,
     pub last_modified: u64,
-    /// Note: not yet populated
     pub last_modified_by: Username,
     pub shares: Vec<Share>,
+    pub size_bytes: u64,
 }
 
 impl File {
