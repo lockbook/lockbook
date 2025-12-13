@@ -25,7 +25,7 @@ struct UsageBar: View {
                 .padding(.bottom, 8)
                 .modifier(UsageTooltip(usageMessage: usageMessage))
             }
-            .padding(8)
+            .modifier(MobileGlassEffectModifier())
         }
     }
 
@@ -73,6 +73,22 @@ struct UsageTooltip: ViewModifier {
                 .help(usageMessage)
         #else
             content
+        #endif
+    }
+}
+
+struct MobileGlassEffectModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        #if os(iOS)
+        content
+            .frame(height: 40)
+            .padding(.vertical, 8)
+            .padding(.horizontal)
+            .modifier(GlassEffectModifier())
+            .padding(.horizontal)
+        #else
+        content
+            .padding(8)
         #endif
     }
 }

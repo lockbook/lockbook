@@ -2,11 +2,7 @@ import SwiftUI
 
 struct SelectFolderButtonViewModifier: ViewModifier {
     func body(content: Content) -> some View {
-        #if os(iOS)
-        content
-        #else
         content.buttonStyle(.plain)
-        #endif
     }
 }
 

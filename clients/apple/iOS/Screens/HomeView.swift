@@ -7,9 +7,12 @@ struct HomeView: View {
 
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
 
     @StateObject var homeState: HomeState
     @StateObject var settingsModel = SettingsViewModel()
+
+    @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         self._homeState = StateObject(
@@ -23,19 +26,31 @@ struct HomeView: View {
     var body: some View {
         Group {
             if horizontalSizeClass == .compact {
-                NavigationStack {
-                    DrawerView(
-                        homeState: homeState,
-                        mainView: {
-                            detail
-                        },
-                        sideView: {
-                            SearchContainerView(filesModel: filesModel) {
-                                sidebar
+                DrawerView(
+                    homeState: homeState,
+                    mainView: {
+                        detail
+                    },
+                    sideView: {
+                        MobileCustomTabView(
+                            selectedTab: $selectedTab,
+                            tabContent: { tabType in
+                                switch tabType {
+                                    case .home:
+                                    NavigationStack {
+                                        filesHome
+                                            .closeSidebarToolbar()
+                                    }
+                                case .sharedWithMe:
+                                    NavigationStack {
+                                        sharedWithMe
+                                            .closeSidebarToolbar()
+                                    }
+                                }
                             }
-                        }
-                    )
-                }
+                        )
+                    }
+                )
             } else {
                 PathSearchContainerView(
                     filesModel: filesModel,
@@ -44,11 +59,22 @@ struct HomeView: View {
                     NavigationSplitView(
                         columnVisibility: homeState.splitViewVisibility,
                         sidebar: {
-                            SearchContainerView(filesModel: filesModel) {
-                                sidebar
-                                    .introspectSplitViewController { splitView in
-                                    self.syncFloatingState(splitView: splitView)
+                            CustomTabView(
+                                selectedTab: $selectedTab,
+                                tabContent: { tabType in
+                                    switch tabType {
+                                    case .home:
+                                        filesHome
+                                    case .sharedWithMe:
+                                        sharedWithMe
+                                    }
                                 }
+                            )
+                            .introspectSplitViewController {
+                                splitView in
+                                self.syncFloatingState(
+                                    splitView: splitView
+                                )
                             }
                         },
                         detail: {
@@ -70,41 +96,35 @@ struct HomeView: View {
                 }
             }
         )
+        .selectFolderSheets()
         .environmentObject(homeState)
         .environmentObject(settingsModel)
     }
 
     @ViewBuilder
-    var sidebar: some View {
-        SidebarView()
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        homeState.showPendingShares = true
-                    } label: {
-                        Label("Pending Shares", systemImage: "person.2.fill")
-                    }
-                }
-                
-                if #available(iOS 26.0, *) {
-                    ToolbarSpacer(.fixed, placement: .topBarTrailing)
-                }
-
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        homeState.sheetInfo = .importPicker
-                    } label: {
-                        Label("Import", systemImage: "square.and.arrow.down.fill")
-                    }
-
-                    Button {
-                        homeState.showSettings = true
-                    } label: {
-                        Label("Settings", systemImage: "gearshape.fill")
-                    }
+    var filesHome: some View {
+        SearchContainerView(filesModel: filesModel) {
+            FilesHomeView()
+        }
+        .overlay(
+            alignment: .bottom,
+            content: {
+                VStack {
+                    UsageBar()
+                    
+                    StatusBarView()
                 }
             }
-            .modifier(OutOfSpaceAlert())
+        )
+        .modifier(OutOfSpaceAlert())
+    }
+
+    var sharedWithMe: some View {
+        SharedWithMeView(
+            filesModel: filesModel,
+            workspaceInput: workspaceInput,
+            workspaceOutput: workspaceOutput
+        )
     }
 
     @ViewBuilder
@@ -113,13 +133,12 @@ struct HomeView: View {
             .navigationDestination(isPresented: $homeState.showSettings) {
                 SettingsView(model: settingsModel)
             }
-            .navigationDestination(isPresented: $homeState.showPendingShares) {
-                PendingSharesView()
-            }
     }
 
     func syncFloatingState(splitView: UISplitViewController) {
-        let isFloating = splitView.displayMode == .oneOverSecondary || splitView.displayMode == .twoOverSecondary
+        let isFloating =
+            splitView.displayMode == .oneOverSecondary
+            || splitView.displayMode == .twoOverSecondary
 
         if homeState.isSidebarFloating != isFloating {
             DispatchQueue.main.async {
@@ -129,19 +148,14 @@ struct HomeView: View {
     }
 }
 
-struct SidebarView: View {
+struct FilesHomeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
 
-    @Environment(\.horizontalSizeClass) var horizontalSizeClass
-
     var body: some View {
-        if let error = filesModel.error {
-            Text(error)
-                .foregroundStyle(.red)
-        } else if filesModel.loaded {
+        Group {
             if let root = filesModel.root {
                 Form {
                     CollapsableSection(
@@ -180,43 +194,30 @@ struct SidebarView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-
-                    Spacer()
-
-                    VStack(spacing: 0) {
-                        UsageBar()
-                            .padding(.horizontal, 16)
-
-                        StatusBarView()
-                            .confirmationDialog(
-                                "Are you sure? This action cannot be undone.",
-                                isPresented: Binding(
-                                    get: {
-                                        filesModel.isMoreThanOneFileInDeletion()
-                                    },
-                                    set: { _ in
-                                        filesModel.deleteFileConfirmation = nil
-                                    }
-                                ),
-                                titleVisibility: .visible,
-                                actions: {
-                                    if let files = filesModel
-                                        .deleteFileConfirmation
-                                    {
-                                        DeleteConfirmationButtons(files: files)
-                                    }
-                                }
-                            )
-                            .selectFolderSheets()
-                    }
                 }
                 .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
                 .navigationBarTitleDisplayMode(.large)
+            } else {
+                ProgressView()
             }
-        } else {
-            ProgressView()
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .secondaryAction) {
+                Button {
+                    homeState.sheetInfo = .importPicker
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down.fill")
+                }
+
+                Button {
+                    homeState.sidebarState = .closed
+                    homeState.showSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+            }
         }
     }
 
@@ -250,7 +251,8 @@ struct SidebarView: View {
                     },
                     label: {
                         AnyView(
-                            Label("Edit", image: "filemenu.and.selection")
+                            Label("Edit", systemImage: "filemenu.and.selection")
+                                .labelStyle(.titleOnly)
                         )
                     }
                 )

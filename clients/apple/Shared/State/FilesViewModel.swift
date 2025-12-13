@@ -4,11 +4,12 @@ import SwiftWorkspace
 
 class FilesViewModel: ObservableObject {
 
-    @Published var loaded: Bool = false
     @Published var root: File? = nil
     @Published var files: [File] = []
     var idsToFiles: [UUID: File] = [:]
     var childrens: [UUID: [File]] = [:]
+
+    @Published var pendingShares: [String: [File]]? = nil
 
     @Published var selectedFilesState: SelectedFilesState = .unselected
     @Published var deleteFileConfirmation: [File]? = nil
@@ -22,8 +23,6 @@ class FilesViewModel: ObservableObject {
             self?.loadFiles()
         }
         .store(in: &cancellables)
-
-        self.loadFiles()
     }
 
     func isFileInDeletion(id: UUID) -> Bool {
@@ -178,40 +177,97 @@ class FilesViewModel: ObservableObject {
     }
 
     func loadFiles() {
+        // Load files
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.listMetadatas()
-            DispatchQueue.main.async {
+
+            DispatchQueue.main.sync {
                 switch res {
                 case .success(let files):
                     self.idsToFiles = [:]
                     self.childrens = [:]
 
                     files.forEach { file in
-                        self.idsToFiles[file.id] = file
-
-                        if self.childrens[file.parent] == nil {
-                            self.childrens[file.parent] = []
-                        }
-
-                        if !file.isRoot {
-                            self.childrens[file.parent]!.append(file)  // Maybe just do binary insert
-                            self.childrens[file.parent]!.sort {
-                                if $0.type == $1.type {
-                                    return $0.name < $1.name
-                                } else {
-                                    return $0.type == .folder
-                                }
-                            }
-                        } else if self.root == nil {
-                            self.root = file
-                        }
+                        self.insertIntoFiles(file: file)
                     }
                     self.files = files
-                    self.loaded = true
                 case .failure(let err):
                     self.error = err.msg
                 }
             }
+            
+            guard let root = self.root else {
+                AppState.shared.error = .custom(title: "Unexpected error", msg: "Could not find root")
+                
+                return
+            }
+            
+            // Load all pending shares
+            let pendingShareFilesRes = AppState.lb.getPendingShareFiles()
+
+            DispatchQueue.main.sync {
+                switch pendingShareFilesRes {
+                case .success(let files):
+                    for file in files {
+                        self.insertIntoFiles(file: file)
+                    }
+                                        
+                case .failure(let err):
+                    self.error = err.msg
+                }
+            }
+            print("inserted these pending shares", self.childrens[UUID(uuidString: "FA41D0AA-2491-4BEE-B5BB-3E3C8C31944D")!])
+
+
+            // Load pending shares
+            let pendingSharesRes = AppState.lb.getPendingShares()
+
+            DispatchQueue.main.sync {
+                switch pendingSharesRes {
+                case .success(let files):
+                    var pendingShares: [String: [File]] = [:]
+                    
+                    for file in files {
+                        guard let sharedBy = file.shareFrom(to: root.name) else {
+                            continue
+                        }
+                        
+                        if pendingShares[sharedBy] == nil {
+                            pendingShares[sharedBy] = []
+                        }
+                        
+                        pendingShares[sharedBy]!.append(file)
+                    }
+                    
+                    self.pendingShares = pendingShares
+                case .failure(let err):
+                    self.error = err.msg
+                }
+
+            }
+        }
+    }
+
+    private func insertIntoFiles(file: File) {
+        self.idsToFiles[file.id] = file
+
+        if self.childrens[file.parent] == nil {
+            self.childrens[file.parent] = []
+        }
+
+        if !file.isRoot {
+            if !(self.childrens[file.parent] ?? []).contains(file) {
+                self.childrens[file.parent]!.append(file)  // Maybe just do binary insert
+                self.childrens[file.parent]!.sort {
+                    if $0.type == $1.type {
+                        return $0.name < $1.name
+                    } else {
+                        return $0.type == .folder
+                    }
+                }
+            }
+        } else if self.root == nil {
+            self.root = file
         }
     }
 
@@ -227,6 +283,13 @@ class FilesViewModel: ObservableObject {
         self.loadFiles()
         self.selectedFilesState = .unselected
     }
+    
+    func rejectShare(id: UUID) {
+        if case let .failure(err) = AppState.lb.deletePendingShare(id: id) {
+            AppState.shared.error = .lb(error: err)
+        }
+    }
+
 }
 
 extension FilesViewModel {

@@ -5,6 +5,9 @@ struct HomeView: View {
     @StateObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
+    
+    @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         self._homeState = StateObject(
@@ -20,18 +23,19 @@ struct HomeView: View {
             NavigationSplitView(
                 columnVisibility: homeState.splitViewVisibility,
                 sidebar: {
-                    SearchContainerView(filesModel: filesModel) {
-                        SidebarView()
-                    }
+                    CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
+                        switch tabType {
+                            case .home:
+                            filesHome
+                        case .sharedWithMe:
+                            sharedWithMe
+                        }
+                    })
+                    .navigationSplitViewColumnWidth(min: 250, ideal: 300)
                 },
                 detail: {
                     NavigationStack {
                         DetailView()
-                            .navigationDestination(
-                                isPresented: $homeState.showPendingShares
-                            ) {
-                                PendingSharesView()
-                            }
                             .modifier(OutOfSpaceAlert())
                     }
                 }
@@ -51,12 +55,25 @@ struct HomeView: View {
             }
         )
         .navigationSplitViewStyle(.balanced)
+        .selectFolderSheets()
         .environmentObject(homeState)
         .environmentObject(filesModel)
     }
+    
+    var filesHome: some View {
+        SearchContainerView(filesModel: filesModel) {
+            FilesHomeView()
+        }
+    }
+    
+    var sharedWithMe: some View {
+        SharedWithMeView(
+            filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput
+        )
+    }
 }
 
-struct SidebarView: View {
+struct FilesHomeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
 
@@ -65,10 +82,7 @@ struct SidebarView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        if let error = filesModel.error {
-            Text(error)
-                .foregroundStyle(.red)
-        } else if filesModel.loaded {
+        if let _ = filesModel.root {
             Form {
                 CollapsableSection(
                     id: "Suggested_Docs",
@@ -108,20 +122,7 @@ struct SidebarView: View {
                 }
             }
             .formStyle(.columns)
-            .selectFolderSheets()
             .fileOpSheets(compactSheetHeight: .constant(0))
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(
-                        action: {
-                            homeState.showPendingShares = true
-                        },
-                        label: {
-                            Label("Pending Shares", systemImage: "person.2.fill")
-                        }
-                    )
-                }
-            }
         }
     }
 }

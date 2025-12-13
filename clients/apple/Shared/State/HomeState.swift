@@ -17,7 +17,11 @@ class HomeState: ObservableObject {
     @Published var tabsSheetInfo: TabSheetInfo? = nil
     
     @Published var sidebarState: SidebarState = .open
+    #if os(iOS)
     @Published var isSidebarFloating: Bool = true
+    #else
+    @Published var isSidebarFloating: Bool = false
+    #endif
     
     var splitViewVisibility: Binding<NavigationSplitViewVisibility> {
         Binding(

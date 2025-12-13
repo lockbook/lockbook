@@ -60,6 +60,9 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         return lhs.name < rhs.name
     }
     
+    public func shareFrom(to: String) -> String? {
+        return self.shares.filter({ $0.with == to }).first?.by
+    }
 }
 
 extension Array<LbFile> {
