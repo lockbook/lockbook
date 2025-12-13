@@ -96,6 +96,25 @@ struct HomeView: View {
                 }
             }
         )
+        .confirmationDialog(
+            "Are you sure? This action cannot be undone.",
+            isPresented: Binding(
+                get: {
+                    filesModel.isMoreThanOneFileInDeletion()
+                },
+                set: { _ in
+                    filesModel.deleteFileConfirmation = nil
+                }
+            ),
+            titleVisibility: .visible,
+            actions: {
+                if let files = filesModel
+                    .deleteFileConfirmation
+                {
+                    DeleteConfirmationButtons(files: files)
+                }
+            }
+        )
         .selectFolderSheets()
         .environmentObject(homeState)
         .environmentObject(settingsModel)
