@@ -82,10 +82,7 @@ struct FilesHomeView: View {
     @Environment(\.colorScheme) var colorScheme
 
     var body: some View {
-        if let error = filesModel.error {
-            Text(error)
-                .foregroundStyle(.red)
-        } else if filesModel.loaded {
+        if let _ = filesModel.root {
             Form {
                 CollapsableSection(
                     id: "Suggested_Docs",

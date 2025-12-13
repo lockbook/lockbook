@@ -109,7 +109,11 @@ struct HomeView: View {
         .overlay(
             alignment: .bottom,
             content: {
-                StatusBarView()
+                VStack {
+                    UsageBar()
+                    
+                    StatusBarView()
+                }
             }
         )
         .modifier(OutOfSpaceAlert())

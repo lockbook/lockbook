@@ -4,7 +4,6 @@ import SwiftWorkspace
 
 class FilesViewModel: ObservableObject {
 
-    @Published var loaded: Bool = false
     @Published var root: File? = nil
     @Published var files: [File] = []
     var idsToFiles: [UUID: File] = [:]
@@ -192,7 +191,6 @@ class FilesViewModel: ObservableObject {
                         self.insertIntoFiles(file: file)
                     }
                     self.files = files
-                    self.loaded = true
                 case .failure(let err):
                     self.error = err.msg
                 }

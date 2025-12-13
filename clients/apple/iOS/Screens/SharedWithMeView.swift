@@ -36,14 +36,9 @@ struct SharedWithMeView: View {
                                 SharedByUserSection(
                                     username: username,
                                     shares: shares,
-                                    fileRow: { file in
-                                        PendingShareRowView(
-                                            file: file,
-                                        )
-                                        .environmentObject(
-                                            fileTreeModel
-                                        )
-                                    }
+                                )
+                                .environmentObject(
+                                    fileTreeModel
                                 )
                             }
                         }

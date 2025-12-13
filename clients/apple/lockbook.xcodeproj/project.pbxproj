@@ -105,8 +105,8 @@
 		47024C512D31F07900E7C2DB /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
 		471CD9242D249E9600D9320B /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
 		471CD92B2D249FA200D9320B /* State */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = State; sourceTree = "<group>"; };
+		4729F05C2EED332100C64BDC /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 		473198002D28916400FBCD5F /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
-		4731980C2D29A1CD00FBCD5F /* State */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = State; sourceTree = "<group>"; };
 		4731981A2D2AE88E00FBCD5F /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE862D273263002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
 		4742CE992D273B35002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
@@ -230,7 +230,7 @@
 		EA5C7D712516606000F7F358 /* iOS */ = {
 			isa = PBXGroup;
 			children = (
-				4731980C2D29A1CD00FBCD5F /* State */,
+				4729F05C2EED332100C64BDC /* Utils */,
 				473198002D28916400FBCD5F /* Screens */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
 				EA5C7D722516606000F7F358 /* Info.plist */,
@@ -314,8 +314,8 @@
 			fileSystemSynchronizedGroups = (
 				471CD9242D249E9600D9320B /* Screens */,
 				471CD92B2D249FA200D9320B /* State */,
+				4729F05C2EED332100C64BDC /* Utils */,
 				473198002D28916400FBCD5F /* Screens */,
-				4731980C2D29A1CD00FBCD5F /* State */,
 				4731981A2D2AE88E00FBCD5F /* Widgets */,
 				4742CE992D273B35002F3BE4 /* Widgets */,
 				47BC31D42D249E3A0020F0E4 /* Utils */,
