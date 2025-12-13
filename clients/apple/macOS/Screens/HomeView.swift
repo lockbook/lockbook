@@ -55,6 +55,7 @@ struct HomeView: View {
             }
         )
         .navigationSplitViewStyle(.balanced)
+        .selectFolderSheets()
         .environmentObject(homeState)
         .environmentObject(filesModel)
     }
@@ -124,7 +125,6 @@ struct FilesHomeView: View {
                 }
             }
             .formStyle(.columns)
-            .selectFolderSheets()
             .fileOpSheets(compactSheetHeight: .constant(0))
         }
     }

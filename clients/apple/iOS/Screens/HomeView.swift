@@ -37,9 +37,15 @@ struct HomeView: View {
                             tabContent: { tabType in
                                 switch tabType {
                                     case .home:
-                                    filesHome
+                                    NavigationStack {
+                                        filesHome
+                                            .closeSidebarToolbar()
+                                    }
                                 case .sharedWithMe:
-                                    sharedWithMe
+                                    NavigationStack {
+                                        sharedWithMe
+                                            .closeSidebarToolbar()
+                                    }
                                 }
                             }
                         )
@@ -53,14 +59,17 @@ struct HomeView: View {
                     NavigationSplitView(
                         columnVisibility: homeState.splitViewVisibility,
                         sidebar: {
-                            CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
-                                switch tabType {
+                            CustomTabView(
+                                selectedTab: $selectedTab,
+                                tabContent: { tabType in
+                                    switch tabType {
                                     case .home:
-                                    filesHome
-                                case .sharedWithMe:
-                                    sharedWithMe
+                                        filesHome
+                                    case .sharedWithMe:
+                                        sharedWithMe
+                                    }
                                 }
-                            })
+                            )
                             .introspectSplitViewController {
                                 splitView in
                                 self.syncFloatingState(
@@ -107,7 +116,7 @@ struct HomeView: View {
     }
 
     var sharedWithMe: some View {
-        PendingSharesView(
+        SharedWithMeView(
             filesModel: filesModel,
             workspaceInput: workspaceInput,
             workspaceOutput: workspaceOutput

@@ -20,7 +20,7 @@ struct StatusBarView: View {
         .frame(height: 35)
         .padding(8)
         .modifier(GlassEffectModifier())
-        .padding(.bottom)
+        .padding(.bottom, 8)
         .padding(.horizontal)
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
-struct PendingSharesView: View {
+struct SharedWithMeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
 
@@ -64,7 +64,7 @@ struct PendingSharesView: View {
 
 #Preview("Pending Shares") {
     NavigationStack {
-        PendingSharesView(
+        SharedWithMeView(
             filesModel: .preview,
             workspaceInput: .preview,
             workspaceOutput: .preview

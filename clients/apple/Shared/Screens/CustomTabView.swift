@@ -4,18 +4,21 @@ struct CustomTabView<TabContent: View>: View {
     @Binding var selectedTab: TabType
     @ViewBuilder var tabContent: (TabType) -> TabContent
     
+    var toolbarItemPlacement: ToolbarItemPlacement {
+        #if os(macOS)
+        .principal
+        #else
+        .topBarLeading
+        #endif
+    }
+    
     var body: some View {
-        ZStack {
-            ForEach(TabType.allCases) { mode in
-                tabContent(mode)
-                    .opacity(selectedTab == mode ? 1 : 0)
-                    .allowsHitTesting(selectedTab == mode)
-                    .accessibilityHidden(selectedTab != mode)
-            }
+        Group {
+            tabContent(selectedTab)
         }
         .toolbar {
             ToolbarItemGroup(
-                placement: .principal,
+                placement: toolbarItemPlacement,
                 content: {
                     TabPicker(
                         selectedTab: $selectedTab
