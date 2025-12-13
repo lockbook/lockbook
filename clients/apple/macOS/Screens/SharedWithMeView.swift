@@ -1,7 +1,11 @@
 import SwiftUI
-import SwiftWorkspace
 
-struct PendingSharesView: View {
+import Combine
+import SwiftWorkspace
+import AppKit
+
+
+struct SharedWithMeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
 
@@ -58,18 +62,6 @@ struct PendingSharesView: View {
             }
         }
         .navigationTitle("Shared with me")
-        .toolbarTitleDisplayMode(.large)
     }
 }
 
-#Preview("Pending Shares") {
-    NavigationStack {
-        PendingSharesView(
-            filesModel: .preview,
-            workspaceInput: .preview,
-            workspaceOutput: .preview
-        )
-        .withMacPreviewSize()
-        .withCommonPreviewEnvironment()
-    }
-}

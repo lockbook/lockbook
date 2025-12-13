@@ -5,6 +5,9 @@ struct HomeView: View {
     @StateObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
+    
+    @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         self._homeState = StateObject(
@@ -20,18 +23,19 @@ struct HomeView: View {
             NavigationSplitView(
                 columnVisibility: homeState.splitViewVisibility,
                 sidebar: {
-                    SearchContainerView(filesModel: filesModel) {
-                        SidebarView()
-                    }
+                    CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
+                        switch tabType {
+                            case .home:
+                            filesHome
+                        case .sharedWithMe:
+                            sharedWithMe
+                        }
+                    })
+                    .navigationSplitViewColumnWidth(min: 250, ideal: 300)
                 },
                 detail: {
                     NavigationStack {
                         DetailView()
-                            .navigationDestination(
-                                isPresented: $homeState.showPendingShares
-                            ) {
-                                PendingSharesView()
-                            }
                             .modifier(OutOfSpaceAlert())
                     }
                 }
@@ -54,9 +58,21 @@ struct HomeView: View {
         .environmentObject(homeState)
         .environmentObject(filesModel)
     }
+    
+    var filesHome: some View {
+        SearchContainerView(filesModel: filesModel) {
+            FilesHomeView()
+        }
+    }
+    
+    var sharedWithMe: some View {
+        SharedWithMeView(
+            filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput
+        )
+    }
 }
 
-struct SidebarView: View {
+struct FilesHomeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
 
@@ -110,18 +126,6 @@ struct SidebarView: View {
             .formStyle(.columns)
             .selectFolderSheets()
             .fileOpSheets(compactSheetHeight: .constant(0))
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(
-                        action: {
-                            homeState.showPendingShares = true
-                        },
-                        label: {
-                            Label("Pending Shares", systemImage: "person.2.fill")
-                        }
-                    )
-                }
-            }
         }
     }
 }

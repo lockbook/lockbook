@@ -32,26 +32,17 @@ struct HomeView: View {
                         detail
                     },
                     sideView: {
-                        TabView {
-                            Tab(
-                                TabType.home.title,
-                                systemImage: TabType.home.systemImage
-                            ) {
-                                NavigationStack {
+                        MobileCustomTabView(
+                            selectedTab: $selectedTab,
+                            tabContent: { tabType in
+                                switch tabType {
+                                    case .home:
                                     filesHome
-                                }
-                            }
-
-                            Tab(
-                                TabType.sharedWithMe.title,
-                                systemImage: TabType.sharedWithMe
-                                    .systemImage
-                            ) {
-                                NavigationStack {
+                                case .sharedWithMe:
                                     sharedWithMe
                                 }
                             }
-                        }
+                        )
                     }
                 )
             } else {
@@ -62,27 +53,14 @@ struct HomeView: View {
                     NavigationSplitView(
                         columnVisibility: homeState.splitViewVisibility,
                         sidebar: {
-                            Group {
-                                switch selectedTab {
-                                case .home:
-                                    SearchContainerView(filesModel: filesModel)
-                                    {
-                                        filesHome
-                                    }
+                            CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
+                                switch tabType {
+                                    case .home:
+                                    filesHome
                                 case .sharedWithMe:
                                     sharedWithMe
                                 }
-                            }
-                            .toolbar {
-                                ToolbarItemGroup(
-                                    placement: .topBarLeading,
-                                    content: {
-                                        TabPicker(
-                                            selectedTab: $selectedTab
-                                        )
-                                    }
-                                )
-                            }
+                            })
                             .introspectSplitViewController {
                                 splitView in
                                 self.syncFloatingState(
