@@ -211,9 +211,9 @@ struct PendingShareRowView: View {
 
 struct PendingShareFileCell: View {
     @EnvironmentObject var homeState: HomeState
+    @EnvironmentObject var filesModel: FilesViewModel
     @Environment(\.dismiss) private var dismiss
 
-    @ObservedObject var pendingSharesModel: PendingSharesViewModel
     @State var confirmRejection = false
 
     let file: File
@@ -262,7 +262,8 @@ struct PendingShareFileCell: View {
             titleVisibility: .visible
         ) {
             Button("Reject \"\(file.name)\"", role: .destructive) {
-                pendingSharesModel.rejectShare(id: file.id)
+                filesModel.rejectShare(id: file.id)
+                
                 dismiss()
             }
         }

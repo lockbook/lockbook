@@ -7,9 +7,12 @@ struct HomeView: View {
 
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
+    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
 
     @StateObject var homeState: HomeState
     @StateObject var settingsModel = SettingsViewModel()
+
+    @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         self._homeState = StateObject(
@@ -29,7 +32,26 @@ struct HomeView: View {
                         detail
                     },
                     sideView: {
-                        sidebar
+                        TabView {
+                            Tab(
+                                TabType.home.title,
+                                systemImage: TabType.home.systemImage
+                            ) {
+                                NavigationStack {
+                                    filesHome
+                                }
+                            }
+
+                            Tab(
+                                TabType.sharedWithMe.title,
+                                systemImage: TabType.sharedWithMe
+                                    .systemImage
+                            ) {
+                                NavigationStack {
+                                    sharedWithMe
+                                }
+                            }
+                        }
                     }
                 )
             } else {
@@ -40,14 +62,32 @@ struct HomeView: View {
                     NavigationSplitView(
                         columnVisibility: homeState.splitViewVisibility,
                         sidebar: {
-                            SearchContainerView(filesModel: filesModel) {
-                                sidebar
-                                    .introspectSplitViewController {
-                                        splitView in
-                                        self.syncFloatingState(
-                                            splitView: splitView
+                            Group {
+                                switch selectedTab {
+                                case .home:
+                                    SearchContainerView(filesModel: filesModel)
+                                    {
+                                        filesHome
+                                    }
+                                case .sharedWithMe:
+                                    sharedWithMe
+                                }
+                            }
+                            .toolbar {
+                                ToolbarItemGroup(
+                                    placement: .topBarLeading,
+                                    content: {
+                                        TabPicker(
+                                            selectedTab: $selectedTab
                                         )
                                     }
+                                )
+                            }
+                            .introspectSplitViewController {
+                                splitView in
+                                self.syncFloatingState(
+                                    splitView: splitView
+                                )
                             }
                         },
                         detail: {
@@ -69,15 +109,31 @@ struct HomeView: View {
                 }
             }
         )
+        .selectFolderSheets()
         .environmentObject(homeState)
         .environmentObject(settingsModel)
     }
 
     @ViewBuilder
-    var sidebar: some View {
-        SidebarView()
-            .modifier(OutOfSpaceAlert())
-            .selectFolderSheets()
+    var filesHome: some View {
+        SearchContainerView(filesModel: filesModel) {
+            FilesHomeView()
+        }
+        .overlay(
+            alignment: .bottom,
+            content: {
+                StatusBarView()
+            }
+        )
+        .modifier(OutOfSpaceAlert())
+    }
+
+    var sharedWithMe: some View {
+        PendingSharesView(
+            filesModel: filesModel,
+            workspaceInput: workspaceInput,
+            workspaceOutput: workspaceOutput
+        )
     }
 
     @ViewBuilder
@@ -101,50 +157,7 @@ struct HomeView: View {
     }
 }
 
-struct SidebarView: View {
-    @EnvironmentObject var homeState: HomeState
-    @EnvironmentObject var filesModel: FilesViewModel
-    @EnvironmentObject var workspaceInput: WorkspaceInputState
-    @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-
-    var body: some View {
-        if let error = filesModel.error {
-            Text(error)
-                .foregroundStyle(.red)
-        } else if filesModel.loaded {
-            TabView {
-                Tab("Home", systemImage: "house") {
-                    NavigationStack {
-                        SearchContainerView(filesModel: filesModel) {
-                            HomeSubView()
-                        }
-                    }
-                    .overlay(
-                        alignment: .bottom,
-                        content: {
-                            StatusBarView()
-                        }
-                    )
-                }
-
-                Tab("Shares", systemImage: "person.2.fill") {
-                    NavigationStack {
-                        PendingSharesView(
-                            filesModel: filesModel,
-                            workspaceInput: workspaceInput,
-                            workspaceOutput: workspaceOutput
-                        )
-                    }
-                }
-            }
-            .tabViewStyle(.sidebarAdaptable)
-        } else {
-            ProgressView()
-        }
-    }
-}
-
-struct HomeSubView: View {
+struct FilesHomeView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
@@ -195,10 +208,12 @@ struct HomeSubView: View {
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
                 .navigationBarTitleDisplayMode(.large)
+            } else {
+                ProgressView()
             }
         }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .secondaryAction) {
                 Button {
                     homeState.sheetInfo = .importPicker
                 } label: {
@@ -246,6 +261,7 @@ struct HomeSubView: View {
                     label: {
                         AnyView(
                             Label("Edit", systemImage: "filemenu.and.selection")
+                                .labelStyle(.titleOnly)
                         )
                     }
                 )

@@ -26,9 +26,6 @@ struct FileTreeView: View {
                 }
                 .listStyle(.sidebar)
                 .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-                
-                Spacer()
-                    .frame(height: 70)
             }.contextMenu {
                 FileRowContextMenu(file: root)
             }
