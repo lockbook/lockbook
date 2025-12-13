@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
@@ -13,7 +12,6 @@ pub struct FileCache {
     pub files: Vec<File>,
     pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
-    pub usage: HashMap<Uuid, usize>,
 }
 
 impl FileCache {
@@ -22,34 +20,33 @@ impl FileCache {
             files: lb.list_metadatas()?,
             suggested: lb.suggested_docs(Default::default())?,
             shared: lb.get_pending_share_files()?,
-            usage: lb.get_uncompressed_usage_breakdown()?,
         })
     }
 
-    pub fn uncompressed_usage_recursive(&self, id: Uuid) -> usize {
+    pub fn size_bytes_recursive(&self, id: Uuid) -> u64 {
         self.files
             .descendents(id)
             .iter()
             .map(|f| f.id)
             .chain(iter::once(id))
-            .filter_map(|id| self.usage.get(&id))
+            .map(|id| self.files.get_by_id(id).unwrap().size_bytes)
             .sum::<_>()
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
-        self.uncompressed_usage_recursive(id) as f32
-            / self.uncompressed_usage_recursive(self.files.get_by_id(id).unwrap().parent) as f32
+        self.size_bytes_recursive(id) as f32
+            / self.size_bytes_recursive(self.files.get_by_id(id).unwrap().parent) as f32
     }
 
     /// returns the uncompressed, recursive size of a file scaled relative to
     /// siblings so that the biggest sibling is 1.0
     pub fn usage_portion_scaled(&self, id: Uuid) -> f32 {
         let siblings = self.files.siblings(id);
-        let current_usage = self.uncompressed_usage_recursive(id);
+        let current_usage = self.size_bytes_recursive(id);
 
         let max_sibling_usage = siblings
             .iter()
-            .map(|sibling| self.uncompressed_usage_recursive(sibling.id))
+            .map(|sibling| self.size_bytes_recursive(sibling.id))
             .chain(std::iter::once(current_usage))
             .max()
             .unwrap_or(1);
