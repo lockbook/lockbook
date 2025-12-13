@@ -258,12 +258,14 @@ class FilesViewModel: ObservableObject {
         }
 
         if !file.isRoot {
-            self.childrens[file.parent]!.append(file)  // Maybe just do binary insert
-            self.childrens[file.parent]!.sort {
-                if $0.type == $1.type {
-                    return $0.name < $1.name
-                } else {
-                    return $0.type == .folder
+            if !(self.childrens[file.parent] ?? []).contains(file) {
+                self.childrens[file.parent]!.append(file)  // Maybe just do binary insert
+                self.childrens[file.parent]!.sort {
+                    if $0.type == $1.type {
+                        return $0.name < $1.name
+                    } else {
+                        return $0.type == .folder
+                    }
                 }
             }
         } else if self.root == nil {
