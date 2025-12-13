@@ -22,6 +22,7 @@ struct StatusBarView: View {
         .modifier(GlassEffectModifier())
         .padding(.bottom, 8)
         .padding(.horizontal)
+        .contentShape(Rectangle())
     }
 
     var selectedFilesOptions: some View {
