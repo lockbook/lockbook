@@ -29,9 +29,6 @@ struct SyncButton: View {
                         .progressViewStyle(.circular)
                         .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
-                        .tint(.white)
-                        // hack to get the dark mode version of progress spinner on macOS
-                        .colorScheme(.dark)
                         
                 }).padding(.vertical, 5)
             } else {
@@ -39,7 +36,7 @@ struct SyncButton: View {
             }
         })
         .modifier(SyncButtonHelpMessage(statusMessage: $statusMessage))
-        .buttonStyle(.borderedProminent)
+        .buttonStyle(.borderless)
         .tint(getButtonTintColor())
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }

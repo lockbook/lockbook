@@ -31,6 +31,7 @@ public protocol LbAPI {
     func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError>
     func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError>
     func getPendingShares() -> Result<[File], LbError>
+    func getPendingShareFiles() -> Result<[File], LbError>
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
     func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError>
     func createAtPath(pathAndName: String) -> Result<File, LbError>
@@ -330,6 +331,17 @@ public class Lb: LbAPI {
     
     public func getPendingShares() -> Result<[File], LbError> {
         let res = lb_get_pending_shares(lb)
+        defer { lb_free_file_list_res(res) }
+        
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(Array<LbFile>(UnsafeBufferPointer(start: res.list.list, count: Int(res.list.count))).toFiles())
+    }
+    
+    public func getPendingShareFiles() -> Result<[File], LbError> {
+        let res = lb_get_pending_share_files(lb)
         defer { lb_free_file_list_res(res) }
         
         guard res.err == nil else {
@@ -742,6 +754,7 @@ public class MockLb: LbAPI {
     public func moveFile(id: UUID, newParent: UUID) -> Result<Void, LbError> { .success(()) }
     public func shareFile(id: UUID, username: String, mode: ShareMode) -> Result<Void, LbError> { .success(()) }
     public func getPendingShares() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
+    public func getPendingShareFiles() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError> { .success(file5) }
     public func createAtPath(pathAndName: String) -> Result<File, LbError> { .success(file1) }

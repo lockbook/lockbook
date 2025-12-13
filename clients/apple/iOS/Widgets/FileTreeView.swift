@@ -26,6 +26,8 @@ struct FileTreeView: View {
                 }
                 .listStyle(.sidebar)
                 .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
+                
+                Spacer().frame(height: 150)
             }.contextMenu {
                 FileRowContextMenu(file: root)
             }
@@ -268,28 +270,6 @@ struct FileRowContextMenu: View {
                     Label("Delete", systemImage: "trash.fill")
                 }
             }
-        }
-    }
-}
-
-struct OpenDocModifier: ViewModifier {
-    @Environment(\.colorScheme) var colorScheme
-    @EnvironmentObject var fileTreeModel: FileTreeViewModel
-    
-    let file: File
-        
-    func body(content: Content) -> some View {
-        if fileTreeModel.openDoc == file.id {
-            content
-                .foregroundColor(Color.white)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .foregroundStyle( Color.primary.opacity(colorScheme == .light ? 0.05 : 0.1))
-                        .padding(.vertical, 2)
-                        .padding(.trailing)
-                )
-        } else {
-            content
         }
     }
 }

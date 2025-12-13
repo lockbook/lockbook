@@ -9,7 +9,6 @@ extension View {
             .environmentObject(FilesViewModel.preview)
             .environmentObject(HomeState.preview)
             .environmentObject(PathSearchViewModel.preview)
-            .environmentObject(PendingSharesViewModel.preview)
             .environmentObject(SelectFolderViewModel.preview)
             .environmentObject(SettingsViewModel.preview)
             .environmentObject(SuggestedDocsViewModel.preview)

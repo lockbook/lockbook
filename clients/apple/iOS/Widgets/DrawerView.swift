@@ -17,7 +17,7 @@ struct DrawerView<Main: View, Side: View>: View {
             )
 
             ZStack(alignment: .leading) {
-                NavigationView {
+                NavigationStack {
                     mainView
                         .toolbar {
                             ToolbarItem(placement: .navigationBarLeading) {
@@ -37,19 +37,7 @@ struct DrawerView<Main: View, Side: View>: View {
                 }
                 .overlay(mainOverlayTapGesture)
 
-                NavigationView {
-                    sideView
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button {
-                                    homeState.sidebarState = .closed
-                                } label: {
-                                    Image(systemName: "sidebar.left")
-                                        .imageScale(.large)
-                                }
-                            }
-                        }
-                }
+            sideView
                 .frame(width: calculatedSidebarWidth)
                 .offset(
                     x: min(
@@ -236,6 +224,30 @@ private struct Constants {
             dampingFraction: Constants.animationDampingFraction,
             blendDuration: Constants.animationBlendDuration
         )
+    }
+}
+
+struct CloseSidebarToolbarModifier: ViewModifier {
+    @EnvironmentObject var homeState: HomeState
+    
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        homeState.sidebarState = .closed
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .imageScale(.large)
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func closeSidebarToolbar() -> some View {
+        self.modifier(CloseSidebarToolbarModifier())
     }
 }
 

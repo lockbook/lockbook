@@ -404,6 +404,19 @@ pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_get_pending_share_files(lb: *mut Lb) -> LbFileListRes {
+    let lb = rlb(lb);
+
+    match lb.get_pending_share_files() {
+        Ok(shares) => LbFileListRes { err: null_mut(), list: shares.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileListRes { err, list: LbFileList::default() }
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
