@@ -456,6 +456,7 @@ impl<'ast> Editor {
                             if let NodeValue::Heading(NodeHeading {
                                 level: node_level,
                                 setext: false,
+                                ..
                             }) = node.data.borrow().value
                             {
                                 for line_idx in self.node_lines(node).iter() {

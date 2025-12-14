@@ -14,7 +14,8 @@ impl<'ast> Editor {
 
         let mut images_height = 0.;
         for descendant in node.descendants() {
-            if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                let NodeLink { url, .. } = &**node_link;
                 images_height += self.height_image(node, url);
                 images_height += BLOCK_SPACING;
             }
@@ -54,7 +55,8 @@ impl<'ast> Editor {
         let node_line = self.node_range(node); // table cells are always single-line
 
         for descendant in node.descendants() {
-            if let NodeValue::Image(NodeLink { url, .. }) = &descendant.data.borrow().value {
+            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                let NodeLink { url, .. } = &**node_link;
                 self.show_image_block(ui, node, top_left, url);
                 top_left.y += self.height_image(node, url);
                 top_left.y += BLOCK_SPACING;
