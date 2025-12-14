@@ -31,7 +31,7 @@ enum TabType: Hashable, CaseIterable, Identifiable {
     
     var systemImage: String {
         switch self {
-        case .home: return "house"
+        case .home: return "house.fill"
         case .sharedWithMe: return "person.2.fill"
         }
     }
