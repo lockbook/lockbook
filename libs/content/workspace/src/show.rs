@@ -26,18 +26,11 @@ use crate::workspace::Workspace;
 pub struct LandingPage {
     search_term: String,
     doc_types: Vec<DocType>,
-    last_modified: Option<LastModifiedFilter>,
+    collaborators: Vec<String>,
+    only_me: bool,
     sort: Sort,
     sort_asc: bool,
     flatten_tree: bool,
-}
-
-#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
-enum LastModifiedFilter {
-    Today,
-    ThisWeek,
-    ThisMonth,
-    ThisYear,
 }
 
 #[derive(Default, PartialEq, Clone, Serialize, Deserialize)]
@@ -47,17 +40,6 @@ enum Sort {
     #[default]
     Modified,
     Size,
-}
-
-impl Display for LastModifiedFilter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            LastModifiedFilter::Today => write!(f, "Today"),
-            LastModifiedFilter::ThisWeek => write!(f, "This Week"),
-            LastModifiedFilter::ThisMonth => write!(f, "This Month"),
-            LastModifiedFilter::ThisYear => write!(f, "This Year"),
-        }
-    }
 }
 
 impl Workspace {
@@ -324,53 +306,89 @@ impl Workspace {
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::TOP),
                                     |ui| {
-                                        // Last modified filter
+                                        // Collaborators filter
                                         egui::ComboBox::from_id_source(ui.next_auto_id())
                                             .selected_text(
-                                                if let Some(filter) =
-                                                    &self.landing_page.last_modified
-                                                {
-                                                    format!("Modified: {}", filter)
+                                                if self.landing_page.only_me {
+                                                    "Collaborators: Only Me".to_string()
+                                                } else if self.landing_page.collaborators.is_empty() {
+                                                    "Collaborators: Any".to_string()
                                                 } else {
-                                                    "Modified: Anytime".to_string()
+                                                    format!(
+                                                        "Collaborators: {}",
+                                                        self.landing_page.collaborators.len()
+                                                    )
                                                 },
                                             )
                                             .width(180.)
                                             .height(f32::INFINITY)
                                             .show_ui(ui, |ui| {
-                                                let last_modified_filters = [
-                                                    LastModifiedFilter::Today,
-                                                    LastModifiedFilter::ThisWeek,
-                                                    LastModifiedFilter::ThisMonth,
-                                                    LastModifiedFilter::ThisYear,
-                                                ];
+                                                // Collect all unique collaborators from files in scope
+                                                let files_in_scope = if self.landing_page.flatten_tree {
+                                                    files.files.descendents(folder.id)
+                                                } else {
+                                                    files.files.children(folder.id)
+                                                };
 
-                                                for filter in &last_modified_filters {
-                                                    let is_selected = self
-                                                        .landing_page
-                                                        .last_modified
-                                                        .as_ref()
-                                                        .map(|f| f == filter)
-                                                        .unwrap_or(false);
-
-                                                    if ui
-                                                        .selectable_label(
-                                                            is_selected,
-                                                            filter.to_string(),
-                                                        )
-                                                        .clicked()
-                                                    {
-                                                        if is_selected {
-                                                            self.landing_page.last_modified = None;
-                                                        } else {
-                                                            self.landing_page.last_modified =
-                                                                Some(*filter);
+                                                let mut all_collaborators = std::collections::HashSet::new();
+                                                for file in files_in_scope {
+                                                    for share in &file.shares {
+                                                        if share.shared_with != "<unknown>" && share.shared_with != account.username {
+                                                            all_collaborators.insert(share.shared_with.clone());
+                                                        }
+                                                        if share.shared_by != "<unknown>" && share.shared_by != account.username {
+                                                            all_collaborators.insert(share.shared_by.clone());
                                                         }
                                                     }
                                                 }
 
-                                                if ui.button("Clear").clicked() {
-                                                    self.landing_page.last_modified = None;
+                                                let mut collaborators_list: Vec<String> = all_collaborators.into_iter().collect();
+                                                collaborators_list.sort();
+
+                                                ui.style_mut().spacing.button_padding.y = 5.0;
+                                                ui.add_space(5.);
+                                                if ui.button("Any").clicked() {
+                                                    self.landing_page.only_me = false;
+                                                    self.landing_page.collaborators.clear();
+                                                }
+                                                ui.add_space(5.);
+                                                if ui.button("Only Me").clicked() {
+                                                    self.landing_page.only_me = true;
+                                                    self.landing_page.collaborators.clear();
+                                                }
+
+                                                for collaborator in &collaborators_list {
+                                                    let mut is_selected = self
+                                                        .landing_page
+                                                        .collaborators
+                                                        .iter()
+                                                        .any(|c| c == collaborator);
+
+                                                    if ui
+                                                        .checkbox(&mut is_selected, collaborator)
+                                                        .changed()
+                                                    {
+                                                        if is_selected {
+                                                            // Add the collaborator if not present
+                                                            if !self
+                                                                .landing_page
+                                                                .collaborators
+                                                                .iter()
+                                                                .any(|c| c == collaborator)
+                                                            {
+                                                                self.landing_page
+                                                                    .collaborators
+                                                                    .push(collaborator.clone());
+                                                            }
+                                                        } else {
+                                                            // Remove the collaborator
+                                                            self.landing_page
+                                                                .collaborators
+                                                                .retain(|c| c != collaborator);
+                                                        }
+
+                                                        self.landing_page.only_me = false;
+                                                    }
                                                 }
                                             });
 
@@ -378,7 +396,7 @@ impl Workspace {
                                         egui::ComboBox::from_id_source(ui.next_auto_id())
                                             .selected_text(
                                                 if self.landing_page.doc_types.is_empty() {
-                                                    "Types: All".to_string()
+                                                    "Types: Any".to_string()
                                                 } else {
                                                     format!(
                                                         "Types: {}",
@@ -389,6 +407,12 @@ impl Workspace {
                                             .width(100.)
                                             .height(f32::INFINITY)
                                             .show_ui(ui, |ui| {
+                                                ui.style_mut().spacing.button_padding.y = 5.0;
+                                                if ui.button("Any").clicked() {
+                                                    self.landing_page.doc_types.clear();
+                                                }
+                                                ui.add_space(5.);
+
                                                 let doc_types = [
                                                     DocType::Markdown,
                                                     DocType::SVG,
@@ -398,7 +422,6 @@ impl Workspace {
                                                     DocType::PDF,
                                                     DocType::Unknown,
                                                 ];
-
                                                 for doc_type in &doc_types {
                                                     let mut is_selected = self
                                                         .landing_page
@@ -442,10 +465,6 @@ impl Workspace {
                                                     });
 
                                                     ui.add_space(5.);
-                                                }
-
-                                                if ui.button("Clear").clicked() {
-                                                    self.landing_page.doc_types.clear();
                                                 }
                                             });
 
@@ -579,6 +598,10 @@ impl Workspace {
                                             .contains(&self.landing_page.search_term.to_lowercase())
                                     };
 
+                                    // Flatten tree filter - hide folders when flattening
+                                    let flatten_match =
+                                        !self.landing_page.flatten_tree || child.is_document();
+
                                     // Doc type filter
                                     let doc_type_match = if self.landing_page.doc_types.is_empty() {
                                         true
@@ -593,40 +616,35 @@ impl Workspace {
                                             .any(|filter_type| filter_type == &child_doc_type)
                                     };
 
-                                    // Last modified filter
-                                    let last_modified_match = if let Some(filter) =
-                                        &self.landing_page.last_modified
-                                    {
-                                        let now = lb_rs::model::clock::get_time().0;
-                                        let file_modified = files.last_modified_recursive(child.id);
-                                        let time_diff = now - file_modified as i64;
-
-                                        match filter {
-                                            LastModifiedFilter::Today => {
-                                                time_diff <= 24 * 60 * 60 * 1000
+                                    // Collaborator filter
+                                    let collaborator_match = if self.landing_page.only_me {
+                                        // Only show files where the current user is the only collaborator
+                                        child.shares.is_empty()
+                                    } else if self.landing_page.collaborators.is_empty() {
+                                        // No collaborator filter
+                                        true
+                                    } else {
+                                        // Get all collaborators for this file
+                                        let mut file_collaborators = std::collections::HashSet::new();
+                                        for share in &child.shares {
+                                            if share.shared_with != "<unknown>" && share.shared_with != account.username {
+                                                file_collaborators.insert(&share.shared_with);
                                             }
-                                            LastModifiedFilter::ThisWeek => {
-                                                time_diff <= 7 * 24 * 60 * 60 * 1000
-                                            }
-                                            LastModifiedFilter::ThisMonth => {
-                                                time_diff <= 30 * 24 * 60 * 60 * 1000
-                                            }
-                                            LastModifiedFilter::ThisYear => {
-                                                time_diff <= 365 * 24 * 60 * 60 * 1000
+                                            if share.shared_by != "<unknown>" && share.shared_by != account.username {
+                                                file_collaborators.insert(&share.shared_by);
                                             }
                                         }
-                                    } else {
-                                        true
-                                    };
 
-                                    // Flatten tree filter - hide folders when flattening
-                                    let flatten_match =
-                                        !self.landing_page.flatten_tree || child.is_document();
+                                        // Check if filter collaborators are a subset of file collaborators
+                                        self.landing_page.collaborators.iter().all(|filter_collab| {
+                                            file_collaborators.contains(&filter_collab)
+                                        })
+                                    };
 
                                     search_match
                                         && doc_type_match
-                                        && last_modified_match
                                         && flatten_match
+                                        && collaborator_match
                                 })
                                 .collect();
 
@@ -634,7 +652,7 @@ impl Workspace {
                             if self.landing_page.flatten_tree {
                                 // When flattened, always sort by modified
                                 descendents.sort_by_key(|f| {
-                                    u64::MAX - files.last_modified_recursive(f.id)
+                                    files.last_modified_recursive(f.id)
                                 });
                             } else {
                                 match self.landing_page.sort {
@@ -686,7 +704,7 @@ impl Workspace {
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     egui::Grid::new("files_grid")
                                         .num_columns(if self.landing_page.flatten_tree {
-                                            2
+                                            3
                                         } else {
                                             6
                                         })
@@ -774,6 +792,13 @@ impl Workspace {
                                                     }
                                                 });
 
+                                                // Header: Collaborators
+                                                ui.label(
+                                                    RichText::new("Collaborators")
+                                                        .font(header_font.clone())
+                                                        .weak(),
+                                                );
+
                                                 // Header: Modified
                                                 ui.horizontal(|ui| {
                                                     if ui
@@ -810,13 +835,6 @@ impl Workspace {
                                                         );
                                                     }
                                                 });
-
-                                                // Header: Collaborators
-                                                ui.label(
-                                                    RichText::new("Collaborators")
-                                                        .font(header_font.clone())
-                                                        .weak(),
-                                                );
 
                                                 // Header: Usage
                                                 ui.horizontal(|ui| {
@@ -921,7 +939,9 @@ impl Workspace {
                                                             };
 
                                                         ui.vertical(|ui| {
-                                                            ui.add_space(20.);
+                                                            if current_time_category != -1 {
+                                                                ui.add_space(20.);
+                                                            }
                                                             ui.label(
                                                                 RichText::new(category_name)
                                                                     .font(FontId::new(
@@ -1005,12 +1025,18 @@ impl Workspace {
                                                     } else {
                                                         egui::WidgetText::from(&child.name)
                                                     };
-                                                    if ui.link(text).clicked() {
+                                                    let link_response = ui.link(text);
+                                                    if link_response.clicked() {
                                                         open_file = Some(child.id);
                                                     }
+
+                                                    // Show full path on hover
+                                                    link_response.on_hover_ui(|ui| {
+                                                        ui.label(self.core.get_path_by_id(child.id).unwrap());
+                                                    });
                                                 });
 
-                                                // // Type column
+                                                // Type column
                                                 if !self.landing_page.flatten_tree {
                                                     ui.label(RichText::new(if child.is_folder() {
                                                         "Folder".to_string()
@@ -1018,6 +1044,116 @@ impl Workspace {
                                                         DocType::from_name(&child.name).to_string()
                                                     }));
                                                 }
+
+                                                // Collaborators
+                                                ui.horizontal(|ui| {
+                                                    let share_count = child.shares.len();
+                                                    let label_response =
+                                                        if share_count > 0 {
+                                                            ui.horizontal(|ui| {
+                                                                ui.label(
+                                                                    RichText::new(Icon::ACCOUNT.icon)
+                                                                        .font(FontId::monospace(16.0))
+                                                                        .color(ui.visuals().weak_text_color()),
+                                                                ).union(ui.label(RichText::new(share_count.to_string())))
+                                                            }).inner
+                                                        } else {
+                                                            ui.horizontal(|ui| {
+                                                                ui.label(
+                                                                    RichText::new(Icon::ACCOUNT.icon)
+                                                                        .font(FontId::monospace(16.0))
+                                                                        .color(Color32::TRANSPARENT),
+                                                                ).union(ui.label(RichText::new("-").weak()))
+                                                            }).inner
+                                                        };
+
+                                                    // Show collaborators on hover
+                                                    label_response.on_hover_ui(|ui| {
+                                                        ui.allocate_space(Vec2::X * 100.);
+                                                        ui.vertical(|ui| {
+                                                            // Separate shares by access level
+                                                            let mut write_shares = Vec::new();
+                                                            let mut read_shares = Vec::new();
+                                                            for share in &child.shares {
+                                                                match share.mode {
+                                                                    ShareMode::Write => write_shares.push(share),
+                                                                    ShareMode::Read => read_shares.push(share),
+                                                                }
+                                                            }
+                                                            write_shares.sort_by_key(|s| &s.shared_with);
+                                                            read_shares.sort_by_key(|s| &s.shared_with);
+
+                                                            ui.style_mut().visuals.indent_has_left_vline = false;
+
+                                                            // Show owner access
+                                                            ui.label(
+                                                                RichText::new("Owner")
+                                                                    .font(header_font.clone())
+                                                                    .weak()
+                                                            );
+                                                            ui.indent("owner", |ui| {
+                                                                ui.horizontal(|ui| {
+                                                                    ui.label(
+                                                                        RichText::new(&child.owner)
+                                                                    );
+                                                                    if child.owner == account.username {
+                                                                        ui.label(
+                                                                            RichText::new("(you)").weak()
+                                                                        );
+                                                                    }
+                                                                });
+                                                            });
+
+                                                            // Show write access
+                                                            if !write_shares.is_empty() {
+                                                                ui.add_space(10.);
+                                                                ui.label(
+                                                                    RichText::new("Write")
+                                                                        .font(header_font.clone())
+                                                                        .weak()
+                                                                );
+                                                                ui.indent("write_shares", |ui| {
+                                                                    for share in write_shares {
+                                                                        ui.horizontal(|ui| {
+                                                                            ui.label(
+                                                                                RichText::new(&share.shared_with)
+                                                                            );
+                                                                            if share.shared_with == account.username {
+                                                                                ui.label(
+                                                                                    RichText::new("(you)").weak()
+                                                                                );
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+
+                                                            // Show read access
+                                                            if !read_shares.is_empty() {
+                                                                ui.add_space(10.);
+                                                                ui.label(
+                                                                    RichText::new("Read")
+                                                                        .font(header_font.clone())
+                                                                        .weak()
+                                                                );
+                                                                ui.indent("read_shares", |ui| {
+                                                                    for share in read_shares {
+                                                                        ui.horizontal(|ui| {
+                                                                            ui.label(
+                                                                                RichText::new(&share.shared_with)
+                                                                            );
+                                                                            if share.shared_with == account.username {
+                                                                                ui.label(
+                                                                                    RichText::new("(you)").weak()
+                                                                                );
+                                                                            }
+                                                                        });
+                                                                    }
+                                                                });
+                                                            }
+                                                        });
+                                                    });
+                                                });
 
                                                 // Last modified
                                                 {
@@ -1099,105 +1235,6 @@ impl Workspace {
                                                 }
 
                                                 if !self.landing_page.flatten_tree {
-                                                    // Collaborators
-                                                    ui.horizontal(|ui| {
-                                                        let share_count = child.shares.len();
-                                                        let label_response = if share_count > 0 {
-                                                            ui.label(RichText::new(
-                                                                share_count.to_string(),
-                                                            ))
-                                                        } else {
-                                                            ui.label(RichText::new("-").weak())
-                                                        };
-
-                                                        // Show collaborators on hover
-                                                        label_response.on_hover_ui(|ui| {
-                                                            ui.allocate_space(Vec2::X * 100.);
-                                                            ui.vertical(|ui| {
-                                                                // Separate shares by access level
-                                                                let mut write_shares = Vec::new();
-                                                                let mut read_shares = Vec::new();
-                                                                for share in &child.shares {
-                                                                    match share.mode {
-                                                                        ShareMode::Write => write_shares.push(share),
-                                                                        ShareMode::Read => read_shares.push(share),
-                                                                    }
-                                                                }
-                                                                write_shares.sort_by_key(|s| &s.shared_with);
-                                                                read_shares.sort_by_key(|s| &s.shared_with);
-
-                                                                ui.style_mut().visuals.indent_has_left_vline = false;
-
-                                                                // Show owner access
-                                                                ui.label(
-                                                                    RichText::new("Owner")
-                                                                        .font(header_font.clone())
-                                                                        .weak()
-                                                                );
-                                                                ui.indent("owner", |ui| {
-                                                                    ui.horizontal(|ui| {
-                                                                        ui.label(
-                                                                            RichText::new(&child.owner)
-                                                                        );
-                                                                        if child.owner == account.username {
-                                                                            ui.label(
-                                                                                RichText::new("(you)").weak()
-                                                                            );
-                                                                        }
-                                                                    });
-                                                                });
-
-                                                                // Show write access
-                                                                if !write_shares.is_empty() {
-                                                                    ui.add_space(10.);
-                                                                    ui.label(
-                                                                        RichText::new("Write")
-                                                                            .font(header_font.clone())
-                                                                            .weak()
-                                                                    );
-                                                                    ui.indent("write_shares", |ui| {
-                                                                        for share in write_shares {
-                                                                            ui.horizontal(|ui| {
-                                                                                ui.label(
-                                                                                    RichText::new(&share.shared_with)
-                                                                                );
-                                                                                if share.shared_with == account.username {
-                                                                                    ui.label(
-                                                                                        RichText::new("(you)").weak()
-                                                                                    );
-                                                                                }
-                                                                            });
-                                                                        }
-                                                                    });
-                                                                }
-
-                                                                // Show read access
-                                                                if !read_shares.is_empty() {
-                                                                    ui.add_space(10.);
-                                                                    ui.label(
-                                                                        RichText::new("Read")
-                                                                            .font(header_font.clone())
-                                                                            .weak()
-                                                                    );
-                                                                    ui.indent("read_shares", |ui| {
-                                                                        for share in read_shares {
-                                                                            ui.horizontal(|ui| {
-                                                                                ui.label(
-                                                                                    RichText::new(&share.shared_with)
-                                                                                );
-                                                                                if share.shared_with == account.username {
-                                                                                    ui.label(
-                                                                                        RichText::new("(you)").weak()
-                                                                                    );
-                                                                                }
-                                                                            });
-                                                                        }
-                                                                    });
-                                                                }
-                                                            });
-                                                        });
-                                                    });
-
                                                     // Usage
                                                     ui.label(RichText::new({
                                                         bytes_to_human(
