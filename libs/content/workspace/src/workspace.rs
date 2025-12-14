@@ -72,10 +72,12 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files = FileCache::new(core).log_and_ignore();
 
+        let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
-            landing_page: Default::default(),
+            landing_page: cfg.get_landing_page(),
             user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
@@ -87,7 +89,7 @@ impl Workspace {
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path),
+            cfg,
             ctx: ctx.clone(),
             core: core.clone(),
             show_tabs,
@@ -829,6 +831,7 @@ struct WsPresistentData {
     markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
+    landing_page: LandingPage,
 }
 
 impl Default for WsPresistentData {
@@ -840,6 +843,7 @@ impl Default for WsPresistentData {
             current_tab: None,
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
+            landing_page: LandingPage::default(),
         }
     }
 }
@@ -921,6 +925,16 @@ impl WsPersistentStore {
     pub fn set_auto_save(&mut self, auto_save: bool) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.auto_save = auto_save;
+        self.write_to_file();
+    }
+
+    pub fn get_landing_page(&self) -> LandingPage {
+        self.data.read().unwrap().landing_page.clone()
+    }
+
+    pub fn set_landing_page(&mut self, landing_page: LandingPage) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.landing_page = landing_page;
         self.write_to_file();
     }
 

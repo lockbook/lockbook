@@ -6,6 +6,7 @@ use egui::{
     TextStyle, TextWrapMode, Vec2, ViewportCommand, include_image, vec2,
 };
 use lb_rs::model::usage::bytes_to_human;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
@@ -20,7 +21,7 @@ use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
 
-#[derive(Default)]
+#[derive(Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct LandingPage {
     search_term: String,
     doc_types: Vec<DocType>,
@@ -29,7 +30,7 @@ pub struct LandingPage {
     sort_asc: bool,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
 enum LastModifiedFilter {
     Today,
     ThisWeek,
@@ -37,7 +38,7 @@ enum LastModifiedFilter {
     ThisYear,
 }
 
-#[derive(Default, PartialEq)]
+#[derive(Default, PartialEq, Clone, Serialize, Deserialize)]
 enum Sort {
     Name,
     Type,
@@ -162,6 +163,8 @@ impl Workspace {
     }
 
     fn show_landing_page(&mut self, ui: &mut egui::Ui) {
+        let initial_landing_page = self.landing_page.clone();
+
         let (Some(files), Some(account)) = (&self.files, &self.account) else {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
             return;
@@ -420,7 +423,7 @@ impl Workspace {
                                                                 // Remove the doc type
                                                                 self.landing_page
                                                                     .doc_types
-                                                                    .retain(|dt| dt != doc_type);
+                                                                    .retain(|&t| t != *doc_type);
                                                             }
                                                         }
 
@@ -910,6 +913,11 @@ impl Workspace {
         }
         if create_folder {
             self.create_folder();
+        }
+
+        // Persist landing page if it changed
+        if self.landing_page != initial_landing_page {
+            self.cfg.set_landing_page(self.landing_page.clone());
         }
     }
 
@@ -1750,7 +1758,7 @@ impl ElapsedHumanString for u64 {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum DocType {
     PlainText,
     Markdown,
