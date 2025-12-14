@@ -498,6 +498,10 @@ impl Workspace {
                                                             )
                                                         });
 
+                                                        let search_term_is_empty = self
+                                                            .landing_page
+                                                            .search_term
+                                                            .is_empty();
                                                         let search_edit =
                                                             egui::TextEdit::singleline(
                                                                 &mut self.landing_page.search_term,
@@ -515,7 +519,12 @@ impl Workspace {
 
                                                         let response = ui.add_sized(
                                                             [
-                                                                ui.available_width(),
+                                                                ui.available_width()
+                                                                    - if !search_term_is_empty {
+                                                                        25.0
+                                                                    } else {
+                                                                        0.0
+                                                                    },
                                                                 ui.available_height(),
                                                             ],
                                                             search_edit,
@@ -524,6 +533,22 @@ impl Workspace {
                                                         // Focus when Cmd+F is pressed
                                                         if cmd_f {
                                                             response.request_focus();
+                                                        }
+
+                                                        // Clear button (X icon) when there's text
+                                                        #[allow(clippy::collapsible_if)]
+                                                        if !self.landing_page.search_term.is_empty()
+                                                        {
+                                                            if IconButton::new(
+                                                                Icon::CLOSE.size(16.),
+                                                            )
+                                                            .show(ui)
+                                                            .clicked()
+                                                            {
+                                                                self.landing_page
+                                                                    .search_term
+                                                                    .clear();
+                                                            }
                                                         }
                                                     },
                                                 );
@@ -605,39 +630,48 @@ impl Workspace {
                                 .collect();
 
                             // Sort
-                            match self.landing_page.sort {
-                                Sort::Name => descendents.sort_by(|a, b| {
-                                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
-                                }),
-                                Sort::Type => {
-                                    descendents.sort_by(|a, b| {
-                                        // Folders first, then sort by document type
-                                        match (a.is_folder(), b.is_folder()) {
-                                            (true, false) => std::cmp::Ordering::Less,
-                                            (false, true) => std::cmp::Ordering::Greater,
-                                            (true, true) => {
-                                                a.name.to_lowercase().cmp(&b.name.to_lowercase())
-                                            }
-                                            (false, false) => {
-                                                let a_type = DocType::from_name(&a.name);
-                                                let b_type = DocType::from_name(&b.name);
-                                                a_type
-                                                    .to_string()
-                                                    .cmp(&b_type.to_string())
-                                                    .then_with(|| {
-                                                        a.name
-                                                            .to_lowercase()
-                                                            .cmp(&b.name.to_lowercase())
-                                                    })
-                                            }
-                                        }
-                                    })
-                                }
-                                Sort::Modified => descendents.sort_by_key(|f| {
+                            if self.landing_page.flatten_tree {
+                                // When flattened, always sort by modified
+                                descendents.sort_by_key(|f| {
                                     u64::MAX - files.last_modified_recursive(f.id)
-                                }),
-                                Sort::Size => descendents
-                                    .sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id)),
+                                });
+                            } else {
+                                match self.landing_page.sort {
+                                    Sort::Name => descendents.sort_by(|a, b| {
+                                        a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                                    }),
+                                    Sort::Type => {
+                                        descendents.sort_by(|a, b| {
+                                            // Folders first, then sort by document type
+                                            match (a.is_folder(), b.is_folder()) {
+                                                (true, false) => std::cmp::Ordering::Less,
+                                                (false, true) => std::cmp::Ordering::Greater,
+                                                (true, true) => a
+                                                    .name
+                                                    .to_lowercase()
+                                                    .cmp(&b.name.to_lowercase()),
+                                                (false, false) => {
+                                                    let a_type = DocType::from_name(&a.name);
+                                                    let b_type = DocType::from_name(&b.name);
+                                                    a_type
+                                                        .to_string()
+                                                        .cmp(&b_type.to_string())
+                                                        .then_with(|| {
+                                                            a.name
+                                                                .to_lowercase()
+                                                                .cmp(&b.name.to_lowercase())
+                                                        })
+                                                }
+                                            }
+                                        })
+                                    }
+                                    Sort::Modified => descendents.sort_by_key(|f| {
+                                        u64::MAX - files.last_modified_recursive(f.id)
+                                    }),
+                                    Sort::Size => descendents.sort_by_key(|f| {
+                                        u64::MAX - files.size_bytes_recursive(f.id)
+                                    }),
+                                }
                             }
                             if !self.landing_page.sort_asc {
                                 descendents.reverse()
@@ -813,17 +847,9 @@ impl Workspace {
                                                 });
                                                 ui.label("");
                                                 ui.end_row();
-                                            } else {
-                                                ui.label(
-                                                    RichText::new("Today")
-                                                        .font(header_font.clone())
-                                                        .weak(),
-                                                );
-                                                ui.label("");
-                                                ui.end_row();
                                             }
 
-                                            let mut current_time_category = 0;
+                                            let mut current_time_category = -1;
                                             let mut child_idx = 0;
                                             while child_idx < descendents.len() {
                                                 let child = descendents[child_idx];
