@@ -682,7 +682,7 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    fn effective_focused_parent(&self) -> Uuid {
+    pub fn effective_focused_parent(&self) -> Uuid {
         let focused_parent = self
             .focused_parent
             .or_else(|| self.current_tab_id())
