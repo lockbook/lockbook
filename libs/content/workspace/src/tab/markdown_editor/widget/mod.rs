@@ -1,4 +1,4 @@
-use comrak::nodes::{AstNode, NodeCodeBlock, NodeHeading, NodeValue};
+use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{Id, TextFormat, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
@@ -59,7 +59,7 @@ impl<'ast> Editor {
             // hack: GFM spec says "Blank lines preceding or following an indented
             // code block are not included in it" and I have observed the behavior
             // for following lines to be incorrect in e.g. "    f\n".
-            NodeValue::CodeBlock(NodeCodeBlock { fenced: false, .. }) => {
+            NodeValue::CodeBlock(node_code_block) if !node_code_block.fenced => {
                 for line_idx in self.range_lines(range).iter() {
                     let line = self.bounds.source_lines[line_idx];
                     let node_line = self.node_line(node, line);
@@ -182,21 +182,24 @@ impl<'ast> Editor {
             }
 
             // inline
-            NodeValue::Image(_) => self.text_format_image(parent()),
             NodeValue::Code(_) => self.text_format_code(parent()),
             NodeValue::Emph => self.text_format_emph(parent()),
             NodeValue::Escaped => self.text_format_escaped(parent()),
             NodeValue::EscapedTag(_) => self.text_format_escaped_tag(parent()),
             NodeValue::FootnoteReference(_) => self.text_format_footnote_reference(parent()),
+            NodeValue::Highlight => self.text_format_highlight(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
+            NodeValue::Image(_) => self.text_format_image(parent()),
             NodeValue::LineBreak => parent_text_format(),
             NodeValue::Link(_) => self.text_format_link(parent()),
             NodeValue::Math(_) => self.text_format_math(parent()),
+            NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
             NodeValue::SoftBreak => parent_text_format(),
             NodeValue::SpoileredText => self.text_format_spoilered_text(parent()),
             NodeValue::Strikethrough => self.text_format_strikethrough(parent()),
             NodeValue::Strong => self.text_format_strong(parent()),
             NodeValue::Subscript => self.text_format_subscript(parent()),
+            NodeValue::Subtext => unimplemented!("extension disabled"),
             NodeValue::Superscript => self.text_format_superscript(parent()),
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
@@ -260,21 +263,24 @@ impl<'ast> Editor {
             NodeValue::TaskItem(_) => self.compute_bounds_task_item(node),
 
             // inline
-            NodeValue::Image(_) => {}
             NodeValue::Code(_) => {}
             NodeValue::Emph => {}
             NodeValue::Escaped => {}
             NodeValue::EscapedTag(_) => {}
             NodeValue::FootnoteReference(_) => {}
+            NodeValue::Highlight => {}
             NodeValue::HtmlInline(_) => {}
+            NodeValue::Image(_) => {}
             NodeValue::LineBreak => {}
             NodeValue::Link(_) => {}
             NodeValue::Math(_) => {}
+            NodeValue::ShortCode(_) => {}
             NodeValue::SoftBreak => {}
             NodeValue::SpoileredText => {}
             NodeValue::Strikethrough => {}
             NodeValue::Strong => {}
             NodeValue::Subscript => {}
+            NodeValue::Subtext => {}
             NodeValue::Superscript => {}
             NodeValue::Text(_) => {}
             NodeValue::Underline => {}

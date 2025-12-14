@@ -1,4 +1,4 @@
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeTaskItem};
 use egui::{Checkbox, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
@@ -15,8 +15,10 @@ impl<'ast> Editor {
 
     pub fn show_task_item(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        maybe_check: Option<char>,
+        node_task_item: &NodeTaskItem,
     ) {
+        let maybe_check = node_task_item.symbol;
+
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
