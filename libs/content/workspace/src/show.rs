@@ -862,19 +862,18 @@ impl Workspace {
                                                             .elapsed_human_string(),
                                                     ));
 
-                                                    let last_modified_by =
+                                                    let mut last_modified_by =
                                                         files.last_modified_by_recursive(child.id);
-                                                    if account.username != last_modified_by
-                                                        || !child.shares.is_empty()
-                                                    {
-                                                        ui.label(
-                                                            RichText::new(format!(
-                                                                "by {}",
-                                                                last_modified_by
-                                                            ))
-                                                            .weak(),
-                                                        );
+                                                    if last_modified_by == account.username {
+                                                        last_modified_by = "you";
                                                     }
+                                                    ui.label(
+                                                        RichText::new(format!(
+                                                            "by {}",
+                                                            last_modified_by
+                                                        ))
+                                                        .weak(),
+                                                    );
                                                 });
 
                                                 // Local Size
