@@ -1,9 +1,9 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
-    Align2, Color32, DragAndDrop, EventFilter, FontId, Frame, Galley, Id, Image, Key, LayerId,
-    Modifiers, Order, Rangef, Rect, RichText, Sense, Stroke, TextStyle, TextWrapMode, Vec2,
-    ViewportCommand, include_image, vec2,
+    Align, Align2, Color32, Direction, DragAndDrop, EventFilter, FontId, Frame, Galley, Id, Image,
+    Key, LayerId, Layout, Modifiers, Order, Rangef, Rect, RichText, Sense, Stroke, TextStyle,
+    TextWrapMode, Vec2, ViewportCommand, include_image, vec2,
 };
 use lb_rs::model::usage::bytes_to_human;
 use std::collections::HashMap;
@@ -168,6 +168,9 @@ impl Workspace {
         let height = ui.available_size().y - 2. * MARGIN;
 
         let mut open_file = None;
+        let mut create_note = false;
+        let mut create_drawing = false;
+        let mut create_folder = false;
 
         ui.vertical_centered_justified(|ui| {
             Frame::canvas(ui.style())
@@ -227,6 +230,79 @@ impl Workspace {
 
                             // Search box and filters
                             ui.horizontal_top(|ui| {
+                                // Create button - dropdown for new items
+                                let search_height = 40.0;
+
+                                ui.scope(|ui| {
+                                    ui.visuals_mut().widgets.noninteractive.weak_bg_fill =
+                                        ui.style().visuals.widgets.active.bg_fill;
+                                    ui.visuals_mut().widgets.inactive.weak_bg_fill =
+                                        ui.style().visuals.widgets.active.bg_fill;
+                                    ui.visuals_mut().widgets.hovered.weak_bg_fill =
+                                        ui.style().visuals.widgets.active.bg_fill;
+                                    ui.visuals_mut().widgets.active.weak_bg_fill =
+                                        ui.style().visuals.widgets.active.bg_fill;
+                                    ui.visuals_mut().widgets.open.weak_bg_fill =
+                                        ui.style().visuals.widgets.active.bg_fill;
+
+                                    egui::ComboBox::from_id_source("create_combo")
+                                        .selected_text("Create")
+                                        .width(80.0)
+                                        .show_ui(ui, |ui| {
+                                            ui.visuals_mut().widgets.inactive.weak_bg_fill =
+                                                Color32::TRANSPARENT;
+
+                                            ui.with_layout(
+                                                Layout {
+                                                    main_dir: Direction::LeftToRight,
+                                                    main_wrap: false,
+                                                    main_align: Align::Min,
+                                                    main_justify: true,
+                                                    cross_align: Align::Min,
+                                                    cross_justify: false,
+                                                },
+                                                |ui| {
+                                                    if ui.button("Note").clicked() {
+                                                        create_note = true;
+                                                        ui.close_menu();
+                                                    }
+                                                },
+                                            );
+                                            ui.with_layout(
+                                                Layout {
+                                                    main_dir: Direction::LeftToRight,
+                                                    main_wrap: false,
+                                                    main_align: Align::Min,
+                                                    main_justify: true,
+                                                    cross_align: Align::Min,
+                                                    cross_justify: false,
+                                                },
+                                                |ui| {
+                                                    if ui.button("Drawing").clicked() {
+                                                        create_drawing = true;
+                                                        ui.close_menu();
+                                                    }
+                                                },
+                                            );
+                                            ui.with_layout(
+                                                Layout {
+                                                    main_dir: Direction::LeftToRight,
+                                                    main_wrap: false,
+                                                    main_align: Align::Min,
+                                                    main_justify: true,
+                                                    cross_align: Align::Min,
+                                                    cross_justify: false,
+                                                },
+                                                |ui| {
+                                                    if ui.button("Folder").clicked() {
+                                                        create_folder = true;
+                                                        ui.close_menu();
+                                                    }
+                                                },
+                                            );
+                                        });
+                                });
+
                                 ui.with_layout(
                                     egui::Layout::right_to_left(egui::Align::TOP),
                                     |ui| {
@@ -356,17 +432,16 @@ impl Workspace {
                                             });
 
                                         // Search box - takes remaining space
-                                        let search_height = 40.0;
                                         Frame::none()
                                             .fill(ui.visuals().extreme_bg_color)
                                             .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
                                             .rounding(search_height / 2.0) // Make it capsule-shaped
-                                            .inner_margin(egui::Margin::symmetric(16.0, 8.0))
+                                            .inner_margin(egui::Margin::symmetric(15.0, 5.0))
                                             .show(ui, |ui| {
                                                 ui.allocate_ui_with_layout(
                                                     Vec2::new(
                                                         ui.available_width(),
-                                                        search_height - 16.0,
+                                                        search_height - 20.0,
                                                     ),
                                                     egui::Layout::left_to_right(
                                                         egui::Align::Center,
@@ -408,7 +483,7 @@ impl Workspace {
                             ui.add_space(40.0);
 
                             // Files table
-                            let children: Vec<_> = files
+                            let mut children: Vec<_> = files
                                 .files
                                 .children(folder.id)
                                 .iter()
@@ -467,6 +542,7 @@ impl Workspace {
                                     search_match && doc_type_match && last_modified_match
                                 })
                                 .collect();
+                            children.sort_by_key(|f| u64::MAX - f.last_modified);
 
                             if !children.is_empty() {
                                 ui.ctx().style_mut(|style| {
@@ -655,6 +731,15 @@ impl Workspace {
             } else {
                 self.out.selected_file = Some(id)
             }
+        }
+        if create_note {
+            self.create_doc(false);
+        }
+        if create_drawing {
+            self.create_doc(true);
+        }
+        if create_folder {
+            self.create_folder();
         }
     }
 

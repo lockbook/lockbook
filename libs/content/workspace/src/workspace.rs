@@ -667,20 +667,43 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn create_doc(&mut self, is_drawing: bool) {
+    pub fn create_folder_at(&mut self, parent: Uuid) {
+        let date = Local::now().format("%Y-%m-%d");
+        let mut new_file =
+            NameComponents { name: date.to_string(), variant: None, extension: None };
+        new_file.next_in_children(self.core.get_children(&parent).unwrap());
+
+        let result = self
+            .core
+            .create_file(new_file.to_name().as_str(), &parent, FileType::Folder)
+            .map_err(|err| format!("{err:?}"));
+
+        self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    fn effective_focused_parent(&self) -> Uuid {
         let focused_parent = self
             .focused_parent
             .or_else(|| self.current_tab_id())
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
 
         let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
-        let focused_parent = if focused_parent.file_type == FileType::Document {
+        if focused_parent.file_type == FileType::Document {
             focused_parent.parent
         } else {
             focused_parent.id
-        };
+        }
+    }
 
+    pub fn create_doc(&mut self, is_drawing: bool) {
+        let focused_parent = self.effective_focused_parent();
         self.create_doc_at(is_drawing, focused_parent);
+    }
+
+    pub fn create_folder(&mut self) {
+        let focused_parent = self.effective_focused_parent();
+        self.create_folder_at(focused_parent);
     }
 
     /// Opens or focuses the tab for the mind map
