@@ -729,6 +729,7 @@ impl Workspace {
             if files.files.get_by_id(id).unwrap().is_document() {
                 self.open_file(id, true, false);
             } else {
+                self.focused_parent = Some(id);
                 self.out.selected_file = Some(id)
             }
         }
