@@ -45,6 +45,7 @@ pub struct File {
     pub file_type: FileType,
     pub last_modified: u64,
     pub last_modified_by: Username,
+    pub owner: Username,
     pub shares: Vec<Share>,
     pub size_bytes: u64,
 }
