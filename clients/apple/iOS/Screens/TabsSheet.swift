@@ -35,18 +35,6 @@ struct TabsSheet: View {
                     },
                     label: {
                         HStack {
-                            Button(
-                                action: {
-                                    self.closeTab(id: info.id)
-                                },
-                                label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.red)
-                                        .imageScale(.medium)
-                                        .padding(.trailing)
-                                }
-                            )
-
                             Image(
                                 systemName:
                                     FileIconHelper.docNameToSystemImageName(
@@ -65,6 +53,19 @@ struct TabsSheet: View {
                                 .truncationMode(.tail)
 
                             Spacer()
+                            
+                            Button(
+                                action: {
+                                    self.closeTab(id: info.id)
+                                },
+                                label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundColor(.red)
+                                        .imageScale(.medium)
+                                        .padding(.leading)
+                                }
+                            )
+
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 6)
