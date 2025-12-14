@@ -28,6 +28,7 @@ pub struct LandingPage {
     last_modified: Option<LastModifiedFilter>,
     sort: Sort,
     sort_asc: bool,
+    flatten_tree: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -245,7 +246,7 @@ impl Workspace {
                             // Search box and filters
                             ui.horizontal_top(|ui| {
                                 // Create button - dropdown for new items
-                                let search_height = 40.0;
+                                let filters_height = 40.0;
 
                                 ui.scope(|ui| {
                                     ui.visuals_mut().widgets.noninteractive.weak_bg_fill =
@@ -445,17 +446,38 @@ impl Workspace {
                                                 }
                                             });
 
+                                        // Flatten tree toggle
+                                        if IconButton::new(
+                                            if self.landing_page.flatten_tree {
+                                                Icon::FOLDER_OPEN
+                                            } else {
+                                                Icon::FOLDER
+                                            }
+                                            .size(22.),
+                                        )
+                                        .tooltip(if self.landing_page.flatten_tree {
+                                            "Show immediate contents"
+                                        } else {
+                                            "Show all contents"
+                                        })
+                                        .show(ui)
+                                        .clicked()
+                                        {
+                                            self.landing_page.flatten_tree =
+                                                !self.landing_page.flatten_tree;
+                                        }
+
                                         // Search box - takes remaining space
                                         Frame::none()
                                             .fill(ui.visuals().extreme_bg_color)
                                             .stroke(ui.visuals().widgets.noninteractive.bg_stroke)
-                                            .rounding(search_height / 2.0) // Make it capsule-shaped
+                                            .rounding(filters_height / 2.0) // Make it capsule-shaped
                                             .inner_margin(egui::Margin::symmetric(15.0, 5.0))
                                             .show(ui, |ui| {
                                                 ui.allocate_ui_with_layout(
                                                     Vec2::new(
                                                         ui.available_width(),
-                                                        search_height - 20.0,
+                                                        filters_height - 20.0,
                                                     ),
                                                     egui::Layout::left_to_right(
                                                         egui::Align::Center,
@@ -496,12 +518,14 @@ impl Workspace {
 
                             ui.add_space(40.0);
 
-                            // Files table
-                            let mut children: Vec<_> = files
-                                .files
-                                .children(folder.id)
-                                .iter()
-                                .cloned()
+                            // sort & filter
+                            let descendents = if self.landing_page.flatten_tree {
+                                files.files.descendents(folder.id)
+                            } else {
+                                files.files.children(folder.id)
+                            };
+                            let mut descendents: Vec<_> = descendents
+                                .into_iter()
                                 .filter(|child| {
                                     // Search term filter
                                     let search_match = if self.landing_page.search_term.is_empty() {
@@ -553,17 +577,24 @@ impl Workspace {
                                         true
                                     };
 
-                                    search_match && doc_type_match && last_modified_match
+                                    // Flatten tree filter - hide folders when flattening
+                                    let flatten_match =
+                                        !self.landing_page.flatten_tree || child.is_document();
+
+                                    search_match
+                                        && doc_type_match
+                                        && last_modified_match
+                                        && flatten_match
                                 })
                                 .collect();
 
                             // Sort
                             match self.landing_page.sort {
-                                Sort::Name => children.sort_by(|a, b| {
+                                Sort::Name => descendents.sort_by(|a, b| {
                                     a.name.to_lowercase().cmp(&b.name.to_lowercase())
                                 }),
                                 Sort::Type => {
-                                    children.sort_by(|a, b| {
+                                    descendents.sort_by(|a, b| {
                                         // Folders first, then sort by document type
                                         match (a.is_folder(), b.is_folder()) {
                                             (true, false) => std::cmp::Ordering::Less,
@@ -586,17 +617,18 @@ impl Workspace {
                                         }
                                     })
                                 }
-                                Sort::Modified => children.sort_by_key(|f| {
+                                Sort::Modified => descendents.sort_by_key(|f| {
                                     u64::MAX - files.last_modified_recursive(f.id)
                                 }),
-                                Sort::Size => children
+                                Sort::Size => descendents
                                     .sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id)),
                             }
                             if !self.landing_page.sort_asc {
-                                children.reverse()
+                                descendents.reverse()
                             }
 
-                            if !children.is_empty() {
+                            // Files table
+                            if !descendents.is_empty() {
                                 ui.ctx().style_mut(|style| {
                                     style.spacing.scroll = egui::style::ScrollStyle::thin();
                                 });
@@ -755,7 +787,7 @@ impl Workspace {
                                             ui.label("");
                                             ui.end_row();
 
-                                            for child in children {
+                                            for child in descendents {
                                                 ui.vertical(|ui| {
                                                     ui.add_space(5.0);
                                                     ui.horizontal(|ui| {
