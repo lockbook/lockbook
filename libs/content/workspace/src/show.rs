@@ -5,6 +5,7 @@ use egui::{
     Image, Key, KeyboardShortcut, LayerId, Layout, Modifiers, Order, Rangef, Rect, RichText, Sense,
     Stroke, TextStyle, TextWrapMode, Ui, Vec2, ViewportCommand, include_image, vec2,
 };
+use lb_rs::model::file::ShareMode;
 use lb_rs::model::usage::bytes_to_human;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -687,7 +688,7 @@ impl Workspace {
                                         .num_columns(if self.landing_page.flatten_tree {
                                             2
                                         } else {
-                                            5
+                                            6
                                         })
                                         .spacing([40.0, 10.0])
                                         .show(ui, |ui| {
@@ -810,13 +811,20 @@ impl Workspace {
                                                     }
                                                 });
 
+                                                // Header: Collaborators
+                                                ui.label(
+                                                    RichText::new("Collaborators")
+                                                        .font(header_font.clone())
+                                                        .weak(),
+                                                );
+
                                                 // Header: Usage
                                                 ui.horizontal(|ui| {
                                                     if ui
                                                         .add(
                                                             Button::new(
-                                                                RichText::new("Usage")
-                                                                    .font(header_font)
+                                                                RichText::new("Size")
+                                                                    .font(header_font.clone())
                                                                     .weak(),
                                                             )
                                                             .frame(false),
@@ -1090,8 +1098,107 @@ impl Workspace {
                                                     }
                                                 }
 
-                                                // Usage
                                                 if !self.landing_page.flatten_tree {
+                                                    // Collaborators
+                                                    ui.horizontal(|ui| {
+                                                        let share_count = child.shares.len();
+                                                        let label_response = if share_count > 0 {
+                                                            ui.label(RichText::new(
+                                                                share_count.to_string(),
+                                                            ))
+                                                        } else {
+                                                            ui.label(RichText::new("-").weak())
+                                                        };
+
+                                                        // Show collaborators on hover
+                                                        label_response.on_hover_ui(|ui| {
+                                                            ui.allocate_space(Vec2::X * 100.);
+                                                            ui.vertical(|ui| {
+                                                                // Separate shares by access level
+                                                                let mut write_shares = Vec::new();
+                                                                let mut read_shares = Vec::new();
+                                                                for share in &child.shares {
+                                                                    match share.mode {
+                                                                        ShareMode::Write => write_shares.push(share),
+                                                                        ShareMode::Read => read_shares.push(share),
+                                                                    }
+                                                                }
+                                                                write_shares.sort_by_key(|s| &s.shared_with);
+                                                                read_shares.sort_by_key(|s| &s.shared_with);
+
+                                                                ui.style_mut().visuals.indent_has_left_vline = false;
+
+                                                                // Show owner access
+                                                                ui.label(
+                                                                    RichText::new("Owner")
+                                                                        .font(header_font.clone())
+                                                                        .weak()
+                                                                );
+                                                                ui.indent("owner", |ui| {
+                                                                    ui.horizontal(|ui| {
+                                                                        ui.label(
+                                                                            RichText::new(&child.owner)
+                                                                        );
+                                                                        if child.owner == account.username {
+                                                                            ui.label(
+                                                                                RichText::new("(you)").weak()
+                                                                            );
+                                                                        }
+                                                                    });
+                                                                });
+
+                                                                // Show write access
+                                                                if !write_shares.is_empty() {
+                                                                    ui.add_space(10.);
+                                                                    ui.label(
+                                                                        RichText::new("Write")
+                                                                            .font(header_font.clone())
+                                                                            .weak()
+                                                                    );
+                                                                    ui.indent("write_shares", |ui| {
+                                                                        for share in write_shares {
+                                                                            ui.horizontal(|ui| {
+                                                                                ui.label(
+                                                                                    RichText::new(&share.shared_with)
+                                                                                );
+                                                                                if share.shared_with == account.username {
+                                                                                    ui.label(
+                                                                                        RichText::new("(you)").weak()
+                                                                                    );
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                    });
+                                                                }
+
+                                                                // Show read access
+                                                                if !read_shares.is_empty() {
+                                                                    ui.add_space(10.);
+                                                                    ui.label(
+                                                                        RichText::new("Read")
+                                                                            .font(header_font.clone())
+                                                                            .weak()
+                                                                    );
+                                                                    ui.indent("read_shares", |ui| {
+                                                                        for share in read_shares {
+                                                                            ui.horizontal(|ui| {
+                                                                                ui.label(
+                                                                                    RichText::new(&share.shared_with)
+                                                                                );
+                                                                                if share.shared_with == account.username {
+                                                                                    ui.label(
+                                                                                        RichText::new("(you)").weak()
+                                                                                    );
+                                                                                }
+                                                                            });
+                                                                        }
+                                                                    });
+                                                                }
+                                                            });
+                                                        });
+                                                    });
+
+                                                    // Usage
                                                     ui.label(RichText::new({
                                                         bytes_to_human(
                                                             files.size_bytes_recursive(child.id)
@@ -1125,7 +1232,7 @@ impl Workspace {
                                                                     .widgets
                                                                     .active
                                                                     .bg_fill
-                                                                    .gamma_multiply(0.8),
+                                                                    .gamma_multiply(0.8)
                                                             );
                                                         },
                                                     );
