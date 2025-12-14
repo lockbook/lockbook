@@ -2,8 +2,8 @@ use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
     Align, Align2, Button, Color32, Direction, DragAndDrop, EventFilter, FontId, Frame, Galley, Id,
-    Image, Key, LayerId, Layout, Modifiers, Order, Rangef, Rect, RichText, Sense, Stroke,
-    TextStyle, TextWrapMode, Vec2, ViewportCommand, include_image, vec2,
+    Image, Key, KeyboardShortcut, LayerId, Layout, Modifiers, Order, Rangef, Rect, RichText, Sense,
+    Stroke, TextStyle, TextWrapMode, Ui, Vec2, ViewportCommand, include_image, vec2,
 };
 use lb_rs::model::usage::bytes_to_human;
 use serde::{Deserialize, Serialize};
@@ -249,16 +249,18 @@ impl Workspace {
                                 let filters_height = 40.0;
 
                                 ui.scope(|ui| {
-                                    ui.visuals_mut().widgets.noninteractive.weak_bg_fill =
-                                        ui.style().visuals.widgets.active.bg_fill;
-                                    ui.visuals_mut().widgets.inactive.weak_bg_fill =
-                                        ui.style().visuals.widgets.active.bg_fill;
-                                    ui.visuals_mut().widgets.hovered.weak_bg_fill =
-                                        ui.style().visuals.widgets.active.bg_fill;
-                                    ui.visuals_mut().widgets.active.weak_bg_fill =
-                                        ui.style().visuals.widgets.active.bg_fill;
-                                    ui.visuals_mut().widgets.open.weak_bg_fill =
-                                        ui.style().visuals.widgets.active.bg_fill;
+                                    let fill = ui
+                                        .style()
+                                        .visuals
+                                        .widgets
+                                        .active
+                                        .bg_fill
+                                        .gamma_multiply(0.8);
+                                    ui.visuals_mut().widgets.noninteractive.weak_bg_fill = fill;
+                                    ui.visuals_mut().widgets.inactive.weak_bg_fill = fill;
+                                    ui.visuals_mut().widgets.hovered.weak_bg_fill = fill;
+                                    ui.visuals_mut().widgets.active.weak_bg_fill = fill;
+                                    ui.visuals_mut().widgets.open.weak_bg_fill = fill;
 
                                     egui::ComboBox::from_id_source("create_combo")
                                         .selected_text("Create")
@@ -455,11 +457,6 @@ impl Workspace {
                                             }
                                             .size(22.),
                                         )
-                                        .tooltip(if self.landing_page.flatten_tree {
-                                            "Show immediate contents"
-                                        } else {
-                                            "Show all contents"
-                                        })
                                         .show(ui)
                                         .clicked()
                                         {
@@ -490,11 +487,18 @@ impl Workspace {
                                                                     ui.visuals().weak_text_color(),
                                                                 ),
                                                         );
-                                                        ui.add_sized(
-                                                            [
-                                                                ui.available_width(),
-                                                                ui.available_height(),
-                                                            ],
+
+                                                        // Check for Cmd+F (or Ctrl+F on non-Mac)
+                                                        let cmd_f = ui.input_mut(|i| {
+                                                            i.consume_shortcut(
+                                                                &KeyboardShortcut::new(
+                                                                    Modifiers::COMMAND,
+                                                                    Key::F,
+                                                                ),
+                                                            )
+                                                        });
+
+                                                        let search_edit =
                                                             egui::TextEdit::singleline(
                                                                 &mut self.landing_page.search_term,
                                                             )
@@ -507,8 +511,20 @@ impl Workspace {
                                                                 )
                                                             })
                                                             .frame(false)
-                                                            .margin(Vec2::ZERO),
+                                                            .margin(Vec2::ZERO);
+
+                                                        let response = ui.add_sized(
+                                                            [
+                                                                ui.available_width(),
+                                                                ui.available_height(),
+                                                            ],
+                                                            search_edit,
                                                         );
+
+                                                        // Focus when Cmd+F is pressed
+                                                        if cmd_f {
+                                                            response.request_focus();
+                                                        }
                                                     },
                                                 );
                                             });
@@ -634,27 +650,65 @@ impl Workspace {
                                 });
                                 egui::ScrollArea::vertical().show(ui, |ui| {
                                     egui::Grid::new("files_grid")
-                                        .num_columns(5)
-                                        .spacing([40.0, 10.0])
-                                        .with_row_color(|row, style| {
-                                            if row > 1 && row % 2 == 0 {
-                                                return Some(style.visuals.faint_bg_color);
-                                            }
-                                            None
+                                        .num_columns(if self.landing_page.flatten_tree {
+                                            2
+                                        } else {
+                                            5
                                         })
+                                        .spacing([40.0, 10.0])
                                         .show(ui, |ui| {
                                             // Header
                                             let header_font = FontId::new(
                                                 16.0,
                                                 egui::FontFamily::Name(Arc::from("Bold")),
                                             );
-                                            ui.horizontal(|ui| {
-                                                ui.add_space(20.0);
+                                            if !self.landing_page.flatten_tree {
+                                                // Header: Name
+                                                ui.horizontal(|ui| {
+                                                    ui.add_space(20.0);
+                                                    ui.horizontal(|ui| {
+                                                        if ui
+                                                            .add(
+                                                                Button::new(
+                                                                    RichText::new("Name")
+                                                                        .font(header_font.clone())
+                                                                        .weak(),
+                                                                )
+                                                                .frame(false),
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            if self.landing_page.sort == Sort::Name
+                                                            {
+                                                                self.landing_page.sort_asc =
+                                                                    !self.landing_page.sort_asc;
+                                                            } else {
+                                                                self.landing_page.sort = Sort::Name;
+                                                                self.landing_page.sort_asc = true;
+                                                            }
+                                                        }
+                                                        if self.landing_page.sort == Sort::Name {
+                                                            let chevron =
+                                                                if self.landing_page.sort_asc {
+                                                                    Icon::CHEVRON_UP
+                                                                } else {
+                                                                    Icon::CHEVRON_DOWN
+                                                                };
+                                                            ui.label(
+                                                                RichText::new(chevron.icon)
+                                                                    .font(FontId::monospace(12.0))
+                                                                    .weak(),
+                                                            );
+                                                        }
+                                                    });
+                                                });
+
+                                                // Header: Type
                                                 ui.horizontal(|ui| {
                                                     if ui
                                                         .add(
                                                             Button::new(
-                                                                RichText::new("Name")
+                                                                RichText::new("Type")
                                                                     .font(header_font.clone())
                                                                     .weak(),
                                                             )
@@ -662,15 +716,15 @@ impl Workspace {
                                                         )
                                                         .clicked()
                                                     {
-                                                        if self.landing_page.sort == Sort::Name {
+                                                        if self.landing_page.sort == Sort::Type {
                                                             self.landing_page.sort_asc =
                                                                 !self.landing_page.sort_asc;
                                                         } else {
-                                                            self.landing_page.sort = Sort::Name;
+                                                            self.landing_page.sort = Sort::Type;
                                                             self.landing_page.sort_asc = true;
                                                         }
                                                     }
-                                                    if self.landing_page.sort == Sort::Name {
+                                                    if self.landing_page.sort == Sort::Type {
                                                         let chevron = if self.landing_page.sort_asc
                                                         {
                                                             Icon::CHEVRON_UP
@@ -684,234 +738,372 @@ impl Workspace {
                                                         );
                                                     }
                                                 });
-                                            });
-                                            ui.horizontal(|ui| {
-                                                if ui
-                                                    .add(
-                                                        Button::new(
-                                                            RichText::new("Type")
-                                                                .font(header_font.clone())
-                                                                .weak(),
-                                                        )
-                                                        .frame(false),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    if self.landing_page.sort == Sort::Type {
-                                                        self.landing_page.sort_asc =
-                                                            !self.landing_page.sort_asc;
-                                                    } else {
-                                                        self.landing_page.sort = Sort::Type;
-                                                        self.landing_page.sort_asc = true;
-                                                    }
-                                                }
-                                                if self.landing_page.sort == Sort::Type {
-                                                    let chevron = if self.landing_page.sort_asc {
-                                                        Icon::CHEVRON_UP
-                                                    } else {
-                                                        Icon::CHEVRON_DOWN
-                                                    };
-                                                    ui.label(
-                                                        RichText::new(chevron.icon)
-                                                            .font(FontId::monospace(12.0))
-                                                            .weak(),
-                                                    );
-                                                }
-                                            });
-                                            ui.horizontal(|ui| {
-                                                if ui
-                                                    .add(
-                                                        Button::new(
-                                                            RichText::new("Modified")
-                                                                .font(header_font.clone())
-                                                                .weak(),
-                                                        )
-                                                        .frame(false),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    if self.landing_page.sort == Sort::Modified {
-                                                        self.landing_page.sort_asc =
-                                                            !self.landing_page.sort_asc;
-                                                    } else {
-                                                        self.landing_page.sort = Sort::Modified;
-                                                        self.landing_page.sort_asc = true;
-                                                    }
-                                                }
-                                                if self.landing_page.sort == Sort::Modified {
-                                                    let chevron = if self.landing_page.sort_asc {
-                                                        Icon::CHEVRON_UP
-                                                    } else {
-                                                        Icon::CHEVRON_DOWN
-                                                    };
-                                                    ui.label(
-                                                        RichText::new(chevron.icon)
-                                                            .font(FontId::monospace(12.0))
-                                                            .weak(),
-                                                    );
-                                                }
-                                            });
-                                            ui.horizontal(|ui| {
-                                                if ui
-                                                    .add(
-                                                        Button::new(
-                                                            RichText::new("Usage")
-                                                                .font(header_font)
-                                                                .weak(),
-                                                        )
-                                                        .frame(false),
-                                                    )
-                                                    .clicked()
-                                                {
-                                                    if self.landing_page.sort == Sort::Size {
-                                                        self.landing_page.sort_asc =
-                                                            !self.landing_page.sort_asc;
-                                                    } else {
-                                                        self.landing_page.sort = Sort::Size;
-                                                        self.landing_page.sort_asc = true;
-                                                    }
-                                                }
-                                                if self.landing_page.sort == Sort::Size {
-                                                    let chevron = if self.landing_page.sort_asc {
-                                                        Icon::CHEVRON_UP
-                                                    } else {
-                                                        Icon::CHEVRON_DOWN
-                                                    };
-                                                    ui.label(
-                                                        RichText::new(chevron.icon)
-                                                            .font(FontId::monospace(12.0))
-                                                            .weak(),
-                                                    );
-                                                }
-                                            });
-                                            ui.label("");
-                                            ui.end_row();
 
-                                            for child in descendents {
-                                                ui.vertical(|ui| {
-                                                    ui.add_space(5.0);
-                                                    ui.horizontal(|ui| {
-                                                        ui.add_space(20.0);
-
-                                                        // File icon
-                                                        if child.is_folder() {
-                                                            let folder_icon =
-                                                                if !child.shares.is_empty() {
-                                                                    Icon::SHARED_FOLDER
-                                                                } else {
-                                                                    Icon::FOLDER
-                                                                };
-                                                            ui.label(
-                                                                RichText::new(folder_icon.icon)
-                                                                    .font(FontId::monospace(19.0))
-                                                                    .color(
-                                                                        ui.style()
-                                                                            .visuals
-                                                                            .widgets
-                                                                            .active
-                                                                            .bg_fill,
-                                                                    ),
-                                                            );
+                                                // Header: Modified
+                                                ui.horizontal(|ui| {
+                                                    if ui
+                                                        .add(
+                                                            Button::new(
+                                                                RichText::new("Modified")
+                                                                    .font(header_font.clone())
+                                                                    .weak(),
+                                                            )
+                                                            .frame(false),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        if self.landing_page.sort == Sort::Modified
+                                                        {
+                                                            self.landing_page.sort_asc =
+                                                                !self.landing_page.sort_asc;
                                                         } else {
+                                                            self.landing_page.sort = Sort::Modified;
+                                                            self.landing_page.sort_asc = true;
+                                                        }
+                                                    }
+                                                    if self.landing_page.sort == Sort::Modified {
+                                                        let chevron = if self.landing_page.sort_asc
+                                                        {
+                                                            Icon::CHEVRON_UP
+                                                        } else {
+                                                            Icon::CHEVRON_DOWN
+                                                        };
+                                                        ui.label(
+                                                            RichText::new(chevron.icon)
+                                                                .font(FontId::monospace(12.0))
+                                                                .weak(),
+                                                        );
+                                                    }
+                                                });
+
+                                                // Header: Usage
+                                                ui.horizontal(|ui| {
+                                                    if ui
+                                                        .add(
+                                                            Button::new(
+                                                                RichText::new("Usage")
+                                                                    .font(header_font)
+                                                                    .weak(),
+                                                            )
+                                                            .frame(false),
+                                                        )
+                                                        .clicked()
+                                                    {
+                                                        if self.landing_page.sort == Sort::Size {
+                                                            self.landing_page.sort_asc =
+                                                                !self.landing_page.sort_asc;
+                                                        } else {
+                                                            self.landing_page.sort = Sort::Size;
+                                                            self.landing_page.sort_asc = true;
+                                                        }
+                                                    }
+                                                    if self.landing_page.sort == Sort::Size {
+                                                        let chevron = if self.landing_page.sort_asc
+                                                        {
+                                                            Icon::CHEVRON_UP
+                                                        } else {
+                                                            Icon::CHEVRON_DOWN
+                                                        };
+                                                        ui.label(
+                                                            RichText::new(chevron.icon)
+                                                                .font(FontId::monospace(12.0))
+                                                                .weak(),
+                                                        );
+                                                    }
+                                                });
+                                                ui.label("");
+                                                ui.end_row();
+                                            } else {
+                                                ui.label(
+                                                    RichText::new("Today")
+                                                        .font(header_font.clone())
+                                                        .weak(),
+                                                );
+                                                ui.label("");
+                                                ui.end_row();
+                                            }
+
+                                            let mut current_time_category = 0;
+                                            let mut child_idx = 0;
+                                            while child_idx < descendents.len() {
+                                                let child = descendents[child_idx];
+
+                                                // Check if we need to insert a time separator (only when flattening)
+                                                if self.landing_page.flatten_tree {
+                                                    let current_modified =
+                                                        files.last_modified_recursive(child.id);
+                                                    let now = lb_rs::model::clock::get_time().0;
+                                                    let current_time_diff =
+                                                        now - current_modified as i64;
+
+                                                    let get_time_category =
+                                                        |time_diff: i64| -> i32 {
+                                                            if time_diff <= 24 * 60 * 60 * 1000 {
+                                                                0
+                                                            }
+                                                            // Today
+                                                            else if time_diff
+                                                                <= 2 * 24 * 60 * 60 * 1000
+                                                            {
+                                                                1
+                                                            }
+                                                            // Yesterday
+                                                            else if time_diff
+                                                                <= 7 * 24 * 60 * 60 * 1000
+                                                            {
+                                                                2
+                                                            }
+                                                            // This week
+                                                            else if time_diff
+                                                                <= 30 * 24 * 60 * 60 * 1000
+                                                            {
+                                                                3
+                                                            }
+                                                            // This month
+                                                            else if time_diff
+                                                                <= 365 * 24 * 60 * 60 * 1000
+                                                            {
+                                                                4
+                                                            }
+                                                            // This year
+                                                            else {
+                                                                5
+                                                            } // All time
+                                                        };
+
+                                                    let new_category =
+                                                        get_time_category(current_time_diff);
+
+                                                    if new_category > current_time_category {
+                                                        current_time_category = new_category;
+                                                        let category_name =
+                                                            match current_time_category {
+                                                                0 => "Today",
+                                                                1 => "Yesterday",
+                                                                2 => "This Week",
+                                                                3 => "This Month",
+                                                                4 => "This Year",
+                                                                _ => "All Time",
+                                                            };
+
+                                                        ui.vertical(|ui| {
+                                                            ui.add_space(20.);
                                                             ui.label(
-                                                                RichText::new(
-                                                                    DocType::from_name(&child.name)
-                                                                        .to_icon()
-                                                                        .icon,
-                                                                )
+                                                                RichText::new(category_name)
+                                                                    .font(FontId::new(
+                                                                        16.0,
+                                                                        egui::FontFamily::Name(
+                                                                            Arc::from("Bold"),
+                                                                        ),
+                                                                    ))
+                                                                    .weak(),
+                                                            );
+                                                        });
+                                                        ui.label("");
+                                                        ui.end_row();
+                                                    }
+                                                }
+
+                                                child_idx += 1;
+
+                                                // File name
+                                                ui.horizontal(|ui| {
+                                                    ui.add_space(20.0);
+
+                                                    // File icon
+                                                    if child.is_folder() {
+                                                        let folder_icon =
+                                                            if !child.shares.is_empty() {
+                                                                Icon::SHARED_FOLDER
+                                                            } else {
+                                                                Icon::FOLDER
+                                                            };
+                                                        ui.label(
+                                                            RichText::new(folder_icon.icon)
                                                                 .font(FontId::monospace(19.0))
                                                                 .color(
-                                                                    ui.visuals().weak_text_color(),
+                                                                    ui.style()
+                                                                        .visuals
+                                                                        .widgets
+                                                                        .active
+                                                                        .bg_fill,
                                                                 ),
-                                                            );
-                                                        }
+                                                        );
+                                                    } else {
+                                                        ui.label(
+                                                            RichText::new(
+                                                                DocType::from_name(&child.name)
+                                                                    .to_icon()
+                                                                    .icon,
+                                                            )
+                                                            .font(FontId::monospace(19.0))
+                                                            .color(ui.visuals().weak_text_color()),
+                                                        );
+                                                    }
 
-                                                        // File name
-                                                        let doc_type =
-                                                            DocType::from_name(&child.name);
-                                                        let text = if doc_type.hide_ext() {
-                                                            let wo =
-                                                                std::path::Path::new(&child.name)
-                                                                    .file_stem()
-                                                                    .map(|stem| {
-                                                                        stem.to_str().unwrap()
-                                                                    })
-                                                                    .unwrap_or(&child.name);
-                                                            egui::WidgetText::from(wo)
-                                                        } else {
-                                                            egui::WidgetText::from(&child.name)
-                                                        };
-                                                        if ui.link(text).clicked() {
-                                                            open_file = Some(child.id);
+                                                    // Show parent path if tree is flattened
+                                                    if self.landing_page.flatten_tree
+                                                        && !child.is_root()
+                                                        && child.parent != folder.id
+                                                    {
+                                                        let parent = files
+                                                            .files
+                                                            .get_by_id(child.parent)
+                                                            .unwrap();
+                                                        if ui
+                                                            .link(
+                                                                RichText::new(&parent.name).weak(),
+                                                            )
+                                                            .clicked()
+                                                        {
+                                                            open_file = Some(parent.id);
                                                         }
-                                                    });
+                                                        ui.label(RichText::new(" / ").weak());
+                                                    }
+
+                                                    let doc_type = DocType::from_name(&child.name);
+                                                    let text = if doc_type.hide_ext() {
+                                                        let wo = std::path::Path::new(&child.name)
+                                                            .file_stem()
+                                                            .map(|stem| stem.to_str().unwrap())
+                                                            .unwrap_or(&child.name);
+                                                        egui::WidgetText::from(wo)
+                                                    } else {
+                                                        egui::WidgetText::from(&child.name)
+                                                    };
+                                                    if ui.link(text).clicked() {
+                                                        open_file = Some(child.id);
+                                                    }
                                                 });
 
-                                                // Type column
-                                                ui.label(RichText::new(if child.is_folder() {
-                                                    "Folder".to_string()
-                                                } else {
-                                                    DocType::from_name(&child.name).to_string()
-                                                }));
+                                                // // Type column
+                                                if !self.landing_page.flatten_tree {
+                                                    ui.label(RichText::new(if child.is_folder() {
+                                                        "Folder".to_string()
+                                                    } else {
+                                                        DocType::from_name(&child.name).to_string()
+                                                    }));
+                                                }
 
                                                 // Last modified
-                                                ui.horizontal(|ui| {
-                                                    ui.label(RichText::new(
-                                                        files
-                                                            .last_modified_recursive(child.id)
-                                                            .elapsed_human_string(),
-                                                    ));
+                                                {
+                                                    let last_modified_timestamp =
+                                                        files.last_modified_recursive(child.id);
+                                                    let formatted_date = {
+                                                        let system_time = std::time::UNIX_EPOCH
+                                                            + std::time::Duration::from_millis(
+                                                                last_modified_timestamp,
+                                                            );
+                                                        let datetime: chrono::DateTime<
+                                                            chrono::Local,
+                                                        > = system_time.into();
+                                                        datetime
+                                                            .format("%B %d, %Y at %I:%M %p")
+                                                            .to_string()
+                                                    };
 
-                                                    let mut last_modified_by =
-                                                        files.last_modified_by_recursive(child.id);
-                                                    if last_modified_by == account.username {
-                                                        last_modified_by = "you";
-                                                    }
-                                                    ui.label(
-                                                        RichText::new(format!(
-                                                            "by {}",
-                                                            last_modified_by
-                                                        ))
-                                                        .weak(),
-                                                    );
-                                                });
+                                                    if self.landing_page.flatten_tree {
+                                                        ui.with_layout(
+                                                            Layout {
+                                                                main_dir: Direction::RightToLeft,
+                                                                main_wrap: false,
+                                                                main_align: Align::Max,
+                                                                main_justify: false,
+                                                                cross_align: Align::Min,
+                                                                cross_justify: false,
+                                                            },
+                                                            |ui| {
+                                                                let mut last_modified_by = files
+                                                                    .last_modified_by_recursive(
+                                                                        child.id,
+                                                                    );
+                                                                if last_modified_by
+                                                                    == account.username
+                                                                {
+                                                                    last_modified_by = "you";
+                                                                }
+                                                                ui.label(
+                                                                    RichText::new(format!(
+                                                                        "by {}",
+                                                                        last_modified_by
+                                                                    ))
+                                                                    .weak(),
+                                                                );
 
-                                                // Local Size
-                                                ui.label(RichText::new({
-                                                    bytes_to_human(
-                                                        files.size_bytes_recursive(child.id) as _,
-                                                    )
-                                                }));
-
-                                                // Usage bar chart
-                                                ui.with_layout(
-                                                    egui::Layout::right_to_left(
-                                                        egui::Align::Center,
-                                                    ),
-                                                    |ui| {
-                                                        ui.add_space(20.);
-                                                        let (_, mut rect) =
-                                                            ui.allocate_space(Vec2::new(
-                                                                ui.available_width(),
-                                                                ui.available_height(),
-                                                            ));
-                                                        let target_width = rect.width()
-                                                            * files.usage_portion_scaled(child.id);
-                                                        let excess_width =
-                                                            rect.width() - target_width;
-                                                        rect.max.x -= excess_width;
-
-                                                        ui.painter().rect_filled(
-                                                            rect,
-                                                            2.0,
-                                                            ui.visuals()
-                                                                .widgets
-                                                                .active
-                                                                .bg_fill
-                                                                .gamma_multiply(0.8),
+                                                                ui.label(RichText::new(
+                                                                    last_modified_timestamp
+                                                                        .elapsed_human_string(),
+                                                                ))
+                                                                .on_hover_text(&formatted_date);
+                                                            },
                                                         );
-                                                    },
-                                                );
+                                                    } else {
+                                                        ui.horizontal(|ui: &mut Ui| {
+                                                            ui.label(RichText::new(
+                                                                last_modified_timestamp
+                                                                    .elapsed_human_string(),
+                                                            ))
+                                                            .on_hover_text(&formatted_date);
+
+                                                            let mut last_modified_by = files
+                                                                .last_modified_by_recursive(
+                                                                    child.id,
+                                                                );
+                                                            if last_modified_by == account.username
+                                                            {
+                                                                last_modified_by = "you";
+                                                            }
+                                                            ui.label(
+                                                                RichText::new(format!(
+                                                                    "by {}",
+                                                                    last_modified_by
+                                                                ))
+                                                                .weak(),
+                                                            );
+                                                        });
+                                                    }
+                                                }
+
+                                                // Usage
+                                                if !self.landing_page.flatten_tree {
+                                                    ui.label(RichText::new({
+                                                        bytes_to_human(
+                                                            files.size_bytes_recursive(child.id)
+                                                                as _,
+                                                        )
+                                                    }));
+
+                                                    // Usage bar chart
+                                                    ui.with_layout(
+                                                        egui::Layout::right_to_left(
+                                                            egui::Align::Center,
+                                                        ),
+                                                        |ui| {
+                                                            ui.add_space(20.);
+                                                            let (_, mut rect) =
+                                                                ui.allocate_space(Vec2::new(
+                                                                    ui.available_width(),
+                                                                    ui.available_height(),
+                                                                ));
+                                                            let target_width = rect.width()
+                                                                * files
+                                                                    .usage_portion_scaled(child.id);
+                                                            let excess_width =
+                                                                rect.width() - target_width;
+                                                            rect.max.x -= excess_width;
+
+                                                            ui.painter().rect_filled(
+                                                                rect,
+                                                                2.0,
+                                                                ui.visuals()
+                                                                    .widgets
+                                                                    .active
+                                                                    .bg_fill
+                                                                    .gamma_multiply(0.8),
+                                                            );
+                                                        },
+                                                    );
+                                                }
 
                                                 ui.end_row();
                                             }
