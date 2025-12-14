@@ -586,9 +586,9 @@ impl Workspace {
                                         }
                                     })
                                 }
-                                Sort::Modified => {
-                                    children.sort_by_key(|f| u64::MAX - f.last_modified)
-                                }
+                                Sort::Modified => children.sort_by_key(|f| {
+                                    u64::MAX - files.last_modified_recursive(f.id)
+                                }),
                                 Sort::Size => children
                                     .sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id)),
                             }
