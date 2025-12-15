@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-windows"
-version = "25.12.15"
+version = "25.12.16"
 edition = "2021"
 
 [target.'cfg(windows)'.dependencies]
