@@ -1023,6 +1023,18 @@ pub extern "system" fn Java_net_lockbook_Lb_getPendingShares<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_getPendingShareFiles<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_pending_share_files() {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) {

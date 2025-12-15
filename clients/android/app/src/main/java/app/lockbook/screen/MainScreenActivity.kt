@@ -6,11 +6,15 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.doOnPreDraw
 import androidx.fragment.app.*
+import androidx.navigation.fragment.findNavController
+import androidx.navigation.ui.setupWithNavController
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -19,11 +23,13 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
+import androidx.core.view.isVisible
 
-class MainScreenActivity : AppCompatActivity() {
+class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
     private var _binding: ActivityMainScreenBinding? = null
     val binding get() = _binding!!
     private val slidingPaneLayout get() = binding.slidingPaneLayout
@@ -72,6 +78,7 @@ class MainScreenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        enableEdgeToEdge()
 
         ThemeMode.affirmThemeModeFromSaved(baseContext)
 
@@ -228,6 +235,10 @@ class MainScreenActivity : AppCompatActivity() {
                 }
             }
         )
+
+        val navController = navHost().navController
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNav.setupWithNavController(navController)
     }
 
     override fun onResume() {
@@ -312,4 +323,25 @@ class MainScreenActivity : AppCompatActivity() {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
     }
+
+
+    override fun doWhenBottomNavMeasured(action: (height: Int) -> Unit) {
+        val bottomNav = binding.bottomNavigation
+        val height = if (bottomNav.isVisible) bottomNav.height else 0
+
+        if (height > 0) {
+            // If the view has already been measured, provide the height immediately.
+            action(height)
+        } else {
+            // Otherwise, wait for the next pre-draw pass to get the height.
+            bottomNav.doOnPreDraw { view ->
+                val measuredHeight = if (bottomNav.isVisible) view.height else 0
+                action(measuredHeight)
+            }
+        }
+    }
+}
+
+interface BottomNavProvider {
+    fun doWhenBottomNavMeasured(action: (height: Int) -> Unit)
 }

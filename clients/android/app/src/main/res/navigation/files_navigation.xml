@@ -19,4 +19,7 @@
         android:name="app.lockbook.screen.SearchDocumentsFragment"
         android:label="SearchFilesFragment" />
 
+    <fragment android:id="@+id/pendingSharesFragment"
+        android:name="app.lockbook.screen.PendingSharesFragment"
+        android:label="PendingSharesFragment" />
 </navigation>

@@ -170,20 +170,20 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
-//        binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
-//        binding.fabSpeedDial.setOnActionSelectedListener {
-//            when (it.id) {
-//                R.id.fab_create_drawing -> createFile("svg")
-//                R.id.fab_create_document -> createFile("md")
-//                R.id.fab_create_folder -> activityModel.launchTransientScreen(
-//                    TransientScreen.Create(model.fileModel.parent.id)
-//                )
-//                else -> return@setOnActionSelectedListener false
-//            }
-//
-//            binding.fabSpeedDial.close()
-//            true
-//        }
+        binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
+        binding.fabSpeedDial.setOnActionSelectedListener {
+            when (it.id) {
+                R.id.fab_create_drawing -> createFile("svg")
+                R.id.fab_create_document -> createFile("md")
+                R.id.fab_create_folder -> activityModel.launchTransientScreen(
+                    TransientScreen.Create(model.fileModel.parent.id)
+                )
+                else -> return@setOnActionSelectedListener false
+            }
+
+            binding.fabSpeedDial.close()
+            true
+        }
 
         binding.listFilesRefresh.setOnRefreshListener {
             workspaceModel.isSyncing = true
@@ -228,6 +228,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
+
         return binding.root
     }
 
@@ -239,6 +240,16 @@ class FilesListFragment : Fragment(), FilesFragment {
         if (!model.isSuggestedDocsVisible) {
             binding.suggestedDocsLayout.root.visibility = View.GONE
         }
+
+        (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
+            recyclerView.setPadding(
+                recyclerView.paddingLeft,
+                recyclerView.paddingTop,
+                recyclerView.paddingRight,
+                bottomNavHeight
+            )
+        }
+
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
@@ -668,10 +679,10 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun onBackPressed(): Boolean = when {
-//        binding.fabSpeedDial.isOpen -> {
-//            binding.fabSpeedDial.close()
-//            false
-//        }
+        binding.fabSpeedDial.isOpen -> {
+            binding.fabSpeedDial.close()
+            false
+        }
         model.files.hasSelection() -> {
             unselectFiles()
             false

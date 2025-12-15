@@ -244,6 +244,8 @@
     <string name="shared_file_icon">Shared file icon</string>
     <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
+    <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
+
     <string name="no_shared_files">No pending shares.</string>
     <string name="export">Export</string>
     <string name="write_access">Write access:</string>
@@ -264,8 +266,8 @@
     <string name="accept_pending_share">Accept pending share</string>
     <string name="new_folder">New Folder</string>
     <string name="import_rcv_share_btn">Import</string>
-    <string name="files_navbar_item">files</string>
-    <string name="shared_navbar_item">shared</string>
+    <string name="home_navbar_item">Home</string>
+    <string name="shared_navbar_item">Shared</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>
