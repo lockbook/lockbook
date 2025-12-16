@@ -17,6 +17,7 @@ struct FileTreeView: View {
 
     var body: some View {
         ScrollViewReader { scrollHelper in
+            Group {
                 VStack(alignment: .leading, spacing: 2) {
                     FileRowView(file: root, level: -1)
                         .environmentObject(fileTreeModel)
@@ -24,9 +25,6 @@ struct FileTreeView: View {
                     Spacer()
                 }
                 .listStyle(.sidebar)
-                .contextMenu {
-                    FileRowContextMenu(file: root)
-                }
                 .padding(.leading)
                 .onChange(of: fileTreeModel.openDoc) { newValue in
                     scrollHelper.scrollTo(newValue)
@@ -34,9 +32,13 @@ struct FileTreeView: View {
                 .onAppear {
                     scrollHelper.scrollTo(fileTreeModel.openDoc)
                 }
-
                 
                 Spacer().frame(height: 150)
+            }
+            .contentShape(Rectangle())
+            .contextMenu {
+                FileRowContextMenu(file: root)
+            }
         }
     }
 }
