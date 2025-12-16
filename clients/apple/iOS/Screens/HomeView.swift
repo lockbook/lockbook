@@ -176,45 +176,58 @@ struct FilesHomeView: View {
     var body: some View {
         Group {
             if let root = filesModel.root {
-                Form {
-                    CollapsableSection(
-                        id: "Suggested_Docs",
-                        label: {
-                            Text("Suggested")
+                ScrollView {
+                    LazyVStack(
+                        alignment: .leading,
+                        pinnedViews: [.sectionHeaders]
+                    ) {
+                        CollapsableSection(
+                            id: "Suggested_Docs",
+                            label: {
+                                Text("Suggested")
+                                    .bold()
+                                    .foregroundColor(.primary)
+                                    .textCase(.none)
+                                    .font(.headline)
+                                    .padding(.bottom, 10)
+                                    .padding(.top, 8)
+                            },
+                            content: {
+                                SuggestedDocsView(filesModel: filesModel)
+                            }
+                        )
+                        
+                        Section(
+                            header: Text("Files")
                                 .bold()
                                 .foregroundColor(.primary)
                                 .textCase(.none)
                                 .font(.headline)
-                                .padding(.bottom, 10)
+                                .padding(.bottom, 3)
                                 .padding(.top, 8)
-                        },
-                        content: {
-                            SuggestedDocsView(filesModel: filesModel)
+                        ) {
+                            FileTreeView(
+                                root: root,
+                                filesModel: filesModel,
+                                workspaceInput: workspaceInput,
+                                workspaceOutput: workspaceOutput
+                            )
+                            .toolbar {
+                                selectionToolbarItem
+                            }
                         }
-                    )
-
-                    Section(
-                        header: Text("Files")
-                            .bold()
-                            .foregroundColor(.primary)
-                            .textCase(.none)
-                            .font(.headline)
-                            .padding(.bottom, 3)
-                            .padding(.top, 8)
-                    ) {
-                        FileTreeView(
-                            root: root,
-                            filesModel: filesModel,
-                            workspaceInput: workspaceInput,
-                            workspaceOutput: workspaceOutput
-                        )
-                        .toolbar {
-                            selectionToolbarItem
+                        .padding(.horizontal, 16)
+                    }
+                }
+                .refreshable {
+                    if AppState.lb.events.status.outOfSpace {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                            homeState.showOutOfSpaceAlert = true
                         }
                     }
-                    .padding(.horizontal, 16)
+                    
+                    workspaceInput.requestSync()
                 }
-                .formStyle(.columns)
                 .environmentObject(filesModel)
                 .navigationTitle(root.name)
                 .navigationBarTitleDisplayMode(.large)

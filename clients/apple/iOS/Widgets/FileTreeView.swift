@@ -17,7 +17,7 @@ struct FileTreeView: View {
 
     var body: some View {
         ScrollViewReader { scrollHelper in
-            ScrollView {
+            Group {
                 VStack(alignment: .leading, spacing: 2) {
                     FileRowView(file: root, level: -1)
                         .environmentObject(fileTreeModel)
@@ -25,27 +25,19 @@ struct FileTreeView: View {
                     Spacer()
                 }
                 .listStyle(.sidebar)
-                .frame(minWidth: 10, maxWidth: .infinity, maxHeight: .infinity)
-                
-                Spacer().frame(height: 150)
-            }.contextMenu {
-                FileRowContextMenu(file: root)
-            }
-            .refreshable {
-                if AppState.lb.events.status.outOfSpace {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                        homeState.showOutOfSpaceAlert = true
-                    }
+                .padding(.leading)
+                .onChange(of: fileTreeModel.openDoc) { newValue in
+                    scrollHelper.scrollTo(newValue)
+                }
+                .onAppear {
+                    scrollHelper.scrollTo(fileTreeModel.openDoc)
                 }
                 
-                workspaceInput.requestSync()
+                Spacer().frame(height: 150)
             }
-            .padding(.leading)
-            .onChange(of: fileTreeModel.openDoc) { newValue in
-                scrollHelper.scrollTo(newValue)
-            }
-            .onAppear {
-                scrollHelper.scrollTo(fileTreeModel.openDoc)
+            .contentShape(Rectangle())
+            .contextMenu {
+                FileRowContextMenu(file: root)
             }
         }
     }
