@@ -60,7 +60,7 @@
             self.isUserInteractionEnabled = true
 
             // touch
-            let touch = WsPanGestureRecognizer()
+            let touch = WsTouchGestureRecognizer()
             self.addGestureRecognizer(touch)
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
@@ -135,7 +135,7 @@
             addSubview(floatingCursor)
         }
 
-        @objc private func handleWsTouch(_ recognizer: WsPanGestureRecognizer) {
+        @objc private func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
             mtkView.handleWsTouch(recognizer)
         }
 
@@ -857,7 +857,7 @@
             self.gestureDelegate = SvgGestureDelegate()
 
             // gestures: touch
-            let touch = WsPanGestureRecognizer()
+            let touch = WsTouchGestureRecognizer()
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
             touch.delegate = self.gestureDelegate
             touch.cancelsTouchesInView = false
@@ -883,7 +883,7 @@
 
             // gestures: pan
             let pan = SvgPanGestureRecognizer(
-                target: self, action: #selector(self.handlePan(_:)), wsPan: touch)
+                target: self, action: #selector(self.handlePan(_:)), wsTouch: touch)
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -905,7 +905,7 @@
 
             // gestures: pinch
             let pinch = SvgPinchGestureRecognizer(
-                target: self, action: #selector(self.handlePinch(_:)), wsPan: touch)
+                target: self, action: #selector(self.handlePinch(_:)), wsTouch: touch)
             pinch.cancelsTouchesInView = false
 
             pinch.delegate = gestureDelegate
@@ -923,7 +923,7 @@
             self.menuInteraction = menuInteraction
         }
 
-        @objc private func handleWsTouch(_ recognizer: WsPanGestureRecognizer) {
+        @objc private func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
             mtkView.handleWsTouch(recognizer)
         }
 
@@ -1286,7 +1286,7 @@
         weak var currentWrapper: UIView? = nil
 
         // touch
-        var touchRecognizer: WsPanGestureRecognizer?
+        var touchRecognizer: WsTouchGestureRecognizer?
         var touchDelegate: SvgGestureDelegate?
 
         // pointer
@@ -1326,7 +1326,7 @@
             // this one sits on a view behind md and svg views
             // its only exposed over the md toolbar, which is not covered by md view to prevent text interactions there
             self.touchDelegate = SvgGestureDelegate()
-            let touch = WsPanGestureRecognizer()
+            let touch = WsTouchGestureRecognizer()
 
             self.addGestureRecognizer(touch)
             touch.delegate = self.touchDelegate
@@ -1358,7 +1358,7 @@
             fatalError("init(coder:) has not been implemented")
         }
 
-        @objc func handleWsTouch(_ recognizer: WsPanGestureRecognizer) {
+        @objc func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
             guard let touch = recognizer.touch else { return }
 
             switch recognizer.state {
@@ -1842,7 +1842,7 @@
         }
     }
 
-    class WsPanGestureRecognizer: UILongPressGestureRecognizer {
+    class WsTouchGestureRecognizer: UILongPressGestureRecognizer {
         var touch: UITouch?
         var event: UIEvent?
 
@@ -1868,14 +1868,14 @@
         }
     }
 
-    /// Like UIPanGestureRecognizer, but cancels a WsPanGestureRecognizer and times out
+    /// Like UIPanGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
     class SvgPanGestureRecognizer: UIPanGestureRecognizer {
-        var wsPan: WsPanGestureRecognizer?
+        var wsTouch: WsTouchGestureRecognizer?
         var start: Date?
 
-        init(target: Any?, action: Selector, wsPan: WsPanGestureRecognizer?) {
+        init(target: Any?, action: Selector, wsTouch: WsTouchGestureRecognizer?) {
             super.init(target: target, action: action)
-            self.wsPan = wsPan
+            self.wsTouch = wsTouch
             name = "SvgPan"
         }
 
@@ -1896,8 +1896,9 @@
             // fulfills "Like UIPanGestureRecognizer"
             super.touchesMoved(touches, with: event)
 
+            // fulfills "cancels a WsTouchGestureRecognizer"
             if self.state == .began || self.state == .changed {
-                wsPan?.state = .cancelled
+                wsTouch?.state = .cancelled
             }
         }
 
@@ -1907,14 +1908,14 @@
         }
     }
 
-    /// Like UIPinchGestureRecognizer, but cancels a WsPanGestureRecognizer and times out
+    /// Like UIPinchGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
     class SvgPinchGestureRecognizer: UIPinchGestureRecognizer {
-        var wsPan: WsPanGestureRecognizer?
+        var wsTouch: WsTouchGestureRecognizer?
         var start: Date?
 
-        init(target: Any?, action: Selector, wsPan: WsPanGestureRecognizer?) {
+        init(target: Any?, action: Selector, wsTouch: WsTouchGestureRecognizer?) {
             super.init(target: target, action: action)
-            self.wsPan = wsPan
+            self.wsTouch = wsTouch
             name = "SvgPinch"
         }
 
@@ -1935,8 +1936,9 @@
             // fulfills "Like UIPinchGestureRecognizer"
             super.touchesMoved(touches, with: event)
 
+            // fulfills "cancels a WsTouchGestureRecognizer"
             if self.state == .began || self.state == .changed {
-                wsPan?.state = .cancelled
+                wsTouch?.state = .cancelled
             }
         }
 
