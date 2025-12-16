@@ -218,10 +218,6 @@ struct FilesHomeView: View {
                         }
                         .padding(.horizontal, 16)
                     }
-                    .formStyle(.columns)
-                    .environmentObject(filesModel)
-                    .navigationTitle(root.name)
-                    .navigationBarTitleDisplayMode(.large)
                 }
                 .refreshable {
                     if AppState.lb.events.status.outOfSpace {
@@ -232,6 +228,9 @@ struct FilesHomeView: View {
                     
                     workspaceInput.requestSync()
                 }
+                .environmentObject(filesModel)
+                .navigationTitle(root.name)
+                .navigationBarTitleDisplayMode(.large)
             } else {
                 ProgressView()
             }
