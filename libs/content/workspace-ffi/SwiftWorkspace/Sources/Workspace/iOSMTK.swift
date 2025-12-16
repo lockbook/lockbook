@@ -873,6 +873,8 @@
 
             // gestures: tap
             let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+            tap.name = "SvgTap"
+            tap.delegate = self.gestureDelegate
             tap.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -1025,9 +1027,9 @@
             // pan and pinch are configured to cancel touch when they begin
             var result = false
             switch gestureRecognizer.name {
-            case "SvgPan", "SvgPinch", "WsPan":
+            case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
                 switch otherGestureRecognizer.name {
-                case "SvgPan", "SvgPinch", "WsPan":
+                case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
                     result = true
                 default:
                     result = false
@@ -1847,21 +1849,21 @@
         }
     }
 
-    class WsPanGestureRecognizer: UIPanGestureRecognizer {
+    class WsPanGestureRecognizer: UILongPressGestureRecognizer {
         var touch: UITouch?
         var event: UIEvent?
 
         convenience init() {
             self.init(target: nil, action: nil)
-            minimumNumberOfTouches = 1
-            maximumNumberOfTouches = 1
-            name = "WsPan"
+            minimumPressDuration = 0
+            allowableMovement = .infinity
+            name = "WsTouch"
         }
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
             super.touchesBegan(touches, with: event)
             if touch == nil {
-                self.touch = touches.first
+                touch = touches.first
                 self.event = event
             }
         }
