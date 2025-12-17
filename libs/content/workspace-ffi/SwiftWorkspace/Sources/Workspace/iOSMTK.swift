@@ -63,9 +63,10 @@
             self.isUserInteractionEnabled = true
 
             // touch
-            let touch = WsTouchGestureRecognizer(target: self, action: #selector(handleWsTouch(_:)))
+            let touch = WsTouchGestureRecognizer()
             touch.delegate = self.gestureDelegate
             self.addGestureRecognizer(touch)
+            touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
             // text input
             textInteraction.textInput = self
