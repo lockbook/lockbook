@@ -89,8 +89,7 @@
                 // send range adjustments to our handler
                 // this supports automatic scrolling when dragging selection handles
                 if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
-                    gestureRecognizer.addTarget(
-                        self, action: #selector(handleRangeAdjustment(_:)))
+                    gestureRecognizer.addTarget(self, action: #selector(handleRangeAdjustment(_:)))
                 }
             }
 
@@ -751,6 +750,20 @@
             // allow text interaction taps to also pass through to workspace
             // todo: this is what allows tapping a checkbox to also place the cursor
             return true
+        }
+        
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if otherGestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
+                return true
+            }
+            if otherGestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
+                return true
+            }
+
+            return false
         }
     }
 
