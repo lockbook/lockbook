@@ -50,6 +50,9 @@
         // range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
+        // gestures
+        var gestureDelegate = MdGestureDelegate()
+
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             self.currentHeaderSize = headerSize
@@ -60,9 +63,9 @@
             self.isUserInteractionEnabled = true
 
             // touch
-            let touch = WsTouchGestureRecognizer()
+            let touch = WsTouchGestureRecognizer(target: self, action: #selector(handleWsTouch(_:)))
+            touch.delegate = self.gestureDelegate
             self.addGestureRecognizer(touch)
-            touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
             // text input
             textInteraction.textInput = self
@@ -735,6 +738,18 @@
         func unimplemented() {
             print("unimplemented!")
             Thread.callStackSymbols.forEach { print($0) }
+        }
+    }
+
+    // MARK: - MdGestureDelegate
+    public class MdGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // allow text interaction taps to also pass through to workspace
+            // todo: this is what allows tapping a checkbox to also place the cursor
+            return true
         }
     }
 
