@@ -12,6 +12,7 @@ use super::element::BoundedElement;
 use super::util::transform_rect;
 use lb_rs::model::svg::buffer::serialize_inner;
 
+use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::history;
 use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
 use crate::tab::svg_editor::toolbar::{
@@ -59,6 +60,10 @@ enum SelectionOperation {
     Idle,
 }
 
+enum SelectionPropogatedEvent {
+    Copy,
+}
+
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
@@ -102,6 +107,7 @@ enum SelectionEvent {
     Transform(egui::Pos2),
     EndTransform,
     Delete,
+    Copy,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct BuildPayload {
@@ -142,6 +148,8 @@ impl Selection {
             return;
         }
 
+        // an event that can needs handling with ui access.
+        let mut selection_propagted_event = None;
         ui.input(|r| {
             let mut input_state = SelectionInputState {
                 transform_occured: false,
@@ -149,6 +157,7 @@ impl Selection {
                 is_multi_touch,
                 suggested_op,
             };
+
             for e in r.events.iter() {
                 if input_state.is_multi_touch
                     || (selection_ctx.settings.pencil_only_drawing
@@ -162,10 +171,22 @@ impl Selection {
                 }
 
                 if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
-                    self.handle_selection_event(selection_event, selection_ctx, &mut input_state);
+                    if let Some(event) = self.handle_selection_event(
+                        selection_event,
+                        selection_ctx,
+                        &mut input_state,
+                    ) {
+                        selection_propagted_event = Some(event);
+                    }
                 }
             }
         });
+
+        if let Some(event) = selection_propagted_event {
+            match event {
+                SelectionPropogatedEvent::Copy => self.copy_selection(ui, selection_ctx),
+            }
+        };
     }
 
     fn map_ui_event(
@@ -185,7 +206,7 @@ impl Selection {
                         }
                         if pressed {
                             // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if input_state.suggested_op.is_some() {
+                            if input_state.suggested_op.is_some() && modifiers.is_none() {
                                 return Some(SelectionEvent::StartTransform);
                             } else {
                                 // if we're in prefer draw with pencil mode, then we shouldn't start build operation
@@ -229,6 +250,9 @@ impl Selection {
                         if key == egui::Key::Delete || key == egui::Key::Backspace {
                             return Some(SelectionEvent::Delete);
                         }
+                    }
+                    egui::Event::Copy => {
+                        return Some(SelectionEvent::Copy);
                     }
                     _ => {}
                 }
@@ -277,14 +301,14 @@ impl Selection {
     fn handle_selection_event(
         &mut self, selection_event: SelectionEvent, selection_ctx: &mut ToolContext,
         r: &mut SelectionInputState,
-    ) {
+    ) -> Option<SelectionPropogatedEvent> {
         match selection_event {
             SelectionEvent::StartTransform => {
                 self.current_op = r.suggested_op.unwrap_or(SelectionOperation::Idle);
             }
             SelectionEvent::Transform(pos) => {
                 if r.transform_occured || r.is_multi_touch {
-                    return;
+                    return None;
                 }
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
 
@@ -465,18 +489,46 @@ impl Selection {
                 }
             }
             SelectionEvent::StartLaso(build_payload) => {
-                if let Some(maybe_new_selection) =
+                if build_payload.modifiers.alt {
+                    let iter = self.selected_elements.iter().filter_map(|s_el| {
+                        selection_ctx
+                            .buffer
+                            .elements
+                            .get(&s_el.id)
+                            .map(|el| (s_el.id, el.clone()))
+                    });
+
+                    let elements = IndexMap::from_iter(iter);
+
+                    let new_ids = duplicate_elements(
+                        elements,
+                        selection_ctx.buffer.weak_path_pressures.clone(),
+                        selection_ctx.buffer,
+                        selection_ctx.history,
+                        None,
+                    );
+
+                    let new_els = new_ids
+                        .into_iter()
+                        .map(|id| SelectedElement { id, transform: Transform::identity() })
+                        .collect();
+
+                    self.new_selection_els(new_els);
+                    self.current_op = SelectionOperation::Translation;
+                } else if let Some(maybe_new_selection) =
                     detect_translation(selection_ctx.buffer, None, build_payload.pos)
                 {
-                    if build_payload.modifiers.shift {
+                    if build_payload.modifiers.shift_only() {
                         self.push_selection_el(maybe_new_selection);
-                    } else if build_payload.modifiers.alt {
+                    } else if build_payload.modifiers.command_only() {
                         if let Some(i) = self
                             .selected_elements
                             .iter()
                             .position(|s_el| s_el.id == maybe_new_selection.id)
                         {
                             self.remove_selection_el(i);
+                        } else {
+                            self.push_selection_el(maybe_new_selection);
                         }
                     } else {
                         self.new_selection_els(vec![maybe_new_selection]);
@@ -520,7 +572,9 @@ impl Selection {
             SelectionEvent::Delete => {
                 self.delete_selection(selection_ctx);
             }
+            SelectionEvent::Copy => return Some(SelectionPropogatedEvent::Copy),
         }
+        None
     }
 
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
@@ -768,7 +822,7 @@ impl Selection {
 
     fn copy_selection(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext<'_>) {
         let id_map = &selection_ctx.buffer.id_map;
-        let elements: &IndexMap<Uuid, Element> = &self
+        let elements: IndexMap<Uuid, Element> = self
             .selected_elements
             .iter()
             .map(|el| (el.id, selection_ctx.buffer.elements.get(&el.id).unwrap().clone()))
@@ -776,7 +830,7 @@ impl Selection {
 
         let serialized_selection = serialize_inner(
             id_map,
-            elements,
+            &elements,
             &selection_ctx.buffer.weak_viewport_settings,
             &WeakImages::default(),
             &selection_ctx.buffer.weak_path_pressures,
