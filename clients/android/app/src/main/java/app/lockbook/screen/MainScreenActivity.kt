@@ -209,11 +209,9 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
             if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
                 slidingPaneLayout.openPane()
-                println("3asba: opening pane")
             }
             if (binding.slidingPaneLayout.isSlideable && binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
-                println("3asba: closing pane")
             }
         }
 

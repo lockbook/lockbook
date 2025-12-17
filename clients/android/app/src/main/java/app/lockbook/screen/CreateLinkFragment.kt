@@ -49,7 +49,7 @@ class CreateLinkFragment : Fragment() {
             withDataSource(model.files)
             withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {
                 onBind(::BasicFileItemHolder) { _, item ->
-                    name.text = item.name
+                    name.text = item.getPrettyName()
 
                     icon.setImageResource(item.getIconResource())
                 }
