@@ -50,6 +50,9 @@
         // range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
+        // gestures
+        var gestureDelegate = MdGestureDelegate()
+
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             self.currentHeaderSize = headerSize
@@ -58,6 +61,12 @@
 
             self.clipsToBounds = true
             self.isUserInteractionEnabled = true
+
+            // touch
+            let touch = WsTouchGestureRecognizer()
+            touch.delegate = self.gestureDelegate
+            self.addGestureRecognizer(touch)
+            touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
             // text input
             textInteraction.textInput = self
@@ -80,8 +89,7 @@
                 // send range adjustments to our handler
                 // this supports automatic scrolling when dragging selection handles
                 if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
-                    gestureRecognizer.addTarget(
-                        self, action: #selector(handleRangeAdjustment(_:)))
+                    gestureRecognizer.addTarget(self, action: #selector(handleRangeAdjustment(_:)))
                 }
             }
 
@@ -130,6 +138,10 @@
             addSubview(floatingCursor)
         }
 
+        @objc private func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
+            mtkView.handleWsTouch(recognizer)
+        }
+
         @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
             mtkView.handleTrackpadScroll(sender)
         }
@@ -172,22 +184,6 @@
 
         required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
-        }
-
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesBegan(touches, with: event)
-        }
-
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesMoved(touches, with: event)
-        }
-
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesEnded(touches, with: event)
-        }
-
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesCancelled(touches, with: event)
         }
 
         public func beginFloatingCursor(at point: CGPoint) {
@@ -738,6 +734,32 @@
         }
     }
 
+    // MARK: - MdGestureDelegate
+    public class MdGestureDelegate: NSObject, UIGestureRecognizerDelegate {
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            // allow text interaction taps to also pass through to workspace
+            // todo: this is what allows tapping a checkbox to also place the cursor
+            return true
+        }
+        
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if otherGestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
+                return true
+            }
+            if otherGestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
+                return true
+            }
+
+            return false
+        }
+    }
+
     // MARK: - MdDropDelegate
     public class MdDropDelegate: NSObject, UIDropInteractionDelegate {
         weak var mtkView: iOSMTK?
@@ -863,8 +885,18 @@
             // gestures
             self.gestureDelegate = SvgGestureDelegate()
 
+            // gestures: touch
+            let touch = WsTouchGestureRecognizer()
+            touch.addTarget(self, action: #selector(handleWsTouch(_:)))
+            touch.delegate = self.gestureDelegate
+            touch.cancelsTouchesInView = false
+
+            self.addGestureRecognizer(touch)
+
             // gestures: tap
             let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+            tap.name = "SvgTap"
+            tap.delegate = self.gestureDelegate
             tap.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -879,7 +911,8 @@
             self.tapRecognizer = tap
 
             // gestures: pan
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
+            let pan = SvgPanGestureRecognizer(
+                target: self, action: #selector(self.handlePan(_:)), wsTouch: touch)
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -900,8 +933,8 @@
             self.panRecognizer = pan
 
             // gestures: pinch
-            let pinch = UIPinchGestureRecognizer(
-                target: self, action: #selector(self.handlePinch(_:)))
+            let pinch = SvgPinchGestureRecognizer(
+                target: self, action: #selector(self.handlePinch(_:)), wsTouch: touch)
             pinch.cancelsTouchesInView = false
 
             pinch.delegate = gestureDelegate
@@ -919,6 +952,10 @@
             self.menuInteraction = menuInteraction
         }
 
+        @objc private func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
+            mtkView.handleWsTouch(recognizer)
+        }
+
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let menuInteraction = menuInteraction else { return }
 
@@ -931,7 +968,7 @@
             }
 
             // Check if we have any valid actions before presenting
-            let location = gesture.location(in: self)
+            let location = gesture.location(in: self.mtkView)
             if canvas_detect_islands_interaction(
                 self.wsHandle, Float(location.x),
                 Float(location.y + SvgView.TOOL_BAR_HEIGHT))
@@ -989,31 +1026,6 @@
             }
         }
 
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
-
-            // let's cancel the kinetic pan. don't nullify it so that the tap handler
-            // will know not to show the edit menu
-            if self.mtkView.kineticTimer != nil {
-                self.mtkView.kineticTimer?.invalidate()
-            }
-
-            mtkView.touchesBegan(touches, with: event)
-        }
-
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesMoved(touches, with: event)
-        }
-
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesEnded(touches, with: event)
-        }
-
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesCancelled(touches, with: event)
-
-        }
-
         public override func paste(_ sender: Any?) {
             if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
@@ -1033,16 +1045,22 @@
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            // Allow pinch and pan to work together
-            if (gestureRecognizer is UIPinchGestureRecognizer
-                && otherGestureRecognizer is UIPanGestureRecognizer)
-                || (gestureRecognizer is UIPanGestureRecognizer
-                    && otherGestureRecognizer is UIPinchGestureRecognizer)
-            {
-                return true
+            // Allow pan, pinch, and ws pan (touch) to work together
+            // pan and pinch are configured to cancel touch when they begin
+            var result = false
+            switch gestureRecognizer.name {
+            case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
+                switch otherGestureRecognizer.name {
+                case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
+                    result = true
+                default:
+                    result = false
+                }
+            default:
+                result = false
             }
 
-            return false
+            return result
         }
     }
 
@@ -1296,12 +1314,13 @@
         public var wsHandle: UnsafeMutableRawPointer?
         weak var currentWrapper: UIView? = nil
 
+        // touch
+        var touchRecognizer: WsTouchGestureRecognizer?
+        var touchDelegate: SvgGestureDelegate?
+
         // pointer
         var pointerInteraction: UIPointerInteraction?
         var pointerDelegate: UIPointerInteractionDelegate?
-
-        // gestures
-        var panRecognizer: UIPanGestureRecognizer?
 
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
@@ -1332,6 +1351,19 @@
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
 
+            // touch
+            // this one sits on a view behind md and svg views
+            // its only exposed over the md toolbar, which is not covered by md view to prevent text interactions there
+            self.touchDelegate = SvgGestureDelegate()
+            let touch = WsTouchGestureRecognizer()
+
+            self.addGestureRecognizer(touch)
+            touch.delegate = self.touchDelegate
+            touch.addTarget(self, action: #selector(handleWsTouch(_:)))
+            touch.cancelsTouchesInView = false
+
+            self.touchRecognizer = touch
+
             // pointer
             let pointerDelegate = iOSPointerDelegate(mtkView: self)
             let pointer = UIPointerInteraction(delegate: pointerDelegate)
@@ -1340,15 +1372,6 @@
 
             self.pointerDelegate = pointerDelegate
             self.pointerInteraction = pointer
-
-            // gestures
-            let pan = UIPanGestureRecognizer(
-                target: self, action: #selector(self.handleTrackpadScroll(_:)))
-            pan.allowedScrollTypesMask = .all
-            pan.maximumNumberOfTouches = 0
-
-            self.addGestureRecognizer(pan)
-            self.panRecognizer = pan
 
             // mtk
             self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
@@ -1362,6 +1385,82 @@
 
         required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
+        }
+
+        @objc func handleWsTouch(_ recognizer: WsTouchGestureRecognizer) {
+            guard let touch = recognizer.touch else { return }
+
+            switch recognizer.state {
+            case .possible:
+                break
+            case .began:
+                set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
+
+                if kineticTimer != nil {
+                    kineticTimer?.invalidate()
+                }
+
+                let id = self.touchId(for: touch)
+
+                let location = touch.preciseLocation(in: self)
+                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+
+                touches_began(wsHandle, id, Float(location.x), Float(location.y), Float(force))
+
+                setNeedsDisplay()
+            case .changed:
+                guard let event = recognizer.event else { return }
+
+                let id = self.touchId(for: touch)
+
+                for touch in event.coalescedTouches(for: touch)! {
+                    let location = touch.preciseLocation(in: self)
+                    let force = self.force(for: touch)
+
+                    touches_moved(
+                        wsHandle, id, Float(location.x), Float(location.y), Float(force))
+                }
+
+                for touch in event.predictedTouches(for: touch)! {
+                    let location = touch.preciseLocation(in: self)
+                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+
+                    touches_predicted(
+                        wsHandle, id, Float(location.x), Float(location.y), Float(force))
+                }
+
+                setNeedsDisplay()
+            case .ended:
+                let id = self.touchId(for: touch)
+                let location = touch.preciseLocation(in: self)
+                let force = self.force(for: touch)
+
+                touches_ended(wsHandle, id, Float(location.x), Float(location.y), Float(force))
+
+                setNeedsDisplay()
+            case .cancelled:
+                let id = self.touchId(for: touch)
+                let location = touch.preciseLocation(in: self)
+                let force = self.force(for: touch)
+
+                touches_cancelled(
+                    wsHandle, id, Float(location.x), Float(location.y), Float(force))
+
+                setNeedsDisplay()
+            case .failed:
+                break
+            default:
+                break
+            }
+        }
+
+        private func touchId(for touch: UITouch) -> UInt64 {
+            let pointer = Unmanaged.passUnretained(touch).toOpaque()
+            return UInt64(UInt(bitPattern: pointer))
+        }
+
+        private func force(for touch: UITouch) -> CGFloat {
+            touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
         }
 
         @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
@@ -1501,73 +1600,6 @@
         override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?)
         {
             setNeedsDisplay(self.frame)
-        }
-
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
-
-                for touch in event!.coalescedTouches(for: touch)! {
-                    let location = touch.preciseLocation(in: self)
-                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                    touches_began(
-                        wsHandle, value, Float(location.x), Float(location.y), Float(force))
-                }
-            }
-
-            self.setNeedsDisplay(self.frame)
-        }
-
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-            for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
-
-                let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-
-                for touch in event!.predictedTouches(for: touch)! {
-                    let location = touch.preciseLocation(in: self)
-                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                    touches_predicted(
-                        wsHandle, value, Float(location.x), Float(location.y), Float(force))
-                }
-
-                touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-
-            }
-
-            self.setNeedsDisplay(self.frame)
-        }
-
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-            for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
-
-                let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-            }
-
-            self.setNeedsDisplay(self.frame)
-        }
-
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-            for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
-
-                let location = touch.preciseLocation(in: self)
-                let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-
-                touches_cancelled(
-                    wsHandle, value, Float(location.x), Float(location.y), Float(force))
-
-            }
-
-            self.setNeedsDisplay(self.frame)
         }
 
         public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
@@ -1836,6 +1868,112 @@
             return CGRect(
                 x: cRect.min_x, y: cRect.min_y, width: cRect.max_x - cRect.min_x,
                 height: cRect.max_y - cRect.min_y)
+        }
+    }
+
+    class WsTouchGestureRecognizer: UILongPressGestureRecognizer {
+        var touch: UITouch?
+        var event: UIEvent?
+
+        convenience init() {
+            self.init(target: nil, action: nil)
+            minimumPressDuration = 0
+            allowableMovement = .infinity
+            name = "WsTouch"
+        }
+
+        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            super.touchesBegan(touches, with: event)
+            if touch == nil {
+                touch = touches.first
+                self.event = event
+            }
+        }
+
+        public override func reset() {
+            super.reset()
+            touch = nil
+            event = nil
+        }
+    }
+
+    /// Like UIPanGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
+    class SvgPanGestureRecognizer: UIPanGestureRecognizer {
+        var wsTouch: WsTouchGestureRecognizer?
+        var start: Date?
+
+        init(target: Any?, action: Selector, wsTouch: WsTouchGestureRecognizer?) {
+            super.init(target: target, action: action)
+            self.wsTouch = wsTouch
+            name = "SvgPan"
+        }
+
+        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            super.touchesBegan(touches, with: event)
+
+            if let firstTouchStart = start {
+                if Date().timeIntervalSince(firstTouchStart) > 0.5 {
+                    // fulfills "times out"
+                    self.state = .cancelled
+                }
+            } else {
+                start = Date()
+            }
+        }
+
+        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+            // fulfills "Like UIPanGestureRecognizer"
+            super.touchesMoved(touches, with: event)
+
+            // fulfills "cancels a WsTouchGestureRecognizer"
+            if self.state == .began || self.state == .changed {
+                wsTouch?.state = .cancelled
+            }
+        }
+
+        public override func reset() {
+            start = nil
+            super.reset()
+        }
+    }
+
+    /// Like UIPinchGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
+    class SvgPinchGestureRecognizer: UIPinchGestureRecognizer {
+        var wsTouch: WsTouchGestureRecognizer?
+        var start: Date?
+
+        init(target: Any?, action: Selector, wsTouch: WsTouchGestureRecognizer?) {
+            super.init(target: target, action: action)
+            self.wsTouch = wsTouch
+            name = "SvgPinch"
+        }
+
+        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            super.touchesBegan(touches, with: event)
+
+            if let firstTouchStart = start {
+                if Date().timeIntervalSince(firstTouchStart) > 0.5 {
+                    // fulfills "times out"
+                    self.state = .cancelled
+                }
+            } else {
+                start = Date()
+            }
+        }
+
+        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+            // fulfills "Like UIPinchGestureRecognizer"
+            super.touchesMoved(touches, with: event)
+
+            // fulfills "cancels a WsTouchGestureRecognizer"
+            if self.state == .began || self.state == .changed {
+                wsTouch?.state = .cancelled
+            }
+        }
+
+        public override func reset() {
+            super.reset()
+            start = nil
         }
     }
 

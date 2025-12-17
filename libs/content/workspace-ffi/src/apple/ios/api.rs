@@ -382,6 +382,8 @@ pub unsafe extern "C" fn canvas_detect_islands_interaction(
     if let Some(tab) = obj.workspace.current_tab() {
         if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
             has_islands_interaction = svg.detect_islands_interaction(egui::pos2(x, y));
+
+            println!("[deadbeef] islands interaction: {has_islands_interaction}");
         }
     }
     has_islands_interaction
