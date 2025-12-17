@@ -185,7 +185,7 @@ class ShareReceiverActivity : AppCompatActivity() {
             withDataSource(model.files)
             withItem<net.lockbook.File, BasicFileItemHolder>(R.layout.move_file_item) {
                 onBind(::BasicFileItemHolder) { _, item ->
-                    name.text = item.name
+                    name.text = item.getPrettyName()
                     icon.setImageResource(R.drawable.ic_baseline_folder_24)
                 }
                 onClick {

@@ -78,7 +78,6 @@ class PendingSharesFragment : Fragment() {
         idsAndFiles.observe(
             viewLifecycleOwner,
             { it ->
-                println("3asba: observing ids and files. it's now: ${it.size}")
                 val sharers = it.values
                     .sortedByDescending { file -> file.lastModified }
                     .flatMap { file ->
@@ -127,8 +126,6 @@ class PendingSharesFragment : Fragment() {
                 val pendingShares = Lb.getPendingShareFiles().toList()
 
                 withContext(Dispatchers.Main) {
-
-                    println("3asba: populating pending shares with ${pendingShares.size}")
 
                     idsAndFiles.value = pendingShares.associateBy { item -> item.id }
                 }
@@ -195,7 +192,7 @@ class TabFragment : Fragment() {
             withDataSource(files)
             withItem<File, SharedFileViewHolder>(R.layout.pending_shares_file_item) {
                 onBind(::SharedFileViewHolder) { _, item ->
-                    name.text = item.name
+                    name.text = item.getPrettyName()
                     if (currentParent == null && isAllTab && item.shares.isNotEmpty()) {
                         owner.text = "by: " + item.shares[0]?.sharedBy
                         owner.visibility = View.VISIBLE
@@ -262,7 +259,6 @@ class TabFragment : Fragment() {
 
         parentFragmentManager.setFragmentResultListener(DeleteSharedDialogFragment.DELETE_SHARE_REQUEST_KEY, this) { _, bundle ->
             val deletedFileId = bundle.getString(DeleteSharedDialogFragment.DELETE_SHARE_BUNDLE_KEY)
-            println("3asba: recieved deleted file id $deletedFileId")
             deletedFileId?.let { id ->
                 pendingSharesFragment?.handleShareRejected(id)
             }
