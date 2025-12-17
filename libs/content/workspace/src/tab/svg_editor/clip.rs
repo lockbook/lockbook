@@ -1,12 +1,10 @@
-use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
-use lb_rs::model::svg::element::{Element, Image, WeakPathPressures};
+use lb_rs::model::svg::element::{Element, Image};
 use resvg::usvg::{NonZeroRect, Transform};
 
 use crate::tab::svg_editor::element::BoundedElement;
-use crate::tab::svg_editor::history::History;
 use crate::tab::{ClipContent, ExtendedInput as _};
 
 use super::element::PromoteBufferWeakImages;
@@ -118,86 +116,83 @@ impl SVGEditor {
                             container.max.y = container.max.y.max(child.max.y);
                         }
 
-                        let paste_pos = r.pointer.hover_pos().unwrap_or(
-                            self.input_ctx
-                                .last_touch
-                                .unwrap_or(ui.available_rect_before_wrap().center()),
-                        );
-                        let delta = paste_pos
-                            - container.center() * self.viewport_settings.master_transform.sx;
+                        let mut new_ids = Vec::with_capacity(pasted_buffer.elements.iter().count());
+                        for (id, el) in pasted_buffer.elements.iter() {
+                            let new_id = Uuid::new_v4();
 
-                        let transform = Transform::identity()
-                            .post_scale(
-                                self.viewport_settings.master_transform.sx,
-                                self.viewport_settings.master_transform.sy,
-                            )
-                            .post_translate(delta.x, delta.y);
+                            let mut transformed_el = el.clone();
 
-                        let new_ids = duplicate_elements(
-                            pasted_buffer.elements,
-                            pasted_buffer.weak_path_pressures,
-                            &mut self.buffer,
-                            &mut self.history,
-                            Some(transform),
-                        );
+                            let paste_pos = r.pointer.hover_pos().unwrap_or(
+                                self.input_ctx
+                                    .last_touch
+                                    .unwrap_or(ui.available_rect_before_wrap().center()),
+                            );
+
+                            let delta = paste_pos
+                                - container.center() * self.viewport_settings.master_transform.sx;
+
+                            let transform = Transform::identity()
+                                .post_scale(
+                                    self.viewport_settings.master_transform.sx,
+                                    self.viewport_settings.master_transform.sy,
+                                )
+                                .post_translate(delta.x, delta.y);
+
+                            match &mut transformed_el {
+                                Element::Path(path) => {
+                                    path.data.apply_transform(u_transform_to_bezier(&transform));
+
+                                    let maybe_pressure = self
+                                        .buffer
+                                        .weak_path_pressures
+                                        .get(id)
+                                        .map(|vec| vec.to_owned());
+
+                                    if let Some(pressures) = maybe_pressure {
+                                        self.buffer.weak_path_pressures.insert(new_id, pressures);
+                                    }
+                                }
+                                Element::Image(image) => {
+                                    if let Some(new_vbox) = image.view_box.transform(transform) {
+                                        image.view_box = new_vbox;
+                                    }
+                                }
+                                Element::Text(_) => todo!(),
+                            }
+
+                            self.buffer
+                                .elements
+                                .insert_before(0, new_id, transformed_el);
+                            new_ids.push(new_id);
+                        }
+
+                        //todo: support images
+
+                        self.history.save(super::Event::Insert(
+                            pasted_buffer
+                                .elements
+                                .iter()
+                                .enumerate()
+                                .map(|(i, _)| InsertElement {
+                                    id: *new_ids.get(i).unwrap_or(&Uuid::new_v4()),
+                                })
+                                .collect(),
+                        ));
 
                         self.toolbar.active_tool = Tool::Selection;
 
-                        self.toolbar.selection.selected_elements = new_ids
+                        self.toolbar.selection.selected_elements = pasted_buffer
+                            .elements
                             .iter()
-                            .map(|&id| SelectedElement { id, transform: Default::default() })
+                            .enumerate()
+                            .map(|(i, _)| SelectedElement {
+                                id: *new_ids.get(i).unwrap(),
+                                transform: Default::default(),
+                            })
                             .collect();
                     }
                 }
             }
         });
     }
-}
-
-pub fn duplicate_elements(
-    src_elements: IndexMap<Uuid, Element>, src_pressure_map: WeakPathPressures,
-    target: &mut Buffer, history: &mut History, maybe_transform: Option<Transform>,
-) -> Vec<Uuid> {
-    let mut new_ids = Vec::with_capacity(src_elements.iter().count());
-    for (id, el) in src_elements.iter() {
-        let new_id = Uuid::new_v4();
-        let mut new_el = el.clone();
-
-        if let Element::Path(_) = el {
-            let maybe_pressure = src_pressure_map.get(id).map(|vec| vec.to_owned());
-            if let Some(pressures) = maybe_pressure {
-                target.weak_path_pressures.insert(new_id, pressures);
-            }
-        }
-
-        if let Some(transform) = maybe_transform {
-            match &mut new_el {
-                Element::Path(path) => {
-                    path.data.apply_transform(u_transform_to_bezier(&transform));
-                    path.diff_state = DiffState::new();
-                }
-                Element::Image(image) => {
-                    if let Some(new_vbox) = image.view_box.transform(transform) {
-                        image.view_box = new_vbox;
-                    };
-                    image.diff_state = DiffState::new();
-                }
-                Element::Text(_) => {}
-            }
-        }
-
-        target.elements.insert_before(0, new_id, new_el);
-
-        new_ids.push(new_id);
-    }
-
-    history.save(super::Event::Insert(
-        src_elements
-            .iter()
-            .enumerate()
-            .map(|(i, _)| InsertElement { id: *new_ids.get(i).unwrap_or(&Uuid::new_v4()) })
-            .collect(),
-    ));
-
-    new_ids
 }
