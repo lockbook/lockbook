@@ -1,0 +1,13 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto" >
+
+    <item
+        android:id="@+id/accept_share"
+        android:title="@string/accept_pending_share"
+        app:showAsAction="always"/>
+    <item
+        android:id="@+id/refuse_share"
+        android:title="@string/reject_pending_share"
+        app:showAsAction="always"/>
+
+</menu>

@@ -23,13 +23,27 @@
             app:navGraph="@navigation/files_navigation"
             app:defaultNavHost="true" />
 
+
+
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/detail_container"
             android:layout_width="590dp"
             android:layout_height="match_parent"
             android:layout_weight="1" />
 
+
     </androidx.slidingpanelayout.widget.SlidingPaneLayout>
+
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottom_navigation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:menu="@menu/menu_navbar"
+
+        >
+    </com.google.android.material.bottomnavigation.BottomNavigationView>
 
     <FrameLayout
         android:id="@+id/progress_overlay"
@@ -39,6 +53,7 @@
         android:clickable="true"
         android:visibility="gone"
         android:background="?attr/colorSurface"
+
         tools:ignore="KeyboardInaccessibleWidget">
 
         <com.google.android.material.progressindicator.CircularProgressIndicator

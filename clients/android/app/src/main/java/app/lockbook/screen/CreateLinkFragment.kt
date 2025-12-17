@@ -5,20 +5,21 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
 import app.lockbook.util.BasicFileItemHolder
-import app.lockbook.util.ExtensionHelper
+import app.lockbook.util.getIconResource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import net.lockbook.File
-import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 import java.lang.ref.WeakReference
+import kotlin.getValue
 
 class CreateLinkFragment : Fragment() {
     private val model: CreateLinkViewModel by viewModels()
@@ -28,6 +29,8 @@ class CreateLinkFragment : Fragment() {
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()), view)
     }
+
+    private val activityModel: StateViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -40,32 +43,15 @@ class CreateLinkFragment : Fragment() {
             model.refreshOverParent()
         }
 
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+
         binding.createLinkFiles.setup {
             withDataSource(model.files)
             withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {
                 onBind(::BasicFileItemHolder) { _, item ->
                     name.text = item.name
-                    val extensionHelper = ExtensionHelper(item.name)
 
-                    val imageResource = when {
-                        item.type == FileType.Document && extensionHelper.isDrawing -> {
-                            R.drawable.ic_outline_draw_24
-                        }
-                        item.type == FileType.Document && extensionHelper.isImage -> {
-                            R.drawable.ic_outline_image_24
-                        }
-                        item.type == FileType.Document && extensionHelper.isPdf -> {
-                            R.drawable.ic_outline_picture_as_pdf_24
-                        }
-                        item.type == FileType.Document -> {
-                            R.drawable.ic_outline_insert_drive_file_24
-                        }
-                        else -> {
-                            R.drawable.ic_baseline_folder_24
-                        }
-                    }
-
-                    icon.setImageResource(imageResource)
+                    icon.setImageResource(item.getIconResource())
                 }
                 onClick {
                     model.onItemClick(item)
@@ -82,14 +68,14 @@ class CreateLinkFragment : Fragment() {
         model.closeFragment.observe(
             viewLifecycleOwner
         ) {
-            findNavController().popBackStack()
+            popBackStack()
         }
 
         model.notifyError.observe(
             viewLifecycleOwner
         ) { error ->
             alertModel.notifyError(error) {
-                findNavController().popBackStack()
+                popBackStack()
             }
         }
 
@@ -105,7 +91,7 @@ class CreateLinkFragment : Fragment() {
                 try {
                     Lb.createLink(name, file.id, model.currentParent.id)
                     alertModel.notifyWithToast(getString(R.string.created_link))
-                    findNavController().popBackStack()
+                    popBackStack()
                 } catch (err: LbError) {
                     alertModel.notifyError(err)
                 }
@@ -115,7 +101,7 @@ class CreateLinkFragment : Fragment() {
         }
 
         binding.createLinkCancel.setOnClickListener {
-            findNavController().popBackStack()
+            popBackStack()
         }
 
         return binding.root
@@ -123,10 +109,15 @@ class CreateLinkFragment : Fragment() {
 
     fun onBackPressed() {
         if (model.currentParent.isRoot()) {
-            findNavController().popBackStack()
+            popBackStack()
         } else {
             model.refreshOverParent()
         }
+    }
+
+    private fun popBackStack() {
+        findNavController().popBackStack()
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
     }
 
     companion object {

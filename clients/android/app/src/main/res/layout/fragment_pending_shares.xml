@@ -1,54 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
-
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBarLayout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/shared_files_toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:elevation="0dp"
-            app:layout_scrollFlags="scroll|enterAlways|snap"
-            app:menu="@menu/menu_shared_files"
-            app:navigationIcon="@drawable/ic_baseline_arrow_back_24"
-            app:title="@string/pending_shares" />
-
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/shared_files"
+    android:layout_height="match_parent">
+    <LinearLayout
+        android:id="@+id/tabs_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:orientation="vertical"
+        >
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:tabMode="scrollable"
+            android:background="?attr/colorSurfaceContainerLow"
+            android:paddingTop="?attr/actionBarSize">
+        </com.google.android.material.tabs.TabLayout>
+        
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/view_pager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"/>
 
-    <LinearLayout
-        android:id="@+id/shared_files_none"
+    </LinearLayout>
+
+
+    <TextView
+        android:id="@+id/pending_shares_empty_state"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone">
+        android:drawablePadding="16dp"
+        android:gravity="center_horizontal"
+        android:maxWidth="280dp"
+        android:text="@string/pending_shares_empty_message"
+        android:textAppearance="?attr/textAppearanceBodyLarge"
+        android:visibility="gone"
+        app:drawableTint="?attr/colorOnSurfaceVariant"
+        app:drawableTopCompat="@drawable/ic_baseline_inbox_24"
+        tools:visibility="visible"
+         />
 
-        <ImageView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="@string/empty_folder"
-            android:src="@drawable/ic_outline_folder_shared_200" />
 
-        <com.google.android.material.textview.MaterialTextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:gravity="center"
-            android:text="@string/no_shared_files"
-            app:layout_anchorGravity="center" />
-
-    </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

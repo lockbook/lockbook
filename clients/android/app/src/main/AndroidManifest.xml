@@ -39,7 +39,6 @@
         <activity android:name=".screen.MainScreenActivity" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.DebugInfoActivity" />
-        <activity android:name=".screen.SharesActivity" />
         <activity android:name=".screen.UpgradeAccountActivity" />
         <provider
             android:name="androidx.core.content.FileProvider"

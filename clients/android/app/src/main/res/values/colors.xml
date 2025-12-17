@@ -31,5 +31,4 @@
 <!--  <color name="md_theme_outlineVariant">@color/md_theme_light_outlineVariant</color>-->
 <!--  <color name="md_theme_scrim">@color/md_theme_light_scrim</color>-->
 
-  <color name="selectedMarkdownButtonBackground">@color/selectedMarkdownButtonBackgroundLight</color>
 </resources>

@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="20dp"
-    android:layout_marginTop="20dp"
+    android:layout_marginVertical="20dp"
     android:fitsSystemWindows="true"
     android:orientation="vertical">
 
@@ -49,32 +49,6 @@
         android:text="@string/default_value"
         android:freezesText="true"
         android:textAppearance="?attr/textAppearanceLabelMedium" />
-
-    <LinearLayout
-        android:id="@+id/launch_pending_shares"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:clickable="true"
-        android:background="?android:attr/selectableItemBackground"
-        android:focusable="true"
-        android:layout_marginTop="30dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
-
-        <ImageView
-            android:id="@+id/pending_shares_icon"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:src="@drawable/ic_outline_folder_shared_24"
-            android:contentDescription="@string/pending_shares" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/pending_shares"
-            android:paddingHorizontal="13dp" />
-
-    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/set_theme"

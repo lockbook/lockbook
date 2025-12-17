@@ -62,6 +62,4 @@
 <!--    <color name="md_theme_dark_surfaceTint">#ACC7FF</color>-->
 <!--    <color name="md_theme_dark_outlineVariant">#44474F</color>-->
 <!--    <color name="md_theme_dark_scrim">#000000</color>-->
-    <color name="selectedMarkdownButtonBackgroundLight">#1B000000</color>
-    <color name="selectedMarkdownButtonBackgroundDark">#1CFFFFFF</color>
 </resources>

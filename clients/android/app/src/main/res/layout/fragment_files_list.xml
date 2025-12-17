@@ -10,8 +10,7 @@
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/fragment_list_files"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fitsSystemWindows="true">
+        android:layout_height="match_parent">
 
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
@@ -54,23 +53,6 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
-        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-            android:id="@+id/list_files_refresh"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:animateLayoutChanges="true"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/files_list"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scrollbars="vertical"
-                android:paddingBottom="50dp"
-                android:clipToPadding="false"/>
-
-        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
-
         <LinearLayout
             android:id="@+id/files_empty_folder"
             android:layout_width="wrap_content"
@@ -94,61 +76,58 @@
                 app:layout_anchorGravity="center" />
 
         </LinearLayout>
-
-        <com.leinardi.android.speeddial.SpeedDialOverlayLayout
-            android:id="@+id/fab_overlay"
+        <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+            android:id="@+id/list_files_refresh"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:layout_gravity="fill"
-            android:translationZ="-5dp"
-            android:fitsSystemWindows="true" />
-
-        <com.leinardi.android.speeddial.SpeedDialView
-            android:id="@+id/fab_speed_dial"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom|end"
-            android:translationZ="-4dp"
-            app:sdExpansionMode="top"
-            app:sdMainFabAnimationRotateAngle="90"
-            app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"
-            app:sdMainFabClosedIconColor="?attr/colorOnPrimary"
-            app:sdMainFabClosedSrc="@drawable/ic_baseline_add_24"
-            app:sdMainFabOpenedBackgroundColor="?attr/colorSecondaryContainer"
-            app:sdMainFabOpenedIconColor="?attr/colorOnSecondaryContainer"
-            app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24"
-            app:sdOverlayLayout="@id/fab_overlay" />
-
+            android:animateLayoutChanges="true"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/files_list"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="true"
+                android:scrollbars="vertical" />
+        </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
         <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="50dp"
-            android:layout_gravity="bottom|start"
-            android:orientation="vertical"
-            android:background="?attr/colorPrimaryContainer">
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical">
 
-            <View
+            <com.leinardi.android.speeddial.SpeedDialOverlayLayout
+                android:id="@+id/fab_overlay"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="@color/selectedMarkdownButtonBackground"/>
+                android:layout_height="match_parent"
+                android:layout_gravity="top"
+                android:translationZ="-5dp" />
 
-            <TextView
-                android:id="@+id/workspace_msg"
-                android:layout_width="match_parent"
+            <com.leinardi.android.speeddial.SpeedDialView
+                android:id="@+id/fab_speed_dial"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="15dp"
-                android:layout_marginTop="13dp"
-                android:layout_marginEnd="90dp"
-                android:textColor="?attr/colorOnPrimaryContainer"
-                android:textStyle="bold"/>
+                android:layout_gravity="bottom|end"
+                android:translationZ="-4dp"
+                app:sdExpansionMode="top"
+                app:sdMainFabAnimationRotateAngle="90"
+                app:sdMainFabClosedBackgroundColor="?attr/colorPrimary"
+                app:sdMainFabClosedIconColor="?attr/colorOnPrimary"
+                app:sdMainFabClosedSrc="@drawable/ic_baseline_add_24"
+                app:sdMainFabOpenedBackgroundColor="?attr/colorSecondaryContainer"
+                app:sdMainFabOpenedIconColor="?attr/colorOnSecondaryContainer"
+                app:sdMainFabOpenedSrc="@drawable/ic_baseline_add_24"
+                app:sdOverlayLayout="@id/fab_overlay" />
 
+            <include
+                android:id="@+id/out_of_space"
+                layout="@layout/out_of_space"
+                android:visibility="gone"/>
         </LinearLayout>
 
-        <include
-            android:id="@+id/out_of_space"
-            layout="@layout/out_of_space"
-            android:visibility="gone"/>
-
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+
 
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navigation_view"

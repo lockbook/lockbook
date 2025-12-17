@@ -40,6 +40,7 @@ public class Lb {
     public static native String[] getLocalChanges() throws LbError;
     public static native void sync(SyncProgress syncProgress) throws LbError;
     public static native File[] getPendingShares() throws LbError;
+    public static native File[] getPendingShareFiles() throws LbError;
     public static native void deletePendingShare(String id) throws LbError;
 
     public static native void upgradeAccountGooglePlay(String purchaseToken, String accountId) throws LbError;
