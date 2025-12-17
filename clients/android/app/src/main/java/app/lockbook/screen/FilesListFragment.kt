@@ -7,11 +7,9 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.*
-import android.widget.ImageView
 import android.widget.LinearLayout
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -136,7 +134,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
-
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner
         ) { uiUpdates ->
@@ -218,16 +215,14 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
             model.fileOpened(id)
-
-            val file = Lb.getFileById(id)
-            if (file != null) {
-                val parent = Lb.getFileById(file.parent)
-                if (!parent.isRoot) {
-                    model.enterFolder(parent)
+            model.fileModel.idsAndFiles[id]?.let { child ->
+                model.fileModel.idsAndFiles[child.parent]?.let { parent ->
+                    if (!parent.isRoot) {
+                        model.enterFolder(parent)
+                    }
                 }
             }
         }
-
 
         return binding.root
     }
@@ -242,6 +237,12 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
+            binding.fabSpeedDial.setPadding(
+                recyclerView.paddingLeft,
+                recyclerView.paddingTop,
+                recyclerView.paddingRight,
+                bottomNavHeight
+            )
             recyclerView.setPadding(
                 recyclerView.paddingLeft,
                 recyclerView.paddingTop,
@@ -249,7 +250,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 bottomNavHeight
             )
         }
-
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
@@ -285,10 +285,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.navigationView.getHeaderView(0).let { header ->
-            header.findViewById<LinearLayout>(R.id.launch_pending_shares).setOnClickListener {
-                activityModel.launchActivityScreen(ActivityScreen.Shares)
-                binding.drawerLayout.close()
-            }
 
             header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
                 var selected = ThemeMode.getSavedThemeIndex(requireContext())
@@ -390,16 +386,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         description.visibility = View.GONE
                     }
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
-
-                    val iconResource = when {
-                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
-                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
-                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
-                        else -> R.drawable.ic_outline_insert_drive_file_24
-                    }
-
-                    icon.setImageResource(iconResource)
+                    icon.setImageResource(item.fileMetadata.getIconResource())
 
                     when {
                         isSelected() -> {
@@ -472,7 +459,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         else -> R.drawable.ic_outline_insert_drive_file_24
                     }
 
-                    icon.setImageResource(iconResource)
+                    icon.setImageResource(item.fileMetadata.getIconResource())
 
                     itemView.setOnLongClickListener { view ->
                         val popup = PopupMenu(view.context, view)
@@ -573,16 +560,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                 uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
                     header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
-                }
-
-                uiUpdates.hasPendingShares?.let { hasPendingShares ->
-                    header.findViewById<ImageView>(R.id.pending_shares_icon).setImageResource(
-                        if (hasPendingShares) {
-                            R.drawable.ic_outline_folder_shared_notif_24
-                        } else {
-                            R.drawable.ic_outline_folder_shared_24
-                        }
-                    )
                 }
             }
             is UpdateFilesUI.ToggleSuggestedDocsVisibility -> {

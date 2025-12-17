@@ -76,7 +76,6 @@
 
     <string name="rename_file_rename">Rename</string>
     <string name="create">Create</string>
-    <string name="fab_info">Create files and folders</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
@@ -242,11 +241,9 @@
     <string name="pending_shares">Pending Shares</string>
     <string name="set_theme">Set theme</string>
     <string name="shared_file_icon">Shared file icon</string>
-    <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
-    <string name="no_shared_files">No pending shares.</string>
     <string name="export">Export</string>
     <string name="write_access">Write access:</string>
     <string name="read_access">Read access:</string>
@@ -258,12 +255,12 @@
     <string name="access_mode">Access Mode</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
-    <string name="no_pending_shares">You have no pending shares!</string>
 
     <string name="no_username">Please enter a username.</string>
     <string name="no_access_mode">Please choose an access mode.</string>
-    <string name="reject_pending_share">Reject pending share</string>
+    <string name="open_pending_share_menu">Open pending share menu</string>
     <string name="accept_pending_share">Accept pending share</string>
+    <string name="reject_pending_share">Reject pending share</string>
     <string name="new_folder">New Folder</string>
     <string name="import_rcv_share_btn">Import</string>
     <string name="home_navbar_item">Home</string>

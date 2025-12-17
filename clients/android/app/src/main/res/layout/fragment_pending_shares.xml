@@ -16,11 +16,9 @@
             android:layout_height="wrap_content"
             app:tabMode="scrollable"
             android:background="?attr/colorSurfaceContainerLow"
-            android:paddingTop="50dp">
-            <!-- todo set the padding top depending on the screen inset -->
-
+            android:paddingTop="?attr/actionBarSize">
         </com.google.android.material.tabs.TabLayout>
-
+        
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/view_pager"
             android:layout_width="match_parent"

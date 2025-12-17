@@ -12,8 +12,8 @@ import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.view.doOnPreDraw
+import androidx.core.view.isVisible
 import androidx.fragment.app.*
-import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
@@ -27,7 +27,6 @@ import com.google.android.material.bottomnavigation.BottomNavigationView
 import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
-import androidx.core.view.isVisible
 
 class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
     private var _binding: ActivityMainScreenBinding? = null
@@ -131,9 +130,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
                     startActivity(intent)
                 }
-                ActivityScreen.Shares -> {
-                    onShare.launch(Intent(baseContext, SharesActivity::class.java))
-                }
                 null -> {}
             }
         }
@@ -213,9 +209,11 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
             if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
                 slidingPaneLayout.openPane()
+                println("3asba: opening pane")
             }
             if (binding.slidingPaneLayout.isSlideable && binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
+                println("3asba: closing pane")
             }
         }
 
@@ -229,7 +227,8 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                         model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
                     } else if (maybeGetSearchFilesFragment() != null) {
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-                    } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
+                    } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {
+                        isEnabled = false // Disable this callback to allow normal back behavior
                         onBackPressedDispatcher.onBackPressed()
                     }
                 }
@@ -254,11 +253,17 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
+                    binding.bottomNavigation.visibility = View.GONE
                 } else {
                     if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                        binding.bottomNavigation.visibility = View.VISIBLE
                     }
                 }
+            }
+            is UpdateMainScreenUI.CloseWorkspaceDoc -> {
+                binding.bottomNavigation.visibility = View.VISIBLE
+                workspaceModel._closeDocument.value = update.id
             }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
@@ -281,6 +286,13 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
+                binding.bottomNavigation.visibility = if (binding.bottomNavigation.isVisible) {
+                    View.GONE
+                } else {
+                    View.VISIBLE
+                }
+            }
             UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
@@ -323,7 +335,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
     }
-
 
     override fun doWhenBottomNavMeasured(action: (height: Int) -> Unit) {
         val bottomNav = binding.bottomNavigation

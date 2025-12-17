@@ -4,6 +4,8 @@ import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatDialogFragment
+import androidx.core.os.bundleOf
+import androidx.fragment.app.setFragmentResult
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -24,6 +26,9 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
         const val DELETE_SHARED_DIALOG_FRAGMENT = "DeleteSharedDialogFragment"
 
         const val FILES_ID_KEY = "files_key"
+
+        const val DELETE_SHARE_REQUEST_KEY = "delete_share_request_key"
+        const val DELETE_SHARE_BUNDLE_KEY = "delete_share_bundle_key"
 
         fun newInstance(files: ArrayList<File>): DeleteSharedDialogFragment {
             val dialog = DeleteSharedDialogFragment()
@@ -64,6 +69,7 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
             for (file in files) {
                 try {
                     Lb.deletePendingShare(file.id)
+                    setFragmentResult(DELETE_SHARE_REQUEST_KEY, bundleOf(DELETE_SHARE_BUNDLE_KEY to file.id))
                 } catch (err: LbError) {
                     alertModel.notifyError(err)
                 }

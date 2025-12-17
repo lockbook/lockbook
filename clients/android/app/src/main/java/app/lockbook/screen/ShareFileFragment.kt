@@ -39,6 +39,8 @@ class ShareFileFragment : Fragment() {
 
         val file = (activityModel.transientScreen as TransientScreen.ShareFile).file
 
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+
         binding.materialToolbar.subtitle = file.name
         populateShares(file)
 
@@ -47,6 +49,11 @@ class ShareFileFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
     }
 
     private fun populateShares(file: File) {

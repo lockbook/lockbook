@@ -34,6 +34,7 @@ import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
+import app.lockbook.model.UpdateMainScreenUI
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.WorkspaceView
@@ -128,7 +129,7 @@ class WorkspaceFragment : Fragment() {
                     val currentDoc = model.selectedFile.value
 
                     if (currentDoc != null) {
-                        workspaceWrapper.workspaceView.closeDoc(currentDoc)
+                        activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspaceDoc(currentDoc))
                     }
                 }
             } else {

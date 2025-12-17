@@ -7,6 +7,7 @@ import android.widget.TextView
 import androidx.constraintlayout.widget.ConstraintLayout
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
+import com.google.android.material.button.MaterialButton
 import net.lockbook.File
 import net.lockbook.File.FileType
 
@@ -80,6 +81,10 @@ class SharedFileViewHolder(itemView: View) : ViewHolder(itemView) {
     val name: TextView = itemView.findViewById(R.id.shared_file_name)
     val owner: TextView = itemView.findViewById(R.id.shared_file_owner)
     val icon: ImageView = itemView.findViewById(R.id.shared_file_icon)
-    val addShared: ImageView = itemView.findViewById(R.id.add_shared)
-    val deleteShared: ImageView = itemView.findViewById(R.id.delete_shared)
+
+    val openMenu: MaterialButton = itemView.findViewById(R.id.open_menu)
+}
+
+class SeparatorViewHolder(itemView: View) : ViewHolder(itemView) {
+    val date: TextView = itemView.findViewById(R.id.separator_date)
 }

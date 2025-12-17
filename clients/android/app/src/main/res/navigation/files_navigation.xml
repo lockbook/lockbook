@@ -21,5 +21,16 @@
 
     <fragment android:id="@+id/pendingSharesFragment"
         android:name="app.lockbook.screen.PendingSharesFragment"
-        android:label="PendingSharesFragment" />
+        android:label="PendingSharesFragment">
+        <action
+            android:id="@+id/action_create_link"
+            app:destination="@id/createLinkFragment"
+            app:enterAnim="@anim/nav_default_pop_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/createLinkFragment"
+        android:name="app.lockbook.screen.CreateLinkFragment"
+        android:label="CreateLinkFragment" />
 </navigation>
