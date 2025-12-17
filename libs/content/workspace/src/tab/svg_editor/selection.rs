@@ -7,7 +7,6 @@ use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::get_pen_colors;
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
-use tracing::info;
 
 use super::element::BoundedElement;
 use super::util::transform_rect;
@@ -492,11 +491,11 @@ impl Selection {
             SelectionEvent::StartLaso(build_payload) => {
                 if build_payload.modifiers.alt {
                     let iter = self.selected_elements.iter().filter_map(|s_el| {
-                        if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                            Some((s_el.id, el.clone()))
-                        } else {
-                            None
-                        }
+                        selection_ctx
+                            .buffer
+                            .elements
+                            .get(&s_el.id)
+                            .map(|el| (s_el.id, el.clone()))
                     });
 
                     let elements = IndexMap::from_iter(iter);
@@ -575,7 +574,7 @@ impl Selection {
             }
             SelectionEvent::Copy => return Some(SelectionPropogatedEvent::Copy),
         }
-        return None;
+        None
     }
 
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
