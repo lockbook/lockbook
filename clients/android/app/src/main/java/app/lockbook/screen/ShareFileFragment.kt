@@ -41,7 +41,7 @@ class ShareFileFragment : Fragment() {
 
         activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
 
-        binding.materialToolbar.subtitle = file.name
+        binding.materialToolbar.subtitle = file.getPrettyName()
         populateShares(file)
 
         binding.materialToolbar.setNavigationOnClickListener {

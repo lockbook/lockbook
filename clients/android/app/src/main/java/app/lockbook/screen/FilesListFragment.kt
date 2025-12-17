@@ -24,6 +24,7 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
+import app.lockbook.model.MoveFileViewModel.Companion.PARENT_ID
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
@@ -378,7 +379,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
-                    name.text = item.fileMetadata.name
+                    name.text = item.fileMetadata.getPrettyName()
                     if (item.fileMetadata.lastModified != 0L) {
                         description.visibility = View.VISIBLE
                         description.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
@@ -446,7 +447,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
                 onBind(::SuggestedDocsItemViewHolder) { i, item ->
-                    name.text = item.fileMetadata.name
+                    name.text = item.fileMetadata.getPrettyName()
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
 
@@ -717,4 +718,12 @@ sealed class UpdateFilesUI {
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
+}
+
+fun File.getPrettyName(): String {
+    return if (this.type == FileType.Document && this.id != PARENT_ID) {
+        this.name.substringBeforeLast('.')
+    } else {
+        this.name
+    }
 }
