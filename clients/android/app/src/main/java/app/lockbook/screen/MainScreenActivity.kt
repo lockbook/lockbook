@@ -6,11 +6,15 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.doOnPreDraw
+import androidx.core.view.isVisible
 import androidx.fragment.app.*
+import androidx.navigation.ui.setupWithNavController
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -19,11 +23,12 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import com.google.android.material.bottomnavigation.BottomNavigationView
 import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
-class MainScreenActivity : AppCompatActivity() {
+class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
     private var _binding: ActivityMainScreenBinding? = null
     val binding get() = _binding!!
     private val slidingPaneLayout get() = binding.slidingPaneLayout
@@ -72,6 +77,7 @@ class MainScreenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        enableEdgeToEdge()
 
         ThemeMode.affirmThemeModeFromSaved(baseContext)
 
@@ -123,9 +129,6 @@ class MainScreenActivity : AppCompatActivity() {
                     }
 
                     startActivity(intent)
-                }
-                ActivityScreen.Shares -> {
-                    onShare.launch(Intent(baseContext, SharesActivity::class.java))
                 }
                 null -> {}
             }
@@ -206,9 +209,11 @@ class MainScreenActivity : AppCompatActivity() {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
             if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
                 slidingPaneLayout.openPane()
+                println("3asba: opening pane")
             }
             if (binding.slidingPaneLayout.isSlideable && binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
+                println("3asba: closing pane")
             }
         }
 
@@ -222,12 +227,17 @@ class MainScreenActivity : AppCompatActivity() {
                         model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
                     } else if (maybeGetSearchFilesFragment() != null) {
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-                    } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
+                    } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {
+                        isEnabled = false // Disable this callback to allow normal back behavior
                         onBackPressedDispatcher.onBackPressed()
                     }
                 }
             }
         )
+
+        val navController = navHost().navController
+        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
+        bottomNav.setupWithNavController(navController)
     }
 
     override fun onResume() {
@@ -243,11 +253,17 @@ class MainScreenActivity : AppCompatActivity() {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
+                    binding.bottomNavigation.visibility = View.GONE
                 } else {
                     if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                        binding.bottomNavigation.visibility = View.VISIBLE
                     }
                 }
+            }
+            is UpdateMainScreenUI.CloseWorkspaceDoc -> {
+                binding.bottomNavigation.visibility = View.VISIBLE
+                workspaceModel._closeDocument.value = update.id
             }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
@@ -270,6 +286,13 @@ class MainScreenActivity : AppCompatActivity() {
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
+                binding.bottomNavigation.visibility = if (binding.bottomNavigation.isVisible) {
+                    View.GONE
+                } else {
+                    View.VISIBLE
+                }
+            }
             UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
@@ -312,4 +335,24 @@ class MainScreenActivity : AppCompatActivity() {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
     }
+
+    override fun doWhenBottomNavMeasured(action: (height: Int) -> Unit) {
+        val bottomNav = binding.bottomNavigation
+        val height = if (bottomNav.isVisible) bottomNav.height else 0
+
+        if (height > 0) {
+            // If the view has already been measured, provide the height immediately.
+            action(height)
+        } else {
+            // Otherwise, wait for the next pre-draw pass to get the height.
+            bottomNav.doOnPreDraw { view ->
+                val measuredHeight = if (bottomNav.isVisible) view.height else 0
+                action(measuredHeight)
+            }
+        }
+    }
+}
+
+interface BottomNavProvider {
+    fun doWhenBottomNavMeasured(action: (height: Int) -> Unit)
 }

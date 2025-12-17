@@ -71,7 +71,6 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
 sealed class ActivityScreen {
     data class Settings(val scrollToPreference: Int? = null) : ActivityScreen()
-    object Shares : ActivityScreen()
 }
 
 sealed class TransientScreen {
@@ -86,6 +85,9 @@ sealed class TransientScreen {
 
 sealed class UpdateMainScreenUI {
     data class OpenFile(val id: String?) : UpdateMainScreenUI()
+
+    data class CloseWorkspaceDoc(val id: String?) : UpdateMainScreenUI()
+
     data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
@@ -93,5 +95,6 @@ sealed class UpdateMainScreenUI {
     object ShowSearch : UpdateMainScreenUI()
     object ShowFiles : UpdateMainScreenUI()
     object PopBackstackToWorkspace : UpdateMainScreenUI()
+    object ToggleBottomViewNavigation : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
 }

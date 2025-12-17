@@ -7,7 +7,7 @@
     android:clickable="true"
     android:focusable="true"
     android:paddingStart="?android:listPreferredItemPaddingStart"
-    android:paddingEnd="?android:listPreferredItemPaddingEnd"
+    android:paddingEnd="0dp"
     android:gravity="center_vertical"
     android:orientation="horizontal">
 
@@ -26,7 +26,7 @@
         android:gravity="center_vertical"
         android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/add_shared"
+        app:layout_constraintEnd_toStartOf="@+id/open_menu"
         app:layout_constraintStart_toEndOf="@+id/shared_file_icon"
         android:layout_marginHorizontal="10dp"
         app:layout_constraintTop_toTopOf="parent">
@@ -49,25 +49,14 @@
 
     </LinearLayout>
 
-    <ImageView
-        android:id="@+id/add_shared"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:src="@drawable/ic_outline_note_add_24"
-        android:layout_marginEnd="20dp"
-        android:contentDescription="@string/accept_pending_share"
-        android:background="?android:selectableItemBackgroundBorderless"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/delete_shared"
-        app:layout_constraintTop_toTopOf="parent" />
 
-    <ImageView
-        android:id="@+id/delete_shared"
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/open_menu"
+        style="@style/Widget.Material3.Button.IconButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:src="@drawable/ic_outline_delete_24"
-        android:background="?android:selectableItemBackgroundBorderless"
-        android:contentDescription="@string/reject_pending_share"
+        app:icon="@drawable/ic_baseline_more_vert_24"
+        android:contentDescription="@string/open_pending_share_menu"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
