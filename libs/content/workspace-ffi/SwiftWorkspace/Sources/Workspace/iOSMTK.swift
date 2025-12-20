@@ -629,6 +629,13 @@
             let res = has_text(wsHandle)
             return res
         }
+        
+        public var isEditable: Bool {
+            get {
+                is_current_tab_editable(wsHandle)
+            }
+        }
+        
 
         public func deleteBackward() {
             if !hasText {
