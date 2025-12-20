@@ -875,6 +875,18 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn is_current_tab_editable(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace
+        .current_tab()
+        .map(|tab| !tab.read_only)
+        .unwrap_or(true)
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
