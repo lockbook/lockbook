@@ -168,11 +168,9 @@ struct DrawerView<Main: View, Side: View>: View {
         velocity: CGFloat,
         sidebarWidth: CGFloat
     ) {
-        let absoluteVelocity = abs(velocity)
-
         let isClosedEnough =
             sidebarOffset < (sidebarWidth * Constants.successThreshold)
-        let isFastEnough = absoluteVelocity > Constants.velocityActivationX
+        let isFastEnough = -velocity > Constants.velocityActivationX
 
         if isClosedEnough || isFastEnough {
             homeState.sidebarState = .closed
@@ -212,7 +210,7 @@ private struct Constants {
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
     static let defaultSidebarWidthLandscape: CGFloat = 500
-    static let animationResponse: Double = 0.5
+    static let animationResponse: Double = 0.3
     static let animationDampingFraction: Double = 0.8
     static let animationBlendDuration: Double = 0
     static let blurDenominatorFactor: CGFloat = 0.50
