@@ -14,10 +14,10 @@ struct CustomTabView<TabContent: View>: View {
     
     var body: some View {
         Group {
-            tabContent(selectedTab)
+            tabItem
         }
         .toolbar {
-            ToolbarItemGroup(
+            ToolbarItem(
                 placement: toolbarItemPlacement,
                 content: {
                     TabPicker(
@@ -25,6 +25,26 @@ struct CustomTabView<TabContent: View>: View {
                     )
                 }
             )
+        }
+    }
+    
+    // To persist state on macOS, I ensure every view is rendered, but unselected
+    // views are hidden. This doesn't work well on iOS since navigation titles don't
+    // handle this behavior well
+    var tabItem: some View {
+        Group {
+            #if os(iOS)
+            tabContent(selectedTab)
+            #else
+            ZStack {
+                ForEach(TabType.allCases) { tabVariant in
+                    tabContent(tabVariant)
+                        .opacity(selectedTab == tabVariant ? 1 : 0)
+                        .allowsHitTesting(selectedTab == tabVariant)
+                        .accessibilityHidden(selectedTab != tabVariant)
+                }
+            }
+            #endif
         }
     }
 }
