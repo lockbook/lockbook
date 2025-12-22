@@ -526,6 +526,7 @@ pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
+    android_log(&mut env, "Lockbook", "info", "sync() called");
 
     let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if jsync_progress.is_null() {
         None
@@ -535,6 +536,7 @@ pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
 
         Some(Box::new(move |sync_progress: SyncProgress| {
             let mut env = jvm.attach_current_thread().unwrap();
+            android_log(&mut env, "Lockbook", "info", "attached to env");
 
             let msg = jni_string(&mut env, sync_progress.msg);
             let args = [
@@ -1100,4 +1102,26 @@ pub extern "system" fn Java_net_lockbook_Lb_deleteAccount<'local>(
     if let Err(err) = lb.delete_account() {
         throw_err(&mut env, err);
     }
+}
+
+// Helper function to log to Android's Log class
+fn android_log(env: &mut JNIEnv, tag: &str, level: &str, msg: &str) {
+    let log_class = env.find_class("android/util/Log").unwrap();
+    let tag_jstring = env.new_string(tag).unwrap();
+    let msg_jstring = env.new_string(msg).unwrap();
+
+    let method = match level {
+        "d" | "debug" => "d",
+        "i" | "info" => "i",
+        "w" | "warn" => "w",
+        "e" | "error" => "e",
+        _ => "d",
+    };
+
+    let _ = env.call_static_method(
+        log_class,
+        method,
+        "(Ljava/lang/String;Ljava/lang/String;)I",
+        &[JValue::Object(&tag_jstring), JValue::Object(&msg_jstring)],
+    );
 }
