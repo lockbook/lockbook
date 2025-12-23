@@ -40,25 +40,26 @@ impl<'ast> Editor {
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
-        let Some((pre_node, pre_children, _, post_children, post_node)) =
+        if let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.split_range(node, node_line)
-        else {
-            unreachable!("Paragraphs always have children")
+        {
+            if !pre_node.is_empty() {
+                wrap.offset += self.span_section(&wrap, pre_node, self.text_format(node));
+            }
+            if !pre_children.is_empty() {
+                wrap.offset += self.span_section(&wrap, pre_children, self.text_format(node));
+            }
+            wrap.offset += self.inline_children_span(node, &wrap, node_line);
+            if !post_children.is_empty() {
+                wrap.offset += self.span_section(&wrap, post_children, self.text_format(node));
+            }
+            if !post_node.is_empty() {
+                wrap.offset += self.span_section(&wrap, post_node, self.text_format(node));
+            }
+        } else {
+            // This handles empty paragraph lines such as in "- [ ] \n  x"
+            wrap.offset += self.span_section(&wrap, node_line, self.text_format(node));
         };
-
-        if !pre_node.is_empty() {
-            wrap.offset += self.span_section(&wrap, pre_node, self.text_format(node));
-        }
-        if !pre_children.is_empty() {
-            wrap.offset += self.span_section(&wrap, pre_children, self.text_format(node));
-        }
-        wrap.offset += self.inline_children_span(node, &wrap, node_line);
-        if !post_children.is_empty() {
-            wrap.offset += self.span_section(&wrap, post_children, self.text_format(node));
-        }
-        if !post_node.is_empty() {
-            wrap.offset += self.span_section(&wrap, post_node, self.text_format(node));
-        }
 
         wrap.height()
     }
@@ -97,32 +98,44 @@ impl<'ast> Editor {
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
-        let Some((pre_node, pre_children, _, post_children, post_node)) =
+        if let Some((pre_node, pre_children, _, post_children, post_node)) =
             self.split_range(node, node_line)
-        else {
-            unreachable!("Paragraphs always have children")
+        {
+            if !pre_node.is_empty() {
+                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
+            }
+            if !pre_children.is_empty() {
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    pre_children,
+                    self.text_format(node),
+                    false,
+                );
+            }
+            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
+            if !post_children.is_empty() {
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    post_children,
+                    self.text_format(node),
+                    false,
+                );
+            }
+            if !post_node.is_empty() {
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    post_node,
+                    self.text_format(node),
+                    false,
+                );
+            }
         };
-
-        if !pre_node.is_empty() {
-            self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
-        }
-        if !pre_children.is_empty() {
-            self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node), false);
-        }
-        self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-        if !post_children.is_empty() {
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                post_children,
-                self.text_format(node),
-                false,
-            );
-        }
-        if !post_node.is_empty() {
-            self.show_section(ui, top_left, &mut wrap, post_node, self.text_format(node), false);
-        }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
@@ -143,24 +156,25 @@ impl<'ast> Editor {
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
-        let Some((pre_node, pre_children, children, post_children, post_node)) =
+        if let Some((pre_node, pre_children, children, post_children, post_node)) =
             self.split_range(node, node_line)
-        else {
-            unreachable!("Paragraphs always have children")
+        {
+            if !pre_node.is_empty() {
+                self.bounds.paragraphs.push(pre_node);
+            }
+            if !pre_children.is_empty() {
+                self.bounds.paragraphs.push(pre_children);
+            }
+            self.bounds.paragraphs.push(children);
+            if !post_children.is_empty() {
+                self.bounds.paragraphs.push(post_children);
+            }
+            if !post_node.is_empty() {
+                self.bounds.paragraphs.push(post_node);
+            }
+        } else {
+            // This handles empty paragraph lines such as in "- [ ] \n  x"
+            self.bounds.paragraphs.push(node_line);
         };
-
-        if !pre_node.is_empty() {
-            self.bounds.paragraphs.push(pre_node);
-        }
-        if !pre_children.is_empty() {
-            self.bounds.paragraphs.push(pre_children);
-        }
-        self.bounds.paragraphs.push(children);
-        if !post_children.is_empty() {
-            self.bounds.paragraphs.push(post_children);
-        }
-        if !post_node.is_empty() {
-            self.bounds.paragraphs.push(post_node);
-        }
     }
 }
