@@ -36,12 +36,22 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
+
         tmp_wrap.offset += self.circumfix_span(node, &tmp_wrap, range);
-        tmp_wrap.offset += self.span_override_section(
-            &tmp_wrap,
-            Icon::OPEN_IN_NEW.icon,
-            self.text_format_link_button(node.parent().unwrap()),
-        );
+
+        if range.contains_inclusive(self.node_range(node).end()) && self.touch_mode {
+            tmp_wrap.offset += self.span_override_section(
+                &tmp_wrap,
+                " ",
+                self.text_format(node.parent().unwrap()),
+            );
+            tmp_wrap.offset += self.span_override_section(
+                &tmp_wrap,
+                Icon::OPEN_IN_NEW.icon,
+                self.text_format_link_button(node.parent().unwrap()),
+            );
+        }
+
         tmp_wrap.offset - wrap.offset
     }
 
@@ -61,7 +71,18 @@ impl<'ast> Editor {
 
         let mut response = self.show_circumfix(ui, node, top_left, wrap, range);
         response.hovered &= self.sense_inline(ui, node).click;
-        if range.contains_inclusive(self.node_range(node).end()) {
+
+        if range.contains_inclusive(self.node_range(node).end()) && self.touch_mode {
+            response |= self.show_override_section(
+                ui,
+                top_left,
+                wrap,
+                self.node_range(node).end().into_range(),
+                self.text_format(node.parent().unwrap()),
+                false,
+                Some(" "),
+                Sense { click: true, drag: false, focusable: false },
+            );
             response |= self.show_override_section(
                 ui,
                 top_left,
@@ -73,6 +94,7 @@ impl<'ast> Editor {
                 Sense { click: true, drag: false, focusable: false },
             );
         }
+
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
