@@ -27,59 +27,63 @@ struct TabsSheet: View {
                 .padding(.horizontal)
                 .padding(.vertical)
 
-            ForEach(info, id: \.id) { info in
-                Button(
-                    action: {
-                        workspaceInput.openFile(id: info.id)
-                        dismiss()
-                    },
-                    label: {
-                        HStack {
-                            Image(
-                                systemName:
-                                    FileIconHelper.docNameToSystemImageName(
-                                        name: info.name
-                                    )
-                            )
-                            .foregroundColor(.primary)
-                            .imageScale(.medium)
-                            .padding(.trailing)
-
-                            Text(info.name)
+            ScrollView {
+                ForEach(info, id: \.id) { info in
+                    Button(
+                        action: {
+                            workspaceInput.openFile(id: info.id)
+                            dismiss()
+                        },
+                        label: {
+                            HStack {
+                                Image(
+                                    systemName:
+                                        FileIconHelper.docNameToSystemImageName(
+                                            name: info.name
+                                        )
+                                )
                                 .foregroundColor(.primary)
-                                .font(.body)
-                                .bold(false)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
+                                .imageScale(.medium)
+                                .padding(.trailing)
 
-                            Spacer()
-                            
-                            Button(
-                                action: {
-                                    self.closeTab(id: info.id)
-                                },
-                                label: {
-                                    Image(systemName: "xmark.circle.fill")
-                                        .foregroundColor(.red)
-                                        .imageScale(.medium)
-                                        .padding(.leading)
-                                }
+                                Text(info.name)
+                                    .foregroundColor(.primary)
+                                    .font(.body)
+                                    .bold(false)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+
+                                Spacer()
+
+                                Button(
+                                    action: {
+                                        self.closeTab(id: info.id)
+                                    },
+                                    label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundColor(.red)
+                                            .imageScale(.medium)
+                                            .padding(.leading)
+                                    }
+                                )
+
+                            }
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
+                            .background(
+                                info.id == workspaceOutput.openDoc
+                                    ? RoundedRectangle(cornerRadius: 10).fill(
+                                        .gray.opacity(0.2)
+                                    ) : nil
                             )
-
+                            .padding(.horizontal)
+                            .padding(.vertical, 2)
                         }
-                        .padding(.horizontal)
-                        .padding(.vertical, 6)
-                        .background(
-                            info.id == workspaceOutput.openDoc
-                                ? RoundedRectangle(cornerRadius: 10).fill(
-                                    .gray.opacity(0.2)
-                                ) : nil
-                        )
-                        .padding(.horizontal)
-                        .padding(.vertical, 2)
-                    }
-                )
+                    )
+                }
             }
+            .frame(maxHeight: 400)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top)
     }
