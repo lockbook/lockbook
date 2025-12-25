@@ -77,7 +77,6 @@ struct TabsSheet: View {
                                     ) : nil
                             )
                             .padding(.horizontal)
-                            .padding(.vertical, 2)
                         }
                     )
                 }
