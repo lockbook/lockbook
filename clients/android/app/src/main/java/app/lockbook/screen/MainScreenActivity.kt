@@ -201,6 +201,7 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             if (tab == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
             } else {
+                binding.bottomNavigation.visibility = View.GONE
                 slidingPaneLayout.openPane()
             }
         }
