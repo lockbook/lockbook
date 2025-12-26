@@ -66,8 +66,46 @@ impl<'ast> Editor {
             }
         }
 
+        top_left.x += INDENT;
+
+        let any_children = node.children().next().is_some();
+        let hovered = if any_children {
+            self.show_block_children(ui, node, top_left);
+
+            // todo: proper hit-testing (this ignores anything covering the space)
+            let height = self.block_children_height(node);
+            let children_space =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node) - INDENT, height));
+            children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+        } else {
+            let line = self.node_first_line(node);
+            let line_content = self.line_content(node, line);
+
+            let mut wrap = Wrap::new(self.width(node) - INDENT);
+            let resp = self.show_section(
+                ui,
+                top_left,
+                &mut wrap,
+                line_content,
+                self.text_format_syntax(node),
+                false,
+            );
+            self.bounds.wrap_lines.extend(wrap.row_ranges);
+
+            resp.hovered
+        };
+
         // show/hide button (fold)
         // todo: factor (copied for headings)
+        // todo: proper hit-testing (this ignores anything covering the space)
+        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        let show_fold_button = self.touch_mode
+            || hovered
+            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
+        if !show_fold_button {
+            return;
+        }
+
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
         let fold_button_size = self.row_height(node) * 0.6;
         if let Some(fold) = self.fold(node) {
@@ -104,27 +142,6 @@ impl<'ast> Editor {
                     });
                 }
             });
-        }
-
-        top_left.x += INDENT;
-
-        let any_children = node.children().next().is_some();
-        if any_children {
-            self.show_block_children(ui, node, top_left);
-        } else {
-            let line = self.node_first_line(node);
-            let line_content = self.line_content(node, line);
-
-            let mut wrap = Wrap::new(self.width(node) - INDENT);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                line_content,
-                self.text_format_syntax(node),
-                false,
-            );
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
 
