@@ -23,6 +23,7 @@ use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
+use syntect_assets::assets::HighlightingAssets;
 use theme::Theme;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
@@ -120,7 +121,8 @@ impl Editor {
         let theme = Theme::new(ctx.clone());
 
         let dark_mode = ctx.style().visuals.dark_mode;
-        let syntax_set = SyntaxSet::load_defaults_newlines();
+        let highlighting_assets = HighlightingAssets::from_binary();
+        let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
 
         let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
         let cursor = Cursor::new(light_theme_bytes);
