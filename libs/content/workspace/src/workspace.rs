@@ -22,6 +22,7 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use crate::file_cache::FileCache;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
+use crate::show::LandingPage;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -37,6 +38,7 @@ pub struct Workspace {
     // User activity
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
+    pub landing_page: LandingPage,
     pub user_last_seen: Instant,
     pub account: Option<Account>,
 
@@ -70,9 +72,12 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files = FileCache::new(core).log_and_ignore();
 
+        let cfg = WsPersistentStore::new(writeable_path);
+
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
+            landing_page: cfg.get_landing_page(),
             user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
@@ -84,7 +89,7 @@ impl Workspace {
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(writeable_path),
+            cfg,
             ctx: ctx.clone(),
             core: core.clone(),
             show_tabs,
@@ -679,20 +684,43 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn create_doc(&mut self, is_drawing: bool) {
+    pub fn create_folder_at(&mut self, parent: Uuid) {
+        let date = Local::now().format("%Y-%m-%d");
+        let mut new_file =
+            NameComponents { name: date.to_string(), variant: None, extension: None };
+        new_file.next_in_children(self.core.get_children(&parent).unwrap());
+
+        let result = self
+            .core
+            .create_file(new_file.to_name().as_str(), &parent, FileType::Folder)
+            .map_err(|err| format!("{err:?}"));
+
+        self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    pub fn effective_focused_parent(&self) -> Uuid {
         let focused_parent = self
             .focused_parent
             .or_else(|| self.current_tab_id())
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
 
         let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
-        let focused_parent = if focused_parent.file_type == FileType::Document {
+        if focused_parent.file_type == FileType::Document {
             focused_parent.parent
         } else {
             focused_parent.id
-        };
+        }
+    }
 
+    pub fn create_doc(&mut self, is_drawing: bool) {
+        let focused_parent = self.effective_focused_parent();
         self.create_doc_at(is_drawing, focused_parent);
+    }
+
+    pub fn create_folder(&mut self) {
+        let focused_parent = self.effective_focused_parent();
+        self.create_folder_at(focused_parent);
     }
 
     /// Opens or focuses the tab for the mind map
@@ -817,6 +845,7 @@ struct WsPresistentData {
     canvas: CanvasSettings,
     auto_save: bool,
     auto_sync: bool,
+    landing_page: LandingPage,
 }
 
 impl Default for WsPresistentData {
@@ -827,6 +856,7 @@ impl Default for WsPresistentData {
             open_tabs: Vec::default(),
             current_tab: None,
             canvas: CanvasSettings::default(),
+            landing_page: LandingPage::default(),
         }
     }
 }
@@ -893,6 +923,16 @@ impl WsPersistentStore {
     pub fn set_auto_save(&mut self, auto_save: bool) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.auto_save = auto_save;
+        self.write_to_file();
+    }
+
+    pub fn get_landing_page(&self) -> LandingPage {
+        self.data.read().unwrap().landing_page.clone()
+    }
+
+    pub fn set_landing_page(&mut self, landing_page: LandingPage) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.landing_page = landing_page;
         self.write_to_file();
     }
 
