@@ -177,7 +177,7 @@ impl<'ast> Editor {
         };
 
         let post_offset = wrap.offset;
-        if span != post_offset - pre_offset && self.debug {
+        if (span - (post_offset - pre_offset)).abs() > 0.01 && self.debug {
             println!(
                 "SPAN MISMATCH: {:?} vs {:?} {:?}",
                 span,
@@ -291,22 +291,26 @@ impl<'ast> Editor {
             let reveal = self.node_intersects_selection(node);
             if reveal {
                 if let Some(prefix_range) = self.prefix_range(node) {
-                    if range.contains_range(&prefix_range, true, true) {
+                    if !prefix_range.trim(&range).is_empty() {
                         tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
                     }
                 }
             }
-            tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap, range);
+            if let Some(infix_range) = self.infix_range(node) {
+                if !infix_range.trim(&range).is_empty() {
+                    tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap, range);
+                }
+            }
             if reveal {
                 if let Some(postfix_range) = self.postfix_range(node) {
-                    if range.contains_range(&postfix_range, true, true) {
+                    if !postfix_range.trim(&range).is_empty() {
                         tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
                     }
                 }
             }
         } else {
             let node_range = self.node_range(node);
-            if range.contains_range(&node_range, true, true) {
+            if !node_range.trim(&range).is_empty() {
                 tmp_wrap.offset +=
                     self.span_section(wrap, node_range, self.text_format_syntax(node))
             }
@@ -324,7 +328,7 @@ impl<'ast> Editor {
         if any_children {
             let reveal = self.node_intersects_selection(node);
             if let Some(prefix_range) = self.prefix_range(node) {
-                if range.contains_range(&prefix_range, true, true) {
+                if !prefix_range.trim(&range).is_empty() {
                     if reveal {
                         self.show_section(
                             ui,
@@ -350,9 +354,13 @@ impl<'ast> Editor {
                     }
                 }
             }
-            response |= self.show_inline_children(ui, node, top_left, wrap, range);
+            if let Some(infix_range) = self.infix_range(node) {
+                if !infix_range.trim(&range).is_empty() {
+                    response |= self.show_inline_children(ui, node, top_left, wrap, range);
+                }
+            }
             if let Some(postfix_range) = self.postfix_range(node) {
-                if range.contains_range(&postfix_range, true, true) {
+                if !postfix_range.trim(&range).is_empty() {
                     if reveal {
                         self.show_section(
                             ui,
