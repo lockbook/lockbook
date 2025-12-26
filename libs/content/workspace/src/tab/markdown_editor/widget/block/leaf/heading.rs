@@ -166,7 +166,8 @@ impl<'ast> Editor {
         let fold_button_size = (self.row_height(node) * 0.6).min(INDENT / 2.);
 
         // todo: proper hit-testing (this ignores anything covering the space)
-        let show_fold_button = resp.hovered
+        let show_fold_button = self.touch_mode
+            || resp.hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
         if !show_fold_button {
             return;

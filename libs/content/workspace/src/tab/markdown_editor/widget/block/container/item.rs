@@ -99,7 +99,8 @@ impl<'ast> Editor {
         // todo: factor (copied for headings)
         // todo: proper hit-testing (this ignores anything covering the space)
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
-        let show_fold_button = hovered
+        let show_fold_button = self.touch_mode
+            || hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
         if !show_fold_button {
             return;
