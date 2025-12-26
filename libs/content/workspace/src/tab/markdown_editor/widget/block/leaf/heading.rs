@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
+use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_SPACING};
@@ -149,20 +150,29 @@ impl<'ast> Editor {
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
     ) {
-        if setext {
-            self.show_setext_heading(ui, node, top_left, level);
+        let resp = if setext {
+            self.show_setext_heading(ui, node, top_left, level)
         } else {
-            self.show_atx_heading(ui, node, top_left, level);
-        }
+            self.show_atx_heading(ui, node, top_left, level)
+        };
 
         // show/hide button (fold)
-        // todo: factor (copied for headings)
+        // todo: factor (copied for list items)
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
         let fold_button_size = (self.row_height(node) * 0.6).min(INDENT / 2.);
+
+        // todo: proper hit-testing (this ignores anything covering the space)
+        let show_fold_button = self.touch_mode
+            || resp.hovered
+            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
+        if !show_fold_button {
+            return;
+        }
+
         if let Some(fold) = self.fold(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
                 let icon = Icon::CHEVRON_RIGHT
@@ -203,7 +213,9 @@ impl<'ast> Editor {
     // https://github.github.com/gfm/#setext-headings
     fn show_setext_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
-    ) {
+    ) -> Response {
+        let mut resp = Default::default();
+
         let width = self.width(node);
         let reveal = self.reveal_setext_syntax(node);
 
@@ -215,7 +227,7 @@ impl<'ast> Editor {
 
             if line_idx < last_line_idx {
                 // non-underline content
-                self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
+                resp |= self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
 
                 top_left.y += self.height_setext_heading_line(node, node_line, reveal);
                 top_left.y += ROW_SPACING;
@@ -245,13 +257,17 @@ impl<'ast> Editor {
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
+
+        resp
     }
 
     #[allow(clippy::too_many_arguments)]
     fn show_setext_heading_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_line: (DocCharOffset, DocCharOffset), reveal: bool,
-    ) {
+    ) -> Response {
+        let mut resp = Default::default();
+
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
@@ -283,7 +299,7 @@ impl<'ast> Editor {
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if reveal && !postfix_whitespace.is_empty() {
-                self.show_section(
+                resp |= self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -295,12 +311,16 @@ impl<'ast> Editor {
         } else {
             unreachable!("setext headings never have empty lines");
         }
+
+        resp
     }
 
     // https://github.github.com/gfm/#atx-headings
     fn show_atx_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
-    ) {
+    ) -> Response {
+        let mut resp = Default::default();
+
         let width = self.width(node);
         let mut wrap = Wrap::new(width);
         wrap.row_height = self.row_height(node);
@@ -316,7 +336,7 @@ impl<'ast> Editor {
         {
             if reveal {
                 if !indentation.is_empty() {
-                    self.show_section(
+                    resp |= self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
@@ -325,7 +345,7 @@ impl<'ast> Editor {
                         false,
                     );
                 }
-                self.show_section(
+                resp |= self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -335,11 +355,11 @@ impl<'ast> Editor {
                 );
             }
             if self.infix_range(node).is_some() {
-                self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
+                resp |= self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             }
 
             if reveal && !postfix_range.is_empty() {
-                self.show_section(
+                resp |= self.show_section(
                     ui,
                     top_left,
                     &mut wrap,
@@ -350,7 +370,7 @@ impl<'ast> Editor {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            self.show_section(
+            resp |= self.show_section(
                 ui,
                 top_left,
                 &mut wrap,
@@ -365,6 +385,8 @@ impl<'ast> Editor {
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
+
+        resp
     }
 
     fn show_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
