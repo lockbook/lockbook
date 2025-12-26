@@ -44,6 +44,9 @@ colored = "2"
 syntect = { default-features = false, version = "5.0", features = [
     "default-fancy",
 ] }
+syntect-assets = { default-features = false, version = "0.23", features = [
+    "regex-fancy",
+] }
 
 lb-rs = { path = "../../lb/lb-rs" }
 
