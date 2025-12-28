@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{STORED, STRING, Schema, TEXT, Value};
+use tantivy::schema::{INDEXED, STORED, Schema, TEXT, Value};
 use tantivy::snippet::SnippetGenerator;
 use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc};
 use tokio::sync::RwLock;
@@ -214,11 +214,10 @@ impl Lb {
         let schema = self.search.tantivy_index.schema();
         let id_field = schema.get_field("id").unwrap();
         let id_str = schema.get_field("id_str").unwrap();
-        let id_str_raw = schema.get_field("id_str_raw").unwrap();
         let content = schema.get_field("content").unwrap();
 
         for id in delete {
-            let term = Term::from_field_text(id_str_raw, &id.to_string());
+            let term = Term::from_field_bytes(id_field, id.as_bytes());
             index_writer.delete_term(term);
         }
 
@@ -255,7 +254,6 @@ impl Lb {
                 .add_document(doc!(
                     id_field => id_bytes,
                     id_str => id_string,
-                    id_str_raw => id_string,
                     content => doc,
                 ))
                 .unwrap();
@@ -268,9 +266,8 @@ impl Lb {
 impl Default for SearchIndex {
     fn default() -> Self {
         let mut schema_builder = Schema::builder();
-        schema_builder.add_bytes_field("id", STORED);
+        schema_builder.add_bytes_field("id", INDEXED | STORED);
         schema_builder.add_text_field("id_str", TEXT | STORED);
-        schema_builder.add_text_field("id_str_raw", STRING | STORED);
         schema_builder.add_text_field("content", TEXT | STORED);
 
         let schema = schema_builder.build();
