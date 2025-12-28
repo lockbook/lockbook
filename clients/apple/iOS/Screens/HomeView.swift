@@ -124,17 +124,17 @@ struct HomeView: View {
     var filesHome: some View {
         SearchContainerView(filesModel: filesModel) {
             FilesHomeView()
+                .overlay(
+                    alignment: .bottom,
+                    content: {
+                        VStack {
+                            UsageBar()
+                            
+                            StatusBarView()
+                        }
+                    }
+                )
         }
-        .overlay(
-            alignment: .bottom,
-            content: {
-                VStack {
-                    UsageBar()
-                    
-                    StatusBarView()
-                }
-            }
-        )
         .modifier(OutOfSpaceAlert())
     }
 
