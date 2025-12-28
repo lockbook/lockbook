@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
-use tantivy::schema::{STORED, Schema, TEXT, Value};
+use tantivy::schema::{INDEXED, STORED, Schema, TEXT, Value};
 use tantivy::snippet::SnippetGenerator;
 use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc};
 use tokio::sync::RwLock;
@@ -157,10 +157,17 @@ impl Lb {
             return Ok(());
         }
 
-        let metadata_index = SearchMetadata::populate(self).await?;
-        *self.search.metadata_index.write().await = metadata_index.clone();
-        self.update_tantivy(vec![], metadata_index.files.iter().map(|f| f.id).collect())
-            .await;
+        let new_metadata = SearchMetadata::populate(self).await?;
+
+        let (deleted_ids, all_current_ids) = {
+            let mut current_metadata = self.search.metadata_index.write().await;
+            let deleted = new_metadata.compute_deleted(&current_metadata);
+            let current = new_metadata.files.iter().map(|f| f.id).collect::<Vec<_>>();
+            *current_metadata = new_metadata;
+            (deleted, current)
+        };
+
+        self.update_tantivy(deleted_ids, all_current_ids).await;
 
         Ok(())
     }
@@ -189,7 +196,7 @@ impl Lb {
                                 let current_index = lb.search.metadata_index.read().await.clone();
                                 let deleted_ids = replacement_index.compute_deleted(&current_index);
                                 *lb.search.metadata_index.write().await = replacement_index;
-                                lb.update_tantivy(vec![], deleted_ids).await;
+                                lb.update_tantivy(deleted_ids, vec![]).await;
                             }
                         }
                         Event::DocumentWritten(id, _) => {
@@ -210,7 +217,7 @@ impl Lb {
         let content = schema.get_field("content").unwrap();
 
         for id in delete {
-            let term = Term::from_field_text(id_str, &id.to_string());
+            let term = Term::from_field_bytes(id_field, id.as_bytes());
             index_writer.delete_term(term);
         }
 
@@ -259,7 +266,7 @@ impl Lb {
 impl Default for SearchIndex {
     fn default() -> Self {
         let mut schema_builder = Schema::builder();
-        schema_builder.add_bytes_field("id", STORED);
+        schema_builder.add_bytes_field("id", INDEXED | STORED);
         schema_builder.add_text_field("id_str", TEXT | STORED);
         schema_builder.add_text_field("content", TEXT | STORED);
 
