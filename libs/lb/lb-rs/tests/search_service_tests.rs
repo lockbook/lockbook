@@ -181,3 +181,35 @@ async fn search_exclude_pending_share() {
         panic!("Search result was not a path match.")
     }
 }
+
+#[tokio::test]
+async fn search_content_cleans_up_after_deletion() {
+    let core = test_core_with_account().await;
+
+    let file = core.create_at_path("/aaaaaaaaaa.md").await.unwrap();
+    core.write_document(file.id, CONTENT.as_bytes())
+        .await
+        .unwrap();
+
+    core.build_index().await.unwrap();
+    core.search.tantivy_reader.reload().unwrap();
+
+    let results_after_creation = core
+        .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
+        .await
+        .unwrap();
+
+    assert_eq!(results_after_creation.len(), 1);
+
+    core.delete(&file.id).await.unwrap();
+
+    core.build_index().await.unwrap();
+    core.search.tantivy_reader.reload().unwrap();
+
+    let results_after_deletion = core
+        .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
+        .await
+        .unwrap();
+
+    assert!(results_after_deletion.is_empty(),);
+}
