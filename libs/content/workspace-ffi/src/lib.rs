@@ -97,8 +97,13 @@ impl WgpuWorkspace<'_> {
             self.renderer
                 .update_texture(&self.device, &self.queue, *id, image_delta);
         }
-        self.renderer
-            .update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &self.screen);
+        self.renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &paint_jobs,
+            &self.screen,
+        );
 
         // Record all render passes.
         {
@@ -131,8 +136,7 @@ impl WgpuWorkspace<'_> {
                 occlusion_query_set: None,
             });
 
-            self.renderer
-                .render(&mut pass, &paint_jobs, &self.screen);
+            self.renderer.render(&mut pass, &paint_jobs, &self.screen);
         }
 
         // Submit the commands.
@@ -144,7 +148,6 @@ impl WgpuWorkspace<'_> {
         for id in &full_output.textures_delta.free {
             self.renderer.free_texture(id);
         }
-
 
         Response::new(
             &self.context,
@@ -164,7 +167,8 @@ impl WgpuWorkspace<'_> {
                 self.screen.size_in_pixels[1] as f32 / self.screen.pixels_per_point,
             ),
         });
-        self.context.set_pixels_per_point(self.screen.pixels_per_point);
+        self.context
+            .set_pixels_per_point(self.screen.pixels_per_point);
     }
 
     pub fn surface_format(&self) -> wgpu::TextureFormat {
