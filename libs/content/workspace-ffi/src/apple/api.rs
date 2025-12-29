@@ -55,7 +55,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.screen.scale_factor = scale;
+    obj.screen.pixels_per_point = scale;
 }
 
 /// # Safety

@@ -1,7 +1,7 @@
 use crate::WgpuWorkspace;
 use egui::{Context, FontDefinitions};
-use egui_wgpu_backend::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
-use egui_wgpu_backend::{ScreenDescriptor, wgpu};
+use egui_wgpu::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
+use egui_wgpu::{ScreenDescriptor, wgpu};
 use lb_c::Lb;
 use std::ffi::c_void;
 use std::time::Instant;
@@ -27,20 +27,19 @@ pub unsafe extern "C" fn init_ws(
     let avail_formats = surface.get_capabilities(&adapter).formats;
     let format = avail_formats[0];
 
-    let screen =
-        ScreenDescriptor { physical_width: 1000, physical_height: 1000, scale_factor: 1.0 };
+    let screen = ScreenDescriptor { size_in_pixels: [1000, 1000], pixels_per_point: 1.0 };
     let surface_config = wgpu::SurfaceConfiguration {
         usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
         format,
-        width: screen.physical_width, // TODO get from context or something
-        height: screen.physical_height,
+        width: screen.size_in_pixels[0], // TODO get from context or something
+        height: screen.size_in_pixels[1],
         present_mode: wgpu::PresentMode::Fifo,
         alpha_mode: CompositeAlphaMode::Auto,
         view_formats: vec![],
         desired_maximum_frame_latency: 2,
     };
     surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
+    let renderer = egui_wgpu::Renderer::new(&device, format, None, 4);
 
     let context = Context::default();
     visuals::init(&context, dark_mode);
@@ -57,7 +56,7 @@ pub unsafe extern "C" fn init_ws(
         queue,
         surface,
         adapter,
-        rpass,
+        renderer,
         screen,
         context,
         raw_input: Default::default(),
@@ -83,7 +82,7 @@ async fn request_device(
                 label: None,
                 required_features: adapter.features(),
                 required_limits: adapter.limits(),
-                memory_hints: Default::default(),
+                // memory_hints: Default::default(),
             },
             None,
         )
@@ -99,7 +98,7 @@ async fn request_device(
 #[no_mangle]
 pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.screen.physical_width = width as u32;
-    obj.screen.physical_height = height as u32;
-    obj.screen.scale_factor = scale;
+    obj.screen.size_in_pixels[0] = width as u32;
+    obj.screen.size_in_pixels[1] = height as u32;
+    obj.screen.pixels_per_point = scale;
 }

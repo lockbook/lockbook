@@ -1,4 +1,4 @@
-use egui_wgpu_backend::wgpu::{self, TextureDescriptor, TextureUsages};
+use egui_wgpu::wgpu::{self, TextureDescriptor, TextureUsages};
 use std::iter;
 use std::time::Instant;
 use workspace_rs::workspace::Workspace;
@@ -23,8 +23,8 @@ pub struct WgpuWorkspace<'window> {
     pub surface_width: u32,
     pub surface_height: u32,
 
-    pub rpass: egui_wgpu_backend::RenderPass,
-    pub screen: egui_wgpu_backend::ScreenDescriptor,
+    pub renderer: egui_wgpu::Renderer,
+    pub screen: egui_wgpu::ScreenDescriptor,
 
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
@@ -34,7 +34,7 @@ pub struct WgpuWorkspace<'window> {
 
 impl WgpuWorkspace<'_> {
     pub fn frame(&mut self) -> Response {
-        self.configure_surface();
+        self.configure_surface(); // todo: does this need to happen?
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Outdated) => {
@@ -42,7 +42,8 @@ impl WgpuWorkspace<'_> {
                 // Silently return here to prevent spamming the console with:
                 // "The underlying surface has changed, and therefore the swap chain must be updated"
                 eprintln!("wgpu::SurfaceError::Outdated");
-                return Default::default();
+                return Default::default(); // todo: could this be the source of a bug if some
+                // response has a default value of true or something
             }
             Err(e) => {
                 eprintln!("Dropped frame with error: {e}");
@@ -92,13 +93,12 @@ impl WgpuWorkspace<'_> {
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
 
-        let tdelta: egui::TexturesDelta = full_output.textures_delta;
-        self.rpass
-            .add_textures(&self.device, &self.queue, &tdelta)
-            .expect("add texture ok");
-
-        self.rpass
-            .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
+        for (id, image_delta) in &full_output.textures_delta.set {
+            self.renderer
+                .update_texture(&self.device, &self.queue, *id, image_delta);
+        }
+        self.renderer
+            .update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &self.screen);
 
         // Record all render passes.
         {
@@ -108,7 +108,7 @@ impl WgpuWorkspace<'_> {
                     view: &output_view,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE), // todo: these are different
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -131,9 +131,8 @@ impl WgpuWorkspace<'_> {
                 occlusion_query_set: None,
             });
 
-            self.rpass
-                .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
-                .unwrap();
+            self.renderer
+                .render(&mut pass, &paint_jobs, &self.screen);
         }
 
         // Submit the commands.
@@ -142,9 +141,10 @@ impl WgpuWorkspace<'_> {
         // Redraw egui
         output_frame.present();
 
-        self.rpass
-            .remove_textures(tdelta)
-            .expect("remove texture ok");
+        for id in &full_output.textures_delta.free {
+            self.renderer.free_texture(id);
+        }
+
 
         Response::new(
             &self.context,
@@ -160,11 +160,11 @@ impl WgpuWorkspace<'_> {
         self.raw_input.screen_rect = Some(Rect {
             min: Pos2::ZERO,
             max: Pos2::new(
-                self.screen.physical_width as f32 / self.screen.scale_factor,
-                self.screen.physical_height as f32 / self.screen.scale_factor,
+                self.screen.size_in_pixels[0] as f32 / self.screen.pixels_per_point,
+                self.screen.size_in_pixels[1] as f32 / self.screen.pixels_per_point,
             ),
         });
-        self.context.set_pixels_per_point(self.screen.scale_factor);
+        self.context.set_pixels_per_point(self.screen.pixels_per_point);
     }
 
     pub fn surface_format(&self) -> wgpu::TextureFormat {
@@ -174,25 +174,25 @@ impl WgpuWorkspace<'_> {
     }
 
     pub fn configure_surface(&mut self) {
-        use egui_wgpu_backend::wgpu::CompositeAlphaMode;
+        use egui_wgpu::wgpu::CompositeAlphaMode;
 
-        let resized = self.screen.physical_width != self.surface_width
-            || self.screen.physical_height != self.surface_height;
-        let visible = self.screen.physical_width * self.screen.physical_height != 0;
+        let resized = self.screen.size_in_pixels[0] != self.surface_width
+            || self.screen.size_in_pixels[1] != self.surface_height;
+        let visible = self.screen.size_in_pixels[0] * self.screen.size_in_pixels[1] != 0;
         if resized && visible {
             let surface_config = wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
                 format: self.surface_format(),
-                width: self.screen.physical_width,
-                height: self.screen.physical_height,
+                width: self.screen.size_in_pixels[0],
+                height: self.screen.size_in_pixels[1],
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: CompositeAlphaMode::Auto,
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
             };
             self.surface.configure(&self.device, &surface_config);
-            self.surface_width = self.screen.physical_width;
-            self.surface_height = self.screen.physical_height;
+            self.surface_width = self.screen.size_in_pixels[0];
+            self.surface_height = self.screen.size_in_pixels[1];
         }
     }
 }

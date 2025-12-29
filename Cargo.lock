@@ -1794,6 +1794,17 @@ checksum = "96a6ac251f4a2aca6b3f91340350eab87ae57c3f127ffeb585e92bd336717991"
 
 [[package]]
 name = "d3d12"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b28bfe653d79bd16c77f659305b195b82bb5ce0c0eb2a4846b82ddbd77586813"
+dependencies = [
+ "bitflags 2.10.0",
+ "libloading 0.7.4",
+ "winapi",
+]
+
+[[package]]
+name = "d3d12"
 version = "22.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdbd1f579714e3c809ebd822c81ef148b1ceaeb3d535352afc73fd0c4c6a0017"
@@ -8513,10 +8524,12 @@ dependencies = [
  "android_system_properties",
  "arrayvec",
  "ash 0.37.3+1.3.251",
+ "bit-set 0.5.3",
  "bitflags 2.10.0",
  "block",
  "cfg_aliases 0.1.1",
  "core-graphics-types",
+ "d3d12 0.20.0",
  "glow",
  "glutin_wgl_sys 0.5.0",
  "gpu-alloc",
@@ -8535,6 +8548,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "profiling",
+ "range-alloc",
  "raw-window-handle 0.6.2",
  "renderdoc-sys",
  "rustc-hash 1.1.0",
@@ -8560,7 +8574,7 @@ dependencies = [
  "block",
  "cfg_aliases 0.1.1",
  "core-graphics-types",
- "d3d12",
+ "d3d12 22.0.0",
  "glow",
  "glutin_wgl_sys 0.6.0",
  "gpu-alloc",
@@ -9127,8 +9141,8 @@ name = "workspace-ffi"
 version = "25.12.17"
 dependencies = [
  "egui",
+ "egui-wgpu",
  "egui_extras",
- "egui_wgpu_backend",
  "jni",
  "lb-c",
  "lb-java",
@@ -9138,6 +9152,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
+ "wgpu 0.20.1",
  "workspace",
 ]
 

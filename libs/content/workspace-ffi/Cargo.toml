@@ -10,7 +10,8 @@ path = "src/lib.rs"
 
 [dependencies]
 egui = "0.28.1"
-egui_wgpu_backend = "0.30"
+egui-wgpu = "0.28.0"
+wgpu = { version = "*", features = ["metal"] }
 egui_extras = { version = "0.28.1", features = ["image"] }
 workspace = { path = "../workspace/" }
 lb-c = { path = "../../lb/lb-c" }
