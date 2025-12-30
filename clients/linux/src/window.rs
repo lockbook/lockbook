@@ -394,10 +394,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     let context = Context::default();
     context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
 
-    let (settings, maybe_settings_err) = match lbeguiapp::Settings::read_from_file() {
-        Ok(s) => (s, None),
-        Err(err) => (Default::default(), Some(err.to_string())),
-    };
+
 
     let app = lbeguiapp::Lockbook::new(&context, settings, maybe_settings_err);
 

@@ -39,9 +39,11 @@ pub struct Response {
 }
 
 impl Lockbook {
-    pub fn new(
-        ctx: &egui::Context, settings: Settings, maybe_settings_err: Option<String>,
-    ) -> Self {
+    pub fn new(ctx: &egui::Context) -> Self {
+        let (settings, maybe_settings_err) = match Settings::read_from_file() {
+            Ok(s) => (s, None),
+            Err(err) => (Default::default(), Some(err.to_string())),
+        };
         let settings = Arc::new(RwLock::new(settings));
 
         let mut fonts = egui::FontDefinitions::default();
@@ -121,17 +123,9 @@ mod lb_wgpu {
     pub struct WgpuLockbook<'window> {
         pub start_time: Instant,
 
-        pub device: wgpu::Device,
-        pub queue: wgpu::Queue,
-        pub surface: wgpu::Surface<'window>,
-        pub adapter: wgpu::Adapter,
-
         // remember size last frame to detect resize
         pub surface_width: u32,
         pub surface_height: u32,
-
-        pub rpass: egui_wgpu_backend::RenderPass,
-        pub screen: egui_wgpu_backend::ScreenDescriptor,
 
         pub context: egui::Context,
         pub raw_input: egui::RawInput,

@@ -5,10 +5,9 @@ edition = "2021"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 egui = "0.28.1"
-egui_wgpu_backend = "0.30"
+egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer" }
 env_logger = "0.10"
 image = "0.24.7"
-lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
 lbeguiapp = { package = "lockbook-egui", path = "../egui", default-features = false, features = [
     "egui_wgpu_backend",
 ] }
