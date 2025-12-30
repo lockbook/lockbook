@@ -373,20 +373,20 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-pub unsafe extern "C" fn canvas_detect_islands_interaction(
-    obj: *mut c_void, x: f32, y: f32,
-) -> bool {
+pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    let mut has_islands_interaction = false;
     if let Some(tab) = obj.workspace.current_tab() {
         if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
-            has_islands_interaction = svg.detect_islands_interaction(egui::pos2(x, y));
-
-            println!("[deadbeef] islands interaction: {has_islands_interaction}");
+            svg.detect_islands_interaction(egui::pos2(x, y))
+        } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.will_consume_touch(egui::pos2(x, y))
+        } else {
+            false
         }
+    } else {
+        false
     }
-    has_islands_interaction
 }
 
 /// # Safety

@@ -65,6 +65,8 @@
             // touch
             let touch = WsTouchGestureRecognizer()
             touch.delegate = self.gestureDelegate
+            touch.toCancel = []
+            touch.mtkView = mtkView
             self.addGestureRecognizer(touch)
             touch.addTarget(self, action: #selector(handleWsTouch(_:)))
 
@@ -90,6 +92,11 @@
                 // this supports automatic scrolling when dragging selection handles
                 if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
                     gestureRecognizer.addTarget(self, action: #selector(handleRangeAdjustment(_:)))
+                }
+
+                // setup cursor placement cancellation when when workspace consumes a tap
+                if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                    touch.toCancel?.append(gestureRecognizer)
                 }
             }
 
@@ -751,7 +758,7 @@
             // todo: this is what allows tapping a checkbox to also place the cursor
             return true
         }
-        
+
         public func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
@@ -976,7 +983,7 @@
 
             // Check if we have any valid actions before presenting
             let location = gesture.location(in: self.mtkView)
-            if canvas_detect_islands_interaction(
+            if will_consume_touch(
                 self.wsHandle, Float(location.x),
                 Float(location.y + SvgView.TOOL_BAR_HEIGHT))
                 || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
@@ -1414,7 +1421,7 @@
 
                 touches_began(wsHandle, id, Float(location.x), Float(location.y), Float(force))
 
-                setNeedsDisplay()
+                drawImmediately()
             case .changed:
                 guard let event = recognizer.event else { return }
 
@@ -1436,7 +1443,7 @@
                         wsHandle, id, Float(location.x), Float(location.y), Float(force))
                 }
 
-                setNeedsDisplay()
+                drawImmediately()
             case .ended:
                 let id = self.touchId(for: touch)
                 let location = touch.preciseLocation(in: self)
@@ -1444,7 +1451,7 @@
 
                 touches_ended(wsHandle, id, Float(location.x), Float(location.y), Float(force))
 
-                setNeedsDisplay()
+                drawImmediately()
             case .cancelled:
                 let id = self.touchId(for: touch)
                 let location = touch.preciseLocation(in: self)
@@ -1453,7 +1460,7 @@
                 touches_cancelled(
                     wsHandle, id, Float(location.x), Float(location.y), Float(force))
 
-                setNeedsDisplay()
+                drawImmediately()
             case .failed:
                 break
             default:
@@ -1878,9 +1885,13 @@
         }
     }
 
+    // MARK: - WsTouchGestureRecognizer
     class WsTouchGestureRecognizer: UILongPressGestureRecognizer {
         var touch: UITouch?
         var event: UIEvent?
+
+        var mtkView: iOSMTK?
+        var toCancel: [UIGestureRecognizer]?
 
         convenience init() {
             self.init(target: nil, action: nil)
@@ -1895,6 +1906,19 @@
                 touch = touches.first
                 self.event = event
             }
+
+            guard let wsHandle = mtkView?.wsHandle else { return }
+
+            for touch in touches {
+                let location = touch.preciseLocation(in: self.mtkView)
+                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                    if self.state == .began || self.state == .changed {
+                        for gr in toCancel ?? [] {
+                            gr.state = .cancelled
+                        }
+                    }
+                }
+            }
         }
 
         public override func reset() {
@@ -1904,6 +1928,7 @@
         }
     }
 
+    // MARK: - SvgPanGestureRecognizer
     /// Like UIPanGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
     class SvgPanGestureRecognizer: UIPanGestureRecognizer {
         var wsTouch: WsTouchGestureRecognizer?
@@ -1944,6 +1969,7 @@
         }
     }
 
+    // MARK: - SvgPinchGestureRecognizer
     /// Like UIPinchGestureRecognizer, but cancels a WsTouchGestureRecognizer and times out
     class SvgPinchGestureRecognizer: UIPinchGestureRecognizer {
         var wsTouch: WsTouchGestureRecognizer?

@@ -163,6 +163,7 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        self.touch_consuming_rects.push(fold_button_space);
         let fold_button_size = (self.row_height(node) * 0.6).min(INDENT / 2.);
 
         // todo: proper hit-testing (this ignores anything covering the space)
