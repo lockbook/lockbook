@@ -1,2 +1,0 @@
-// API Location (which server you hit)
-API_LOCATION = https:/$()/qa.lockbook.app:8000
