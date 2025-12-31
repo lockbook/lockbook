@@ -181,7 +181,9 @@ import SwiftUI
                 mtkView.topAnchor.constraint(equalTo: topAnchor),
                 mtkView.leftAnchor.constraint(equalTo: leftAnchor),
                 mtkView.rightAnchor.constraint(equalTo: rightAnchor),
-                mtkView.bottomAnchor.constraint(equalTo: bottomAnchor),
+                mtkView.bottomAnchor.constraint(
+                    equalTo: keyboardLayoutGuide.topAnchor
+                ),
             ])
         }
 
@@ -213,7 +215,7 @@ import SwiftUI
                     }
 
                     self.currentWrapper?.removeFromSuperview()
-                    
+
                     self.currentWrapper = nil
                     self.mtkView.currentWrapper = nil
                 case .Svg, .Image, .Graph:
@@ -231,7 +233,6 @@ import SwiftUI
                     let drawingWrapper = SvgView(
                         mtkView: self.mtkView,
                         headerSize: headerSize
-
                     )
                     self.currentWrapper = drawingWrapper
                     self.mtkView.currentWrapper = drawingWrapper
@@ -287,9 +288,8 @@ import SwiftUI
                             equalTo: self.rightAnchor
                         ),
                         textWrapper.bottomAnchor.constraint(
-                            equalTo: self.bottomAnchor,
-                            constant: -MdView
-                                .TOOL_BAR_HEIGHT
+                            equalTo: self.keyboardLayoutGuide.topAnchor,
+                            constant: -MdView.TOOL_BAR_HEIGHT
                         ),
                     ])
 
