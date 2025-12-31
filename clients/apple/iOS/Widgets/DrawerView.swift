@@ -37,18 +37,18 @@ struct DrawerView<Main: View, Side: View>: View {
                 }
                 .overlay(mainOverlayTapGesture)
 
-            sideView
-                .frame(width: calculatedSidebarWidth)
-                .offset(
-                    x: min(
-                        -calculatedSidebarWidth
-                            + max(
-                                sidebarOffset,
-                                Constants.sidebarOffsetClosed
-                            ),
-                        Constants.sidebarOffsetClosed
+                sideView
+                    .frame(width: calculatedSidebarWidth)
+                    .offset(
+                        x: min(
+                            -calculatedSidebarWidth
+                                + max(
+                                    sidebarOffset,
+                                    Constants.sidebarOffsetClosed
+                                ),
+                            Constants.sidebarOffsetClosed
+                        )
                     )
-                )
             }
             .onReceive(homeState.$sidebarState) { newValue in
                 let newOffset =
@@ -188,11 +188,11 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let velocityActivationX: CGFloat = 300 // fling this fast to open the drawer
-    static let successThreshold: CGFloat = 0.6 // drag this far of the way out to open the drawer
-    static let activationDistance: CGFloat = 10.0 // must drag at least this far or your drag is actually a tap
-    static let activationRatio: CGFloat = 2.0 // must drag at least this horizontally in terms of abs(x) / abs(y)
-    static let dragHandleWidth: CGFloat = 100 // must drag starting from within this distance of whichever edge
+    static let velocityActivationX: CGFloat = 300  // fling this fast to open the drawer
+    static let successThreshold: CGFloat = 0.6  // drag this far of the way out to open the drawer
+    static let activationDistance: CGFloat = 10.0  // must drag at least this far or your drag is actually a tap
+    static let activationRatio: CGFloat = 2.0  // must drag at least this horizontally in terms of abs(x) / abs(y)
+    static let dragHandleWidth: CGFloat = 100  // must drag starting from within this distance of whichever edge
 
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
@@ -221,7 +221,7 @@ struct DragValue {
 
 // MARK: - DrawerGesture
 /// Like a DragGesture, but:
-/// * takes priority over gestures in subviews
+/// * takes priority over ws gestures
 /// * must be a horizontal drag to activate
 struct DrawerGesture: UIGestureRecognizerRepresentable {
     typealias UIGestureRecognizerType = Recognizer
@@ -241,7 +241,8 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     }
 
     @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
-        let recognizer = Recognizer(geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset)
+        let recognizer = Recognizer(
+            geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset)
         recognizer.delegate = context.coordinator
         return recognizer
     }
@@ -296,16 +297,20 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             }
         }
 
-        // fills the "takes priority over gestures in subviews" requirement
+        // fills the "takes priority over ws gestures" requirement
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            guard let view = gestureRecognizer.view,
-                let otherView = otherGestureRecognizer.view
-            else { return false }
+            otherGestureRecognizer.name == "WsTouch"
+        }
 
-            return otherView.isDescendant(of: view)
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer.name == "UITextInteractionNameInteractiveRefinement"
+                || otherGestureRecognizer.name == "UITextInteractionNameRangeAdjustment"
         }
     }
 
