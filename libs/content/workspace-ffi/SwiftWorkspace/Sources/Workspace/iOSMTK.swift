@@ -94,8 +94,13 @@
                     gestureRecognizer.addTarget(self, action: #selector(handleRangeAdjustment(_:)))
                 }
 
-                // setup cursor placement cancellation when when workspace consumes a tap
+                // setup cursor placement cancellation when workspace consumes a tap
                 if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                    touch.toCancel?.append(gestureRecognizer)
+                }
+                
+                // setup interactive refinement cancellation when workspace consumes a tap
+                if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
                     touch.toCancel?.append(gestureRecognizer)
                 }
             }
