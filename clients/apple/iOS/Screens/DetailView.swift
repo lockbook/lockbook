@@ -19,6 +19,7 @@ struct DetailView: View {
                 Text("This is a preview.")
             } else {
                 WorkspaceView()
+                    .ignoresSafeArea(.keyboard)
                     .modifier(OnLbLinkViewModifier())
             }
         }
