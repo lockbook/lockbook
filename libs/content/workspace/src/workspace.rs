@@ -212,6 +212,8 @@ impl Workspace {
                 md.focus(&self.ctx);
             }
 
+            self.ctx.request_repaint();
+
             true
         } else {
             false
@@ -247,8 +249,9 @@ impl Workspace {
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let mut create_tab = || {
             if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
-                self.current_tab = pos;
-                self.current_tab_changed = true;
+                if make_current {
+                    self.make_current(pos);
+                }
                 return false;
             }
             if in_new_tab {
