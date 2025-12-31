@@ -68,14 +68,12 @@ struct DrawerView<Main: View, Side: View>: View {
                 }
             }
             .gesture(
-                PriorityDragGesture(
-                    minimumDistance: 10.0,
+                DrawerGesture(
                     onChanged: { value in
-
                         if homeState.sidebarState == .closed {
                             setSidebarOffset(
                                 newOffset: min(
-                                    value.translation.width,
+                                    value.translation.x,
                                     calculatedSidebarWidth
                                 )
                             )
@@ -83,21 +81,19 @@ struct DrawerView<Main: View, Side: View>: View {
                         if homeState.sidebarState == .open {
                             setSidebarOffset(
                                 newOffset: calculatedSidebarWidth
-                                    + value.translation.width
+                                    + value.translation.x
                             )
                         }
                     },
                     onEnded: { value in
-
                         if homeState.sidebarState == .closed {
                             onOpenEnd(
-                                velocity: value.velocity.dx,
+                                velocity: value.velocity.x,
                                 sidebarWidth: calculatedSidebarWidth
                             )
-                        }
-                        if homeState.sidebarState == .open {
+                        } else if homeState.sidebarState == .open {
                             onCloseEnd(
-                                velocity: value.velocity.dx,
+                                velocity: value.velocity.x,
                                 sidebarWidth: calculatedSidebarWidth
                             )
                         }
@@ -189,10 +185,11 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let dragActivationClosedX: CGFloat = 20
-    static let dragActivationOpenX: CGFloat = 50
     static let velocityActivationX: CGFloat = 300
     static let successThreshold: CGFloat = 0.6
+    static let activationDistance: CGFloat = 10.0
+    static let activationRatio: CGFloat = 2.0
+
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
     static let defaultSidebarWidthLandscape: CGFloat = 500
@@ -214,31 +211,29 @@ private struct Constants {
 // MARK: - DragValue
 struct DragValue {
     let location: CGPoint
-    let startLocation: CGPoint
-    let translation: CGSize
-    let velocity: CGVector
+    let translation: CGPoint
+    let velocity: CGPoint
 }
 
-// MARK: - PriorityDragGesture
-/// Like a DragGesture, but takes priority over gesturs in subviews
-// yes I did try .highPriorityGesture() and it did not work
-struct PriorityDragGesture: UIGestureRecognizerRepresentable {
-    typealias UIGestureRecognizerType = UIPanGestureRecognizer
+// MARK: - DrawerGesture
+/// Like a DragGesture, but:
+/// * takes priority over gestures in subviews
+/// * must be a horizontal drag to activate
+struct DrawerGesture: UIGestureRecognizerRepresentable {
+    typealias UIGestureRecognizerType = Recognizer
 
-    let minimumDistance: CGFloat
     let onChanged: (DragValue) -> Void
     let onEnded: (DragValue) -> Void
 
     func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
         Coordinator(
-            minimumDistance: minimumDistance,
             onChanged: onChanged,
             onEnded: onEnded
         )
     }
 
     @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
-        let recognizer = UIPanGestureRecognizer()
+        let recognizer = UIGestureRecognizerType()
         recognizer.delegate = context.coordinator
         recognizer.name = "PriorityDragGesture"
         return recognizer
@@ -256,59 +251,45 @@ struct PriorityDragGesture: UIGestureRecognizerRepresentable {
         context.coordinator.handle(recognizer)
     }
 
+    // MARK: - DrawerGesture.Coordinator
     class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        let minimumDistance: CGFloat
         let onChanged: (DragValue) -> Void
         let onEnded: (DragValue) -> Void
-        var startLocation: CGPoint?
 
         init(
-            minimumDistance: CGFloat, onChanged: @escaping (DragValue) -> Void,
+            onChanged: @escaping (DragValue) -> Void,
             onEnded: @escaping (DragValue) -> Void
         ) {
-            self.minimumDistance = minimumDistance
             self.onChanged = onChanged
             self.onEnded = onEnded
         }
 
-        @objc func handle(_ gesture: UIPanGestureRecognizer) {
+        @objc func handle(_ gesture: UIGestureRecognizerType) {
             guard let view = gesture.view else { return }
 
             let location = gesture.location(in: view)
             let translation = gesture.translation(in: view)
+            let velocity = gesture.velocity(in: view)
+
+            let value = DragValue(
+                location: location,
+                translation: translation,
+                velocity: velocity
+            )
 
             switch gesture.state {
             case .began:
-                startLocation = location
+                break
             case .changed:
-                guard let start = startLocation else { return }
-                let distance = hypot(location.x - start.x, location.y - start.y)
-                guard distance >= minimumDistance else { return }
-
-                let value = DragValue(
-                    location: location,
-                    startLocation: start,
-                    translation: CGSize(width: translation.x, height: translation.y),
-                    velocity: CGVector()
-                )
                 onChanged(value)
             case .ended, .cancelled:
-                guard let start = startLocation else { return }
-                let velocityValue = gesture.velocity(in: view)
-
-                let value = DragValue(
-                    location: location,
-                    startLocation: start,
-                    translation: CGSize(width: translation.x, height: translation.y),
-                    velocity: CGVector(dx: velocityValue.x, dy: velocityValue.y)
-                )
                 onEnded(value)
-                startLocation = nil
             default:
                 break
             }
         }
 
+        // fills the "takes priority over gestures in subviews" requirement
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldBeRequiredToFailBy otherGestureRecognizer: UIGestureRecognizer
@@ -318,6 +299,118 @@ struct PriorityDragGesture: UIGestureRecognizerRepresentable {
             else { return false }
 
             return otherView.isDescendant(of: view)
+        }
+    }
+
+    // MARK: - DrawerGesture.Recognizer
+    final class Recognizer: UIGestureRecognizer {
+        // continuously tracked state (reset upon completion)
+        private var startLocation: CGPoint = .zero
+        private var lastLocation: CGPoint = .zero
+        private var lastTimestamp: TimeInterval = 0
+
+        // outputs (available via accessors, including after completion)
+        private var translation: CGPoint = .zero
+        private var velocity: CGPoint = .zero
+
+        override init(target: Any?, action: Selector?) {
+            super.init(target: target, action: action)
+            self.name = "DrawerGesture.Recognizer"
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            guard state == .possible else { return }
+            guard let touch = touches.first else { return }
+
+            let location = touch.location(in: self.view)
+
+            startLocation = location
+            lastLocation = location
+            lastTimestamp = touch.timestamp
+
+            translation = .zero
+            velocity = .zero
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+            guard let touch = touches.first else { return }
+            guard let view = self.view else { return }
+
+            let currentLocation = touch.location(in: view)
+            let currentTimestamp = touch.timestamp
+
+            let deltaSinceFirst = CGPoint(
+                x: currentLocation.x - startLocation.x,
+                y: currentLocation.y - startLocation.y)
+            let deltaSinceLast = CGPoint(
+                x: currentLocation.x - lastLocation.x,
+                y: currentLocation.y - lastLocation.y)
+            let timeDelta = currentTimestamp - lastTimestamp
+
+            lastLocation = currentLocation
+            lastTimestamp = currentTimestamp
+
+            translation = deltaSinceFirst
+            if timeDelta > 0 {
+                velocity = CGPoint(
+                    x: deltaSinceLast.x / CGFloat(timeDelta),
+                    y: deltaSinceLast.y / CGFloat(timeDelta))
+            }
+
+            // begin after min distance; fail instantly if too vertical
+            // fills the "must be a horizontal drag to activate" requirement
+            if state == .possible {
+                if abs(deltaSinceLast.y) > abs(deltaSinceLast.x) * Constants.activationRatio {
+                    state = .failed
+                } else if hypot(deltaSinceLast.x, deltaSinceLast.y) > Constants.activationDistance {
+                    state = .began
+                }
+            } else if state == .began || state == .changed {
+                state = .changed
+            } else {
+                state = .failed
+            }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+            if state == .began || state == .changed {
+                state = .ended
+            } else {
+                state = .failed
+            }
+            reset()
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+            if state == .began || state == .changed {
+                state = .cancelled
+            } else {
+                state = .failed
+            }
+            reset()
+        }
+
+        override func reset() {
+            super.reset()
+            startLocation = .zero
+            lastLocation = .zero
+            lastTimestamp = 0
+        }
+
+        func translation(in _: UIView?) -> CGPoint {
+            translation
+        }
+
+        func velocity(in _: UIView?) -> CGPoint {
+            velocity
+        }
+
+        override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+            false
+        }
+
+        override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
+            false
         }
     }
 }
