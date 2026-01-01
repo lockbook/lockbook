@@ -4,16 +4,27 @@ use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::renderer::RenderOptions;
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar, ToolbarContext};
 use crate::tab::svg_editor::util::{get_pan, transform_rect};
+use crate::tab::svg_editor::{CanvasSettings, ViewportSettings};
 const SCROLLBAR_WIDTH: f32 = 15.0;
 
 impl Toolbar {
+    pub fn should_show_mini_map(
+        hide_overlay: bool, settings: &CanvasSettings, viewport_settings: &ViewportSettings,
+    ) -> bool {
+        !hide_overlay
+            && settings.show_mini_map
+            && viewport_settings.is_scroll_mode()
+            && viewport_settings.bounded_rect.is_some()
+    }
+
     pub fn show_mini_map(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
     ) -> (bool, Option<egui::Response>) {
-        if !tlbr_ctx.settings.show_mini_map
-            || !tlbr_ctx.viewport_settings.is_scroll_mode()
-            || tlbr_ctx.viewport_settings.bounded_rect.is_none()
-        {
+        if !Self::should_show_mini_map(
+            self.hide_overlay,
+            tlbr_ctx.settings,
+            tlbr_ctx.viewport_settings,
+        ) {
             return (false, None);
         }
         let bounded_rect = tlbr_ctx.viewport_settings.bounded_rect.unwrap();

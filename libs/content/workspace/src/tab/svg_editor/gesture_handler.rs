@@ -4,7 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use crate::tab::svg_editor::toolbar::MINI_MAP_WIDTH;
+use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar};
 use crate::tab::svg_editor::util::get_pan;
 
 use super::element::BoundedElement;
@@ -46,7 +46,9 @@ enum Shortcut {
 }
 
 impl GestureHandler {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext, hide_overlay: bool,
+    ) {
         if !*gesture_ctx.allow_viewport_changes {
             self.current_gesture = None;
             return;
@@ -64,7 +66,7 @@ impl GestureHandler {
                 self.handle_event(e, gesture_ctx)
             }
         });
-        self.change_viewport(ui, gesture_ctx);
+        self.change_viewport(ui, gesture_ctx, hide_overlay);
     }
 
     fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
@@ -137,7 +139,9 @@ impl GestureHandler {
         }
     }
 
-    fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
+    fn change_viewport(
+        &mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>, hide_overlay: bool,
+    ) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
         let pan: Option<egui::Vec2> = get_pan(ui, gesture_ctx.settings.pencil_only_drawing);
@@ -156,7 +160,11 @@ impl GestureHandler {
             ui.ctx().pointer_hover_pos()
         };
 
-        let container_rect_with_mini_map = if gesture_ctx.settings.show_mini_map {
+        let container_rect_with_mini_map = if Toolbar::should_show_mini_map(
+            hide_overlay,
+            gesture_ctx.settings,
+            gesture_ctx.viewport_settings,
+        ) {
             egui::Rect::from_min_size(
                 gesture_ctx.viewport_settings.container_rect.min,
                 egui::vec2(

@@ -293,6 +293,30 @@ struct FilesHomeView: View {
     }
 }
 
+struct CloseSidebarToolbarModifier: ViewModifier {
+    @EnvironmentObject var homeState: HomeState
+    
+    func body(content: Content) -> some View {
+        content
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        homeState.sidebarState = .closed
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .imageScale(.large)
+                    }
+                }
+            }
+    }
+}
+
+extension View {
+    func closeSidebarToolbar() -> some View {
+        self.modifier(CloseSidebarToolbarModifier())
+    }
+}
+
 #Preview("Home View") {
     HomeView(workspaceOutput: .preview, filesModel: .preview)
         .withCommonPreviewEnvironment()

@@ -379,9 +379,11 @@ impl SVGEditor {
         }
 
         if !self.has_islands_interaction {
-            self.toolbar
-                .gesture_handler
-                .handle_input(ui, &mut tool_context);
+            self.toolbar.gesture_handler.handle_input(
+                ui,
+                &mut tool_context,
+                self.toolbar.hide_overlay,
+            );
         }
     }
 

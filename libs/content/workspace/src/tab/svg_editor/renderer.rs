@@ -46,6 +46,7 @@ enum RenderOp<'a> {
     ForwordImage(&'a mut Image),
 }
 
+#[derive(Default)]
 pub struct Renderer {
     mesh_cache: HashMap<Uuid, MeshShape>,
     tex_cache: HashMap<Uuid, TextureHandle>,

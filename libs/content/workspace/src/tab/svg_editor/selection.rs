@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
+use egui::TouchPhase;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
@@ -102,6 +103,7 @@ enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
+    CancelLaso,
     SelectAll,
     StartTransform,
     Transform(egui::Pos2),
@@ -271,6 +273,9 @@ impl Selection {
                     if !pressed {
                         return Some(SelectionEvent::EndLaso);
                     }
+                }
+                egui::Event::Touch { phase: TouchPhase::Cancel, .. } => {
+                    return Some(SelectionEvent::CancelLaso);
                 }
                 _ => {}
             },
@@ -551,6 +556,11 @@ impl Selection {
                 }
             }
             SelectionEvent::EndLaso => {
+                self.current_op = SelectionOperation::Idle;
+                self.laso_rect = None;
+            }
+            SelectionEvent::CancelLaso => {
+                // todo: undo/nullify the effects of the laso operation
                 self.current_op = SelectionOperation::Idle;
                 self.laso_rect = None;
             }
