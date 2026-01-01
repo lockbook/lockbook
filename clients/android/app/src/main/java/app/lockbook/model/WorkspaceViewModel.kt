@@ -67,7 +67,7 @@ class WorkspaceViewModel : ViewModel() {
     val syncCompleted: LiveData<Unit>
         get() = _syncCompleted
 
-    val _currentTab = MutableLiveData<WorkspaceTab>()
+    val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
 

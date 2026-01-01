@@ -55,6 +55,7 @@ import com.afollestad.recyclical.withItem
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
+import net.lockbook.Lb
 import kotlin.getValue
 import kotlin.math.abs
 
@@ -201,7 +202,6 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-
         setupTabList()
 
         binding.expandList.setOnClickListener {
@@ -320,7 +320,7 @@ class WorkspaceFragment : Fragment() {
 
 
         val openTabs = workspaceWrapper.workspaceView.getTabs()
-            .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] }
+            .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] ?: Lb.getFileById(tabId) }
             .toList()
 
         model.tabs.set(openTabs)
@@ -360,7 +360,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun getSelectedFile() : File? {
-        return filesListModel.fileModel.idsAndFiles[model.selectedFile.value!!]
+        return filesListModel.fileModel.idsAndFiles[model.selectedFile.value!!] ?: Lb.getFileById(model.selectedFile.value)
     }
 
 
@@ -523,7 +523,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     @SuppressLint("ClickableViewAccessibility")
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
 
-        if (event != null && currentTab != WorkspaceTab.Svg) {
+        if (event != null && currentTab != WorkspaceTab.Svg && currentTab != WorkspaceTab.Image) {
             scrollDetector.onTouchEvent(event)
         }
 

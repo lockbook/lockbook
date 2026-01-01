@@ -217,6 +217,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
+            println("3asba: selected file $id")
             model.fileOpened(id)
             model.fileModel.idsAndFiles[id]?.let { child ->
                 model.fileModel.idsAndFiles[child.parent]?.let { parent ->

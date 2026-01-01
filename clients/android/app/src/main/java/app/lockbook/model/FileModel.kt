@@ -47,7 +47,7 @@ class FileModel(
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
     fun refreshFiles() {
-        idsAndFiles = (Lb.listMetadatas()).associateBy { it.id }
+        idsAndFiles = (Lb.listMetadatas() + Lb.getPendingShareFiles()).associateBy { it.id }
         suggestedDocs = Lb.suggestedDocs().mapNotNull { idsAndFiles[it] }
         refreshChildren()
     }
