@@ -37,7 +37,8 @@
         android:id="@+id/suggested_docs_list"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="20dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="0dp"
         android:paddingBottom="10dp" />
 
 </LinearLayout>

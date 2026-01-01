@@ -10,8 +10,8 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
-    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Rect,
-    ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
+    Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -483,6 +483,8 @@ impl Editor {
     fn show_scrollable_editor<'a>(
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
+        let margin: Margin =
+            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { MARGIN.into() };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
@@ -494,7 +496,7 @@ impl Editor {
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
-                        .inner_margin(MARGIN)
+                        .inner_margin(margin)
                         .stroke(Stroke::NONE)
                         .fill(self.theme.bg().neutral_primary)
                         .show(ui, |ui| {
@@ -516,7 +518,7 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
-                            let rect = rect.expand2(Vec2::X * MARGIN); // clickable margins (more forgivable to click beginning of line)
+                            let rect = rect.expand2(Vec2::X * margin.left); // clickable margins (more forgivable to click beginning of line)
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
                             let focused = self.focused(ui.ctx());

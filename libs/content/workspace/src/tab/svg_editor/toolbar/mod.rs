@@ -29,7 +29,8 @@ pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
-const SCREEN_PADDING: f32 = 20.0;
+const SCREEN_PADDING: egui::Pos2 =
+    if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
 
 pub struct Toolbar {
     pub active_tool: Tool,
@@ -408,14 +409,16 @@ impl Toolbar {
         let island_rect = egui::Rect {
             min: egui::pos2(
                 tlbr_ctx.viewport_settings.container_rect.right()
-                    - SCREEN_PADDING
+                    - SCREEN_PADDING.x
                     - island_size.x
                     - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING,
+                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y,
             ),
             max: egui::pos2(
-                tlbr_ctx.viewport_settings.container_rect.right() - SCREEN_PADDING - mini_map_width,
-                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING + island_size.y,
+                tlbr_ctx.viewport_settings.container_rect.right()
+                    - SCREEN_PADDING.x
+                    - mini_map_width,
+                tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y + island_size.y,
             ),
         };
         let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {

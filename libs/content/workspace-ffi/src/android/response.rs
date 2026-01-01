@@ -20,6 +20,7 @@ pub struct AndroidResponse {
 
     new_folder_btn_pressed: bool,
     tab_title_clicked: bool,
+    tabs_changed: bool,
 
     has_edit_menu: bool,
     edit_menu_x: f32,
@@ -46,7 +47,7 @@ impl From<crate::Response> for AndroidResponse {
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated: _,
-                    tabs_changed: _,
+                    tabs_changed,
                     failure_messages: _,
                     selected_folder_changed: _,
                 },
@@ -71,6 +72,7 @@ impl From<crate::Response> for AndroidResponse {
             refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
             new_folder_btn_pressed: new_folder_clicked,
             tab_title_clicked,
+            tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,
             has_url_opened: url_opened.is_some(),

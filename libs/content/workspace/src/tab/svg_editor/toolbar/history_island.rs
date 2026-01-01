@@ -10,9 +10,9 @@ impl Toolbar {
         let mut dirty = false;
 
         let history_island_x_start =
-            tlbr_ctx.viewport_settings.container_rect.left() + SCREEN_PADDING;
+            tlbr_ctx.viewport_settings.container_rect.left() + SCREEN_PADDING.x;
         let history_island_y_start =
-            tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING;
+            tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y;
 
         let history_rect = egui::Rect {
             min: egui::pos2(history_island_x_start, history_island_y_start),

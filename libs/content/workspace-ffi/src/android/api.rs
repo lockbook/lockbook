@@ -1,7 +1,7 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
@@ -209,7 +209,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    obj.workspace.open_file(id, true, false);
+    obj.workspace.open_file(id, true, true);
 }
 
 // todo: can't close non-file tabs (mind map)
@@ -243,6 +243,29 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     obj.workspace.show_tabs = show == 1;
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobjectArray {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let ids = obj.workspace.tabs.iter().filter_map(|t| t.id());
+
+    let string_class = env.find_class("java/lang/String").unwrap();
+
+    let arr = env
+        .new_object_array(ids.clone().count() as i32, string_class, JObject::null())
+        .unwrap();
+
+    for (i, id) in ids.enumerate() {
+        let id = env.new_string(id.to_string()).unwrap();
+        env.set_object_array_element(&arr, i as i32, JObject::from(id))
+            .unwrap();
+    }
+
+    arr.into_raw()
 }
 
 #[no_mangle]
