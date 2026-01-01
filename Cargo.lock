@@ -9151,8 +9151,8 @@ name = "workspace-ffi"
 version = "25.12.17"
 dependencies = [
  "egui",
- "egui-wgpu",
  "egui_extras",
+ "egui_wgpu_renderer",
  "jni",
  "lb-c",
  "lb-java",

@@ -1,10 +1,10 @@
 use crate::WgpuWorkspace;
-use egui::{Context, FontDefinitions};
-use egui_wgpu::wgpu::{CompositeAlphaMode, SurfaceTargetUnsafe};
-use egui_wgpu::{ScreenDescriptor, wgpu};
+use egui::FontDefinitions;
+use egui_wgpu_renderer::RendererState;
 use lb_c::Lb;
 use std::ffi::c_void;
 use std::time::Instant;
+use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
@@ -15,90 +15,26 @@ pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool, show_tabs: bool,
 ) -> *mut c_void {
     let core = unsafe { &mut *(core as *mut Lb) };
+    let renderer =
+        RendererState::from_surface(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer));
 
-    let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-    let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance
-        .create_surface_unsafe(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer))
-        .unwrap();
-    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
-
-    let avail_formats = surface.get_capabilities(&adapter).formats;
-    let format = avail_formats[0];
-
-    let screen = ScreenDescriptor { size_in_pixels: [1000, 1000], pixels_per_point: 1.0 };
-    let surface_config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: screen.size_in_pixels[0], // TODO get from context or something
-        height: screen.size_in_pixels[1],
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode: CompositeAlphaMode::Auto,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &surface_config);
-    let renderer = egui_wgpu::Renderer::new(&device, format, None, 4);
-
-    let context = Context::default();
-    visuals::init(&context, dark_mode);
-    let workspace = Workspace::new(core, &context, show_tabs);
+    visuals::init(&renderer.context, dark_mode);
+    let workspace = Workspace::new(core, &renderer.context, show_tabs);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
-    context.set_fonts(fonts);
-    egui_extras::install_image_loaders(&context);
+    renderer.context.set_fonts(fonts);
+    egui_extras::install_image_loaders(&renderer.context);
 
     let start_time = Instant::now();
-    let obj = WgpuWorkspace {
-        start_time,
-        device,
-        queue,
-        surface,
-        adapter,
-        renderer,
-        screen,
-        context,
-        raw_input: Default::default(),
-        workspace,
-        surface_width: 0,
-        surface_height: 0,
-    };
+    let obj = WgpuWorkspace { start_time, renderer, workspace };
 
     Box::into_raw(Box::new(obj)) as *mut c_void
-}
-
-async fn request_device(
-    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
-        .await
-        .expect("No suitable GPU adapters found on the system!");
-    let adapter_info = adapter.get_info();
-    println!("Using {} ({:?})", adapter_info.name, adapter_info.backend);
-    let res = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: adapter.features(),
-                required_limits: adapter.limits(),
-                // memory_hints: Default::default(),
-            },
-            None,
-        )
-        .await;
-    match res {
-        Err(err) => {
-            panic!("request_device failed: {err:?}");
-        }
-        Ok((device, queue)) => (adapter, device, queue),
-    }
 }
 
 #[no_mangle]
 pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.screen.size_in_pixels[0] = width as u32;
-    obj.screen.size_in_pixels[1] = height as u32;
-    obj.screen.pixels_per_point = scale;
+    obj.renderer.screen.size_in_pixels[0] = width as u32;
+    obj.renderer.screen.size_in_pixels[1] = height as u32;
+    obj.renderer.screen.pixels_per_point = scale;
 }
