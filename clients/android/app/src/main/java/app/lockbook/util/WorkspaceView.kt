@@ -1,7 +1,6 @@
 package app.lockbook.util
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -20,7 +19,6 @@ import android.view.SurfaceView
 import android.view.View
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
-import androidx.window.layout.WindowMetricsCalculator
 import app.lockbook.App
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
@@ -78,7 +76,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null ) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
@@ -202,14 +200,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         Workspace.showTabs(WGPU_OBJ, show)
     }
 
-    fun getTabs() : Array<String> {
+    fun getTabs(): Array<String> {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return emptyArray()
         }
 
         return Workspace.getTabs(WGPU_OBJ)
     }
-
 
     fun sync() {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {

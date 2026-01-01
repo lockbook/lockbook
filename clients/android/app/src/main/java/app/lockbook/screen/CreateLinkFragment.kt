@@ -43,7 +43,6 @@ class CreateLinkFragment : Fragment() {
             model.refreshOverParent()
         }
 
-
         binding.createLinkFiles.setup {
             withDataSource(model.files)
             withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {

@@ -33,7 +33,6 @@ class SearchDocumentsFragment : Fragment() {
     ): View {
         binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
 
-
         binding.searchDocumentsToolbar.setNavigationOnClickListener {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
         }
@@ -114,5 +113,4 @@ class SearchDocumentsFragment : Fragment() {
         activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
         super.onStop()
     }
-
 }

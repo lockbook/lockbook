@@ -71,7 +71,6 @@ class WorkspaceViewModel : ViewModel() {
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
 
-
     var tabs = emptyDataSourceTyped<File>()
 
     val _shouldShowTabs = SingleMutableLiveData<Unit>()

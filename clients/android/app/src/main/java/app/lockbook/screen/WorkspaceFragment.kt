@@ -59,7 +59,6 @@ import net.lockbook.Lb
 import kotlin.getValue
 import kotlin.math.abs
 
-
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
 
 class WorkspaceFragment : Fragment() {
@@ -105,14 +104,12 @@ class WorkspaceFragment : Fragment() {
 
                     getSelectedFile()?.let {
                         activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
-
                     }
                 }
                 R.id.menu_text_editor_share_externally -> {
                     getSelectedFile()?.let {
                         activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
                     }
-
                 }
             }
 
@@ -190,7 +187,7 @@ class WorkspaceFragment : Fragment() {
                     }
                     val tabIndex = model.tabs.indexOfFirst { it.id == action.id }
                     if (tabIndex != -1) {
-                        val updatedTab =  model.tabs.get(tabIndex)
+                        val updatedTab = model.tabs.get(tabIndex)
                         updatedTab.name = action.name
 
                         model.tabs.removeAt(tabIndex)
@@ -208,47 +205,41 @@ class WorkspaceFragment : Fragment() {
             model._bottomSheetExpanded.value = !(model.bottomSheetExpanded.value ?: false)
         }
 
-        model.bottomSheetExpanded.observe(viewLifecycleOwner){ shouldExpand ->
+        model.bottomSheetExpanded.observe(viewLifecycleOwner) { shouldExpand ->
             toggleBottomSheetExpansion(shouldExpand)
         }
 
-        model.hideMaterialToolbar.observe(viewLifecycleOwner){ distanceY ->
+        model.hideMaterialToolbar.observe(viewLifecycleOwner) { distanceY ->
 
             val isKeyboardVisible = model.keyboardVisible.value ?: false
 
-            if (distanceY > 0 ){
+            if (distanceY > 0) {
                 hideBottomSheet()
                 hideMaterialToolbar()
-            }else if (distanceY < 0 && isKeyboardVisible){
+            } else if (distanceY < 0 && isKeyboardVisible) {
                 showMaterialToolbar()
-            }else if (distanceY <0 && !isKeyboardVisible){
+            } else if (distanceY <0 && !isKeyboardVisible) {
                 showBottomSheet()
                 showMaterialToolbar()
-
             }
         }
 
-        model.keyboardVisible.observe(viewLifecycleOwner){ keyboardVisible ->
-            if (keyboardVisible){
+        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
+            if (keyboardVisible) {
                 binding.standardBottomSheet.visibility = View.GONE
-            }else{
+            } else {
                 binding.standardBottomSheet.visibility = View.VISIBLE
             }
         }
 
-
-
-
-
         return binding.root
     }
 
-
     private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {
         val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
-        if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand)
-            ||
-            (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)){
+        if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand) ||
+            (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)
+        ) {
             return
         }
 
@@ -270,7 +261,6 @@ class WorkspaceFragment : Fragment() {
         setupTabList()
     }
 
-
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -288,11 +278,7 @@ class WorkspaceFragment : Fragment() {
 
             insets
         }
-
-
-
     }
-
 
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
@@ -318,7 +304,6 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-
         val openTabs = workspaceWrapper.workspaceView.getTabs()
             .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] ?: Lb.getFileById(tabId) }
             .toList()
@@ -326,62 +311,58 @@ class WorkspaceFragment : Fragment() {
         model.tabs.set(openTabs)
         binding.tabsList.adapter?.notifyDataSetChanged()
 
-
         workspaceWrapper.updateCurrentTab(newTab)
     }
 
-
-    fun hideBottomSheet(){
+    fun hideBottomSheet() {
         binding.standardBottomSheet.animate()
             .translationY(binding.standardBottomSheet.measuredHeight.toFloat())
             .setDuration(300)
             .start()
     }
 
-    fun showBottomSheet(){
+    fun showBottomSheet() {
         binding.standardBottomSheet.animate()
             .translationY(0f)
             .setDuration(300)
             .start()
     }
 
-    fun hideMaterialToolbar(){
+    fun hideMaterialToolbar() {
         binding.appBarLayout.animate()
             .translationY(-binding.appBarLayout.height.toFloat())
             .setDuration(300)
             .start()
     }
 
-    fun showMaterialToolbar(){
+    fun showMaterialToolbar() {
         binding.appBarLayout.animate()
             .translationY(0f)
             .setDuration(300)
             .start()
     }
 
-    private fun getSelectedFile() : File? {
+    private fun getSelectedFile(): File? {
         return filesListModel.fileModel.idsAndFiles[model.selectedFile.value!!] ?: Lb.getFileById(model.selectedFile.value)
     }
-
 
     private fun setupTabList() {
         binding.tabsList.setup {
             withDataSource(model.tabs)
 
             val orientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
-            println("setting up tab with ${orientation ==LinearLayoutManager.HORIZONTAL }")
-            if (orientation == LinearLayoutManager.HORIZONTAL){
+            println("setting up tab with ${orientation == LinearLayoutManager.HORIZONTAL }")
+            if (orientation == LinearLayoutManager.HORIZONTAL) {
                 withItem<File, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
                     onBind(::HorizontalTabItemHolder) { _, item ->
                         name.text = item.name
                         name.isChecked = getSelectedFile()?.id == item.id
-
                     }
                     onClick {
                         model._openFile.value = item.id to false
                     }
                 }
-            }else{
+            } else {
                 withItem<File, VerticalTabItemHolder>(R.layout.vertical_tab_item) {
                     onBind(::VerticalTabItemHolder) { _, item ->
                         name.text = item.name
@@ -399,7 +380,6 @@ class WorkspaceFragment : Fragment() {
                     }
                 }
             }
-
         }
 
         binding.tabsList.post {
@@ -408,7 +388,6 @@ class WorkspaceFragment : Fragment() {
                 binding.tabsList.scrollToPosition(selectedPosition)
             }
         }
-
     }
 }
 
@@ -419,8 +398,7 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
     var currentWrapper: View? = null
 
-
-    private val scrollListener =  object : GestureDetector.SimpleOnGestureListener() {
+    private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             return true
         }
@@ -437,7 +415,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     }
 
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
-
 
     companion object {
         const val TAB_BAR_HEIGHT = 50
@@ -527,14 +504,13 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             scrollDetector.onTouchEvent(event)
         }
 
-        if (model.bottomSheetExpanded.value ?: true){
+        if (model.bottomSheetExpanded.value ?: true) {
             model._bottomSheetExpanded.postValue(false)
             return true
         }
         return false
     }
-
-    }
+}
 
 @SuppressLint("ViewConstructor")
 class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceView, val touchYOffset: Float) : View(context) {
@@ -542,9 +518,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
     private var touchStartX = 0f
     private var touchStartY = 0f
-
-
-
 
     init {
         isFocusable = true
@@ -582,7 +555,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
         if (event != null) {
             workspaceView.forwardedTouchEvent(event, touchYOffset)
-
         }
 
         workspaceView.invalidate()

@@ -39,7 +39,6 @@ class ShareFileFragment : Fragment() {
 
         val file = (activityModel.transientScreen as TransientScreen.ShareFile).file
 
-
         binding.materialToolbar.subtitle = file.getPrettyName()
         populateShares(file)
 
