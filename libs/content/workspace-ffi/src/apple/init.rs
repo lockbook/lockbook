@@ -3,7 +3,6 @@ use egui::FontDefinitions;
 use egui_wgpu_renderer::RendererState;
 use lb_c::Lb;
 use std::ffi::c_void;
-use std::time::Instant;
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::visuals;
@@ -25,8 +24,7 @@ pub unsafe extern "C" fn init_ws(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let start_time = Instant::now();
-    let obj = WgpuWorkspace { start_time, renderer, workspace };
+    let obj = WgpuWorkspace { renderer, workspace };
 
     Box::into_raw(Box::new(obj)) as *mut c_void
 }

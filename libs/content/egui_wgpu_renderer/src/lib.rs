@@ -1,20 +1,23 @@
-use std::time::Instant;
+use std::{iter, time::Instant};
 
+use egui::{FullOutput, PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    Adapter, CompositeAlphaMode, Device, Instance, Surface, SurfaceTargetUnsafe, TextureDescriptor,
-    TextureUsages,
+    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceTargetUnsafe,
+    TextureDescriptor, TextureUsages,
 };
 
 pub struct RendererState<'w> {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
+    pub screen: ScreenDescriptor,
 
     device: Device,
-    screen: ScreenDescriptor,
     adapter: Adapter,
     surface: Surface<'w>,
+    renderer: Renderer,
+    queue: Queue,
 
     start_time: Instant,
     surface_width: u32,
@@ -66,16 +69,25 @@ impl<'w> RendererState<'w> {
             adapter,
             surface,
             device,
+            renderer,
+            queue,
             surface_width: 0,
             surface_height: 0,
             context: Default::default(),
             raw_input: Default::default(),
+            start_time: Instant::now(),
         }
     }
 
-    pub fn frame(&mut self) {
+    pub fn begin_frame(&mut self) {
         self.configure_surface();
 
+        self.set_egui_screen();
+        self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
+        self.context.begin_frame(self.raw_input.take());
+    }
+
+    pub fn end_frame(&mut self) -> (PlatformOutput, ViewportIdMap<ViewportOutput>) {
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
             Err(wgpu::SurfaceError::Outdated) => {
@@ -107,7 +119,75 @@ impl<'w> RendererState<'w> {
         });
 
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        self.set_egui_screen();
+        let full_output = self.context.end_frame();
+        self.context.tessellation_options_mut(|w| {
+            w.feathering = false;
+        });
+
+        let paint_jobs = self
+            .context
+            .tessellate(full_output.shapes, full_output.pixels_per_point);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
+
+        for (id, image_delta) in &full_output.textures_delta.set {
+            self.renderer
+                .update_texture(&self.device, &self.queue, *id, image_delta);
+        }
+        self.renderer.update_buffers(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &paint_jobs,
+            &self.screen,
+        );
+
+        // Record all render passes.
+        {
+            let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &output_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE), // todo: these are different
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+        }
+
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: None,
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &msaa_view,
+                    resolve_target: Some(&output_view),
+                    ops: wgpu::Operations { load: wgpu::LoadOp::Load, store: wgpu::StoreOp::Store },
+                })],
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+
+            self.renderer.render(&mut pass, &paint_jobs, &self.screen);
+        }
+
+        // Submit the commands.
+        self.queue.submit(iter::once(encoder.finish()));
+
+        // Redraw egui
+        output_frame.present();
+
+        for id in &full_output.textures_delta.free {
+            self.renderer.free_texture(id);
+        }
+
+        (full_output.platform_output, full_output.viewport_output)
     }
 
     fn configure_surface(&mut self) {
