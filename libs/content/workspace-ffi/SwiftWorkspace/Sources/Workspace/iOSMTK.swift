@@ -1026,16 +1026,32 @@
             if event.state == .changed {
                 let zoomDelta = Float(scale)
 
-                zoom(self.wsHandle, zoomDelta)
-
                 let viewCenter = CGPoint(x: self.mtkView.bounds.midX, y: self.mtkView.bounds.midY)
                 let offsetX = pinchCenter.x - viewCenter.x
                 let offsetY = pinchCenter.y - viewCenter.y
 
                 let panX = offsetX * (scale - 1.0)
                 let panY = offsetY * (scale - 1.0)
-
+                
+                // In a former version, touch input was sent along with pinch
+                // input and would be used by the svg editor's gesture
+                // recognition to determine the center point (which is not
+                // passed to workspace, despite being also computed here). In
+                // this version, pinch input is sent **instead of** touch input,
+                // so the svg editor has no touches to compute the pinch center
+                // from, and falls back to the desktop logic which uses the
+                // pointer's hover position. We set the hover position by moving
+                // the mouse to the target position. We clear the hover position
+                // after, but egui doesn't register the hover position unless we
+                // also draw a frame in-between.
+                mouse_moved(self.wsHandle, Float(pinchCenter.x), Float(pinchCenter.y))
+                
                 pan(self.wsHandle, Float(panX), Float(panY))
+                zoom(self.wsHandle, zoomDelta)
+                
+                self.mtkView.drawImmediately()
+                
+                mouse_gone(self.wsHandle)
 
                 event.scale = 1.0
 
