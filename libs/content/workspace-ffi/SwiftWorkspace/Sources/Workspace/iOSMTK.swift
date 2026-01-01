@@ -98,7 +98,7 @@
                 if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
                     touch.toCancel?.append(gestureRecognizer)
                 }
-                
+
                 // setup interactive refinement cancellation when workspace consumes a tap
                 if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
                     touch.toCancel?.append(gestureRecognizer)
@@ -637,13 +637,10 @@
             let res = has_text(wsHandle)
             return res
         }
-        
+
         public var isEditable: Bool {
-            get {
-                is_current_tab_editable(wsHandle)
-            }
+            is_current_tab_editable(wsHandle)
         }
-        
 
         public func deleteBackward() {
             if !hasText {
@@ -1891,7 +1888,9 @@
     }
 
     // MARK: - WsTouchGestureRecognizer
-    class WsTouchGestureRecognizer: UILongPressGestureRecognizer {
+    class WsTouchGestureRecognizer: UIGestureRecognizer {
+        // todo: address https://developer.apple.com/documentation/uikit/implementing-a-continuous-gesture-recognizer
+        // "You cannot simply store references to the UITouch objects that you receive because UIKit reuses those objects and overwrites any old values."
         var touch: UITouch?
         var event: UIEvent?
 
@@ -1900,15 +1899,15 @@
 
         convenience init() {
             self.init(target: nil, action: nil)
-            minimumPressDuration = 0
-            allowableMovement = .infinity
             name = "WsTouch"
         }
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
-            super.touchesBegan(touches, with: event)
-            if touch == nil {
-                touch = touches.first
+            if touches.count != 1 {
+                self.state = .failed
+            } else if touch == nil {
+                state = .began
+                self.touch = touches.first
                 self.event = event
             }
 
@@ -1926,8 +1925,19 @@
             }
         }
 
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            state = .changed
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            state = .ended
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            state = .cancelled
+        }
+
         public override func reset() {
-            super.reset()
             touch = nil
             event = nil
         }
