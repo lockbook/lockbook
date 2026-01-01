@@ -4,6 +4,8 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
+import com.afollestad.recyclical.datasource.emptyDataSourceTyped
+import net.lockbook.File
 
 class WorkspaceViewModel : ViewModel() {
 
@@ -49,6 +51,10 @@ class WorkspaceViewModel : ViewModel() {
     val refreshFiles: LiveData<Unit>
         get() = _refreshFiles
 
+    val _hideMaterialToolbar = SingleMutableLiveData<Float>()
+    val hideMaterialToolbar: LiveData<Float>
+        get() = _hideMaterialToolbar
+
     val _newFolderBtnPressed = SingleMutableLiveData<Unit>()
     val newFolderBtnPressed: LiveData<Unit>
         get() = _newFolderBtnPressed
@@ -65,9 +71,20 @@ class WorkspaceViewModel : ViewModel() {
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
 
+
+    var tabs = emptyDataSourceTyped<File>()
+
     val _shouldShowTabs = SingleMutableLiveData<Unit>()
     val shouldShowTabs: LiveData<Unit>
         get() = _shouldShowTabs
+
+    val _keyboardVisible = MutableLiveData<Boolean>()
+    val keyboardVisible: LiveData<Boolean>
+        get() = _keyboardVisible
+
+    val _bottomSheetExpanded = MutableLiveData<Boolean>(false)
+    val bottomSheetExpanded: LiveData<Boolean>
+        get() = _bottomSheetExpanded
 }
 
 enum class WorkspaceTab(val value: Int) {

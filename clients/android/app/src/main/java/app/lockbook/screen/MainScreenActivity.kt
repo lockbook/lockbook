@@ -2,15 +2,20 @@ package app.lockbook.screen
 
 import android.content.ClipData
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowCompat
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.fragment.app.*
@@ -75,9 +80,16 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT
+            )
+        )
+
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        enableEdgeToEdge()
 
         ThemeMode.affirmThemeModeFromSaved(baseContext)
 
@@ -201,7 +213,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             if (tab == WorkspaceTab.Welcome) {
                 slidingPaneLayout.closePane()
             } else {
-                binding.bottomNavigation.visibility = View.GONE
                 slidingPaneLayout.openPane()
             }
         }
@@ -223,7 +234,7 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                     if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                         model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
                     } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-                        model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
+                        model.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspaceDoc)
                     } else if (maybeGetSearchFilesFragment() != null) {
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
                     } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {
@@ -235,8 +246,24 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
         )
 
         val navController = navHost().navController
-        val bottomNav = findViewById<BottomNavigationView>(R.id.bottom_navigation)
-        bottomNav.setupWithNavController(navController)
+
+        slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
+            override fun onPanelOpened(panel: View) {
+            }
+            override fun onPanelClosed(panel: View) {
+            }
+            override fun onPanelSlide(panel: View, slideOffset: Float) {
+                if (slideOffset > 0) {
+                    binding.bottomNavigation.visibility = View.VISIBLE
+                    val bottomNavHeight = binding.bottomNavigation.height.toFloat()
+
+                    binding.bottomNavigation.translationY = bottomNavHeight * (1 - slideOffset)
+                } else {
+                    binding.bottomNavigation.visibility = View.GONE
+                }
+            }
+        })
+        binding.bottomNavigation.setupWithNavController(navController)
     }
 
     override fun onResume() {
@@ -252,17 +279,14 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
-                    binding.bottomNavigation.visibility = View.GONE
                 } else {
                     if (workspaceModel.selectedFile.value != null) {
                         workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
-                        binding.bottomNavigation.visibility = View.VISIBLE
                     }
                 }
             }
             is UpdateMainScreenUI.CloseWorkspaceDoc -> {
-                binding.bottomNavigation.visibility = View.VISIBLE
-                workspaceModel._closeDocument.value = update.id
+                slidingPaneLayout.closePane()
             }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
@@ -291,6 +315,9 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                 } else {
                     View.VISIBLE
                 }
+            }
+            UpdateMainScreenUI.CloseSlidingPane -> {
+                slidingPaneLayout.closePane()
             }
             UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }

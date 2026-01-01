@@ -43,7 +43,6 @@ class CreateLinkFragment : Fragment() {
             model.refreshOverParent()
         }
 
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
 
         binding.createLinkFiles.setup {
             withDataSource(model.files)
@@ -107,6 +106,16 @@ class CreateLinkFragment : Fragment() {
         return binding.root
     }
 
+    override fun onResume() {
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+        super.onResume()
+    }
+
+    override fun onStop() {
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+        super.onStop()
+    }
+
     fun onBackPressed() {
         if (model.currentParent.isRoot()) {
             popBackStack()
@@ -117,7 +126,6 @@ class CreateLinkFragment : Fragment() {
 
     private fun popBackStack() {
         findNavController().popBackStack()
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
     }
 
     companion object {

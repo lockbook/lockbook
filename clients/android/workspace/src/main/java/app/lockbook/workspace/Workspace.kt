@@ -58,7 +58,9 @@ public data class AndroidResponse(
     val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
     val tabTitleClicked: Boolean,
-
+    @SerialName("tabs_changed")
+    val tabsChanged: Boolean,
+    
     @SerialName("has_edit_menu")
     val hasEditMenu: Boolean,
     @SerialName("edit_menu_x")
@@ -97,6 +99,9 @@ object Workspace {
     external fun closeDoc(rustObj: Long, id: String)
     external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
+
+    external fun getTabs(rustObj: Long) : Array<String>
+
     external fun currentTab(rustObj: Long): Int
 
     external fun getStatus(rustObj: Long): String

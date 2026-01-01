@@ -86,7 +86,7 @@ sealed class TransientScreen {
 sealed class UpdateMainScreenUI {
     data class OpenFile(val id: String?) : UpdateMainScreenUI()
 
-    data class CloseWorkspaceDoc(val id: String?) : UpdateMainScreenUI()
+
 
     data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
@@ -96,5 +96,7 @@ sealed class UpdateMainScreenUI {
     object ShowFiles : UpdateMainScreenUI()
     object PopBackstackToWorkspace : UpdateMainScreenUI()
     object ToggleBottomViewNavigation : UpdateMainScreenUI()
+    object CloseSlidingPane : UpdateMainScreenUI()
+    object CloseWorkspaceDoc : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
 }

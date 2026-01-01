@@ -8,6 +8,7 @@ import androidx.constraintlayout.widget.ConstraintLayout
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textview.MaterialTextView
 import net.lockbook.File
 import net.lockbook.File.FileType
 
@@ -36,12 +37,24 @@ class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
     val icon: ImageView = itemView.findViewById(R.id.linear_move_file_icon)
 }
 
+
 fun List<File>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: HashSet<String>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
     when (fileMetadata.type) {
         FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
         FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
     }
 }
+
+class HorizontalTabItemHolder(itemView: View) : ViewHolder(itemView) {
+    val name: MaterialButton = itemView.findViewById(R.id.tab_name)
+}
+class VerticalTabItemHolder(itemView: View) : ViewHolder(itemView) {
+    val name: TextView = itemView.findViewById(R.id.tab_name_v)
+    val icon: ImageView = itemView.findViewById(R.id.tab_icon)
+    val closeButton: MaterialButton = itemView.findViewById(R.id.close_tab)
+
+}
+
 
 data class SuggestedDocsViewHolderInfo(val fileMetadata: File, val folderName: String)
 

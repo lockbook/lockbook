@@ -33,7 +33,7 @@ impl Toolbar {
         let tools_island_x_start = ui.available_rect_before_wrap().left()
             + (ui.available_width() - tools_island_size.x) / 2.0;
         let tools_island_y_start =
-            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING - tools_island_size.y;
+            ui.available_rect_before_wrap().bottom() - SCREEN_PADDING.y - tools_island_size.y;
 
         let tools_island_rect = egui::Rect {
             min: egui::pos2(tools_island_x_start, tools_island_y_start),
@@ -205,7 +205,7 @@ impl Toolbar {
         let mut cursor_pos = self.show_at_cursor_tool_popover.unwrap().unwrap();
 
         let tool_popovers_size = self.layout.tool_popover.unwrap_or(egui::Rect::ZERO).size();
-        let screen_bounds = SCREEN_PADDING
+        let screen_bounds = SCREEN_PADDING.y
             + self
                 .layout
                 .tools_island

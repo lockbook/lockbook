@@ -266,6 +266,9 @@
     <string name="home_navbar_item">Home</string>
     <string name="shared_navbar_item">Shared</string>
 
+    <string name="expand_tabs_list">View more info about your tabs</string>
+    <string name="close_tab">Close a tab</string>
+
     <array name="share_mode">
         <item>@string/share_mode_read</item>
         <item>@string/share_mode_write</item>

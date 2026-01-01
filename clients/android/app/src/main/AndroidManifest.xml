@@ -36,7 +36,8 @@
         <activity
             android:name=".screen.ImportAccountActivity"
             android:alwaysRetainTaskState="true" />
-        <activity android:name=".screen.MainScreenActivity" />
+        <activity android:name=".screen.MainScreenActivity"
+            android:windowSoftInputMode="adjustResize" />
         <activity android:name=".screen.SettingsActivity" />
         <activity android:name=".screen.DebugInfoActivity" />
         <activity android:name=".screen.UpgradeAccountActivity" />
