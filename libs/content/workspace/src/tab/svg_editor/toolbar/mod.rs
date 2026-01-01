@@ -31,6 +31,7 @@ const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: f32 = 20.0;
 
+#[derive(Default)]
 pub struct Toolbar {
     pub active_tool: Tool,
     pub pen: Pen,
@@ -100,37 +101,37 @@ impl ViewportSettings {
         hide_overlay: bool,
     ) {
         let is_scroll_mode = self.is_scroll_mode();
-        let new_working_rect = if let Some(bounded_rect) = &mut self.bounded_rect {
+        if let Some(mut new_bounded_rect) = self.bounded_rect {
             if diff_state.is_dirty() && diff_state.transformed.is_none() {
                 if let Some(elements_bounds) = calc_elements_bounds(buffer) {
                     if is_scroll_mode {
-                        bounded_rect.max.y = elements_bounds.max.y
+                        new_bounded_rect.max.y = elements_bounds.max.y
                     } else {
-                        *bounded_rect = elements_bounds;
+                        new_bounded_rect = elements_bounds;
                     }
                 }
             }
 
             let min_x = if self.left_locked {
-                bounded_rect.left().max(self.container_rect.left())
+                new_bounded_rect.left().max(self.container_rect.left())
             } else {
                 self.container_rect.left()
             };
 
             let min_y = if self.top_locked {
-                bounded_rect.top().max(self.container_rect.top())
+                new_bounded_rect.top().max(self.container_rect.top())
             } else {
                 self.container_rect.top()
             };
 
-            let mini_map_width = if settings.show_mini_map && is_scroll_mode && !hide_overlay {
+            let mini_map_width = if Toolbar::should_show_mini_map(hide_overlay, &settings, self) {
                 MINI_MAP_WIDTH
             } else {
                 0.0
             };
 
             let max_x = if self.right_locked {
-                bounded_rect
+                new_bounded_rect
                     .right()
                     .min(self.container_rect.right() - mini_map_width)
             } else {
@@ -138,17 +139,17 @@ impl ViewportSettings {
             };
 
             let max_y = if self.bottom_locked {
-                bounded_rect.bottom().min(self.container_rect.bottom())
+                new_bounded_rect.bottom().min(self.container_rect.bottom())
             } else {
                 self.container_rect.bottom()
             };
 
-            egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y))
+            self.bounded_rect = Some(new_bounded_rect);
+            self.working_rect =
+                egui::Rect::from_min_max(egui::pos2(min_x, min_y), egui::pos2(max_x, max_y));
         } else {
-            self.container_rect
+            self.working_rect = self.container_rect;
         };
-
-        self.working_rect = new_working_rect;
     }
     pub fn is_page_mode(&self) -> bool {
         self.bottom_locked && self.left_locked && self.right_locked && self.top_locked
@@ -397,10 +398,11 @@ impl Toolbar {
             .unwrap_or(egui::Rect::from_min_size(egui::Pos2::default(), egui::vec2(10.0, 10.0)))
             .size();
 
-        let mini_map_width = if tlbr_ctx.settings.show_mini_map
-            && tlbr_ctx.viewport_settings.is_scroll_mode()
-            && !self.hide_overlay
-        {
+        let mini_map_width = if Self::should_show_mini_map(
+            self.hide_overlay,
+            tlbr_ctx.settings,
+            tlbr_ctx.viewport_settings,
+        ) {
             MINI_MAP_WIDTH
         } else {
             0.0

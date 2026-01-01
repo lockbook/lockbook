@@ -1365,6 +1365,8 @@
         var kineticTimer: Timer?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
+            print("CODE UPDATED")
+            
             super.init(frame: frameRect, device: device)
 
             // touch
