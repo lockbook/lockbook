@@ -200,6 +200,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         Workspace.showTabs(WGPU_OBJ, show)
     }
 
+    fun getTabs(): Array<String> {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return emptyArray()
+        }
+
+        return Workspace.getTabs(WGPU_OBJ)
+    }
+
     fun sync() {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
@@ -290,7 +298,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         val currentTab = WorkspaceTab.fromInt(Workspace.currentTab(WGPU_OBJ))
-        if (currentTab != model._currentTab.value) {
+        if (response.tabsChanged) {
             model._currentTab.value = currentTab
         }
 

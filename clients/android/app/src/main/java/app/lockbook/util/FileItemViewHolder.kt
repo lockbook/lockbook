@@ -43,6 +43,15 @@ fun List<File>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: 
     }
 }
 
+class HorizontalTabItemHolder(itemView: View) : ViewHolder(itemView) {
+    val name: MaterialButton = itemView.findViewById(R.id.tab_name)
+}
+class VerticalTabItemHolder(itemView: View) : ViewHolder(itemView) {
+    val name: TextView = itemView.findViewById(R.id.tab_name_v)
+    val icon: ImageView = itemView.findViewById(R.id.tab_icon)
+    val closeButton: MaterialButton = itemView.findViewById(R.id.close_tab)
+}
+
 data class SuggestedDocsViewHolderInfo(val fileMetadata: File, val folderName: String)
 
 class SuggestedDocsItemViewHolder(itemView: View) : ViewHolder(itemView) {
