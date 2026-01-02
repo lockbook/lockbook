@@ -1,6 +1,6 @@
 use std::{iter, time::Instant};
 
-use egui::{FullOutput, PlatformOutput, ViewportIdMap, ViewportOutput};
+use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
@@ -36,7 +36,7 @@ impl<'w> RendererState<'w> {
 
     pub unsafe fn from_surface(surface: SurfaceTargetUnsafe) -> Self {
         let instance = Self::instance();
-        let surface = instance.create_surface_unsafe(surface).unwrap();
+        let surface = unsafe { instance.create_surface_unsafe(surface).unwrap() };
         Self::init(instance, surface)
     }
 
