@@ -9,6 +9,11 @@ struct GlassEffectModifier: ViewModifier {
                 .glassEffect(.regular)
         } else {
             content
+                .background(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(.background)
+                        .shadow(radius: 4, y: 3)
+                )
         }
     }
 }
