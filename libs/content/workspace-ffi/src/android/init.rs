@@ -77,39 +77,10 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     old_wgpu: jlong,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
-
     let mut native_window = NativeWindow::new(&env, surface);
-    let backends = wgpu::Backends::VULKAN | wgpu::Backends::GL;
-    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-    let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance
-        .create_surface_unsafe(wgpu::SurfaceTargetUnsafe::from_window(&mut native_window).unwrap())
-        .unwrap();
-    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
-    let avail_formats = surface.get_capabilities(&adapter).formats;
-
-    let format = avail_formats[0];
-
-    let screen = ScreenDescriptor {
-        physical_width: native_window.get_width(),
-        physical_height: native_window.get_height(),
-        scale_factor,
-    };
-    let config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: screen.physical_width,
-        height: screen.physical_height,
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode: CompositeAlphaMode::Auto,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
-
-    let context = Context::default();
-    visuals::init(&context, dark_mode);
+    let renderer =
+        RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window));
+    visuals::init(&renderer.context, dark_mode);
 
     let workspace = if old_wgpu != jlong::MAX {
         let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
