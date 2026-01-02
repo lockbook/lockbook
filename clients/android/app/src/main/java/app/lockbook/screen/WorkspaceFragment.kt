@@ -55,6 +55,7 @@ import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.color.MaterialColors
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
@@ -155,6 +156,10 @@ class WorkspaceFragment : Fragment() {
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
             updateCurrentTab(workspaceWrapper, tab)
+        }
+
+        model.bottomInset.observe(viewLifecycleOwner) {
+            workspaceWrapper.workspaceView.setBottomInset(it)
         }
 
         model.showTabs.observe(viewLifecycleOwner) { show ->
@@ -270,19 +275,28 @@ class WorkspaceFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-//        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
-//            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-//            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-//
-//            if (imeVisible) {
-//                model._keyboardVisible.postValue(true)
-//            } else {
-//                model._keyboardVisible.postValue(false)
-//            }
-//            ViewCompat.onApplyWindowInsets(v, insets)
-//            insets
-//        }
+        ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
+            if (imeVisible) {
+                model._keyboardVisible.postValue(true)
+            } else {
+                model._keyboardVisible.postValue(false)
+            }
+            model._bottomInset.value = (-systemBars.bottom + ime.bottom).coerceAtLeast(0)
+
+            val filteredInsets = WindowInsetsCompat.Builder(insets)
+                .setInsets(
+                    WindowInsetsCompat.Type.ime(),
+                    androidx.core.graphics.Insets.NONE // Mask keyboard height to 0
+                )
+                .build()
+
+            ViewCompat.onApplyWindowInsets(v, filteredInsets)
+            insets
+        }
     }
 
     @SuppressLint("NotifyDataSetChanged")

@@ -7,6 +7,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
@@ -31,6 +33,7 @@ import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
+import com.google.android.material.color.MaterialColors
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
@@ -50,38 +53,27 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ignoreUnknownKeys = true
     }
 
+
+
     private var redrawTask: Runnable = Runnable {
         invalidate()
     }
 
     init {
         holder.addCallback(this)
-        holder.setFormat(PixelFormat.TRANSPARENT)
+        holder.setFormat(PixelFormat.TRANSLUCENT)
     }
 
     private fun adjustTouchPoint(axis: Float): Float {
         return axis / context.resources.displayMetrics.scaledDensity
     }
 
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
-            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-
-            println("height is $height and width is $width and the keyboard height is $imeHeight")
-            if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
-                Workspace.resizeWS(
-                    WGPU_OBJ,
-                    width,
-                    height+imeHeight,
-                    context.resources.displayMetrics.scaledDensity
-                )
-            }
-
-
-            ViewCompat.onApplyWindowInsets(v, insets)
-            insets
+    fun setBottomInset(inset: Int) {
+        if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+            Workspace.setBottomInset(
+                WGPU_OBJ,
+                inset,
+            )
         }
     }
 
@@ -137,6 +129,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         requestFocus()
     }
+
 
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
@@ -446,3 +439,4 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
     }
 }
+

@@ -140,6 +140,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         raw_input: Default::default(),
         workspace,
         surface_width: 0,
+        bottom_inset: None,
         surface_height: 0,
     };
 
@@ -182,4 +183,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     obj.screen.physical_width = width as u32;
     obj.screen.physical_height = height as u32;
     obj.screen.scale_factor = scale_factor;
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
+    _env: JNIEnv, _: JClass, obj: jlong, inset: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.bottom_inset = Some(inset as u32);
 }

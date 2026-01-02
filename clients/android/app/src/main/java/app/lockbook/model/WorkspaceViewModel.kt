@@ -84,6 +84,10 @@ class WorkspaceViewModel : ViewModel() {
     val _bottomSheetExpanded = MutableLiveData<Boolean>(false)
     val bottomSheetExpanded: LiveData<Boolean>
         get() = _bottomSheetExpanded
+
+    val _bottomInset = MutableLiveData<Int>()
+    val bottomInset: LiveData<Int>
+        get() = _bottomInset
 }
 
 enum class WorkspaceTab(val value: Int) {

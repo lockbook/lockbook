@@ -64,6 +64,7 @@ pub unsafe extern "C" fn init_ws(
         workspace,
         surface_width: 0,
         surface_height: 0,
+        bottom_inset: None,
     };
 
     Box::into_raw(Box::new(obj)) as *mut c_void

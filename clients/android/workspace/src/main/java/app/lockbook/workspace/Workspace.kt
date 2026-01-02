@@ -89,6 +89,8 @@ object Workspace {
     external fun enterFrame(rustObj: Long): String
     external fun resizeWS(rustObj: Long, width: Int, height: Int, scaleFactor: Float)
 
+    external fun setBottomInset(rustObj: Long, inset: Int)
+
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
