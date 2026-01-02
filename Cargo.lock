@@ -4440,7 +4440,7 @@ dependencies = [
  "egui-notify",
  "egui-winit",
  "egui_extras",
- "egui_wgpu_backend",
+ "egui_wgpu_renderer",
  "env_logger",
  "image 0.24.9",
  "lb-fonts",

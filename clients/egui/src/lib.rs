@@ -11,7 +11,7 @@ mod util;
 pub use crate::settings::Settings;
 pub use workspace_rs::Event;
 
-#[cfg(feature = "egui_wgpu_backend")]
+#[cfg(feature = "egui_wgpu_renderer")]
 pub use lb_wgpu::*;
 
 use crate::account::AccountScreen;
@@ -109,26 +109,17 @@ impl Lockbook {
     }
 }
 
-#[cfg(feature = "egui_wgpu_backend")]
+#[cfg(feature = "egui_wgpu_renderer")]
 mod lb_wgpu {
-    use std::iter;
-    use std::time::Instant;
 
-    use egui::{PlatformOutput, Pos2, Rect, ViewportIdMap, ViewportOutput};
-    use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
+    use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
+    use egui_wgpu_renderer::RendererState;
 
     use crate::{Lockbook, Response};
 
     #[repr(C)]
     pub struct WgpuLockbook<'window> {
-        pub start_time: Instant,
-
-        // remember size last frame to detect resize
-        pub surface_width: u32,
-        pub surface_height: u32,
-
-        pub context: egui::Context,
-        pub raw_input: egui::RawInput,
+        pub renderer: RendererState<'window>,
 
         // events for the subsequent two frames, because canvas expects buttons to be down for two frames
         pub queued_events: Vec<egui::Event>,
@@ -149,173 +140,21 @@ mod lb_wgpu {
 
     impl WgpuLockbook<'_> {
         pub fn frame(&mut self) -> Output {
-            self.configure_surface();
-            let output_frame = match self.surface.get_current_texture() {
-                Ok(frame) => frame,
-                Err(wgpu::SurfaceError::Outdated) => {
-                    // This error occurs when the app is minimized on Windows.
-                    // Silently return here to prevent spamming the console with:
-                    // "The underlying surface has changed, and therefore the swap chain must be updated"
-                    return Default::default();
-                }
-                Err(e) => {
-                    eprintln!("Dropped frame with error: {e}");
-                    return Default::default();
-                }
-            };
-
-            let output_view = output_frame
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-
-            #[cfg(not(target_os = "linux"))]
-            let msaa_texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("msaa_texture"),
-                size: output_frame.texture.size(),
-                mip_level_count: output_frame.texture.mip_level_count(),
-                sample_count: 4,
-                dimension: output_frame.texture.dimension(),
-                format: output_frame.texture.format(),
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
-
-            #[cfg(not(target_os = "linux"))]
-            let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-            // can probably use run
-            self.set_egui_screen();
-            self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
-            self.context.begin_frame(self.raw_input.take());
-            let app_response = self.app.update(&self.context);
-            let full_output = self.context.end_frame();
-            let paint_jobs = self
-                .context
-                .tessellate(full_output.shapes, full_output.pixels_per_point);
-            let mut encoder = self
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
-
-            let tdelta: egui::TexturesDelta = full_output.textures_delta;
-            self.rpass
-                .add_textures(&self.device, &self.queue, &tdelta)
-                .expect("add texture ok");
-
-            self.rpass
-                .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
-
-            // Record all render passes.
-            {
-                let _ = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &output_view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-            }
-
-            #[cfg(not(target_os = "linux"))]
-            {
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: None,
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &msaa_view,
-                        resolve_target: Some(&output_view),
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Load,
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-
-                self.rpass
-                    .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
-                    .unwrap();
-            }
-            #[cfg(target_os = "linux")]
-            {
-                self.rpass
-                    .execute(
-                        &mut encoder,
-                        &output_view,
-                        &paint_jobs,
-                        &self.screen,
-                        Some(wgpu::Color::BLACK),
-                    )
-                    .unwrap();
-            }
-
-            // Submit the commands.
-            self.queue.submit(iter::once(encoder.finish()));
-
-            // Redraw egui
-            output_frame.present();
-
-            self.rpass
-                .remove_textures(tdelta)
-                .expect("remove texture ok");
+            self.renderer.begin_frame();
+            let app_response = self.app.update(&self.renderer.context);
+            let (platform, viewport) = self.renderer.end_frame();
 
             // Queue up the events for the next frame
-            self.raw_input.events.append(&mut self.queued_events);
+            self.renderer
+                .raw_input
+                .events
+                .append(&mut self.queued_events);
             self.queued_events.append(&mut self.double_queued_events);
-            if !self.raw_input.events.is_empty() {
-                self.context.request_repaint();
+            if !self.renderer.raw_input.events.is_empty() {
+                self.renderer.context.request_repaint();
             }
 
-            Output {
-                platform: full_output.platform_output,
-                viewport: full_output.viewport_output,
-                app: app_response,
-            }
-        }
-
-        pub fn set_egui_screen(&mut self) {
-            self.raw_input.screen_rect = Some(Rect {
-                min: Pos2::ZERO,
-                max: Pos2::new(
-                    self.screen.physical_width as f32 / self.screen.scale_factor,
-                    self.screen.physical_height as f32 / self.screen.scale_factor,
-                ),
-            });
-        }
-
-        pub fn surface_format(&self) -> wgpu::TextureFormat {
-            // todo: is this really fine?
-            // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-            println!("{:#?}", self.surface.get_capabilities(&self.adapter));
-            self.surface.get_capabilities(&self.adapter).formats[0]
-        }
-
-        pub fn configure_surface(&mut self) {
-            let resized = self.screen.physical_width != self.surface_width
-                || self.screen.physical_height != self.surface_height;
-            let visible = self.screen.physical_width * self.screen.physical_height != 0;
-            if resized && visible {
-                let surface_config = wgpu::SurfaceConfiguration {
-                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    format: self.surface_format(),
-                    width: self.screen.physical_width,
-                    height: self.screen.physical_height,
-                    present_mode: wgpu::PresentMode::Fifo,
-                    alpha_mode: CompositeAlphaMode::Auto,
-                    view_formats: vec![],
-                    desired_maximum_frame_latency: 2,
-                };
-                self.surface.configure(&self.device, &surface_config);
-                self.surface_width = self.screen.physical_width;
-                self.surface_height = self.screen.physical_height;
-            }
+            Output { platform, viewport, app: app_response }
         }
     }
 }

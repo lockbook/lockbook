@@ -11,7 +11,7 @@ env_logger = "0.10"
 image = "0.24.7"
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs" }
 lbeguiapp = { package = "lockbook-egui", path = "../egui", default-features = false, features = [
-    "egui_wgpu_backend",
+    "egui_wgpu_renderer",
 ] }
 pollster = "0.2"
 raw-window-handle = "0.6"
