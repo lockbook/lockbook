@@ -175,12 +175,11 @@ async fn request_device(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
-    env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
+    _env: JNIEnv, _: JClass, obj: jlong, width: jint, height: jint, scale_factor: jfloat,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let native_window = NativeWindow::new(&env, surface);
 
-    obj.screen.physical_width = native_window.get_width();
-    obj.screen.physical_height = native_window.get_height();
+    obj.screen.physical_width = width as u32;
+    obj.screen.physical_height = height as u32;
     obj.screen.scale_factor = scale_factor;
 }

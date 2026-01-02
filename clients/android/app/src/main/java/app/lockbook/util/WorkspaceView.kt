@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
+import android.view.Choreographer
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -17,8 +18,11 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import app.lockbook.App
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
@@ -59,6 +63,28 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return axis / context.resources.displayMetrics.scaledDensity
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        ViewCompat.setOnApplyWindowInsetsListener(this) { v, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+
+            println("height is $height and width is $width and the keyboard height is $imeHeight")
+            if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+                Workspace.resizeWS(
+                    WGPU_OBJ,
+                    width,
+                    height+imeHeight,
+                    context.resources.displayMetrics.scaledDensity
+                )
+            }
+
+
+            ViewCompat.onApplyWindowInsets(v, insets)
+            insets
+        }
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
@@ -79,17 +105,19 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
+//        Workspace.resizeWS(
+//            WGPU_OBJ,
+//            width,
+//            height,
+//            context.resources.displayMetrics.scaledDensity
+//        )
 
-        Workspace.resizeWS(
-            WGPU_OBJ,
-            holder.surface,
-            context.resources.displayMetrics.scaledDensity
-        )
+
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
-
+        println("3asba: surface created")
         WGPU_OBJ = Workspace.initWS(
             surface!!,
             Lb.lb,
@@ -101,6 +129,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
+
+//        holder.setFixedSize(context.resources.displayMetrics.widthPixels, context.resources.displayMetrics.heightPixels)
 
         isFocusable = true
         isFocusableInTouchMode = true
@@ -234,7 +264,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-
         drawWorkspace()
     }
 

@@ -87,7 +87,7 @@ object Workspace {
 
     external fun initWS(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
     external fun enterFrame(rustObj: Long): String
-    external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
+    external fun resizeWS(rustObj: Long, width: Int, height: Int, scaleFactor: Float)
 
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
