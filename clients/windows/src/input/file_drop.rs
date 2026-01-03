@@ -110,7 +110,8 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                                 .trim_matches(char::from(0))
                                 .into(),
                         );
-                        app.raw_input
+                        app.renderer
+                            .raw_input
                             .dropped_files
                             .push(DroppedFile { path, ..Default::default() });
                     }

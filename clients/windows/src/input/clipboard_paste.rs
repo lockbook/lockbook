@@ -6,7 +6,10 @@ use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 
 pub fn handle(app: &mut WgpuLockbook) {
     if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {
-        app.raw_input.events.push(egui::Event::Paste(unicode));
+        app.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Paste(unicode));
     }
     if let Ok(bitmap) = clipboard_win::get_clipboard(clipboard_win::formats::Bitmap) {
         let bitmap: image::DynamicImage =
@@ -16,7 +19,7 @@ pub fn handle(app: &mut WgpuLockbook) {
             .write_image(bitmap.as_bytes(), bitmap.width(), bitmap.height(), bitmap.color())
             .expect("png encode pasted image");
 
-        app.context.push_event(workspace_rs::Event::Paste {
+        app.renderer.context.push_event(workspace_rs::Event::Paste {
             content: vec![ClipContent::Image(png_bytes)],
             position: Pos2::ZERO, // todo: support position
         });

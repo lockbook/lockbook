@@ -23,7 +23,7 @@ pub unsafe extern "C" fn key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 
     let Some(key) = NSKeys::from(key_code) else { return };
 
@@ -32,10 +32,13 @@ pub unsafe extern "C" fn key_event(
     let text = CStr::from_ptr(characters).to_str().unwrap();
 
     if pressed && text_modifiers && key.valid_text() {
-        obj.raw_input.events.push(Event::Text(text.to_string()));
+        obj.renderer
+            .raw_input
+            .events
+            .push(Event::Text(text.to_string()));
     }
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(Event::Key {
+        obj.renderer.raw_input.events.push(Event::Key {
             key,
             physical_key: None,
             pressed,
@@ -52,7 +55,7 @@ pub unsafe extern "C" fn modifier_event(
 ) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 }
 
 /// # Safety
@@ -64,7 +67,7 @@ pub unsafe extern "C" fn mouse_button(
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input.events.push(Event::PointerButton {
+    obj.renderer.raw_input.events.push(Event::PointerButton {
         pos: Pos2 { x, y },
         button: if primary { Primary } else { Secondary },
         pressed,
@@ -78,5 +81,5 @@ pub unsafe extern "C" fn magnify_gesture(obj: *mut c_void, factor: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let factor = factor.exp();
 
-    obj.raw_input.events.push(Event::Zoom(factor))
+    obj.renderer.raw_input.events.push(Event::Zoom(factor))
 }

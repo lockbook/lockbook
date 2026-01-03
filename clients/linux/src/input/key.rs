@@ -54,18 +54,18 @@ impl Keyboard {
         if (modifiers.is_none() || modifiers.shift_only()) && utf8.chars().any(|c| !c.is_control())
         {
             if pressed {
-                app.raw_input.events.push(egui::Event::Text(utf8));
+                app.renderer.raw_input.events.push(egui::Event::Text(utf8));
             }
         } else if let Some(key) = egui_key(keycode) {
             // todo: weird negotiation of keyboard shortcuts
             if pressed && key == egui::Key::X && modifiers.command_only() {
-                app.raw_input.events.push(egui::Event::Cut);
+                app.renderer.raw_input.events.push(egui::Event::Cut);
             } else if pressed && key == egui::Key::C && modifiers.command_only() {
-                app.raw_input.events.push(egui::Event::Copy);
+                app.renderer.raw_input.events.push(egui::Event::Copy);
             } else if pressed && key == egui::Key::V && modifiers.command_only() {
                 paste_context.handle_paste()?;
             } else {
-                app.raw_input.events.push(egui::Event::Key {
+                app.renderer.raw_input.events.push(egui::Event::Key {
                     key,
                     pressed,
                     repeat: false,

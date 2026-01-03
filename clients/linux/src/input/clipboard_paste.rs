@@ -219,11 +219,12 @@ impl Ctx<'_> {
 
         if format == atoms.UTF8_STRING {
             let text = String::from_utf8_lossy(&data);
-            app.raw_input
+            app.renderer
+                .raw_input
                 .events
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {
-            app.context.push_event(workspace_rs::Event::Paste {
+            app.renderer.context.push_event(workspace_rs::Event::Paste {
                 content: vec![ClipContent::Image(data)],
                 position: egui::Pos2::ZERO,
             });

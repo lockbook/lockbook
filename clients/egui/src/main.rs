@@ -5,7 +5,7 @@ use std::io::Cursor;
 use egui::ViewportCommand;
 use egui_winit::egui;
 use image::ImageDecoder as _;
-use lockbook_egui::{Lockbook, Settings};
+use lockbook_egui::Lockbook;
 
 fn main() {
     env_logger::init();
@@ -17,14 +17,6 @@ fn main() {
     // if std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
     //     std::env::set_var("WINIT_UNIX_BACKEND", "x11");
     // }
-
-    // We load the settings this early because some of them adjust certain launch behaviors such
-    // as maximizing the window on startup or theming. For example, a user's splash screen should
-    // conform to their theme choice.
-    let (settings, maybe_settings_err) = match Settings::read_from_file() {
-        Ok(s) => (s, None),
-        Err(err) => (Settings::default(), Some(err.to_string())),
-    };
 
     let icon_bytes = {
         let png_bytes = include_bytes!("../lockbook.png");
@@ -44,13 +36,12 @@ fn main() {
         eframe::NativeOptions {
             viewport: egui::ViewportBuilder::default()
                 .with_drag_and_drop(true)
-                .with_maximized(settings.window_maximize)
                 .with_inner_size([1300.0, 800.0])
                 .with_icon(egui::IconData { rgba: icon_bytes, width: 128, height: 128 }),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
-            Ok(Box::new(EframeLockbook(Lockbook::new(&cc.egui_ctx, settings, maybe_settings_err))))
+            Ok(Box::new(EframeLockbook(Lockbook::new(&cc.egui_ctx))))
         }),
     )
     .unwrap();

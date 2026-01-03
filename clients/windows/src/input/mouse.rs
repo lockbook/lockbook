@@ -11,7 +11,10 @@ pub fn handle(
     let pos = egui::Pos2 { x: pos.x as f32 / dpi_scale, y: pos.y as f32 / dpi_scale };
 
     if matches!(message, MessageAppDep::MouseMove { .. }) {
-        app.raw_input.events.push(egui::Event::PointerMoved(pos));
+        app.renderer
+            .raw_input
+            .events
+            .push(egui::Event::PointerMoved(pos));
     } else {
         let button = if matches!(
             message,
@@ -25,7 +28,8 @@ pub fn handle(
             message,
             MessageAppDep::LButtonDown { .. } | MessageAppDep::RButtonDown { .. }
         );
-        app.raw_input
+        app.renderer
+            .raw_input
             .events
             .push(egui::Event::PointerButton { pos, button, pressed, modifiers });
     }
@@ -39,7 +43,10 @@ pub fn handle_wheel(
     if modifiers.command {
         let resistance = 500.0;
         let factor = (delta as f32 / resistance).exp();
-        app.raw_input.events.push(egui::Event::Zoom(factor));
+        app.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Zoom(factor));
     } else {
         let scroll_magnitude = 20.0 * delta as f32 / WHEEL_DELTA as f32;
         let delta = if matches!(message, MessageAppDep::MouseWheel { .. }) {
@@ -48,10 +55,10 @@ pub fn handle_wheel(
             egui::Vec2 { x: -scroll_magnitude, y: 0.0 }
         };
 
-        app.raw_input.events.push(egui::Event::MouseWheel {
+        app.renderer.raw_input.events.push(egui::Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta,
-            modifiers: app.raw_input.modifiers,
+            modifiers: app.renderer.raw_input.modifiers,
         });
     }
     true
