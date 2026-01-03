@@ -242,3 +242,25 @@ class ShareMultipleToMenuItem: NSMenuItem {
         NSSharingServicePicker(items: urls).show(relativeTo: .zero, of: fileTree, preferredEdge: .maxY)
     }
 }
+
+class MoveToMenuItem: NSMenuItem {
+    @ObservedObject var homeState: HomeState
+    
+    let files: [File]
+
+    init(homeState: HomeState, files: [File]) {
+        self.homeState = homeState
+        self.files = files
+        super.init(title: "Move to...", action: #selector(moveTo(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func moveTo(_ sender: AnyObject) {
+        homeState.selectSheetInfo = .move(files: files)
+    }
+
+}
