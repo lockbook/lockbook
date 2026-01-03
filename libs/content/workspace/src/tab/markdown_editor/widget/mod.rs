@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Id, TextFormat, Ui};
+use egui::{Id, TextFormat, Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use super::Editor;
@@ -128,10 +128,9 @@ impl<'ast> Editor {
         let mut result = Ui::new(
             ui.ctx().clone(),
             Id::new(self.node_range(node)), // <- the magic
-            ui.layer_id(),
-            ui.max_rect(),
-            ui.painter().clip_rect(),
-            Default::default(),
+            UiBuilder::new()
+                .layer_id(ui.layer_id())
+                .max_rect(ui.max_rect()),
         );
         result.set_style(ui.style().clone());
         result
