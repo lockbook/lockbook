@@ -369,8 +369,15 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
         if outlineView.selectedRowIndexes.count > 1 {
             let consolidatedSelection = filesModel.getConsolidatedSelection()
             
-            menu.addItem(DeleteMenuItem(filesModel: filesModel, files: consolidatedSelection))
             menu.addItem(ShareMultipleToMenuItem(homeState: homeState, files: consolidatedSelection, fileTree: outlineView))
+            menu
+                .addItem(
+                    MoveToMenuItem(
+                        homeState: homeState,
+                        files: consolidatedSelection
+                    )
+                )
+            menu.addItem(DeleteMenuItem(filesModel: filesModel, files: consolidatedSelection))
             
             return menu
         }
@@ -383,6 +390,13 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
 
         if parent.id != parent.parent {
             menu.addItem(RenameFileMenuItem(homeState: homeState, file: parent))
+            menu
+                .addItem(
+                    MoveToMenuItem(
+                        homeState: homeState,
+                        files: [parent]
+                    )
+                )
             menu.addItem(ShareMenuItem(homeState: homeState, file: parent))
             menu.addItem(ShareExternallyMenu(homeState: homeState, file: parent, fileTree: outlineView))
             menu.addItem(DeleteMenuItem(filesModel: filesModel, files: [parent]))
