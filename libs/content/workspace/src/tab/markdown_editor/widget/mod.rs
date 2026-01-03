@@ -127,8 +127,8 @@ impl<'ast> Editor {
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
         let mut result = Ui::new(
             ui.ctx().clone(),
-            ui.layer_id(),
             Id::new(self.node_range(node)), // <- the magic
+            ui.layer_id(),
             ui.max_rect(),
             ui.painter().clip_rect(),
             Default::default(),

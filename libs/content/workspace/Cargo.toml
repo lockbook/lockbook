@@ -11,10 +11,10 @@ basic-human-duration = "0.2.0"
 bezier-rs = "0.2.0"
 color-art = "0.3.9"
 colors-transform = "0.2.11"
-egui = "0.28.1"
+egui = "0.30.0"
 egui_animation = "0.5.0"
-egui_extras = { version = "0.28.1" }
-epaint = "0.28.1"
+egui_extras = { version = "0.30.0" }
+epaint = "0.30.0"
 glam = "0.22.0"
 image = "0.24"
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }

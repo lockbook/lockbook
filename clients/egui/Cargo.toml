@@ -5,14 +5,14 @@ edition = "2021"
 
 [dependencies]
 dark-light = "2.0.0"
-egui = "0.28.1"
+egui = "0.30.0"
 egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer", optional = true }
-eframe = { version = "0.28.1", default-features = false, features = [
+eframe = { version = "0.30.0", default-features = false, features = [
     "wgpu",
 ], optional = true } # dependency for binary only
 egui-notify = "0.15.0"
-egui-winit = "0.28.1" # todo possibly removable
-egui_extras = { version = "0.28.1", features = ["image"] }
+egui-winit = "0.30.0" # todo possibly removable
+egui_extras = { version = "0.30.0", features = ["image"] }
 env_logger = "0.10"
 image = { version = "0.24", default-features = false, features = [
     "png",

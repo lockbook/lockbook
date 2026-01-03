@@ -10,8 +10,7 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
-    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    scroll_area, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -383,7 +382,7 @@ impl Editor {
                 if !self.readonly {
                     let (_, rect) =
                         ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         self.show_toolbar(root, ui);
                     });
                 }
@@ -487,7 +486,7 @@ impl Editor {
             if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { MARGIN.into() };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
-            .id_source(self.file_id)
+            .id_salt(self.file_id)
             .scroll_bar_visibility(if self.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {
@@ -538,7 +537,7 @@ impl Editor {
 
                             ui.advance_cursor_after_rect(rect);
 
-                            ui.allocate_ui_at_rect(rect, |ui| {
+                            ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                                 self.show_block(ui, root, top_left);
                             });
                         });
@@ -651,7 +650,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(sans)
-        },
+        }
+        .into(),
     );
     fonts.font_data.insert("mono".into(), {
         FontData {
@@ -662,14 +662,14 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(mono)
-        }
+        }.into()
     });
     fonts.font_data.insert(
         "bold".to_string(),
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
-        },
+        }.into(),
     );
 
     fonts.font_data.insert("sans_super".into(), {
@@ -680,7 +680,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(sans)
-        }
+        }.into()
     });
     fonts.font_data.insert("bold_super".into(), {
         FontData {
@@ -690,7 +690,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(bold)
-        }
+        }.into()
     });
     fonts.font_data.insert("mono_super".into(), {
         FontData {
@@ -701,7 +701,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(mono)
-        }
+        }.into()
     });
 
     fonts.font_data.insert("sans_sub".into(), {
@@ -712,7 +712,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(sans)
-        }
+        }.into()
     });
     fonts.font_data.insert("bold_sub".into(), {
         FontData {
@@ -722,7 +722,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(bold)
-        }
+        }.into()
     });
     fonts.font_data.insert("mono_sub".into(), {
         FontData {
@@ -733,14 +733,14 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
                 ..Default::default()
             },
             ..FontData::from_static(mono)
-        }
+        }.into()
     });
 
     fonts.font_data.insert("icons".into(), {
         FontData {
             tweak: FontTweak { y_offset: -0.1, scale: mono_scale, ..Default::default() },
             ..FontData::from_static(lb_fonts::NERD_FONTS_MONO_SYMBOLS)
-        }
+        }.into()
     });
 
     fonts

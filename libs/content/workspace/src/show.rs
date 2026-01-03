@@ -5,7 +5,7 @@ use egui::text::{LayoutJob, TextWrapping};
 use egui::{
     Align, Align2, CursorIcon, DragAndDrop, EventFilter, FontSelection, Galley, Id, Image, Key,
     Label, LayerId, Modifiers, Order, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle,
-    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText, include_image, vec2,
+    TextWrapMode, UiBuilder, Vec2, ViewportCommand, Widget as _, WidgetText, include_image, vec2,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -20,7 +20,7 @@ use crate::widgets::{Button, IconButton};
 use crate::workspace::Workspace;
 
 impl Workspace {
-    #[instrument(level="trace", skip_all, fields(frame = self.ctx.frame_nr()))]
+    #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.user_last_seen = Instant::now();
@@ -325,7 +325,7 @@ impl Workspace {
                                                     },
                                                 );
 
-                                                ui.allocate_ui_at_rect(rect, |ui| {
+                                                ui.allocate_new_ui(UiBuilder::new().max_rect(rect),|ui| {
                                                     ui.vertical_centered(|ui| {
                                                         ui.add_space(15.);
 
@@ -892,7 +892,12 @@ impl Workspace {
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                let mut ui_builder = UiBuilder::new();
+                if !self.tabs[t].rename.is_none() {
+                    ui_builder = ui_builder.invisible();
+                }
+
+                ui.scope_builder(ui_builder, |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
                     // create galleys - text layout
@@ -1067,12 +1072,13 @@ impl Workspace {
                                     tab_label_rect.max.x
                                 };
                                 let y_range = tab_label_rect.y_range();
-
-                                ui.with_layer_id(
-                                    LayerId::new(
-                                        Order::PanelResizeLine,
+                                ui.scope_builder(
+                                    UiBuilder::new().layer_id(LayerId::new(
+                                        // This used to be PanelResizeLine, but mr. milk says that
+                                        // is an unused hack: https://github.com/emilk/egui/pull/5455 this is just a guess at a new value
+                                        Order::Middle,
                                         Id::from("tab_reorder_drop_indicator"),
-                                    ),
+                                    )),
                                     |ui| {
                                         ui.painter().vline(x, y_range, stroke);
                                     },
@@ -1099,7 +1105,7 @@ impl Workspace {
         // renaming
         if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
+                .allocate_new_ui(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)
