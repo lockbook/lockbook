@@ -18,7 +18,6 @@
             android:layout_height="50dp"
             app:menu="@menu/menu_text_editor"
             />
-        <!-- 2. Add scroll flags to the Toolbar -->
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -71,6 +70,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:id="@+id/workspace_root"
+        android:background="?attr/colorSurface"
         >
     </androidx.constraintlayout.widget.ConstraintLayout>
 

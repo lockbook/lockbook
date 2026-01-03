@@ -1,3 +1,4 @@
+use egui::epaint;
 use egui_wgpu_backend::wgpu::{self, TextureDescriptor, TextureUsages};
 use std::iter;
 use std::time::Instant;
@@ -22,6 +23,8 @@ pub struct WgpuWorkspace<'window> {
     // remember size last frame to detect resize
     pub surface_width: u32,
     pub surface_height: u32,
+
+    pub bottom_inset: Option<u32>,
 
     pub rpass: egui_wgpu_backend::RenderPass,
     pub screen: egui_wgpu_backend::ScreenDescriptor,
@@ -85,9 +88,45 @@ impl WgpuWorkspace<'_> {
             w.feathering = false;
         });
 
+        let bottom_inset_fill = epaint::ClippedShape {
+            clip_rect: epaint::emath::Rect {
+                min: epaint::emath::Pos2::new(
+                    0.0,
+                    self.screen.physical_height as f32 / self.screen.scale_factor
+                        - self.bottom_inset.unwrap_or(0) as f32 / self.screen.scale_factor,
+                ),
+                max: epaint::emath::Pos2::new(
+                    self.screen.physical_width as f32 / self.screen.scale_factor,
+                    self.screen.physical_height as f32 / self.screen.scale_factor,
+                ),
+            },
+            shape: epaint::Shape::rect_filled(
+                egui::Rect {
+                    min: egui::Pos2::new(
+                        0.0,
+                        self.screen.physical_height as f32 / self.screen.scale_factor
+                            - self.bottom_inset.unwrap_or(0) as f32 / self.screen.scale_factor,
+                    ),
+                    max: egui::Pos2::new(
+                        self.screen.physical_width as f32 / self.screen.scale_factor,
+                        self.screen.physical_height as f32 / self.screen.scale_factor,
+                    ),
+                },
+                0.0,
+                self.context.style().visuals.panel_fill,
+            ),
+        };
+
         let paint_jobs = self
             .context
             .tessellate(full_output.shapes, full_output.pixels_per_point);
+
+        let bottom_inset_paint_job = self
+            .context
+            .tessellate(vec![bottom_inset_fill], full_output.pixels_per_point);
+
+        let total_paint_jobs = vec![paint_jobs, bottom_inset_paint_job].concat();
+
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -98,7 +137,7 @@ impl WgpuWorkspace<'_> {
             .expect("add texture ok");
 
         self.rpass
-            .update_buffers(&self.device, &self.queue, &paint_jobs, &self.screen);
+            .update_buffers(&self.device, &self.queue, &total_paint_jobs, &self.screen);
 
         // Record all render passes.
         {
@@ -132,7 +171,7 @@ impl WgpuWorkspace<'_> {
             });
 
             self.rpass
-                .execute_with_renderpass(&mut pass, &paint_jobs, &self.screen)
+                .execute_with_renderpass(&mut pass, &total_paint_jobs, &self.screen)
                 .unwrap();
         }
 
@@ -161,7 +200,8 @@ impl WgpuWorkspace<'_> {
             min: Pos2::ZERO,
             max: Pos2::new(
                 self.screen.physical_width as f32 / self.screen.scale_factor,
-                self.screen.physical_height as f32 / self.screen.scale_factor,
+                self.screen.physical_height as f32 / self.screen.scale_factor
+                    - self.bottom_inset.unwrap_or(0) as f32 / self.screen.scale_factor,
             ),
         });
         self.context.set_pixels_per_point(self.screen.scale_factor);

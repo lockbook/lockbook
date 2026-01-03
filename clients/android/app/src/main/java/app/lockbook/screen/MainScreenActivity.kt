@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -76,7 +77,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         enableEdgeToEdge(
             navigationBarStyle = SystemBarStyle.auto(
                 Color.TRANSPARENT,
@@ -245,8 +245,11 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
         slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
             override fun onPanelOpened(panel: View) {
+                // let workspace surface handle the soft input insets to avoid flicker
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
             }
             override fun onPanelClosed(panel: View) {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
             }
             override fun onPanelSlide(panel: View, slideOffset: Float) {
                 if (slideOffset > 0) {

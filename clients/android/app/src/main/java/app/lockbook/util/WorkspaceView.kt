@@ -52,11 +52,20 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     init {
         holder.addCallback(this)
-        holder.setFormat(PixelFormat.TRANSPARENT)
+        holder.setFormat(PixelFormat.TRANSLUCENT)
     }
 
     private fun adjustTouchPoint(axis: Float): Float {
         return axis / context.resources.displayMetrics.scaledDensity
+    }
+
+    fun setBottomInset(inset: Int) {
+        if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+            Workspace.setBottomInset(
+                WGPU_OBJ,
+                inset,
+            )
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -79,17 +88,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
-
-        Workspace.resizeWS(
-            WGPU_OBJ,
-            holder.surface,
-            context.resources.displayMetrics.scaledDensity
-        )
+//        Workspace.resizeWS(
+//            WGPU_OBJ,
+//            width,
+//            height,
+//            context.resources.displayMetrics.scaledDensity
+//        )
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
-
+        println("3asba: surface created")
         WGPU_OBJ = Workspace.initWS(
             surface!!,
             Lb.lb,
@@ -101,6 +110,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
+
+//        holder.setFixedSize(context.resources.displayMetrics.widthPixels, context.resources.displayMetrics.heightPixels)
 
         isFocusable = true
         isFocusableInTouchMode = true
@@ -234,7 +245,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun draw(canvas: Canvas) {
         super.draw(canvas)
-
         drawWorkspace()
     }
 
