@@ -7,12 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
-import android.view.Choreographer
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -20,11 +17,8 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
-import android.widget.FrameLayout
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import app.lockbook.App
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceViewModel
@@ -33,7 +27,6 @@ import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
-import com.google.android.material.color.MaterialColors
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
@@ -52,8 +45,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
     }
-
-
 
     private var redrawTask: Runnable = Runnable {
         invalidate()
@@ -103,8 +94,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 //            height,
 //            context.resources.displayMetrics.scaledDensity
 //        )
-
-
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -129,7 +118,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         requestFocus()
     }
-
 
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
@@ -439,4 +427,3 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
     }
 }
-

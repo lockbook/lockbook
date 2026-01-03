@@ -20,7 +20,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -28,9 +27,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.children
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
@@ -55,7 +52,6 @@ import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import com.google.android.material.color.MaterialColors
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
@@ -241,11 +237,8 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-
-
         return binding.root
     }
-
 
     private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {
         val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
