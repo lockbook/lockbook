@@ -1,0 +1,11 @@
+[package]
+name = "egui_wgpu_renderer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+wgpu = { version = "*" }
+egui-wgpu = "0.28.0"
+egui = "0.28.1"
+raw-window-handle = "0.6"
+pollster = "0.2"

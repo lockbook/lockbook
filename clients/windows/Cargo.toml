@@ -6,12 +6,12 @@ edition = "2021"
 [target.'cfg(windows)'.dependencies]
 clipboard-win = "4.5.0"
 egui = "0.28.1"
-egui_wgpu_backend = "0.30"
+egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer" }
 env_logger = "0.10"
 image = "0.24.7"
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs" }
 lbeguiapp = { package = "lockbook-egui", path = "../egui", default-features = false, features = [
-    "egui_wgpu_backend",
+    "egui_wgpu_renderer",
 ] }
 pollster = "0.2"
 raw-window-handle = "0.6"

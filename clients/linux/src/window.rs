@@ -1,6 +1,5 @@
-use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
-use egui_wgpu_backend::ScreenDescriptor;
-use egui_wgpu_backend::wgpu::{self, CompositeAlphaMode};
+use egui::{PlatformOutput, ViewportCommand, Visuals};
+use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
@@ -10,7 +9,6 @@ use std::ffi::c_void;
 use std::num::NonZeroU32;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{ConnectionExt as _, *};
 use x11rb::protocol::{Event, xproto};
@@ -158,21 +156,19 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         connection: conn.get_raw_xcb_connection(),
         screen: screen_num as _,
     };
-    let mut lb = init(
-        &window_handle,
-        ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor: 1.0 },
-        false,
-    );
+    let mut lb = init(&window_handle, false);
 
     let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
     let got_events_clone = got_events_atomic.clone();
-    lb.context.set_request_repaint_callback(move |rri| {
-        let got_events_clone = got_events_clone.clone();
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(rri.delay);
-            got_events_clone.store(true, Ordering::SeqCst);
+    lb.renderer
+        .context
+        .set_request_repaint_callback(move |rri| {
+            let got_events_clone = got_events_clone.clone();
+            let _ = std::thread::spawn(move || {
+                std::thread::sleep(rri.delay);
+                got_events_clone.store(true, Ordering::SeqCst);
+            });
         });
-    });
 
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
@@ -223,7 +219,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // set modifiers
             let pointer_state = conn.query_pointer(window_id)?.reply()?;
-            lb.raw_input.modifiers = input::modifiers(pointer_state.mask);
+            lb.renderer.raw_input.modifiers = input::modifiers(pointer_state.mask);
 
             // set scale factor
             let scale_factor = match db.get_string("Xft.dpi", "") {
@@ -233,8 +229,8 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => 1.0,
             };
-            lb.screen.scale_factor = scale_factor;
-            lb.context.set_pixels_per_point(scale_factor);
+            lb.renderer.screen.pixels_per_point = scale_factor;
+            lb.renderer.context.set_pixels_per_point(scale_factor);
 
             if close {
                 output::close();
@@ -267,13 +263,13 @@ fn handle(
     match event {
         // pointer
         Event::ButtonPress(event) => {
-            input::pointer::handle_press(lb, event, lb.screen.scale_factor)
+            input::pointer::handle_press(lb, event, lb.renderer.screen.pixels_per_point)
         }
         Event::ButtonRelease(event) => {
-            input::pointer::handle_release(lb, event, lb.screen.scale_factor)
+            input::pointer::handle_release(lb, event, lb.renderer.screen.pixels_per_point)
         }
         Event::MotionNotify(event) => {
-            input::pointer::handle_motion(lb, event, lb.screen.scale_factor)
+            input::pointer::handle_motion(lb, event, lb.renderer.screen.pixels_per_point)
         }
 
         // keyboard
@@ -289,8 +285,8 @@ fn handle(
 
         // resize
         Event::ConfigureNotify(event) => {
-            lb.screen.physical_width = event.width as _;
-            lb.screen.physical_height = event.height as _;
+            lb.renderer.screen.size_in_pixels[0] = event.width as _;
+            lb.renderer.screen.size_in_pixels[1] = event.height as _;
         }
 
         // drag 'n' drop/copy 'n' paste
@@ -370,81 +366,23 @@ impl HasDisplayHandle for AppWindowHandle {
 
 // Taken from other lockbook code
 pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
-    window: &W, screen: ScreenDescriptor, dark_mode: bool,
+    window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
-    let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-    let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance.create_surface(window).unwrap();
-    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
-    let format = surface.get_capabilities(&adapter).formats[0];
-    let surface_config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: screen.physical_width, // TODO get from context or something
-        height: screen.physical_height,
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode: CompositeAlphaMode::Auto,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 1);
+    let renderer = RendererState::init_window(window);
+    renderer
+        .context
+        .set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
 
-    let context = Context::default();
-    context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
+    let app = lbeguiapp::Lockbook::new(&renderer.context);
 
-    let (settings, maybe_settings_err) = match lbeguiapp::Settings::read_from_file() {
-        Ok(s) => (s, None),
-        Err(err) => (Default::default(), Some(err.to_string())),
-    };
-
-    let app = lbeguiapp::Lockbook::new(&context, settings, maybe_settings_err);
-
-    let start_time = Instant::now();
     let mut obj = WgpuLockbook {
-        start_time,
-        device,
-        queue,
-        surface,
-        adapter,
-        rpass,
-        screen,
-        context,
-        raw_input: Default::default(),
+        renderer,
         queued_events: Default::default(),
         double_queued_events: Default::default(),
         app,
-        surface_width: 0,
-        surface_height: 0,
     };
 
     obj.frame();
 
     obj
-}
-
-async fn request_device(
-    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
-        .await
-        .expect("No suitable GPU adapters found on the system!");
-    let res = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: adapter.features(),
-                required_limits: adapter.limits(),
-                memory_hints: Default::default(),
-            },
-            None,
-        )
-        .await;
-    match res {
-        Err(err) => {
-            panic!("request_device failed: {err:?}");
-        }
-        Ok((device, queue)) => (adapter, device, queue),
-    }
 }

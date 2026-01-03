@@ -55,14 +55,14 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.screen.scale_factor = scale;
+    obj.renderer.screen.pixels_per_point = scale;
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    visuals::init(&obj.context, dark);
+    visuals::init(&obj.renderer.context, dark);
 }
 
 /// # Safety
@@ -74,17 +74,17 @@ pub unsafe extern "C" fn scroll_wheel(
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 
-    if obj.raw_input.modifiers.command || obj.raw_input.modifiers.ctrl {
+    if obj.renderer.raw_input.modifiers.command || obj.renderer.raw_input.modifiers.ctrl {
         let factor = (scroll_y / 50.).exp();
 
-        obj.raw_input.events.push(Event::Zoom(factor))
+        obj.renderer.raw_input.events.push(Event::Zoom(factor))
     } else {
-        obj.raw_input.events.push(Event::MouseWheel {
+        obj.renderer.raw_input.events.push(Event::MouseWheel {
             unit: MouseWheelUnit::Point,
             delta: vec2(scroll_x, scroll_y),
-            modifiers: obj.raw_input.modifiers,
+            modifiers: obj.renderer.raw_input.modifiers,
         });
     }
 }
@@ -96,7 +96,7 @@ pub unsafe extern "C" fn clipboard_paste(obj: *mut c_void, content: *const c_cha
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let content: String = CStr::from_ptr(content).to_str().unwrap().into();
 
-    obj.raw_input.events.push(Event::Paste(content));
+    obj.renderer.raw_input.events.push(Event::Paste(content));
 }
 
 /// # Safety
@@ -111,10 +111,12 @@ pub unsafe extern "C" fn clipboard_send_image(
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste {
-        obj.context
+        obj.renderer
+            .context
             .push_event(workspace_rs::Event::Paste { content, position });
     } else {
-        obj.context
+        obj.renderer
+            .context
             .push_event(workspace_rs::Event::Drop { content, position });
     }
 }
@@ -131,10 +133,12 @@ pub unsafe extern "C" fn clipboard_send_file(
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste {
-        obj.context
+        obj.renderer
+            .context
             .push_event(workspace_rs::Event::Paste { content, position });
     } else {
-        obj.context
+        obj.renderer
+            .context
             .push_event(workspace_rs::Event::Drop { content, position });
     }
 }
@@ -158,7 +162,8 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input
+    obj.renderer
+        .raw_input
         .events
         .push(Event::PointerMoved(Pos2 { x, y }))
 }
@@ -167,7 +172,7 @@ pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn mouse_gone(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety

@@ -62,7 +62,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 
@@ -72,11 +72,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
             Err(err) => format!("# The error is: {err:?}"),
         };
 
-        obj.raw_input.events.push(egui::Event::Text(text));
+        obj.renderer.raw_input.events.push(egui::Event::Text(text));
     }
 
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(egui::Event::Key {
+        obj.renderer.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
             pressed: pressed == 1,
@@ -93,7 +93,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     if let Ok(text) = env.get_string(&content) {
-        obj.raw_input.events.push(egui::Event::Text(text.into()));
+        obj.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Text(text.into()));
     }
 }
 
@@ -103,7 +106,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
 ) {
     let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
@@ -111,12 +114,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        });
 }
 
 #[no_mangle]
@@ -125,7 +131,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
@@ -133,7 +139,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
         force: Some(pressure),
     });
 
-    obj.raw_input
+    obj.renderer
+        .raw_input
         .events
         .push(egui::Event::PointerMoved(Pos2 { x, y }));
 }
@@ -144,7 +151,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::End,
@@ -152,14 +159,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[no_mangle]
@@ -168,7 +178,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
@@ -176,7 +186,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[derive(Debug, Serialize)]
@@ -369,7 +379,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
@@ -402,7 +412,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         None => return,
     };
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position()),
@@ -423,7 +433,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
         Err(err) => format!("error: {err:?}"),
     };
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
@@ -446,7 +456,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
         advance_cursor: true,
@@ -471,7 +481,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 
     let loc = Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position());
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
         advance_cursor: true,
@@ -513,7 +523,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 
     let segs = &markdown.buffer.current.segs;
 
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(segs.last_cursor_position()),
@@ -526,7 +536,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCut(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Event::Cut);
+    obj.renderer.context.push_markdown_event(Event::Cut);
 }
 
 #[no_mangle]
@@ -534,7 +544,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Event::Copy);
+    obj.renderer.context.push_markdown_event(Event::Copy);
 }
 
 #[no_mangle]
@@ -548,7 +558,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         Err(err) => format!("# The error is: {err:?}"),
     };
 
-    obj.raw_input.events.push(egui::Event::Paste(content));
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::Paste(content));
 }
 
 #[no_mangle]
