@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
-use egui::{Id, Key, Modifiers};
+use egui::{Id, Key, Modifiers, UiBuilder};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -53,10 +53,11 @@ impl FullDocSearch {
 
     fn show_search_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) {
         let search_icon_width = Self::ICON_WIDTH + 7.0; // account for margin
-        let mut ui = ui.child_ui(
-            text_edit_rect.translate(egui::vec2(-(search_icon_width), 0.0)),
-            egui::Layout::default(),
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(text_edit_rect.translate(egui::vec2(-(search_icon_width), 0.0)))
+                .layout(egui::Layout::default())
+                .ui_stack_info(None.unwrap_or_default()),
         );
         ui.visuals_mut().override_text_color = Some(ui.visuals().weak_text_color());
         Icon::SEARCH.show(&mut ui);
@@ -65,17 +66,20 @@ impl FullDocSearch {
     fn show_x_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) -> egui::Response {
         let x_margin = 7.0; // account for margin
 
-        let mut ui = ui.child_ui(
-            text_edit_rect.translate(egui::vec2(text_edit_rect.width() + x_margin, 0.0)),
-            egui::Layout {
-                main_dir: egui::Direction::LeftToRight,
-                main_wrap: false,
-                main_align: egui::Align::LEFT,
-                main_justify: false,
-                cross_align: egui::Align::Center,
-                cross_justify: true,
-            },
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(
+                    text_edit_rect.translate(egui::vec2(text_edit_rect.width() + x_margin, 0.0)),
+                )
+                .layout(egui::Layout {
+                    main_dir: egui::Direction::LeftToRight,
+                    main_wrap: false,
+                    main_align: egui::Align::LEFT,
+                    main_justify: false,
+                    cross_align: egui::Align::Center,
+                    cross_justify: true,
+                })
+                .ui_stack_info(None.unwrap_or_default()),
         );
         ui.visuals_mut().override_text_color = Some(ui.visuals().widgets.active.bg_fill);
         ui.visuals_mut().widgets.active.bg_fill = ui.visuals().widgets.hovered.bg_fill;
