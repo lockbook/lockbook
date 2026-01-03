@@ -34,7 +34,7 @@ impl<'w> RendererState<'w> {
         Self::init(instance, surface)
     }
 
-    pub unsafe fn from_surface(surface: SurfaceTargetUnsafe) -> Self {
+    pub fn from_surface(surface: SurfaceTargetUnsafe) -> Self {
         let instance = Self::instance();
         let surface = unsafe { instance.create_surface_unsafe(surface).unwrap() };
         Self::init(instance, surface)
