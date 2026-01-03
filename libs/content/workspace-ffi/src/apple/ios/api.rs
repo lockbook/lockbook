@@ -801,10 +801,11 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+
     if redo {
-        obj.context.push_markdown_event(Event::Redo);
+        obj.context.push_event(workspace_rs::Event::Redo);
     } else {
-        obj.context.push_markdown_event(Event::Undo);
+        obj.context.push_event(workspace_rs::Event::Undo);
     }
 }
 

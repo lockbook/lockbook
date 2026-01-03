@@ -862,7 +862,9 @@
 
         // gestures
         var gestureDelegate: SvgGestureDelegate?
-        var tapRecognizer: UITapGestureRecognizer?
+        var tapRecognizerOneTouch: UITapGestureRecognizer?
+        var tapRecognizerTwoTouch: UITapGestureRecognizer?
+        var tapRecognizerThreeTouch: UITapGestureRecognizer?
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
 
@@ -910,21 +912,37 @@
             self.addGestureRecognizer(touch)
 
             // gestures: tap
-            let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
-            tap.name = "SvgTap"
-            tap.delegate = self.gestureDelegate
-            tap.allowedTouchTypes = [
-                NSNumber(value: UITouch.TouchType.direct.rawValue),
-                NSNumber(value: UITouch.TouchType.indirect.rawValue),
-                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
-                NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
-            ]
-            tap.numberOfTouchesRequired = 1
-            tap.cancelsTouchesInView = false
+            let tap1 = UITapGestureRecognizer(
+                target: self, action: #selector(self.handleTapOneTouch(_:)))
+            let tap2 = UITapGestureRecognizer(
+                target: self, action: #selector(self.handleTapTwoTouch(_:)))
+            let tap3 = UITapGestureRecognizer(
+                target: self, action: #selector(self.handleTapThreeTouch(_:)))
 
-            self.addGestureRecognizer(tap)
+            tap1.name = "SvgTap1"
+            tap2.name = "SvgTap2"
+            tap3.name = "SvgTap3"
 
-            self.tapRecognizer = tap
+            tap1.numberOfTouchesRequired = 1
+            tap2.numberOfTouchesRequired = 2
+            tap3.numberOfTouchesRequired = 3
+
+            for tap in [tap1, tap2, tap3] {
+                tap.delegate = self.gestureDelegate
+                tap.allowedTouchTypes = [
+                    NSNumber(value: UITouch.TouchType.direct.rawValue),
+                    NSNumber(value: UITouch.TouchType.indirect.rawValue),
+                    // NSNumber(value: UITouch.TouchType.pencil.rawValue),
+                    NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
+                ]
+                tap.cancelsTouchesInView = false
+
+                self.addGestureRecognizer(tap)
+            }
+
+            self.tapRecognizerOneTouch = tap1
+            self.tapRecognizerTwoTouch = tap2
+            self.tapRecognizerThreeTouch = tap3
 
             // gestures: pan
             let pan = SvgPanGestureRecognizer(
@@ -972,7 +990,8 @@
             mtkView.handleWsTouch(recognizer)
         }
 
-        @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
+        @objc private func handleTapOneTouch(_ gesture: UITapGestureRecognizer) {
+
             guard let menuInteraction = menuInteraction else { return }
 
             if gesture.state != .ended { return }
@@ -996,6 +1015,16 @@
             let config = UIEditMenuConfiguration(
                 identifier: nil, sourcePoint: gesture.location(in: self))
             menuInteraction.presentEditMenu(with: config)
+        }
+
+        @objc private func handleTapTwoTouch(_ gesture: UITapGestureRecognizer) {
+            undo_redo(wsHandle, false)  // undo
+            mtkView.setNeedsDisplay()
+        }
+
+        @objc private func handleTapThreeTouch(_ gesture: UITapGestureRecognizer) {
+            undo_redo(wsHandle, true)  // redo
+            mtkView.setNeedsDisplay()
         }
 
         public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
@@ -1032,7 +1061,7 @@
 
                 let panX = offsetX * (scale - 1.0)
                 let panY = offsetY * (scale - 1.0)
-                
+
                 // In a former version, touch input was sent along with pinch
                 // input and would be used by the svg editor's gesture
                 // recognition to determine the center point (which is not
@@ -1045,12 +1074,12 @@
                 // after, but egui doesn't register the hover position unless we
                 // also draw a frame in-between.
                 mouse_moved(self.wsHandle, Float(pinchCenter.x), Float(pinchCenter.y))
-                
+
                 pan(self.wsHandle, Float(panX), Float(panY))
                 zoom(self.wsHandle, zoomDelta)
-                
+
                 self.mtkView.drawImmediately()
-                
+
                 mouse_gone(self.wsHandle)
 
                 event.scale = 1.0
@@ -1077,19 +1106,49 @@
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            // Allow pan, pinch, and ws pan (touch) to work together
-            // pan and pinch are configured to cancel touch when they begin
             var result = false
+
+            // allow all to work together
+            // tap prioritization handled as failure requirements
+            // pan and pinch are configured to cancel touch when they begin
             switch gestureRecognizer.name {
-            case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
+            case "SvgPan", "SvgPinch", "SvgTap1", "SvgTap2", "SvgTap3", "WsTouch":
                 switch otherGestureRecognizer.name {
-                case "SvgPan", "SvgPinch", "SvgTap", "WsTouch":
+                case "SvgPan", "SvgPinch", "SvgTap1", "SvgTap2", "SvgTap3", "WsTouch":
                     result = true
                 default:
                     result = false
                 }
             default:
                 result = false
+            }
+
+            return result
+        }
+
+        public func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            var result = false
+
+            switch gestureRecognizer.name {
+            case "SvgTap1":
+                switch otherGestureRecognizer.name {
+                case "SvgTap2", "SvgTap3":
+                    result = true
+                default:
+                    break
+                }
+            case "SvgTap2":
+                switch otherGestureRecognizer.name {
+                case "SvgTap3":
+                    result = true
+                default:
+                    break
+                }
+            default:
+                break
             }
 
             return result

@@ -67,7 +67,10 @@ impl<'ast> Editor {
                         }
                     }
                 }
-                _ => {}
+                crate::Event::PredictedTouch { .. } => {}
+                crate::Event::KineticPan { .. } => {}
+                crate::Event::Undo => result.push(Event::Undo),
+                crate::Event::Redo => result.push(Event::Redo),
             }
         }
         result
