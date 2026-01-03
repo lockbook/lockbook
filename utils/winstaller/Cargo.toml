@@ -4,8 +4,8 @@ version = "25.12.17"
 edition = "2021"
 
 [target.'cfg(windows)'.dependencies]
-eframe = "0.28.1"
-egui_extras = { version = "0.28.1", features = ["image"] }
+eframe = "0.30.0"
+egui_extras = { version = "0.30.0", features = ["image"] }
 image = { version = "0.24", features = ["png"] }
 mslnk = "0.1.8"
 

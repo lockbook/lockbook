@@ -9,10 +9,10 @@ crate-type = ["lib", "staticlib", "cdylib"]
 path = "src/lib.rs"
 
 [dependencies]
-egui = "0.28.1"
+egui = "0.30.0"
 wgpu = { version = "*", features = ["metal"] }
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
-egui_extras = { version = "0.28.1", features = ["image"] }
+egui_extras = { version = "0.30.0", features = ["image"] }
 workspace = { path = "../workspace/" }
 lb-c = { path = "../../lb/lb-c" }
 raw-window-handle = "0.6"
