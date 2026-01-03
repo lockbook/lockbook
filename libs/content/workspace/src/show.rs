@@ -893,7 +893,7 @@ impl Workspace {
             .inner_margin(tab_padding)
             .show(ui, |ui| {
                 let mut ui_builder = UiBuilder::new();
-                if !self.tabs[t].rename.is_none() {
+                if self.tabs[t].rename.is_some() {
                     ui_builder = ui_builder.invisible();
                 }
 
