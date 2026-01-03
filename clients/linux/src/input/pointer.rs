@@ -37,7 +37,10 @@ fn handle(
         if modifiers.command {
             let resistence = 200.;
             let factor = (delta.y / resistence).exp();
-            app.renderer.raw_input.events.push(egui::Event::Zoom(factor))
+            app.renderer
+                .raw_input
+                .events
+                .push(egui::Event::Zoom(factor))
         } else {
             app.renderer.raw_input.events.push(egui::Event::MouseWheel {
                 unit: MouseWheelUnit::Point,
@@ -56,7 +59,8 @@ fn handle(
             9 => egui::PointerButton::Extra2, // forward
             _ => return,
         };
-        app.renderer.raw_input
+        app.renderer
+            .raw_input
             .events
             .push(egui::Event::PointerButton { pos, button, pressed, modifiers })
     }
@@ -64,5 +68,8 @@ fn handle(
 
 pub fn handle_motion(app: &mut WgpuLockbook, event: MotionNotifyEvent, scale: f32) {
     let pos = egui::Pos2::new(event.event_x as f32 / scale, event.event_y as f32 / scale);
-    app.renderer.raw_input.events.push(egui::Event::PointerMoved(pos));
+    app.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerMoved(pos));
 }

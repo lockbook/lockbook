@@ -156,20 +156,19 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
         connection: conn.get_raw_xcb_connection(),
         screen: screen_num as _,
     };
-    let mut lb = init(
-        &window_handle,
-        false,
-    );
+    let mut lb = init(&window_handle, false);
 
     let got_events_atomic = std::sync::Arc::new(AtomicBool::new(false));
     let got_events_clone = got_events_atomic.clone();
-    lb.renderer.context.set_request_repaint_callback(move |rri| {
-        let got_events_clone = got_events_clone.clone();
-        let _ = std::thread::spawn(move || {
-            std::thread::sleep(rri.delay);
-            got_events_clone.store(true, Ordering::SeqCst);
+    lb.renderer
+        .context
+        .set_request_repaint_callback(move |rri| {
+            let got_events_clone = got_events_clone.clone();
+            let _ = std::thread::spawn(move || {
+                std::thread::sleep(rri.delay);
+                got_events_clone.store(true, Ordering::SeqCst);
+            });
         });
-    });
 
     let mut last_copied_text = String::new();
     let mut paste_context = clipboard_paste::Context::new(window_id, conn, &atoms);
@@ -370,7 +369,9 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
     let renderer = RendererState::init_window(window);
-    renderer.context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
+    renderer
+        .context
+        .set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
 
     let app = lbeguiapp::Lockbook::new(&renderer.context);
 
@@ -385,4 +386,3 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
 
     obj
 }
-

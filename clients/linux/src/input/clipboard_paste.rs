@@ -219,7 +219,8 @@ impl Ctx<'_> {
 
         if format == atoms.UTF8_STRING {
             let text = String::from_utf8_lossy(&data);
-            app.renderer.raw_input
+            app.renderer
+                .raw_input
                 .events
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {

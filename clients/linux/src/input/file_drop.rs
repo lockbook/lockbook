@@ -78,7 +78,8 @@ pub fn handle_selection_notify(
     let data = read_data(conn, atoms, event.requestor)?;
     let paths = parse_paths(&data)?;
     for path in paths {
-        app.renderer.raw_input
+        app.renderer
+            .raw_input
             .dropped_files
             .push(DroppedFile { path: Some(path), ..Default::default() });
     }
