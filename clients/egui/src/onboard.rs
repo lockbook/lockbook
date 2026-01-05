@@ -62,6 +62,7 @@ pub struct OnboardScreen {
     import_status: Option<String>,
 
     text_rect: Option<egui::Rect>,
+    frame_nr: u64,
 }
 
 impl OnboardScreen {
@@ -84,10 +85,12 @@ impl OnboardScreen {
             import_err: None,
             import_status: None,
             text_rect: None,
+            frame_nr: 0,
         }
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Option<OnboardHandOff> {
+        self.frame_nr += 1;
         let mut resp = None;
 
         while let Ok(update) = self.update_rx.try_recv() {
@@ -150,7 +153,7 @@ impl OnboardScreen {
             ui.vertical_centered(|ui| {
                 let how_on = ui.ctx().animate_bool_with_time_and_easing(
                     "welcome_route_fade_in".into(),
-                    ui.ctx().frame_nr() > 1,
+                    self.frame_nr > 1,
                     1.0,
                     egui::emath::ease_in_ease_out,
                 );
