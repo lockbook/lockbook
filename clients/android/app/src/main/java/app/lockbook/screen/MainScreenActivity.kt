@@ -245,8 +245,10 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
         slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
             override fun onPanelOpened(panel: View) {
+                binding.bottomNavigation.visibility = View.GONE
             }
             override fun onPanelClosed(panel: View) {
+                binding.bottomNavigation.visibility = View.VISIBLE
             }
             override fun onPanelSlide(panel: View, slideOffset: Float) {
                 if (slideOffset > 0) {
