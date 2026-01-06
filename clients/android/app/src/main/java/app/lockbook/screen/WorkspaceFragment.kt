@@ -351,7 +351,6 @@ class WorkspaceFragment : Fragment() {
             withDataSource(model.tabs)
 
             val orientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
-            println("setting up tab with ${orientation == LinearLayoutManager.HORIZONTAL }")
             if (orientation == LinearLayoutManager.HORIZONTAL) {
                 withItem<File, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
                     onBind(::HorizontalTabItemHolder) { _, item ->

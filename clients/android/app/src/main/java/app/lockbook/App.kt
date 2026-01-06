@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.os.StrictMode
 import android.os.StrictMode.ThreadPolicy
 import android.os.StrictMode.VmPolicy
+import android.util.Log
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -143,11 +144,11 @@ class GlobalExceptionHandler(
 
     override fun uncaughtException(thread: Thread, exception: Throwable) {
         try {
-            println("custom uncaught handler")
+            Timber.d("custom uncaught handler")
             val stackTrace = getStackTraceString(exception)
             Lb.writePanicToFile(exception.message, stackTrace)
         } catch (e: Exception) {
-            println("custom uncaught handler failed $e")
+            Timber.e("custom uncaught handler failed $e")
         } finally {
             defaultHandler?.uncaughtException(thread, exception)
         }
