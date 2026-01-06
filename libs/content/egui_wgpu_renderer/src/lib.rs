@@ -49,6 +49,7 @@ impl<'w> RendererState<'w> {
     fn init(instance: Instance, surface: Surface<'w>) -> Self {
         let (adapter, device, queue) =
             pollster::block_on(Self::request_device(&instance, &surface));
+        panic!("{:?}", surface.get_capabilities(&adapter).formats);
         let format = surface.get_capabilities(&adapter).formats[0]; // todo: maybe #4065
         let screen = ScreenDescriptor { size_in_pixels: [1300, 800], pixels_per_point: 1.0 };
         let surface_config = wgpu::SurfaceConfiguration {
