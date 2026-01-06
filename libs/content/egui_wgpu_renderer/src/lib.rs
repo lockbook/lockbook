@@ -4,8 +4,8 @@ use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceTargetUnsafe,
-    TextureDescriptor, TextureUsages,
+    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceConfiguration,
+    SurfaceTargetUnsafe, TextureDescriptor, TextureFormat, TextureUsages,
 };
 
 pub struct RendererState<'w> {
@@ -49,20 +49,9 @@ impl<'w> RendererState<'w> {
     fn init(instance: Instance, surface: Surface<'w>) -> Self {
         let (adapter, device, queue) =
             pollster::block_on(Self::request_device(&instance, &surface));
-        panic!("{:?}", surface.get_capabilities(&adapter).formats);
-        let format = surface.get_capabilities(&adapter).formats[0]; // todo: maybe #4065
+        let format = Self::text_format(&adapter, &surface);
         let screen = ScreenDescriptor { size_in_pixels: [1300, 800], pixels_per_point: 1.0 };
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format,
-            width: screen.size_in_pixels[0], // TODO get from context or something
-            height: screen.size_in_pixels[1],
-            present_mode: wgpu::PresentMode::Fifo,
-            alpha_mode: CompositeAlphaMode::Auto,
-            view_formats: vec![],
-            desired_maximum_frame_latency: 2,
-        };
-        surface.configure(&device, &surface_config);
+
         let renderer = Renderer::new(&device, format, None, 4);
 
         RendererState {
@@ -191,20 +180,36 @@ impl<'w> RendererState<'w> {
         (full_output.platform_output, full_output.viewport_output)
     }
 
-    fn configure_surface(&mut self) {
-        use egui_wgpu::wgpu::CompositeAlphaMode;
+    /// inspired by egui_wgpu::RenderState
+    fn text_format(adapter: &Adapter, surface: &Surface<'w>) -> TextureFormat {
+        egui_wgpu::preferred_framebuffer_format(&surface.get_capabilities(adapter).formats).unwrap()
+    }
 
+    /// inspired by egui_wgpu::RenderState
+    fn text_alpha(adapter: &Adapter, surface: &Surface<'w>) -> CompositeAlphaMode {
+        let supported_alpha_modes = surface.get_capabilities(adapter).alpha_modes;
+
+        if supported_alpha_modes.contains(&wgpu::CompositeAlphaMode::PreMultiplied) {
+            wgpu::CompositeAlphaMode::PreMultiplied
+        } else if supported_alpha_modes.contains(&wgpu::CompositeAlphaMode::PostMultiplied) {
+            wgpu::CompositeAlphaMode::PostMultiplied
+        } else {
+            wgpu::CompositeAlphaMode::Auto
+        }
+    }
+
+    fn configure_surface(&mut self) {
         let resized = self.screen.size_in_pixels[0] != self.surface_width
             || self.screen.size_in_pixels[1] != self.surface_height;
         let visible = self.screen.size_in_pixels[0] * self.screen.size_in_pixels[1] != 0;
         if resized && visible {
             let surface_config = wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: self.surface_format(),
+                format: Self::text_format(&self.adapter, &self.surface),
                 width: self.screen.size_in_pixels[0],
                 height: self.screen.size_in_pixels[1],
                 present_mode: wgpu::PresentMode::Fifo,
-                alpha_mode: CompositeAlphaMode::Auto,
+                alpha_mode: Self::text_alpha(&self.adapter, &self.surface),
                 view_formats: vec![],
                 desired_maximum_frame_latency: 2,
             };
@@ -212,12 +217,6 @@ impl<'w> RendererState<'w> {
             self.surface_width = self.screen.size_in_pixels[0];
             self.surface_height = self.screen.size_in_pixels[1];
         }
-    }
-
-    pub fn surface_format(&self) -> wgpu::TextureFormat {
-        // todo: is this really fine?
-        // from here: https://github.com/hasenbanck/egui_example/blob/master/src/main.rs#L65
-        self.surface.get_capabilities(&self.adapter).formats[0]
     }
 
     fn set_egui_screen(&mut self) {
