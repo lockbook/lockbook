@@ -4,7 +4,7 @@ use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceConfiguration,
+    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface,
     SurfaceTargetUnsafe, TextureDescriptor, TextureFormat, TextureUsages,
 };
 
