@@ -557,7 +557,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             workspaceView.forwardedTouchEvent(event, touchYOffset)
         }
 
-        workspaceView.invalidate()
+        workspaceView.drawImmediately()
 
         return true
     }
@@ -615,7 +615,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
-        workspaceView.invalidate()
+        workspaceView.drawImmediately()
 
         return true
     }
@@ -640,7 +640,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             else -> return false
         }
 
-        workspaceView.invalidate()
+        workspaceView.drawImmediately()
 
         return true
     }
