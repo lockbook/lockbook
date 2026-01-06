@@ -330,4 +330,9 @@ impl Lb {
             .block_on(self.lb.debug_info(os_info))
             .unwrap_or_else(|e| format!("failed to produce debug info: {:?}", e.to_string()))
     }
+
+    pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
+        self.rt
+            .block_on(self.lb.write_panic_to_file(error_header, bt))
+    }
 }
