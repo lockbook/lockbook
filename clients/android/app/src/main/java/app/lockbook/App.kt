@@ -2,6 +2,10 @@ package app.lockbook
 
 import android.app.Application
 import android.content.Context
+import android.content.pm.ApplicationInfo
+import android.os.StrictMode
+import android.os.StrictMode.ThreadPolicy
+import android.os.StrictMode.VmPolicy
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -16,6 +20,8 @@ import com.google.android.material.color.DynamicColors
 import net.lockbook.Lb
 import net.lockbook.LbError
 import timber.log.Timber
+import java.io.PrintWriter
+import java.io.StringWriter
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -39,6 +45,31 @@ class App : Application() {
             .addObserver(ForegroundBackgroundObserver(this))
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+
+        val isDebugBuild = 0 != applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE
+        if (isDebugBuild) {
+            StrictMode.setThreadPolicy(
+                ThreadPolicy.Builder()
+                    .detectDiskReads()
+                    .detectDiskWrites()
+                    .detectAll()
+                    .penaltyLog()
+                    .build()
+            )
+
+            StrictMode.setVmPolicy(
+                VmPolicy.Builder()
+                    .detectLeakedSqlLiteObjects()
+                    .detectLeakedClosableObjects()
+                    .penaltyLog()
+                    .build()
+            )
+        }
+
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler(
+            GlobalExceptionHandler(this, defaultHandler)
+        )
     }
 
     companion object {
@@ -102,5 +133,31 @@ class SyncWork(appContext: Context, workerParams: WorkerParameters) :
         Timber.e(err.msg)
 
         Result.failure()
+    }
+}
+
+class GlobalExceptionHandler(
+    private val context: Context,
+    private val defaultHandler: Thread.UncaughtExceptionHandler?
+) : Thread.UncaughtExceptionHandler {
+
+    override fun uncaughtException(thread: Thread, exception: Throwable) {
+        try {
+            Timber.d("custom uncaught handler")
+            val stackTrace = getStackTraceString(exception)
+            Lb.writePanicToFile(exception.message, stackTrace)
+        } catch (e: Exception) {
+            Timber.e("custom uncaught handler failed $e")
+        } finally {
+            defaultHandler?.uncaughtException(thread, exception)
+        }
+    }
+
+    private fun getStackTraceString(exception: Throwable): String {
+        val sw = StringWriter()
+
+        val pw = PrintWriter(sw)
+        exception.printStackTrace(pw)
+        return sw.toString()
     }
 }

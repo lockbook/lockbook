@@ -3,6 +3,7 @@ package app.lockbook.model
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
+import timber.log.Timber
 
 class FileModel(
     val root: File,
@@ -69,7 +70,7 @@ class FileModel(
                 temp.reverse()
                 fileDir.addAll(temp)
             } catch (err: LbError) {
-                println(err)
+                Timber.e(err)
             }
         }
 

@@ -1,6 +1,6 @@
 use crate::Config;
 use crate::model::errors::{LbResult, core_err_unexpected};
-use chrono::Local;
+use crate::service::debug::{generate_panic_content, generate_panic_filename};
 use std::backtrace::Backtrace;
 use std::fs::OpenOptions;
 use std::io::Write;
@@ -87,13 +87,12 @@ pub fn init(config: &Config) -> LbResult<()> {
 
 fn panic_capture(config: &Config) {
     let path = config.writeable_path.clone();
-    panic::set_hook(Box::new(move |panic_info| {
+    panic::set_hook(Box::new(move |error_header| {
         let bt = Backtrace::force_capture();
-        tracing::error!("panic detected: {panic_info} {}", bt);
-        eprintln!("panic detected and logged: {panic_info} {bt}");
-        let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
-        let file_name = format!("{path}/panic---{timestamp}.log");
-        let content = format!("INFO: {panic_info}\nBT: {bt}");
+        tracing::error!("panic detected: {error_header} {}", bt);
+        eprintln!("panic detected and logged: {error_header} {bt}");
+        let file_name = generate_panic_filename(&path);
+        let content = generate_panic_content(&error_header.to_string(), &bt.to_string());
 
         let mut file = OpenOptions::new()
             .create(true)

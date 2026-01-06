@@ -59,6 +59,22 @@ pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_writePanicToFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, error_header: JString<'local>,
+    backtrace: JString<'local>,
+) -> jobject {
+    let lb = rlb(&mut env, &class);
+
+    let error_header = rstring(&mut env, error_header);
+    let backtrace = rstring(&mut env, backtrace);
+
+    match lb.write_panic_to_file(error_header, backtrace) {
+        Ok(file_name) => jni_string(&mut env, file_name).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, username: JString<'local>,
     api_url: JString<'local>, welcome_doc: jboolean,

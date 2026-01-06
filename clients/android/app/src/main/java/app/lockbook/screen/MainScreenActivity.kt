@@ -101,8 +101,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                 setReorderingAllowed(true)
                 add<WorkspaceFragment>(R.id.detail_container, "Workspace")
             }
-        } else {
-            println("not adding")
         }
 
         (application as App).billingClientLifecycle.apply {
