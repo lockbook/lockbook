@@ -82,16 +82,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
     visuals::init(&renderer.context, dark_mode);
 
-    let workspace = if old_wgpu != jlong::MAX {
-        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
-
-        old_wgpu
-            .workspace
-            .invalidate_egui_references(&renderer.context, core);
-        old_wgpu.workspace
-    } else {
-        Workspace::new(core, &renderer.context, false)
-    };
+    let workspace = Workspace::new(core, &renderer.context, false);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);

@@ -111,27 +111,6 @@ impl Workspace {
         ws
     }
 
-    // todo: what happens if a save is in progress? what about non-file tabs?
-    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
-        self.ctx = ctx.clone();
-        self.core = core.clone();
-
-        let ids: Vec<Uuid> = self.tabs.iter().flat_map(|tab| tab.id()).collect();
-        let maybe_current_tab_id = self.current_tab().and_then(|tab| tab.id());
-
-        while self.current_tab != 0 {
-            self.close_tab(self.tabs.len() - 1);
-        }
-
-        for id in ids {
-            self.open_file(id, false, true)
-        }
-
-        if let Some(current_tab_id) = maybe_current_tab_id {
-            self.make_current_by_id(current_tab_id);
-        }
-    }
-
     pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
         let now = Instant::now();
         let new_tab = Tab {
