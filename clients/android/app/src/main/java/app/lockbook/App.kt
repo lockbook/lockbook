@@ -147,9 +147,7 @@ class GlobalExceptionHandler(
             val stackTrace = getStackTraceString(exception)
             Lb.writePanicToFile(exception.message, stackTrace)
         } catch (e: Exception) {
-            println("custom uncaught handler failed")
-
-            println(e)
+            println("custom uncaught handler failed $e")
         } finally {
             defaultHandler?.uncaughtException(thread, exception)
         }
