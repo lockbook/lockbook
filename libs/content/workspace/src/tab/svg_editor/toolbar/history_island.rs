@@ -1,3 +1,5 @@
+use egui::UiBuilder;
+
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 
@@ -19,7 +21,7 @@ impl Toolbar {
             max: egui::Pos2 { x: history_island_x_start, y: history_island_y_start },
         };
 
-        let res = ui.allocate_ui_at_rect(history_rect, |ui| {
+        let res = ui.allocate_new_ui(UiBuilder::new().max_rect(history_rect), |ui| {
             egui::Frame::window(ui.style())
                 .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                 .show(ui, |ui| {

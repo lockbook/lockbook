@@ -4,7 +4,7 @@ use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use egui::{
     Align, CentralPanel, ColorImage, Context, Event, Image, ImageSource, Key, Modifiers, Pos2,
-    Rect, ScrollArea, SidePanel, TextureHandle, Ui, Vec2, load::SizedTexture,
+    Rect, ScrollArea, SidePanel, TextureHandle, Ui, UiBuilder, Vec2, load::SizedTexture,
 };
 use hayro::{InterpreterSettings, Pdf, RenderSettings};
 use lb_rs::Uuid;
@@ -246,7 +246,7 @@ impl PdfViewer {
         };
 
         if let Some(sidebar) = &mut self.sidebar {
-            ui.allocate_ui_at_rect(end_of_line_rect, |ui| {
+            ui.allocate_new_ui(UiBuilder::new().max_rect(end_of_line_rect), |ui| {
                 let icon = Icon::TOGGLE_SIDEBAR;
                 if Button::default().icon(&icon).show(ui).clicked() {
                     sidebar.is_visible = !sidebar.is_visible;
@@ -254,7 +254,7 @@ impl PdfViewer {
             });
         }
 
-        ui.allocate_ui_at_rect(centered_rect, |ui| {
+        ui.allocate_new_ui(UiBuilder::new().max_rect(centered_rect), |ui| {
             ui.columns(5, |cols| {
                 cols[0].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {

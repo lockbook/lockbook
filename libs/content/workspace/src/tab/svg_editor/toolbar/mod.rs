@@ -14,6 +14,7 @@ use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
 
+use egui::UiBuilder;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::DynamicColor;
@@ -421,7 +422,7 @@ impl Toolbar {
                 tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y + island_size.y,
             ),
         };
-        let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {
+        let overlay_toggle = ui.allocate_new_ui(UiBuilder::new().max_rect(island_rect), |ui| {
             egui::Frame::window(ui.style())
                 .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                 .show(ui, |ui| {

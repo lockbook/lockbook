@@ -10,7 +10,7 @@ use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
-use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -216,7 +216,7 @@ impl AccountScreen {
                     let max = ui.clip_rect().left_bottom();
 
                     let rect = egui::Rect { min, max };
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         let zen_mode_btn = Button::default()
                             .icon(&Icon::TOGGLE_SIDEBAR)
                             .frame(true)
@@ -537,17 +537,18 @@ impl AccountScreen {
             min: egui::pos2(anchor_rect.right(), anchor_rect.top()),
             max: egui::pos2(ui.available_rect_before_wrap().right(), anchor_rect.bottom()),
         };
-        let ui = &mut ui.child_ui(
-            rect,
-            egui::Layout {
-                main_dir: egui::Direction::RightToLeft,
-                main_wrap: false,
-                main_align: egui::Align::LEFT,
-                main_justify: false,
-                cross_align: egui::Align::Center,
-                cross_justify: true,
-            },
-            None,
+        let ui = &mut ui.new_child(
+            UiBuilder::new()
+                .max_rect(rect)
+                .layout(egui::Layout {
+                    main_dir: egui::Direction::RightToLeft,
+                    main_wrap: false,
+                    main_align: egui::Align::LEFT,
+                    main_justify: false,
+                    cross_align: egui::Align::Center,
+                    cross_justify: true,
+                })
+                .ui_stack_info(None.unwrap_or_default()),
         );
 
         ui.visuals_mut().override_text_color = Some(ui.visuals().text_color().linear_multiply(0.9));
@@ -725,9 +726,9 @@ impl AccountScreen {
                     .error(format!("{:#?}, failed to export file", err.kind))
             }
         }
-        .set_closable(false)
-        .set_show_progress_bar(false)
-        .set_duration(Some(Duration::from_secs(7)));
+        .closable(false)
+        .show_progress_bar(false)
+        .duration(Some(Duration::from_secs(7)));
     }
 
     fn accept_share(&self, ctx: &egui::Context, target: File, parent: File) {

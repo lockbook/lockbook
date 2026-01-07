@@ -157,7 +157,7 @@ impl Pen {
         let old_layer = pen_ctx.painter.layer_id();
 
         pen_ctx.painter.set_layer_id(egui::LayerId {
-            order: egui::Order::PanelResizeLine,
+            order: egui::Order::Middle,
             id: "eraser_overlay".into(),
         });
 
@@ -388,7 +388,7 @@ impl Pen {
         }
     }
 
-    /// converts a single ui event into a path event  
+    /// converts a single ui event into a path event
     fn map_ui_event(
         &mut self, e: IntegrationEvent, pen_ctx: &mut ToolContext<'_>,
         input_state: &PenPointerInput,
