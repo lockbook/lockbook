@@ -37,7 +37,7 @@
             android:name=".screen.ImportAccountActivity"
             android:alwaysRetainTaskState="true" />
         <activity android:name=".screen.MainScreenActivity"
-            android:windowSoftInputMode="adjustResize"
+            android:windowSoftInputMode="stateUnspecified"
             android:configChanges="orientation|screenSize"
             />
         <activity android:name=".screen.SettingsActivity" />

@@ -150,14 +150,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-
         stopRendering()
     }
 
-    override fun onDetachedFromWindow() {
 
+    override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
         renderScope.cancel()
+    }
+
+    fun setBottomInset(inset: Int) {
+        if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+            Workspace.setBottomInset(
+                WGPU_OBJ,
+                inset,
+            )
+        }
+        drawImmediately()
     }
 
     private suspend fun drawWorkspace(): Long {

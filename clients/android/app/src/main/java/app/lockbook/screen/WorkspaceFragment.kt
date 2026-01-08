@@ -153,6 +153,11 @@ class WorkspaceFragment : Fragment() {
             updateCurrentTab(workspaceWrapper, tab)
         }
 
+        model.bottomInset.observe(viewLifecycleOwner) {
+            workspaceWrapper.workspaceView.setBottomInset(it)
+
+        }
+
         model.showTabs.observe(viewLifecycleOwner) { show ->
             if (!show) {
                 binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
@@ -266,7 +271,8 @@ class WorkspaceFragment : Fragment() {
 
         ViewCompat.setOnApplyWindowInsetsListener(view) { v, insets ->
             val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
-            val imeHeight = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
 
             if (imeVisible) {
                 model._keyboardVisible.postValue(true)
@@ -274,7 +280,16 @@ class WorkspaceFragment : Fragment() {
                 model._keyboardVisible.postValue(false)
             }
 
-            ViewCompat.onApplyWindowInsets(v, insets)
+            model._bottomInset.value = (-systemBars.bottom + ime.bottom).coerceAtLeast(0)
+
+            val filteredInsets = WindowInsetsCompat.Builder(insets)
+                .setInsets(
+                    WindowInsetsCompat.Type.ime(),
+                    androidx.core.graphics.Insets.NONE // Mask keyboard height to 0
+                )
+                .build()
+
+            ViewCompat.onApplyWindowInsets(v, filteredInsets)
 
             insets
         }

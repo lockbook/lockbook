@@ -12,6 +12,7 @@ pub struct RendererState<'w> {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
     pub screen: ScreenDescriptor,
+    pub bottom_inset: Option<u32>,
 
     device: Device,
     adapter: Adapter,
@@ -63,6 +64,7 @@ impl<'w> RendererState<'w> {
             queue,
             surface_width: 0,
             surface_height: 0,
+            bottom_inset: None,
             context: Default::default(),
             raw_input: Default::default(),
             start_time: Instant::now(),

@@ -22,8 +22,19 @@ impl WgpuWorkspace<'_> {
                 .context
                 .style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
         }
+
+        let workspace_frame = egui::Frame::default()
+            .fill(self.renderer.context.style().visuals.panel_fill)
+            .inner_margin(egui::Margin {
+                left: 0.0,
+                right: 0.0,
+                top: 0.0,
+                bottom: self.renderer.bottom_inset.unwrap_or(0) as f32
+                    / self.renderer.screen.pixels_per_point,
+            });
+
         let workspace_response = egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(self.renderer.context.style().visuals.panel_fill))
+            .frame(workspace_frame)
             .show(&self.renderer.context, |ui| self.workspace.show(ui))
             .inner;
 
