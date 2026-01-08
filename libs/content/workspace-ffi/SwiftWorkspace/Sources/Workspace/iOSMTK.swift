@@ -58,6 +58,11 @@
 
             self.clipsToBounds = true
             self.isUserInteractionEnabled = true
+//            self.mtkView.autoResizeDrawable = false
+//            self.mtkView.layer.contentsGravity = .top
+//            self.mtkView.layer.masksToBounds = true
+//            self.mtkView.presentsWithTransaction = true
+
 
             // text input
             textInteraction.textInput = self
@@ -1095,156 +1100,22 @@
     public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
 
     // MARK: - iOSMTKViewDelegate
-    public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
-        weak var mtkView: iOSMTK?
-
-        init(mtkView: iOSMTK) {
-            self.mtkView = mtkView
-        }
-
-        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            guard let mtkView = self.mtkView else { return }
-            let wsHandle = mtkView.wsHandle
-
-            resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
-            mtkView.setNeedsDisplay()
-        }
-
-        public func draw(in view: MTKView) {
-            guard let mtkView = self.mtkView else { return }
-            let wsHandle = mtkView.wsHandle
-
-            if mtkView.tabSwitchTask != nil {
-                mtkView.tabSwitchTask!()
-                mtkView.tabSwitchTask = nil
-            }
-
-            dark_mode(wsHandle, mtkView.isDarkMode())
-            show_hide_tabs(wsHandle, !mtkView.isCompact())
-            set_scale(wsHandle, Float(mtkView.contentScaleFactor))
-
-            let output = ios_frame(wsHandle)
-
-            if output.tabs_changed {
-                mtkView.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
-            }
-
-            if output.selected_folder_changed {
-                let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
-                if selectedFolder.isNil() {
-                    mtkView.workspaceOutput?.selectedFolder = nil
-                } else {
-                    mtkView.workspaceOutput?.selectedFolder = selectedFolder
-                }
-            }
-
-            let selectedFile = UUID(uuid: output.selected_file._0)
-            if !selectedFile.isNil() {
-                if mtkView.currentOpenDoc != selectedFile {
-                    mtkView.onSelectionChanged?()
-                    mtkView.onTextChanged?()
-                }
-
-                mtkView.currentOpenDoc = selectedFile
-
-                if selectedFile != mtkView.workspaceOutput?.openDoc {
-                    mtkView.workspaceOutput?.openDoc = selectedFile
-                }
-            }
-
-            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
-
-            if currentTab != mtkView.workspaceOutput!.currentTab {
-                DispatchQueue.main.async {
-                    mtkView.workspaceOutput!.currentTab = currentTab
-                }
-            }
-
-            if currentTab == .Welcome && mtkView.currentOpenDoc != nil {
-                mtkView.currentOpenDoc = nil
-                mtkView.workspaceOutput?.openDoc = nil
-            }
-
-            if let currentWrapper = mtkView.currentWrapper as? MdView,
-                currentTab == .Markdown
-            {
-                if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
-                    && currentWrapper.floatingCursor.isHidden
-                {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                }
-
-                if output.scroll_updated {
-                    mtkView.onSelectionChanged?()
-                }
-
-                if output.text_updated && !mtkView.ignoreTextUpdate {
-                    mtkView.onTextChanged?()
-                }
-
-                if output.selection_updated && !mtkView.ignoreSelectionUpdate {
-                    mtkView.onSelectionChanged?()
-                }
-
-                let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
-                update_virtual_keyboard(wsHandle, keyboard_shown)
-            }
-
-            if output.tab_title_clicked {
-                mtkView.workspaceOutput?.renameOpenDoc = ()
-
-                if !mtkView.isCompact() {
-                    unfocus_title(wsHandle)
-                }
-            }
-
-            //      FIXME:  Can we just do this in rust?
-            let newFile = UUID(uuid: output.doc_created._0)
-            if !newFile.isNil() {
-                mtkView.workspaceInput?.openFile(id: newFile)
-            }
-
-            if output.new_folder_btn_pressed {
-                mtkView.workspaceOutput?.newFolderButtonPressed = ()
-            }
-
-            if let openedUrl = output.url_opened {
-                let url = textFromPtr(s: openedUrl)
-
-                if let url = URL(string: url),
-                    UIApplication.shared.canOpenURL(url)
-                {
-                    mtkView.workspaceOutput?.urlOpened = url
-                }
-            }
-
-            if let text = output.copied_text {
-                let text = textFromPtr(s: text)
-                if !text.isEmpty {
-                    UIPasteboard.general.string = text
-                }
-            }
-
-            mtkView.redrawTask?.cancel()
-            mtkView.isPaused = output.redraw_in > 50
-            if mtkView.isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(
-                    Int(truncatingIfNeeded: min(500, redrawIn)))
-
-                let newRedrawTask = DispatchWorkItem {
-                    mtkView.drawImmediately()
-                }
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + redrawInInterval, execute: newRedrawTask)
-                mtkView.redrawTask = newRedrawTask
-            }
-
-            mtkView.enableSetNeedsDisplay = mtkView.isPaused
-        }
-    }
+//    public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
+//        weak var mtkView: iOSMTK?
+//
+//        init(mtkView: iOSMTK) {
+//            self.mtkView = mtkView
+//        }
+//
+//        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+//            guard let mtkView = self.mtkView else { return }
+//            let wsHandle = mtkView.wsHandle
+//
+//            resize_editor(
+//                wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
+////            mtkView.setNeedsDisplay()
+//        }
+//    }
 
     // MARK: - iOSPointerDelegate
     public class iOSPointerDelegate: NSObject, UIPointerInteractionDelegate {
@@ -1295,7 +1166,7 @@
     }
 
     // MARK: - iOSMTK
-    public class iOSMTK: MTKView {
+    public class iOSMTK: UIView {
         public static let TAB_BAR_HEIGHT: CGFloat = 40
         public static let TITLE_BAR_HEIGHT: CGFloat = 33
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
@@ -1311,7 +1182,7 @@
         var panRecognizer: UIPanGestureRecognizer?
 
         // mtk
-        var mtkDelegate: iOSMTKViewDelegate?
+//        var mtkDelegate: iOSMTKViewDelegate?
         var redrawTask: DispatchWorkItem? = nil
 
         // workspace
@@ -1335,10 +1206,10 @@
         var scrollSensitivity = 50.0
         var scrollId = 0
         var kineticTimer: Timer?
-
-        override init(frame frameRect: CGRect, device: MTLDevice?) {
-            super.init(frame: frameRect, device: device)
-
+        
+        override public init(frame: CGRect) {
+            super.init(frame: frame)
+            
             // pointer
             let pointerDelegate = iOSPointerDelegate(mtkView: self)
             let pointer = UIPointerInteraction(delegate: pointerDelegate)
@@ -1358,19 +1229,171 @@
             self.panRecognizer = pan
 
             // mtk
-            self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
-
-            self.isPaused = false
-            self.enableSetNeedsDisplay = false
-            self.delegate = mtkDelegate
-            self.preferredFramesPerSecond = 120
+//            self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
+            
             self.isUserInteractionEnabled = true
+            
+            self.displayLink.add(to: .current, forMode: .default)
+            self.displayLink.isPaused = false
         }
-
+        
+        private lazy var displayLink: CADisplayLink = {
+            CADisplayLink(target: self, selector: #selector(drawImmediately))
+        }()
+        
+        public override class var layerClass: AnyClass {
+            CAMetalLayer.self
+        }
+        
         required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
 
+        public override func draw(_ rect: CGRect) {
+            print("drawn")
+//            guard let mtkView = self.mtkView else { return }
+
+            if self.tabSwitchTask != nil {
+                self.tabSwitchTask!()
+                self.tabSwitchTask = nil
+            }
+
+            let scale = self.window?.screen.nativeScale ?? UIScreen.main.nativeScale
+            let animatedBounds = self.bounds
+            
+            if animatedBounds.width == 0 {
+                return;
+            }
+            
+            resize_editor(
+                wsHandle, Float(animatedBounds.width * scale), Float(animatedBounds.height * scale), Float(self.contentScaleFactor))
+            
+            print(animatedBounds)
+            dark_mode(wsHandle, self.isDarkMode())
+            show_hide_tabs(wsHandle, !self.isCompact())
+            set_scale(wsHandle, Float(self.contentScaleFactor))
+
+            let output = ios_frame(wsHandle)
+
+            if output.tabs_changed {
+                self.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+            }
+
+            if output.selected_folder_changed {
+                let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+                if selectedFolder.isNil() {
+                    self.workspaceOutput?.selectedFolder = nil
+                } else {
+                    self.workspaceOutput?.selectedFolder = selectedFolder
+                }
+            }
+
+            let selectedFile = UUID(uuid: output.selected_file._0)
+            if !selectedFile.isNil() {
+                if self.currentOpenDoc != selectedFile {
+                    self.onSelectionChanged?()
+                    self.onTextChanged?()
+                }
+
+                self.currentOpenDoc = selectedFile
+
+                if selectedFile != self.workspaceOutput?.openDoc {
+                    self.workspaceOutput?.openDoc = selectedFile
+                }
+            }
+
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+
+            if currentTab != self.workspaceOutput!.currentTab {
+                DispatchQueue.main.async {
+                    self.workspaceOutput!.currentTab = currentTab
+                }
+            }
+
+            if currentTab == .Welcome && self.currentOpenDoc != nil {
+                self.currentOpenDoc = nil
+                self.workspaceOutput?.openDoc = nil
+            }
+
+            if let currentWrapper = self.currentWrapper as? MdView,
+                currentTab == .Markdown
+            {
+                if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
+                    && currentWrapper.floatingCursor.isHidden
+                {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                }
+
+                if output.scroll_updated {
+                    self.onSelectionChanged?()
+                }
+
+                if output.text_updated && !self.ignoreTextUpdate {
+                    self.onTextChanged?()
+                }
+
+                if output.selection_updated && !self.ignoreSelectionUpdate {
+                    self.onSelectionChanged?()
+                }
+
+                let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
+                update_virtual_keyboard(wsHandle, keyboard_shown)
+            }
+
+            if output.tab_title_clicked {
+                self.workspaceOutput?.renameOpenDoc = ()
+
+                if !self.isCompact() {
+                    unfocus_title(wsHandle)
+                }
+            }
+
+            //      FIXME:  Can we just do this in rust?
+            let newFile = UUID(uuid: output.doc_created._0)
+            if !newFile.isNil() {
+                self.workspaceInput?.openFile(id: newFile)
+            }
+
+            if output.new_folder_btn_pressed {
+                self.workspaceOutput?.newFolderButtonPressed = ()
+            }
+
+            if let openedUrl = output.url_opened {
+                let url = textFromPtr(s: openedUrl)
+
+                if let url = URL(string: url),
+                    UIApplication.shared.canOpenURL(url)
+                {
+                    self.workspaceOutput?.urlOpened = url
+                }
+            }
+
+            if let text = output.copied_text {
+                let text = textFromPtr(s: text)
+                if !text.isEmpty {
+                    UIPasteboard.general.string = text
+                }
+            }
+
+//            self.redrawTask?.cancel()
+//            mtkView.isPaused = output.redraw_in > 50
+//            if mtkView.isPaused {
+//                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
+//                let redrawInInterval = DispatchTimeInterval.milliseconds(
+//                    Int(truncatingIfNeeded: min(500, redrawIn)))
+//
+//                let newRedrawTask = DispatchWorkItem {
+//                    mtkView.drawImmediately()
+//                }
+//                DispatchQueue.main.asyncAfter(
+//                    deadline: .now() + redrawInInterval, execute: newRedrawTask)
+//                mtkView.redrawTask = newRedrawTask
+//            }
+//
+//            mtkView.enableSetNeedsDisplay = mtkView.isPaused
+        }
+        
         @objc func handleTrackpadScroll(_ sender: UIPanGestureRecognizer? = nil) {
             guard let event = sender, event.state != .cancelled, event.state != .failed else {
                 return
@@ -1481,25 +1504,42 @@
 
             self.setNeedsDisplay()
         }
+        
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
+            
+            (layer as! CAMetalLayer).device = MTLCreateSystemDefaultDevice()
+            (layer as! CAMetalLayer).pixelFormat = .bgra8Unorm
+            (layer as! CAMetalLayer).framebufferOnly = true
+//            (layer as! CAMetalLayer).contentsScale = window.screen.nativeScale
+//            (layer as! CAMetalLayer).autoresizingMask = CAAutoresizingMask(arrayLiteral: [.layerHeightSizable, .layerWidthSizable])
+            (layer as! CAMetalLayer).contentsGravity = .center   // or .center
+            (layer as! CAMetalLayer).masksToBounds = true
+            (layer as! CAMetalLayer).needsDisplayOnBoundsChange = true
+            (layer as! CAMetalLayer).presentsWithTransaction = true
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(self.layer).toOpaque())
+            
+            
+            
+            print(self.layer)
             self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
             workspaceInput?.wsHandle = wsHandle
+            print("initial content set")
+            self.draw(self.bounds)
         }
 
-        public func drawImmediately() {
+        @objc public func drawImmediately() {
             redrawTask?.cancel()
             redrawTask = nil
 
             ignoreSelectionUpdate = true
             ignoreTextUpdate = true
 
-            self.isPaused = true
-            self.enableSetNeedsDisplay = false
-
-            self.mtkDelegate?.draw(in: self)
+//            self.mtkDelegate?.draw(in: self)
+            
+            self.draw(self.bounds)
+            
 
             ignoreSelectionUpdate = false
             ignoreTextUpdate = false
