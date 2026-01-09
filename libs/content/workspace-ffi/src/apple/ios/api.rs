@@ -1029,9 +1029,7 @@ pub unsafe extern "C" fn ios_key_event(
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn set_ws_inset(
-    obj: *mut c_void, inset: f32,
-) {
+pub unsafe extern "C" fn set_ws_inset(obj: *mut c_void, inset: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.renderer.bottom_inset = Some(inset as u32);
