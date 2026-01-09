@@ -1122,7 +1122,11 @@
 
             dark_mode(wsHandle, mtkView.isDarkMode())
             show_hide_tabs(wsHandle, !mtkView.isCompact())
+            
             set_scale(wsHandle, Float(mtkView.contentScaleFactor))
+            let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
+            let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
+            set_ws_inset(wsHandle, Float(overlap * mtkView.contentScaleFactor))
 
             let output = ios_frame(wsHandle)
 
