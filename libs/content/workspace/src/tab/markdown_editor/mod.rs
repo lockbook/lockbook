@@ -453,9 +453,19 @@ impl Editor {
                             d.insert_temp(scroll_area_id, state);
                         }
                     });
-                    self.event
-                        .internal_events
-                        .push(Event::Select { region: persisted.selection.into() });
+
+                    // set the selection using low-level API; using internal
+                    // events causes touch devices to scroll to cursor on 2nd
+                    // frame
+                    let (start, end) = persisted.selection;
+                    let selection = (
+                        start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
+                        end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
+                    );
+                    self.buffer.queue(vec![
+                        lb_rs::model::text::operation_types::Operation::Select(selection),
+                    ]);
+                    self.buffer.update();
                 }
 
                 scroll_area_id
@@ -496,11 +506,11 @@ impl Editor {
             self.layout_cache.clear();
             ui.ctx().request_repaint();
         }
-        if resp.selection_updated && !all_selected {
+        if self.initialized && resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if self.touch_mode && height_updated {
+        if self.initialized && self.touch_mode && height_updated {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
