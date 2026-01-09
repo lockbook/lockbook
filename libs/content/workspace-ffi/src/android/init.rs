@@ -106,3 +106,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     obj.renderer.screen.size_in_pixels[1] = native_window.get_height();
     obj.renderer.screen.pixels_per_point = scale_factor;
 }
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
+    _env: JNIEnv, _: JClass, obj: jlong, inset: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.renderer.bottom_inset = Some(inset as u32);
+}

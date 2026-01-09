@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -243,9 +244,11 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
 
         slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
             override fun onPanelOpened(panel: View) {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
                 binding.bottomNavigation.visibility = View.GONE
             }
             override fun onPanelClosed(panel: View) {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
                 binding.bottomNavigation.visibility = View.VISIBLE
             }
             override fun onPanelSlide(panel: View, slideOffset: Float) {
