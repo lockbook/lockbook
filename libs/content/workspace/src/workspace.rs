@@ -24,7 +24,7 @@ use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
-use crate::tab::markdown_editor::Editor as Markdown;
+use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -465,11 +465,14 @@ impl Workspace {
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         self.ctx.clone(),
                                         core.clone(),
+                                        self.cfg.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
-                                        ext != "md",
-                                        tab.read_only,
+                                        MdConfig {
+                                            plaintext_mode: ext != "md",
+                                            readonly: tab.read_only,
+                                        },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
@@ -797,6 +800,7 @@ struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
     canvas: CanvasSettings,
+    markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
 }
@@ -809,6 +813,7 @@ impl Default for WsPresistentData {
             open_tabs: Vec::default(),
             current_tab: None,
             canvas: CanvasSettings::default(),
+            markdown: MdPersistence::default(),
         }
     }
 }
@@ -856,6 +861,16 @@ impl WsPersistentStore {
 
     pub fn get_canvas_settings(&mut self) -> CanvasSettings {
         self.data.read().unwrap().canvas
+    }
+
+    pub fn set_markdown(&mut self, value: MdPersistence) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.markdown = value;
+        self.write_to_file();
+    }
+
+    pub fn get_markdown(&mut self) -> MdPersistence {
+        self.data.read().unwrap().markdown
     }
 
     pub fn get_auto_sync(&self) -> bool {
