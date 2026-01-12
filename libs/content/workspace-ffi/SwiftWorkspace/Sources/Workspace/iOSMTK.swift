@@ -66,9 +66,11 @@
             for gestureRecognizer in self.gestureRecognizers ?? [] {
                 // receive touch events immediately even if they are part of any recognized gestures
                 // this supports checkboxes and other interactive markdown elements in the text area (crudely)
-                gestureRecognizer.cancelsTouchesInView = false
                 gestureRecognizer.delaysTouchesBegan = false
                 gestureRecognizer.delaysTouchesEnded = false
+                if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                    gestureRecognizer.cancelsTouchesInView = false
+                }
 
                 // send interactive refinements to our handler
                 // this is the intended way to support a floating cursor
@@ -629,13 +631,10 @@
             let res = has_text(wsHandle)
             return res
         }
-        
+
         public var isEditable: Bool {
-            get {
-                is_current_tab_editable(wsHandle)
-            }
+            is_current_tab_editable(wsHandle)
         }
-        
 
         public func deleteBackward() {
             if !hasText {
@@ -1122,7 +1121,7 @@
 
             dark_mode(wsHandle, mtkView.isDarkMode())
             show_hide_tabs(wsHandle, !mtkView.isCompact())
-            
+
             set_scale(wsHandle, Float(mtkView.contentScaleFactor))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
             let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
