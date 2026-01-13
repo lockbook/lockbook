@@ -78,6 +78,8 @@ impl Lb {
                 }
             }
         }
+        panics.reverse();
+
         Ok(panics)
     }
 

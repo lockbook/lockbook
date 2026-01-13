@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.workspace.NULL_UUID
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
 
@@ -11,24 +12,41 @@ class WorkspaceViewModel : ViewModel() {
 
     var isSyncing = false
 
-    // for workspace fragment
+    /** request workspace to  open a file **/
     val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
     val openFile: LiveData<Pair<String, Boolean>>
         get() = _openFile
 
-    val _closeDocument = SingleMutableLiveData<String>()
-    val closeDocument: LiveData<String>
-        get() = _closeDocument
+    /** request workspace to  close a file **/
+    val _closeFile = SingleMutableLiveData<String>()
+    val closeFile: LiveData<String>
+        get() = _closeFile
 
+    /** request workspace to sync **/
     val _sync = SingleMutableLiveData<Unit>()
     val sync: LiveData<Unit>
         get() = _sync
 
     var lastSyncStatusUpdate = System.currentTimeMillis()
 
+    /** are tabs shown in workspace **/
     val _showTabs = SingleMutableLiveData<Boolean>()
     val showTabs: LiveData<Boolean>
         get() = _showTabs
+
+    /** request workspace to show tabs **/
+    val _shouldShowTabs = SingleMutableLiveData<Unit>()
+    val shouldShowTabs: LiveData<Unit>
+        get() = _shouldShowTabs
+
+    /** request workspace to create a new file **/
+    val _createFile = MutableLiveData<String>()
+    val createFile: LiveData<String>
+        get() = _createFile
+
+    val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
+    val currentTab: LiveData<WorkspaceTab>
+        get() = _currentTab
 
     val _finishedAction = SingleMutableLiveData<FinishedAction>()
     val finishedAction: LiveData<FinishedAction>
@@ -38,14 +56,6 @@ class WorkspaceViewModel : ViewModel() {
     val _msg = MutableLiveData<String>()
     val msg: LiveData<String>
         get() = _msg
-
-    val _selectedFile = MutableLiveData<String>()
-    val selectedFile: LiveData<String>
-        get() = _selectedFile
-
-    val _docCreated = MutableLiveData<String>()
-    val docCreated: LiveData<String>
-        get() = _docCreated
 
     val _refreshFiles = SingleMutableLiveData<Unit>()
     val refreshFiles: LiveData<Unit>
@@ -67,15 +77,7 @@ class WorkspaceViewModel : ViewModel() {
     val syncCompleted: LiveData<Unit>
         get() = _syncCompleted
 
-    val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
-    val currentTab: LiveData<WorkspaceTab>
-        get() = _currentTab
-
     var tabs = emptyDataSourceTyped<File>()
-
-    val _shouldShowTabs = SingleMutableLiveData<Unit>()
-    val shouldShowTabs: LiveData<Unit>
-        get() = _shouldShowTabs
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
@@ -88,9 +90,22 @@ class WorkspaceViewModel : ViewModel() {
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
         get() = _bottomInset
+
+    val _isRendering = MutableLiveData<Boolean>()
+    val isRendering: LiveData<Boolean>
+        get() = _isRendering
 }
 
-enum class WorkspaceTab(val value: Int) {
+data class WorkspaceTab(
+    val id: String,
+    val type: WorkspaceTabType
+) {
+    companion object {
+        // Helper to represent the "empty" or default welcome state
+        val Welcome = WorkspaceTab(NULL_UUID, WorkspaceTabType.Welcome)
+    }
+}
+enum class WorkspaceTabType(val value: Int) {
     Welcome(0),
     Loading(1),
     Image(2),
@@ -101,8 +116,8 @@ enum class WorkspaceTab(val value: Int) {
     Graph(7);
 
     companion object {
-        fun fromInt(value: Int): WorkspaceTab? {
-            return values().find { it.value == value }
+        fun fromInt(value: Int): WorkspaceTabType? {
+            return WorkspaceTabType.entries.find { it.value == value }
         }
     }
 
