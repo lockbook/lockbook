@@ -12,6 +12,6 @@ readme = "../../docs/README.md"
 nfs3_server = "0.8"
 tokio = { version = "1.35.1", features = ["signal", "process", "rt-multi-thread"] } 
 cli-rs = { version = "0.2.0" }
-lb-rs = { version = "25", path = "../lb/lb-rs" }
+lb-rs = { version = "26", path = "../lb/lb-rs" }
 tracing = "0.1"
 tracing-subscriber = "0.3"
