@@ -7,45 +7,42 @@
     android:id="@+id/document_item_holder"
     android:clickable="true"
     android:focusable="true"
-    android:background="@drawable/tab_background"
     android:paddingStart="?android:listPreferredItemPaddingStart"
     android:paddingEnd="?android:listPreferredItemPaddingEnd"
     android:paddingVertical="2dp">
 
-    <ImageView
-        android:id="@+id/tab_icon"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:contentDescription="@string/shared_file_icon"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        tools:src="@drawable/ic_outline_insert_drive_file_24"/>
 
-    <com.google.android.material.textview.MaterialTextView
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/tab_name_v"
+        style="@style/Widget.Material3.Button.TextButton.Dialog.Flush"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_marginHorizontal="5dp"
+        android:checkable="true"
         android:maxLines="1"
-        android:paddingHorizontal="10dp"
-        android:textAppearance="?attr/textAppearanceLabelLarge"
-        app:layout_constraintBottom_toBottomOf="@+id/tab_icon"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/close_tab"
-        app:layout_constraintStart_toEndOf="@+id/tab_icon"
-        app:layout_constraintTop_toTopOf="@+id/tab_icon"
-        tools:text="tab name" />
-
-
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="test"
+        app:iconGravity="textStart"
+        android:gravity="start|center_vertical"
+        app:icon="@drawable/ic_outline_insert_drive_file_24"
+        />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/close_tab"
-        style="@style/Widget.Material3.Button.IconButton"
+        style="@style/Widget.Material3.Button.IconButton.Filled"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:icon="@drawable/ic_outline_clear_24"
         android:contentDescription="@string/close_tab"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        android:checkable="true"
+        app:backgroundTint="@drawable/tab_close_button_background"
+        app:iconTint="@drawable/tab_close_button_tint"
+        />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

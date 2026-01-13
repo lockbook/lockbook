@@ -19,7 +19,7 @@ import android.view.View
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import app.lockbook.App
-import app.lockbook.model.WorkspaceTab
+import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
@@ -31,15 +31,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.compareTo
 import kotlin.concurrent.withLock
 
 @SuppressLint("ViewConstructor")
@@ -57,6 +58,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     var ignoreSelectionUpdate = false
 
+    private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
     }
@@ -66,7 +68,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         holder.setFormat(PixelFormat.TRANSPARENT)
     }
 
-    private fun startRendering() {
+    fun startRendering() {
 
         renderJob?.cancel()
 
@@ -74,16 +76,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             while (isActive) {
                 val delayTime = drawWorkspace()
 
-                if (delayTime >= 100) {
-                    delay(delayTime)
+                select<Unit> {
+                    redrawChannel.onReceive { }
+                    onTimeout(delayTime) { }
                 }
             }
         }
     }
 
-    private fun stopRendering() {
-
+    fun stopRendering() {
         renderJob?.cancel()
+        nativeLock.withLock { }
     }
 
     private fun adjustTouchPoint(axis: Float): Float {
@@ -98,7 +101,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             forwardedTouchEvent(event, 0f)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
-            if (model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
+            if (model.currentTab.value?.type?.isTextEdit() ?: true) {
                 wrapperView?.requestFocus()
             }
         }
@@ -115,12 +118,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         WGPU_OBJ = Workspace.initWS(
             surface!!,
             Lb.lb,
-            context.resources.displayMetrics.scaledDensity,
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-            WGPU_OBJ
         )
-
-        model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
 
@@ -153,10 +152,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         stopRendering()
     }
 
-
     override fun onDetachedFromWindow() {
-        super.onDetachedFromWindow()
         renderScope.cancel()
+
+        super.onDetachedFromWindow()
     }
 
     fun setBottomInset(inset: Int) {
@@ -205,11 +204,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             if (!response.docCreated.isNullUUID()) {
-                model._docCreated.postValue(response.docCreated)
-            }
-
-            if (!response.selectedFile.isNullUUID()) {
-                model._selectedFile.value = response.selectedFile
+                model._createFile.postValue(response.docCreated)
             }
 
             if (response.tabTitleClicked) {
@@ -222,12 +217,19 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
             }
 
-            val currentTab = WorkspaceTab.fromInt(Workspace.currentTab(WGPU_OBJ))
             if (response.tabsChanged) {
-                model._currentTab.value = currentTab
+                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
+
+                if (tab != null) {
+                    model._currentTab.value = model.currentTab.value?.copy(type = tab)
+                }
             }
 
-            if (model.currentTab.value == WorkspaceTab.Markdown) {
+            if (!response.selectedFile.isNullUUID()) {
+                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
+            }
+
+            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
                 (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
                     if (response.selectionUpdated && !ignoreSelectionUpdate) {
                         textInputWrapper.wsInputConnection.notifySelectionUpdated()
@@ -259,9 +261,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     fun drawImmediately() {
-        renderScope.launch {
-            drawWorkspace()
-        }
+        redrawChannel.trySend(Unit)
     }
 
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
@@ -336,12 +336,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    fun openDoc(id: String, newFile: Boolean) {
+    fun openDoc(id: String, newFile: Boolean): WorkspaceTabType? {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
+            return null
         }
 
-        Workspace.openDoc(WGPU_OBJ, id, newFile)
+        val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
+
+        return WorkspaceTabType.fromInt(tab)
     }
 
     fun showTabs(show: Boolean) {
@@ -374,6 +376,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.closeDoc(WGPU_OBJ, id)
+    }
+
+    fun closeAllTabs() {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.closeAllTabs(WGPU_OBJ)
     }
 
     fun fileRenamed(id: String, name: String) {

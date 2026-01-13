@@ -47,8 +47,7 @@ class HorizontalTabItemHolder(itemView: View) : ViewHolder(itemView) {
     val name: MaterialButton = itemView.findViewById(R.id.tab_name)
 }
 class VerticalTabItemHolder(itemView: View) : ViewHolder(itemView) {
-    val name: TextView = itemView.findViewById(R.id.tab_name_v)
-    val icon: ImageView = itemView.findViewById(R.id.tab_icon)
+    val name: MaterialButton = itemView.findViewById(R.id.tab_name_v)
     val closeButton: MaterialButton = itemView.findViewById(R.id.close_tab)
 }
 

@@ -1,4 +1,4 @@
-use egui::{Context, FontDefinitions};
+use egui::FontDefinitions;
 use egui_wgpu_renderer::RendererState;
 use jni::JNIEnv;
 use jni::objects::JClass;
@@ -13,7 +13,6 @@ use raw_window_handle::{
     HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 use std::ptr::NonNull;
-use std::time::Instant;
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
@@ -73,8 +72,7 @@ impl HasWindowHandle for NativeWindow {
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
-    env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
-    old_wgpu: jlong,
+    env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
@@ -89,7 +87,6 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let start_time = Instant::now();
     let obj = WgpuWorkspace { workspace, renderer };
 
     Box::into_raw(Box::new(obj)) as jlong

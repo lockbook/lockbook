@@ -230,6 +230,7 @@
     <string name="suggested_docs_icon">Suggested file icon</string>
     <string name="suggested_docs_parent_folder">%s/</string>
     <string name="search">Search</string>
+    <string name="open_ws">Open workspace panel</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
 
@@ -268,6 +269,7 @@
 
     <string name="expand_tabs_list">View more info about your tabs</string>
     <string name="close_tab">Close a tab</string>
+    <string name="close_all_tabs">Close all tabs</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>
