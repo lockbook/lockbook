@@ -37,18 +37,18 @@ struct DrawerView<Main: View, Side: View>: View {
                 }
                 .overlay(mainOverlayTapGesture)
 
-            sideView
-                .frame(width: calculatedSidebarWidth)
-                .offset(
-                    x: min(
-                        -calculatedSidebarWidth
-                            + max(
-                                sidebarOffset,
-                                Constants.sidebarOffsetClosed
-                            ),
-                        Constants.sidebarOffsetClosed
+                sideView
+                    .frame(width: calculatedSidebarWidth)
+                    .offset(
+                        x: min(
+                            -calculatedSidebarWidth
+                                + max(
+                                    sidebarOffset,
+                                    Constants.sidebarOffsetClosed
+                                ),
+                            Constants.sidebarOffsetClosed
+                        )
                     )
-                )
             }
             .onReceive(homeState.$sidebarState) { newValue in
                 let newOffset =
@@ -67,57 +67,42 @@ struct DrawerView<Main: View, Side: View>: View {
                     setSidebarOffset(newOffset: Constants.sidebarOffsetClosed)
                 }
             }
-
-            if homeState.sidebarState == .closed {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                setSidebarOffset(
-                                    newOffset: min(
-                                        value.translation.width,
-                                        calculatedSidebarWidth
-                                    )
+            .gesture(
+                DrawerGesture(
+                    geometry: geometry,
+                    sidebarWidth: sidebarWidth(width: geometry.size.width),
+                    sidebarOffset: $sidebarOffset,
+                    onChanged: { value in
+                        if homeState.sidebarState == .closed {
+                            setSidebarOffset(
+                                newOffset: min(
+                                    value.translation.x,
+                                    calculatedSidebarWidth
                                 )
-                            }
-                            .onEnded { value in
-                                onOpenEnd(
-                                    velocity: value.velocity.width,
-                                    sidebarWidth: calculatedSidebarWidth
-                                )
-                            }
-                    )
-            }
-
-            if homeState.sidebarState == .open {
-                Rectangle()
-                    .fill(Color.clear)
-                    .frame(width: Constants.dragActivationClosedX)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                setSidebarOffset(
-                                    newOffset: calculatedSidebarWidth
-                                        + value.translation.width
-                                )
-                            }
-                            .onEnded { value in
-                                onCloseEnd(
-                                    velocity: value.velocity.width,
-                                    sidebarWidth: calculatedSidebarWidth
-                                )
-                            }
-                    )
-                    .padding(
-                        .leading,
-                        calculatedSidebarWidth
-                            - (Constants.dragActivationClosedX / 2)
-                    )
-            }
+                            )
+                        }
+                        if homeState.sidebarState == .open {
+                            setSidebarOffset(
+                                newOffset: calculatedSidebarWidth
+                                    + value.translation.x
+                            )
+                        }
+                    },
+                    onEnded: { value in
+                        if homeState.sidebarState == .closed {
+                            onOpenEnd(
+                                velocity: value.velocity.x,
+                                sidebarWidth: calculatedSidebarWidth
+                            )
+                        } else if homeState.sidebarState == .open {
+                            onCloseEnd(
+                                velocity: value.velocity.x,
+                                sidebarWidth: calculatedSidebarWidth
+                            )
+                        }
+                    }
+                )
+            )
         }
         .ignoresSafeArea(.container, edges: .all)
     }
@@ -203,10 +188,12 @@ struct DrawerView<Main: View, Side: View>: View {
 }
 
 private struct Constants {
-    static let dragActivationClosedX: CGFloat = 20
-    static let dragActivationOpenX: CGFloat = 50
-    static let velocityActivationX: CGFloat = 300
-    static let successThreshold: CGFloat = 0.6
+    static let velocityActivationX: CGFloat = 300  // fling this fast to open the drawer
+    static let successThreshold: CGFloat = 0.6  // drag this much of the way out to open the drawer
+    static let activationDistance: CGFloat = 10.0  // must drag at least this far or your drag looks too much like a tap
+    static let activationRatio: CGFloat = 2.0  // must drag at least this horizontally in terms of abs(x) / abs(y)
+    static let dragHandleWidth: CGFloat = 100  // must drag starting from within this distance of whichever edge
+
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
     static let defaultSidebarWidthLandscape: CGFloat = 500
@@ -227,7 +214,7 @@ private struct Constants {
 
 struct CloseSidebarToolbarModifier: ViewModifier {
     @EnvironmentObject var homeState: HomeState
-    
+
     func body(content: Content) -> some View {
         content
             .toolbar {
@@ -246,6 +233,230 @@ struct CloseSidebarToolbarModifier: ViewModifier {
 extension View {
     func closeSidebarToolbar() -> some View {
         self.modifier(CloseSidebarToolbarModifier())
+    }
+}
+
+// MARK: - DragValue
+struct DragValue {
+    let location: CGPoint
+    let translation: CGPoint
+    let velocity: CGPoint
+}
+
+// MARK: - DrawerGesture
+/// Like a DragGesture, but must be a horizontal drag to activate
+struct DrawerGesture: UIGestureRecognizerRepresentable {
+    typealias UIGestureRecognizerType = Recognizer
+
+    var geometry: GeometryProxy
+    var sidebarWidth: CGFloat
+    @Binding var sidebarOffset: CGFloat
+
+    let onChanged: (DragValue) -> Void
+    let onEnded: (DragValue) -> Void
+
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator(
+            onChanged: onChanged,
+            onEnded: onEnded
+        )
+    }
+
+    @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
+        let recognizer = Recognizer(
+            geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset)
+        recognizer.delegate = context.coordinator
+        return recognizer
+    }
+
+    @MainActor func updateUIGestureRecognizer(
+        _ uiGestureRecognizer: UIGestureRecognizerType,
+        context: Context
+    ) {}
+
+    @MainActor func handleUIGestureRecognizerAction(
+        _ recognizer: UIGestureRecognizerType,
+        context: Context
+    ) {
+        context.coordinator.handle(recognizer)
+    }
+
+    // MARK: - DrawerGesture.Coordinator
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        let onChanged: (DragValue) -> Void
+        let onEnded: (DragValue) -> Void
+
+        init(
+            onChanged: @escaping (DragValue) -> Void,
+            onEnded: @escaping (DragValue) -> Void
+        ) {
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+        }
+
+        @objc func handle(_ gesture: UIGestureRecognizerType) {
+            guard let view = gesture.view else { return }
+
+            let location = gesture.location(in: view)
+            let translation = gesture.translation(in: view)
+            let velocity = gesture.velocity(in: view)
+
+            let value = DragValue(
+                location: location,
+                translation: translation,
+                velocity: velocity
+            )
+
+            switch gesture.state {
+            case .began:
+                break
+            case .changed:
+                onChanged(value)
+            case .ended, .cancelled:
+                onEnded(value)
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            otherGestureRecognizer.name == "UITextInteractionNameInteractiveRefinement"
+                || otherGestureRecognizer.name == "UITextInteractionNameRangeAdjustment"
+        }
+    }
+
+    // MARK: - DrawerGesture.Recognizer
+    final class Recognizer: UIGestureRecognizer {
+        var geometry: GeometryProxy
+        var sidebarWidth: CGFloat
+        @Binding var sidebarOffset: CGFloat
+
+        // continuously tracked state (reset upon completion)
+        private var startLocation: CGPoint = .zero
+        private var lastLocation: CGPoint = .zero
+        private var lastTimestamp: TimeInterval = 0
+
+        // outputs (available via accessors, including after completion)
+        private var translation: CGPoint = .zero
+        private var velocity: CGPoint = .zero
+
+        init(geometry: GeometryProxy, sidebarWidth: CGFloat, sidebarOffset: Binding<CGFloat>) {
+            self.geometry = geometry
+            self.sidebarWidth = sidebarWidth
+            _sidebarOffset = sidebarOffset
+            super.init(target: nil, action: nil)
+            self.name = "DrawerGesture.Recognizer"
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+            guard state == .possible else { return }
+            guard let touch = touches.first else { return }
+
+            let location = touch.location(in: self.view)
+
+            startLocation = location
+            lastLocation = location
+            lastTimestamp = touch.timestamp
+
+            translation = .zero
+            velocity = .zero
+
+            // open: drag from right side; closed: drag from left side
+            let isOpen = sidebarOffset > sidebarWidth * Constants.successThreshold
+            if isOpen {
+                if location.x < geometry.size.width - Constants.dragHandleWidth {
+                    state = .failed
+                }
+            } else {
+                if location.x > Constants.dragHandleWidth {
+                    state = .failed
+                }
+            }
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+            guard let touch = touches.first else { return }
+            guard let view = self.view else { return }
+
+            let currentLocation = touch.location(in: view)
+            let currentTimestamp = touch.timestamp
+
+            let deltaSinceFirst = CGPoint(
+                x: currentLocation.x - startLocation.x,
+                y: currentLocation.y - startLocation.y)
+            let deltaSinceLast = CGPoint(
+                x: currentLocation.x - lastLocation.x,
+                y: currentLocation.y - lastLocation.y)
+            let timeDelta = currentTimestamp - lastTimestamp
+
+            lastLocation = currentLocation
+            lastTimestamp = currentTimestamp
+
+            translation = deltaSinceFirst
+            if timeDelta > 0 {
+                velocity = CGPoint(
+                    x: deltaSinceLast.x / CGFloat(timeDelta),
+                    y: deltaSinceLast.y / CGFloat(timeDelta))
+            }
+
+            // begin after min distance; fail instantly if too vertical
+            // fills the "must be a horizontal drag to activate" requirement
+            if state == .possible {
+                if abs(deltaSinceLast.y) > abs(deltaSinceLast.x) * Constants.activationRatio {
+                    state = .failed
+                } else if hypot(deltaSinceLast.x, deltaSinceLast.y) > Constants.activationDistance {
+                    state = .began
+                }
+            } else if state == .began || state == .changed {
+                state = .changed
+            } else {
+                state = .failed
+            }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+            if state == .began || state == .changed {
+                state = .ended
+            } else {
+                state = .failed
+            }
+            reset()
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+            if state == .began || state == .changed {
+                state = .cancelled
+            } else {
+                state = .failed
+            }
+            reset()
+        }
+
+        override func reset() {
+            super.reset()
+            startLocation = .zero
+            lastLocation = .zero
+            lastTimestamp = 0
+        }
+
+        func translation(in _: UIView?) -> CGPoint {
+            translation
+        }
+
+        func velocity(in _: UIView?) -> CGPoint {
+            velocity
+        }
+
+        override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+            false
+        }
+
+        override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
+            false
+        }
     }
 }
 
