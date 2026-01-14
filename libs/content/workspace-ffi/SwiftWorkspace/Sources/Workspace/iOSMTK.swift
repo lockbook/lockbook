@@ -816,8 +816,6 @@
 
     // MARK: - SvgView
     public class SvgView: UIView {
-        public static let TOOL_BAR_HEIGHT: CGFloat = 50
-
         let mtkView: iOSMTK
         var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
 
