@@ -1,4 +1,4 @@
-use egui::{Context, FontDefinitions};
+use egui::FontDefinitions;
 use egui_wgpu_renderer::RendererState;
 use jni::JNIEnv;
 use jni::objects::JClass;
@@ -13,7 +13,6 @@ use raw_window_handle::{
     HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 use std::ptr::NonNull;
-use std::time::Instant;
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
@@ -73,8 +72,7 @@ impl HasWindowHandle for NativeWindow {
 
 #[no_mangle]
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
-    env: JNIEnv, _: JClass, surface: jobject, core: jlong, scale_factor: jfloat, dark_mode: bool,
-    old_wgpu: jlong,
+    env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
@@ -82,23 +80,13 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
     visuals::init(&renderer.context, dark_mode);
 
-    let workspace = if old_wgpu != jlong::MAX {
-        let mut old_wgpu: Box<WgpuWorkspace> = unsafe { Box::from_raw(old_wgpu as *mut _) };
-
-        old_wgpu
-            .workspace
-            .invalidate_egui_references(&renderer.context, core);
-        old_wgpu.workspace
-    } else {
-        Workspace::new(core, &renderer.context, false)
-    };
+    let workspace = Workspace::new(core, &renderer.context, false);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let start_time = Instant::now();
     let obj = WgpuWorkspace { workspace, renderer };
 
     Box::into_raw(Box::new(obj)) as jlong
@@ -114,4 +102,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     obj.renderer.screen.size_in_pixels[0] = native_window.get_width();
     obj.renderer.screen.size_in_pixels[1] = native_window.get_height();
     obj.renderer.screen.pixels_per_point = scale_factor;
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setBottomInset(
+    _env: JNIEnv, _: JClass, obj: jlong, inset: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.renderer.bottom_inset = Some(inset as u32);
 }

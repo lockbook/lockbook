@@ -182,7 +182,7 @@ import SwiftUI
                 mtkView.leftAnchor.constraint(equalTo: leftAnchor),
                 mtkView.rightAnchor.constraint(equalTo: rightAnchor),
                 mtkView.bottomAnchor.constraint(
-                    equalTo: keyboardLayoutGuide.topAnchor
+                    equalTo: bottomAnchor
                 ),
             ])
         }

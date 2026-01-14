@@ -2,24 +2,26 @@ use std::cmp::{Ordering, max, min};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use serde::{Deserialize, Serialize};
+
 /// A byte position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct DocByteOffset(pub usize);
 
 /// A byte offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct RelByteOffset(pub usize);
 
 /// A character position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct DocCharOffset(pub usize);
 
 /// A character offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct RelCharOffset(pub usize);
 
 // rel +/- rel = rel, doc +/- rel = doc, doc - doc = rel

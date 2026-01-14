@@ -8,7 +8,8 @@ use std::env;
 use std::path::Path;
 use std::sync::atomic::Ordering;
 use time::Duration;
-use tokio::fs::{self};
+use tokio::fs::{self, OpenOptions};
+use tokio::io::AsyncWriteExt;
 
 #[derive(Serialize)]
 pub struct DebugInfo {
@@ -77,7 +78,25 @@ impl Lb {
                 }
             }
         }
+        panics.reverse();
+
         Ok(panics)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
+        let file_name = generate_panic_filename(&self.config.writeable_path);
+        let content = generate_panic_content(&error_header, &bt);
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_name)
+            .await?;
+
+        file.write_all(content.as_bytes()).await?;
+
+        Ok(file_name)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -114,4 +133,13 @@ impl Lb {
             panics: panics?,
         })?)
     }
+}
+
+pub fn generate_panic_filename(path: &str) -> String {
+    let timestamp = chrono::Local::now().format("%Y-%m-%d---%H-%M-%S");
+    format!("{path}/panic---{timestamp}.log")
+}
+
+pub fn generate_panic_content(panic_info: &str, bt: &str) -> String {
+    format!("INFO: {panic_info}\nBT: {bt}")
 }

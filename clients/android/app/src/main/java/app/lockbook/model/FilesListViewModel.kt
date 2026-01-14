@@ -23,7 +23,6 @@ import net.lockbook.LbError.LbEC
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
     internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
-
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
 
@@ -118,6 +117,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     suspend fun maybeToggleSuggestedDocs() {
         val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
+
         if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
             isSuggestedDocsVisible = newIsSuggestedDocsVisible
             withContext(Dispatchers.Main) {

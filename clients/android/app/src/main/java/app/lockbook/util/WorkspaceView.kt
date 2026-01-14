@@ -6,7 +6,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
-import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
@@ -20,17 +19,29 @@ import android.view.View
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import app.lockbook.App
-import app.lockbook.model.WorkspaceTab
+import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
-import kotlin.math.min
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 @SuppressLint("ViewConstructor")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -40,19 +51,42 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
 
+    private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var renderJob: Job? = null
+
+    private val nativeLock = ReentrantLock()
+
     var ignoreSelectionUpdate = false
 
+    private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
-    }
-
-    private var redrawTask: Runnable = Runnable {
-        invalidate()
     }
 
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.TRANSPARENT)
+    }
+
+    fun startRendering() {
+
+        renderJob?.cancel()
+
+        renderJob = renderScope.launch {
+            while (isActive) {
+                val delayTime = drawWorkspace()
+
+                select<Unit> {
+                    redrawChannel.onReceive { }
+                    onTimeout(delayTime) { }
+                }
+            }
+        }
+    }
+
+    fun stopRendering() {
+        renderJob?.cancel()
+        nativeLock.withLock { }
     }
 
     private fun adjustTouchPoint(axis: Float): Float {
@@ -67,7 +101,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             forwardedTouchEvent(event, 0f)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
-            if (model.currentTab.value == WorkspaceTab.Markdown || model.currentTab.value == WorkspaceTab.PlainText) {
+            if (model.currentTab.value?.type?.isTextEdit() ?: true) {
                 wrapperView?.requestFocus()
             }
         }
@@ -75,30 +109,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return true
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.resizeWS(
-            WGPU_OBJ,
-            holder.surface,
-            context.resources.displayMetrics.scaledDensity
-        )
-    }
-
     override fun surfaceCreated(holder: SurfaceHolder) {
+
         surface = holder.surface
+
+        WGPU_OBJ = Long.MAX_VALUE
 
         WGPU_OBJ = Workspace.initWS(
             surface!!,
             Lb.lb,
-            context.resources.displayMetrics.scaledDensity,
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-            WGPU_OBJ
         )
-
-        model._shouldShowTabs.postValue(Unit)
 
         setWillNotDraw(false)
 
@@ -106,6 +127,141 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         isFocusableInTouchMode = true
 
         requestFocus()
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        stopRendering()
+
+        nativeLock.withLock {
+            Workspace.resizeWS(
+                WGPU_OBJ,
+                holder.surface,
+                context.resources.displayMetrics.scaledDensity
+            )
+        }
+
+        startRendering()
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        stopRendering()
+    }
+
+    override fun onDetachedFromWindow() {
+        renderScope.cancel()
+
+        super.onDetachedFromWindow()
+    }
+
+    fun setBottomInset(inset: Int) {
+        if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+            Workspace.setBottomInset(
+                WGPU_OBJ,
+                inset,
+            )
+        }
+        drawImmediately()
+    }
+
+    private suspend fun drawWorkspace(): Long {
+        val responseJson = nativeLock.withLock {
+            if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
+                return 0
+            }
+            Workspace.enterFrame(WGPU_OBJ)
+        }
+
+        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
+
+        withContext(Dispatchers.Main) {
+            if (response.urlOpened.isNotEmpty()) {
+                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+                startActivity(context, browserIntent, null)
+            }
+
+            val elapsed = System.currentTimeMillis() - model.lastSyncStatusUpdate
+            if (elapsed > 1_000) {
+                val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
+                if (model.isSyncing && !status.syncing) {
+                    model._syncCompleted.postValue(Unit)
+                }
+
+                model.isSyncing = status.syncing
+                model._msg.value = status.msg
+                model.lastSyncStatusUpdate = System.currentTimeMillis()
+            }
+            if (response.newFolderBtnPressed) {
+                model._newFolderBtnPressed.postValue(Unit)
+            }
+
+            if (response.refreshFiles) {
+                model._refreshFiles.postValue(Unit)
+            }
+
+            if (!response.docCreated.isNullUUID()) {
+                model._createFile.postValue(response.docCreated)
+            }
+
+            if (response.tabTitleClicked) {
+                model._tabTitleClicked.postValue(Unit)
+                Workspace.unfocusTitle(WGPU_OBJ)
+            }
+
+            if (response.copiedText.isNotEmpty()) {
+                (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                    .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+            }
+
+            if (response.tabsChanged) {
+                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
+
+                if (tab != null) {
+                    model._currentTab.value = model.currentTab.value?.copy(type = tab)
+                }
+            }
+
+            if (!response.selectedFile.isNullUUID()) {
+                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
+            }
+
+            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                    if (response.selectionUpdated && !ignoreSelectionUpdate) {
+                        textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                    }
+
+                    if (response.textUpdated && contextMenu != null) {
+                        contextMenu?.finish()
+                    }
+
+                    if (response.hasEditMenu && contextMenu == null) {
+                        val actionModeCallback =
+                            TextEditorContextMenu(textInputWrapper)
+
+                        contextMenu = this@WorkspaceView.startActionMode(
+                            FloatingTextEditorContextMenu(
+                                actionModeCallback,
+                                response.editMenuX,
+                                response.editMenuY
+                            ),
+                            ActionMode.TYPE_FLOATING
+                        )
+                    }
+                }
+            }
+        }
+
+//        return min(response.redrawIn, 500u).toLong()
+        return response.redrawIn.toLong()
+    }
+
+    fun drawImmediately() {
+        redrawChannel.trySend(Unit)
     }
 
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
@@ -173,23 +329,21 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-        invalidate()
-    }
-
-    override fun surfaceDestroyed(holder: SurfaceHolder) {
-        surface = null
+        drawImmediately()
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        invalidate()
+        drawImmediately()
     }
 
-    fun openDoc(id: String, newFile: Boolean) {
+    fun openDoc(id: String, newFile: Boolean): WorkspaceTabType? {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
+            return null
         }
 
-        Workspace.openDoc(WGPU_OBJ, id, newFile)
+        val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
+
+        return WorkspaceTabType.fromInt(tab)
     }
 
     fun showTabs(show: Boolean) {
@@ -224,115 +378,20 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         Workspace.closeDoc(WGPU_OBJ, id)
     }
 
+    fun closeAllTabs() {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.closeAllTabs(WGPU_OBJ)
+    }
+
     fun fileRenamed(id: String, name: String) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
 
         Workspace.fileRenamed(WGPU_OBJ, id, name)
-    }
-
-    override fun draw(canvas: Canvas) {
-        super.draw(canvas)
-
-        drawWorkspace()
-    }
-
-    fun drawImmediately() {
-        ignoreSelectionUpdate = true
-        drawWorkspace()
-        ignoreSelectionUpdate = false
-    }
-
-    private fun drawWorkspace() {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
-            return
-        }
-
-        val responseJson = Workspace.enterFrame(WGPU_OBJ)
-        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
-
-        if (response.urlOpened.isNotEmpty()) {
-            val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-            startActivity(context, browserIntent, null)
-        }
-
-        val elapsed = System.currentTimeMillis() - model.lastSyncStatusUpdate
-        // refresh every second
-        if (elapsed > 1_000) {
-            val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
-
-            if (model.isSyncing && !status.syncing) {
-                model._syncCompleted.postValue(Unit)
-            }
-
-            model.isSyncing = status.syncing
-            model._msg.value = status.msg
-            model.lastSyncStatusUpdate = System.currentTimeMillis()
-        }
-
-        if (response.newFolderBtnPressed) {
-            model._newFolderBtnPressed.postValue(Unit)
-        }
-
-        if (response.refreshFiles) {
-            model._refreshFiles.postValue(Unit)
-        }
-
-        if (!response.docCreated.isNullUUID()) {
-            model._docCreated.postValue(response.docCreated)
-        }
-
-        if (!response.selectedFile.isNullUUID()) {
-            model._selectedFile.value = response.selectedFile
-        }
-
-        if (response.tabTitleClicked) {
-            model._tabTitleClicked.postValue(Unit)
-            Workspace.unfocusTitle(WGPU_OBJ)
-        }
-
-        if (response.copiedText.isNotEmpty()) {
-            (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
-        }
-
-        val currentTab = WorkspaceTab.fromInt(Workspace.currentTab(WGPU_OBJ))
-        if (response.tabsChanged) {
-            model._currentTab.value = currentTab
-        }
-
-        if (currentTab == WorkspaceTab.Markdown) {
-            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                if (response.selectionUpdated && !ignoreSelectionUpdate) {
-                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
-                }
-
-                if (response.textUpdated && contextMenu != null) {
-                    contextMenu?.finish()
-                }
-
-                if (response.hasEditMenu && contextMenu == null) {
-                    val actionModeCallback =
-                        TextEditorContextMenu(textInputWrapper)
-
-                    contextMenu = this.startActionMode(
-                        FloatingTextEditorContextMenu(
-                            actionModeCallback,
-                            response.editMenuX,
-                            response.editMenuY
-                        ),
-                        ActionMode.TYPE_FLOATING
-                    )
-                }
-            }
-        }
-
-        if (response.redrawIn < 100u) {
-            invalidate()
-        } else {
-            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
-        }
     }
 
     companion object {

@@ -95,6 +95,8 @@ sealed class UpdateMainScreenUI {
     object PopBackstackToWorkspace : UpdateMainScreenUI()
     object ToggleBottomViewNavigation : UpdateMainScreenUI()
     object CloseSlidingPane : UpdateMainScreenUI()
-    object CloseWorkspaceDoc : UpdateMainScreenUI()
+    object CloseWorkspacePane : UpdateMainScreenUI()
+    object HideBottomViewNavigation : UpdateMainScreenUI()
+    object OpenWorkspacePane : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
 }

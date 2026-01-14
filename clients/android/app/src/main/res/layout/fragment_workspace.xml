@@ -17,6 +17,7 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             app:menu="@menu/menu_text_editor"
+            android:animateLayoutChanges="true"
             />
         <!-- 2. Add scroll flags to the Toolbar -->
 
@@ -32,14 +33,24 @@
         android:elevation="8dp"
         >
 
-
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/close_all_tabs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/close_all_tabs"
+            android:layout_marginStart="?android:listPreferredItemPaddingStart"
+            android:layout_marginEnd="?android:listPreferredItemPaddingEnd"
+            android:layout_marginVertical="10dp"
+            android:visibility="gone"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            />
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal"
-
-            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -48,6 +59,7 @@
                 style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="?android:listPreferredItemPaddingStart"
                 app:icon="@drawable/ic_outline_menu_24"
                 android:contentDescription="@string/expand_tabs_list"
                 />

@@ -20,6 +20,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
+use serde::{Deserialize, Serialize};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
@@ -41,6 +42,8 @@ mod widget;
 
 pub use input::Event;
 
+use crate::workspace::WsPersistentStore;
+
 #[derive(Debug, Default)]
 pub struct Response {
     // state changes
@@ -54,6 +57,7 @@ pub struct Editor {
     pub core: Lb,
     pub client: reqwest::blocking::Client,
     pub ctx: Context,
+    pub persistence: WsPersistentStore,
 
     // theme
     dark_mode: bool, // supports change detection
@@ -112,10 +116,21 @@ impl Drop for Editor {
 
 static PRINT: bool = false;
 
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+pub struct MdPersistence {
+    scroll_offset: f32,
+    selection: (DocCharOffset, DocCharOffset),
+}
+
+pub struct MdConfig {
+    pub plaintext_mode: bool,
+    pub readonly: bool,
+}
+
 impl Editor {
     pub fn new(
-        ctx: Context, core: Lb, md: &str, file_id: Uuid, hmac: Option<DocumentHmac>,
-        plaintext_mode: bool, readonly: bool,
+        ctx: Context, core: Lb, persistence: WsPersistentStore, md: &str, file_id: Uuid,
+        hmac: Option<DocumentHmac>, cfg: MdConfig,
     ) -> Self {
         let theme = Theme::new(ctx.clone());
 
@@ -139,6 +154,7 @@ impl Editor {
             core,
             client: Default::default(),
             ctx,
+            persistence,
 
             dark_mode,
             theme,
@@ -149,11 +165,11 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
-            readonly,
+            readonly: cfg.readonly,
             file_id,
             hmac,
             initialized: Default::default(),
-            plaintext_mode,
+            plaintext_mode: cfg.plaintext_mode,
             touch_mode,
 
             bounds: Default::default(),
@@ -189,11 +205,11 @@ impl Editor {
                 background_work: false,
             })
             .unwrap(),
+            WsPersistentStore::new(format!("/tmp/{}", Uuid::new_v4()).into()),
             md,
             Uuid::new_v4(),
             None,
-            false,
-            false,
+            MdConfig { plaintext_mode: false, readonly: false },
         )
     }
 
@@ -344,76 +360,116 @@ impl Editor {
         self.galleys.galleys.clear();
         self.bounds.wrap_lines.clear();
 
-        ui.vertical(|ui| {
-            if self.touch_mode {
-                // touch devices: show find...
-                let find_resp = self.find.show(&self.buffer, ui);
-                if let Some(term) = find_resp.term {
-                    self.event
-                        .internal_events
-                        .push(Event::Find { term, backwards: find_resp.backwards });
-                }
+        let scroll_area_id = ui
+            .vertical(|ui| {
+                let scroll_area_id = if self.touch_mode {
+                    // touch devices: show find...
+                    let find_resp = self.find.show(&self.buffer, ui);
+                    if let Some(term) = find_resp.term {
+                        self.event
+                            .internal_events
+                            .push(Event::Find { term, backwards: find_resp.backwards });
+                    }
 
-                // ...then show editor content...
-                let available_width = ui.available_width();
-                ui.allocate_ui(
-                    egui::vec2(ui.available_width(), ui.available_height() - MOBILE_TOOL_BAR_SIZE),
-                    |ui| {
-                        let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                        let scroll_area_offset = ui.data_mut(|d| {
-                            d.get_persisted(scroll_area_id)
-                                .map(|s: scroll_area::State| s.offset)
-                                .unwrap_or_default()
-                                .y
+                    // ...then show editor content...
+                    let available_width = ui.available_width();
+                    let scroll_area_id = ui
+                        .allocate_ui(
+                            egui::vec2(
+                                ui.available_width(),
+                                ui.available_height() - MOBILE_TOOL_BAR_SIZE,
+                            ),
+                            |ui| {
+                                let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                                let scroll_area_offset = ui.data_mut(|d| {
+                                    d.get_persisted(scroll_area_id)
+                                        .map(|s: scroll_area::State| s.offset)
+                                        .unwrap_or_default()
+                                        .y
+                                });
+
+                                ui.ctx().style_mut(|style| {
+                                    style.spacing.scroll = egui::style::ScrollStyle::solid();
+                                    style.spacing.scroll.bar_width = 10.;
+                                });
+
+                                let scroll_area_output = self.show_scrollable_editor(ui, root);
+                                self.next_resp.scroll_updated =
+                                    scroll_area_output.state.offset.y != scroll_area_offset;
+
+                                scroll_area_id
+                            },
+                        )
+                        .inner;
+
+                    // ...then show toolbar at the bottom
+                    if !self.readonly {
+                        let (_, rect) =
+                            ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                        ui.allocate_ui_at_rect(rect, |ui| {
+                            self.show_toolbar(root, ui);
                         });
+                    }
 
-                        ui.ctx().style_mut(|style| {
-                            style.spacing.scroll = egui::style::ScrollStyle::solid();
-                            style.spacing.scroll.bar_width = 10.;
-                        });
-
-                        let scroll_area_output = self.show_scrollable_editor(ui, root);
-                        self.next_resp.scroll_updated =
-                            scroll_area_output.state.offset.y != scroll_area_offset;
-                    },
-                );
-
-                // ...then show toolbar at the bottom
-                if !self.readonly {
-                    let (_, rect) =
-                        ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
-                        self.show_toolbar(root, ui);
+                    scroll_area_id
+                } else {
+                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                    let scroll_area_offset = ui.data_mut(|d| {
+                        d.get_persisted(scroll_area_id)
+                            .map(|s: scroll_area::State| s.offset)
+                            .unwrap_or_default()
+                            .y
                     });
-                }
-            } else {
-                let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                let scroll_area_offset = ui.data_mut(|d| {
-                    d.get_persisted(scroll_area_id)
-                        .map(|s: scroll_area::State| s.offset)
-                        .unwrap_or_default()
-                        .y
-                });
 
-                // non-touch devices: show toolbar...
-                if !self.readonly {
-                    self.show_toolbar(root, ui);
+                    // non-touch devices: show toolbar...
+                    if !self.readonly {
+                        self.show_toolbar(root, ui);
+                    }
+
+                    // ...then show find...
+                    let find_resp = self.find.show(&self.buffer, ui);
+                    if let Some(term) = find_resp.term {
+                        self.event
+                            .internal_events
+                            .push(Event::Find { term, backwards: find_resp.backwards });
+                    }
+
+                    // ...then show editor content
+                    let scroll_area_output = self.show_scrollable_editor(ui, root);
+                    self.next_resp.scroll_updated =
+                        scroll_area_output.state.offset.y != scroll_area_offset;
+
+                    scroll_area_id
+                };
+
+                // persistence: read
+                if !self.initialized {
+                    let persisted = self.persistence.get_markdown();
+                    ui.data_mut(|d| {
+                        let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
+                        if let Some(mut state) = state {
+                            state.offset.y = persisted.scroll_offset;
+                            d.insert_temp(scroll_area_id, state);
+                        }
+                    });
+
+                    // set the selection using low-level API; using internal
+                    // events causes touch devices to scroll to cursor on 2nd
+                    // frame
+                    let (start, end) = persisted.selection;
+                    let selection = (
+                        start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
+                        end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
+                    );
+                    self.buffer.queue(vec![
+                        lb_rs::model::text::operation_types::Operation::Select(selection),
+                    ]);
+                    self.buffer.update();
                 }
 
-                // ...then show find...
-                let find_resp = self.find.show(&self.buffer, ui);
-                if let Some(term) = find_resp.term {
-                    self.event
-                        .internal_events
-                        .push(Event::Find { term, backwards: find_resp.backwards });
-                }
-
-                // ...then show editor content
-                let scroll_area_output = self.show_scrollable_editor(ui, root);
-                self.next_resp.scroll_updated =
-                    scroll_area_output.state.offset.y != scroll_area_offset;
-            }
-        });
+                scroll_area_id
+            })
+            .inner;
 
         self.syntax.garbage_collect();
 
@@ -443,16 +499,17 @@ impl Editor {
             );
         }
 
+        // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
         if resp.selection_updated || images_updated || height_updated || width_updated {
             self.layout_cache.clear();
             ui.ctx().request_repaint();
         }
-        if resp.selection_updated && !all_selected {
+        if self.initialized && resp.selection_updated && !all_selected {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if self.touch_mode && height_updated {
+        if self.initialized && self.touch_mode && height_updated {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
@@ -464,6 +521,15 @@ impl Editor {
         }
         if self.images.any_loading() {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
+        }
+
+        // persistence: write
+        if resp.selection_updated || resp.scroll_updated {
+            let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
+            let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+            let selection = self.buffer.current.selection;
+            self.persistence
+                .set_markdown(MdPersistence { scroll_offset, selection });
         }
 
         // focus editor by default

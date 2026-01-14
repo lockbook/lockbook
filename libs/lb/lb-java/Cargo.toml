@@ -1,6 +1,6 @@
 [package]
 name = "lb-java"
-version = "25.12.17"
+version = "26.1.14"
 edition = "2021"
 
 crate-type = ["lib", "staticlib", "cdylib"]

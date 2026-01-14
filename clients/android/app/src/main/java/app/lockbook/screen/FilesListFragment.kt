@@ -12,9 +12,6 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -106,19 +103,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val activityModel: StateViewModel by activityViewModels()
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
-    private val model: FilesListViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(
-                            requireActivity().application,
-                        ) as T
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        }
-    )
+    private val model: FilesListViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -214,13 +199,11 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.listFilesRefresh.isRefreshing = false
         }
 
-        workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
-            model.fileOpened(id)
-            model.fileModel.idsAndFiles[id]?.let { child ->
+        workspaceModel.currentTab.observe(viewLifecycleOwner) {
+            model.fileOpened(it.id)
+            model.fileModel.idsAndFiles[it.id]?.let { child ->
                 model.fileModel.idsAndFiles[child.parent]?.let { parent ->
-                    if (!parent.isRoot) {
-                        model.enterFolder(parent)
-                    }
+                    model.enterFolder(parent)
                 }
             }
         }
@@ -314,6 +297,9 @@ class FilesListFragment : Fragment(), FilesFragment {
             when (item.itemId) {
                 R.id.menu_files_list_search -> {
                     activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
+                }
+                R.id.menu_files_list_open_ws -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
                 }
             }
 
@@ -722,7 +708,8 @@ sealed class UpdateFilesUI {
 
 fun File.getPrettyName(): String {
     return if (this.type == FileType.Document && this.id != PARENT_ID) {
-        this.name.substringBeforeLast('.')
+        // todo: consider removing the extension
+        this.name
     } else {
         this.name
     }

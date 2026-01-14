@@ -213,13 +213,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
-) {
+) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
     obj.workspace.open_file(id, true, true);
+    get_current_tab(obj)
 }
 
 // todo: can't close non-file tabs (mind map)
@@ -243,6 +244,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         for i in 0..obj.workspace.tabs.len() {
             obj.workspace.close_tab(i);
         }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
+    mut _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    for i in 0..obj.workspace.tabs.len() {
+        obj.workspace.close_tab(i);
     }
 }
 
@@ -292,6 +304,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    get_current_tab(obj)
+}
+
+fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
     match obj.workspace.current_tab() {
         Some(tab) => match &tab.content {
             ContentState::Open(tab) => match tab {
