@@ -4,6 +4,7 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
+use crate::tab::ExtendedInput as _;
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar};
 use crate::tab::svg_editor::util::get_pan;
 
@@ -66,6 +67,13 @@ impl GestureHandler {
                 self.handle_event(e, gesture_ctx)
             }
         });
+        for e in ui.ctx().read_events() {
+            match e {
+                crate::Event::Undo => gesture_ctx.history.undo(gesture_ctx.buffer),
+                crate::Event::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
+                _ => {}
+            };
+        }
         self.change_viewport(ui, gesture_ctx, hide_overlay);
     }
 
