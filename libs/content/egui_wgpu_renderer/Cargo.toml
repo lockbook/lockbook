@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 wgpu = { version = "*" }
-egui-wgpu = "0.28.0"
-egui = "0.28.1"
+egui-wgpu = "0.30.0"
+egui = "0.30.0"
 raw-window-handle = "0.6"
 pollster = "0.2"

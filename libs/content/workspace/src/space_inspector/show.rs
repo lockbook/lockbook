@@ -5,7 +5,7 @@ use color_art;
 use colors_transform::{self, Color};
 use egui::{
     self, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode, Ui,
-    menu,
+    UiBuilder, menu,
 };
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbErr;
@@ -89,11 +89,11 @@ impl SpaceInspector {
         if self.data == Default::default() {
             match &*self.state.lock().unwrap() {
                 AppState::Loading => {
-                    ui.allocate_ui_at_rect(
-                        Rect {
+                    ui.allocate_new_ui(
+                        UiBuilder::new().max_rect(Rect {
                             min: Pos2 { x: window.center().x - 30.0, y: window.center().y - 30.0 },
                             max: Pos2 { x: window.center().x + 30.0, y: window.center().y + 30.0 },
-                        },
+                        }),
                         |ui| {
                             Button::default()
                                 .text("LOADING")
@@ -169,21 +169,24 @@ impl SpaceInspector {
             if ui.visuals().dark_mode { Color32::from_gray(10) } else { Color32::from_gray(255) };
 
         // Top buttons
-        ui.with_layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }, |ui| {
-            let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
-            ui.allocate_ui_at_rect(top_left_rect, |ui| {
-                menu::bar(ui, |ui| {
-                    if ui.button("Reset Root").clicked() {
-                        self.reset_root();
-                        self.paint_order = vec![];
-                    }
+        ui.scope_builder(
+            UiBuilder::new().layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }),
+            |ui| {
+                let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
+                ui.allocate_new_ui(UiBuilder::new().max_rect(top_left_rect), |ui| {
+                    menu::bar(ui, |ui| {
+                        if ui.button("Reset Root").clicked() {
+                            self.reset_root();
+                            self.paint_order = vec![];
+                        }
 
-                    ui.menu_button("Layer Size", |ui| {
-                        ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
+                        ui.menu_button("Layer Size", |ui| {
+                            ui.add(egui::Slider::new(&mut self.layer_height, 1.0..=100.0));
+                        });
                     });
                 });
-            });
-        });
+            },
+        );
 
         // Root drawing logic
         let root_draw_anchor = Rect {
