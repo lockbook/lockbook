@@ -279,6 +279,8 @@ pub enum Event {
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
     PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
     KineticPan { x: f32, y: f32 },
+    Undo,
+    Redo,
 }
 
 #[derive(Debug, Clone)]

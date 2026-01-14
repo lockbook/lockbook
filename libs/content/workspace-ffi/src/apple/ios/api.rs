@@ -822,9 +822,9 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if redo {
-        obj.renderer.context.push_markdown_event(Event::Redo);
+        obj.renderer.context.push_event(workspace_rs::Event::Redo);
     } else {
-        obj.renderer.context.push_markdown_event(Event::Undo);
+        obj.renderer.context.push_event(workspace_rs::Event::Undo);
     }
 }
 
