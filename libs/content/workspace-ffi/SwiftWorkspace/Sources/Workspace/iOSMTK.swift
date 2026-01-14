@@ -816,8 +816,6 @@
 
     // MARK: - SvgView
     public class SvgView: UIView {
-        public static let TOOL_BAR_HEIGHT: CGFloat = 50
-
         let mtkView: iOSMTK
         var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
 
@@ -937,17 +935,15 @@
             }
 
             // Check if we have any valid actions before presenting
-            let location = gesture.location(in: self)
+            let location = gesture.location(in: self.mtkView)
             if canvas_detect_islands_interaction(
-                self.wsHandle, Float(location.x),
-                Float(location.y + SvgView.TOOL_BAR_HEIGHT))
+                self.wsHandle, Float(location.x), Float(location.y))
                 || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
             {
                 return
             }
 
-            let config = UIEditMenuConfiguration(
-                identifier: nil, sourcePoint: gesture.location(in: self))
+            let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: location)
             menuInteraction.presentEditMenu(with: config)
         }
 
