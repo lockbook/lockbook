@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
+use egui::TouchPhase;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
@@ -102,6 +103,7 @@ enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
+    CancelLaso,
     SelectAll,
     StartTransform,
     Transform(egui::Pos2),
@@ -145,6 +147,7 @@ impl Selection {
         );
 
         if selection_ctx.toolbar_has_interaction {
+            self.cancel_lasso();
             return;
         }
 
@@ -187,6 +190,12 @@ impl Selection {
                 SelectionPropogatedEvent::Copy => self.copy_selection(ui, selection_ctx),
             }
         };
+    }
+
+    fn cancel_lasso(&mut self) {
+        // todo: undo/nullify the effects of the laso operation
+        self.current_op = SelectionOperation::Idle;
+        self.laso_rect = None;
     }
 
     fn map_ui_event(
@@ -271,6 +280,9 @@ impl Selection {
                     if !pressed {
                         return Some(SelectionEvent::EndLaso);
                     }
+                }
+                egui::Event::Touch { phase: TouchPhase::Cancel, .. } => {
+                    return Some(SelectionEvent::CancelLaso);
                 }
                 _ => {}
             },
@@ -553,6 +565,9 @@ impl Selection {
             SelectionEvent::EndLaso => {
                 self.current_op = SelectionOperation::Idle;
                 self.laso_rect = None;
+            }
+            SelectionEvent::CancelLaso => {
+                self.cancel_lasso();
             }
             SelectionEvent::SelectAll => {
                 let new_selection_els = selection_ctx
