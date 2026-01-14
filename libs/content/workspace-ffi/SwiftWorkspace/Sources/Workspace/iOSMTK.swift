@@ -943,8 +943,7 @@
                 return
             }
 
-            let config = UIEditMenuConfiguration(
-                identifier: nil, sourcePoint: gesture.location(in: self))
+            let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: location)
             menuInteraction.presentEditMenu(with: config)
         }
 
