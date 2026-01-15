@@ -10,6 +10,14 @@ use crate::model::clock::{Timestamp, get_time};
 use crate::model::errors::LbErr;
 use crate::model::pubkey;
 
+// intended for small requests like metadata transfers and small file uploads
+const MINIMUM_TIMEOUT: Duration = Duration::from_secs(15);
+
+// network below this many bits per second is considered offline
+// expressed in time per byte (strange but useful for units/type safety)
+// this is on a per-request basis; consider parallelism when adjusting
+const MINIMUM_BITRATE: Duration = Duration::from_micros(100); // 100 micros per byte = 10KB per second
+
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
         match err {
@@ -54,9 +62,30 @@ impl Default for Network {
 }
 
 impl Network {
-    #[instrument(level = "debug", skip(self, account, request), fields(route=T::ROUTE), err(Debug))]
+    /// Makes a network request with the default/minimum timeout.
     pub async fn request<T: Request>(
         &self, account: &Account, request: T,
+    ) -> Result<T::Response, ApiError<T::Error>> {
+        self.request_with_timeout(account, request, Duration::ZERO)
+            .await
+    }
+
+    /// Makes a network request with a timeout based on an expected payload
+    /// size. Timeout will never be less than the default/minimum timeout; it is
+    /// safe to pass a zero size.
+    pub async fn request_with_size<T: Request>(
+        &self, account: &Account, request: T, size: usize,
+    ) -> Result<T::Response, ApiError<T::Error>> {
+        let timeout = MINIMUM_BITRATE * size as u32;
+        self.request_with_timeout(account, request, timeout).await
+    }
+
+    /// Makes a network request with a specified timeout. Timeout will never be
+    /// less than the default/minimum timeout; it is safe to pass a zero
+    /// timeout.
+    #[instrument(level = "debug", skip(self, account, request), fields(route=T::ROUTE), err(Debug))]
+    pub async fn request_with_timeout<T: Request>(
+        &self, account: &Account, request: T, timeout: Duration,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
             pubkey::sign(&account.private_key, &account.public_key(), request, self.get_time)
@@ -82,6 +111,7 @@ impl Network {
                 .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
                 .body(serialized_request.clone())
                 .header("Accept-Version", client_version.clone())
+                .timeout(timeout.max(MINIMUM_TIMEOUT))
                 .send()
                 .await
             {
