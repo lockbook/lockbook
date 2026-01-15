@@ -1,4 +1,5 @@
 use crate::model::access_info::{UserAccessInfo, UserAccessMode};
+use crate::model::api::METADATA_FEE;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
@@ -44,6 +45,13 @@ where
             .cloned()
             .unwrap_or_else(|| String::from("<unknown>"));
 
+        let owner = meta.owner();
+        let owner_username = public_key_cache
+            .get()
+            .get(&owner)
+            .cloned()
+            .unwrap_or_else(|| String::from("<unknown>"));
+
         let id = *id;
 
         let mut shares = Vec::new();
@@ -79,7 +87,18 @@ where
             });
         }
 
-        Ok(File { id, parent, name, file_type, last_modified, last_modified_by, shares })
+        Ok(File {
+            id,
+            parent,
+            name,
+            file_type,
+            last_modified,
+            last_modified_by,
+            owner: owner_username,
+            shares,
+            size_bytes: meta.timestamped_value.value.doc_size().unwrap_or_default() as u64
+                + METADATA_FEE,
+        })
     }
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.

@@ -562,7 +562,9 @@ impl FileTree {
                     file_type: FileType::Folder,
                     last_modified_by: Default::default(),
                     shares: Default::default(),
+                    owner: Default::default(),
                     last_modified: Default::default(),
+                    size_bytes: Default::default(),
                 },
                 0.,
                 focused,
@@ -653,7 +655,9 @@ impl FileTree {
                 file_type: FileType::Folder,
                 last_modified: 0,
                 last_modified_by: Default::default(),
+                owner: Default::default(),
                 shares: vec![],
+                size_bytes: Default::default(),
             },
             0.,
             focused,
@@ -1985,7 +1989,9 @@ mod test {
             file_type,
             last_modified: Default::default(),
             last_modified_by: Default::default(),
+            owner: Default::default(),
             shares: Default::default(),
+            size_bytes: Default::default(),
         }
     }
 }
