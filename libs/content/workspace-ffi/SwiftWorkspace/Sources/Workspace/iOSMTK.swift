@@ -178,7 +178,24 @@
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesBegan(touches, with: event)
-            
+            self.checkCancelCursorPlacement(touches)
+        }
+
+        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            mtkView.touchesMoved(touches, with: event)
+            self.checkCancelCursorPlacement(touches)
+        }
+
+        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            mtkView.touchesEnded(touches, with: event)
+            self.checkCancelCursorPlacement(touches)
+        }
+
+        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+            mtkView.touchesCancelled(touches, with: event)
+        }
+        
+        private func checkCancelCursorPlacement(_ touches: Set<UITouch>) {
             // consumed workspace touches (e.g. tapping to stop a kinetic scroll or toggle a checkbox) preclude cursor placement
             for touch in touches {
                 let location = touch.location(in: self.mtkView)
@@ -190,18 +207,6 @@
                     }
                 }
             }
-        }
-
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesMoved(touches, with: event)
-        }
-
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesEnded(touches, with: event)
-        }
-
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
-            mtkView.touchesCancelled(touches, with: event)
         }
 
         public func beginFloatingCursor(at point: CGPoint) {
