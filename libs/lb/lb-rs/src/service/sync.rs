@@ -306,7 +306,13 @@ impl Lb {
             }
 
             if let Some(remote_hmac) = remote_hmac {
-                docs_to_pull.push((id, remote_hmac));
+                let size = remote
+                    .find(&id)?
+                    .timestamped_value
+                    .value
+                    .doc_size()
+                    .unwrap_or_default();
+                docs_to_pull.push((id, remote_hmac, size));
                 self.events.sync(SyncIncrement::PullingDocument(id, true));
             }
         }
@@ -321,7 +327,7 @@ impl Lb {
 
         let futures = docs_to_pull
             .into_iter()
-            .map(|(id, hmac)| self.fetch_doc(id, hmac));
+            .map(|(id, hmac, size)| self.fetch_doc(id, hmac, size));
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -340,10 +346,10 @@ impl Lb {
         Ok(())
     }
 
-    async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Uuid> {
+    async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac, size: usize) -> LbResult<Uuid> {
         let remote_document = self
             .client
-            .request(self.get_account()?, GetDocRequest { id, hmac })
+            .request_with_size(self.get_account()?, GetDocRequest { id, hmac }, size)
             .await?;
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
@@ -1027,8 +1033,14 @@ impl Lb {
             }
 
             let local_change = local_change.sign(&self.keychain)?;
+            let size = local
+                .find(&id)?
+                .timestamped_value
+                .value
+                .doc_size()
+                .unwrap_or_default();
 
-            updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
+            updates.push((FileDiff { old: Some(base_file), new: local_change.clone() }, size));
             local_changes_digests_only.push(local_change);
             self.events.sync(SyncIncrement::PushingDocument(id, true));
         }
@@ -1040,7 +1052,10 @@ impl Lb {
 
         let docs_count = updates.len();
         ctx.total += docs_count;
-        let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
+        let futures = updates
+            .clone()
+            .into_iter()
+            .map(|(diff, size)| self.push_doc(diff, size));
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -1055,7 +1070,7 @@ impl Lb {
             ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
             idx += 1;
         }
-        ctx.pushed_docs = updates;
+        ctx.pushed_docs = updates.into_iter().map(|(diff, _size)| diff).collect();
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -1072,14 +1087,15 @@ impl Lb {
         Ok(())
     }
 
-    async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
+    async fn push_doc(&self, diff: FileDiff<SignedMeta>, size: usize) -> LbResult<Uuid> {
         let id = *diff.new.id();
         let hmac = diff.new.document_hmac();
         let local_document_change = self.docs.get(id, hmac.copied()).await?;
         self.client
-            .request(
+            .request_with_size(
                 self.get_account()?,
                 ChangeDocRequestV2 { diff, new_content: local_document_change },
+                size,
             )
             .await?;
 
