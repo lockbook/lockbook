@@ -24,6 +24,7 @@ impl<'ast> Editor {
 
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
+        self.touch_consuming_rects.push(annotation_space);
 
         ui.allocate_ui_at_rect(annotation_space, |ui| {
             let mut checked = maybe_check.is_some();

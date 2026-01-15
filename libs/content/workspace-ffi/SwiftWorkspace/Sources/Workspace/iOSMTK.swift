@@ -178,6 +178,18 @@
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesBegan(touches, with: event)
+            
+            // consumed workspace touches (e.g. tapping to stop a kinetic scroll or toggle a checkbox) preclude cursor placement
+            for touch in touches {
+                let location = touch.location(in: self.mtkView)
+                if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y)) {
+                    for gestureRecognizer in self.gestureRecognizers ?? [] {
+                        if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                            gestureRecognizer.state = .failed
+                        }
+                    }
+                }
+            }
         }
 
         public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -936,8 +948,7 @@
 
             // Check if we have any valid actions before presenting
             let location = gesture.location(in: self.mtkView)
-            if canvas_detect_islands_interaction(
-                self.wsHandle, Float(location.x), Float(location.y))
+            if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y))
                 || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
             {
                 return

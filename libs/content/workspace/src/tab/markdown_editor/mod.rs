@@ -11,7 +11,7 @@ use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -85,6 +85,8 @@ pub struct Editor {
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
+    pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
+    pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
     // widgets
     pub toolbar: Toolbar,
@@ -182,6 +184,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
+            touch_consuming_rects: Default::default(),
+            scroll_area_velocity: Default::default(),
 
             in_progress_selection: None,
 
@@ -360,6 +364,7 @@ impl Editor {
         // these are computed during render
         self.galleys.galleys.clear();
         self.bounds.wrap_lines.clear();
+        self.touch_consuming_rects.clear();
 
         let scroll_area_id = ui
             .vertical(|ui| {
@@ -397,6 +402,7 @@ impl Editor {
                                 let scroll_area_output = self.show_scrollable_editor(ui, root);
                                 self.next_resp.scroll_updated =
                                     scroll_area_output.state.offset.y != scroll_area_offset;
+                                self.scroll_area_velocity = scroll_area_output.state.velocity();
 
                                 scroll_area_id
                             },
@@ -439,6 +445,7 @@ impl Editor {
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
                         scroll_area_output.state.offset.y != scroll_area_offset;
+                    self.scroll_area_velocity = scroll_area_output.state.velocity();
 
                     scroll_area_id
                 };
@@ -544,6 +551,13 @@ impl Editor {
         self.initialized = true;
 
         resp
+    }
+
+    pub fn will_consume_touch(&self, pos: Pos2) -> bool {
+        self.touch_consuming_rects
+            .iter()
+            .any(|rect| rect.contains(pos))
+            || self.scroll_area_velocity.abs().max_elem() > 0.
     }
 
     fn show_scrollable_editor<'a>(

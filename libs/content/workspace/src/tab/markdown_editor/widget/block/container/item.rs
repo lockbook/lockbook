@@ -108,6 +108,8 @@ impl<'ast> Editor {
 
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
         let fold_button_size = self.row_height(node) * 0.6;
+        self.touch_consuming_rects.push(fold_button_space);
+
         if let Some(fold) = self.fold(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
                 let icon = Icon::CHEVRON_RIGHT
