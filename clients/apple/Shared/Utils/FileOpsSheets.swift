@@ -143,6 +143,9 @@ struct FileOpSheets: ViewModifier {
                         case .importPicker:
                             // Unused
                             EmptyView()
+                        case .camera:
+                            // Unused
+                            EmptyView()
                         }
                     }
                     .environmentObject(workspaceInput)
