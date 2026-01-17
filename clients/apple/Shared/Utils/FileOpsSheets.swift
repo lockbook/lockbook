@@ -49,6 +49,9 @@ struct FileOpSheets: ViewModifier {
                                 .autoSizeSheet(sheetHeight: $compactSheetHeight)
                             case .importPicker:
                                 ImportFilePicker()
+                            case .camera:
+                                CameraView()
+                                    .ignoresSafeArea(.all)
                             }
                         }
                         .environmentObject(workspaceInput)
@@ -92,6 +95,9 @@ struct FileOpSheets: ViewModifier {
                                 )
                             case .importPicker:
                                 ImportFilePicker()
+                            case .camera:
+                                CameraView()
+                                    .ignoresSafeArea(.all)
                             }
                         }
                         .environmentObject(workspaceInput)

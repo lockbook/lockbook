@@ -1234,6 +1234,10 @@
                     mtkView.workspaceOutput?.urlOpened = url
                 }
             }
+            
+            if output.open_camera {
+                mtkView.workspaceOutput?.openCamera = true
+            }
 
             if let text = output.copied_text {
                 let text = textFromPtr(s: text)
@@ -1646,27 +1650,18 @@
                     guard let data = try? Data(contentsOf: url) else {
                         return
                     }
-
-                    sendImage(img: data, isPaste: isPaste)
+                    
+                    workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 } else {
                     clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
                 }
             case .image(let image):
-                if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
-                    sendImage(img: img, isPaste: isPaste)
+                if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
+                    workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
             case .text(let text):
                 clipboard_paste(wsHandle, text)
             }
-        }
-
-        func sendImage(img: Data, isPaste: Bool) {
-            let imgPtr = img.withUnsafeBytes {
-                (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
-                return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            }
-
-            clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
         }
 
         func isDarkMode() -> Bool {

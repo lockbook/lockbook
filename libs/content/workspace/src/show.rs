@@ -496,6 +496,8 @@ impl Workspace {
                                         tab.last_changed = Instant::now();
                                     }
 
+                                    self.out.open_camera = resp.open_camera;
+
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
                                         self.out.markdown_editor_selection_updated = true;
