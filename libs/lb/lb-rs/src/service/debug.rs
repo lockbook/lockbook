@@ -1,5 +1,6 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
+use crate::service::lb_id::LbID;
 use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
@@ -17,6 +18,7 @@ pub struct DebugInfo {
     pub name: String,
     pub last_synced: String,
     pub lb_version: String,
+    pub lb_id: LbID,
     pub rust_triple: String,
     pub os_info: String,
     pub lb_dir: String,
@@ -122,6 +124,7 @@ impl Lb {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
+            lb_id: self.id,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),

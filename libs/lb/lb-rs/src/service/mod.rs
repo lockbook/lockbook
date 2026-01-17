@@ -14,6 +14,7 @@ pub mod file;
 pub mod import_export;
 pub mod integrity;
 pub mod keychain;
+pub mod lb_id;
 pub mod logging;
 pub mod path;
 pub mod share;

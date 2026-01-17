@@ -35,6 +35,7 @@ pub struct Lb {
     pub events: EventSubs,
     pub syncing: Arc<AtomicBool>,
     pub status: StatusUpdater,
+    pub id: LbID,
 }
 
 impl Lb {
@@ -52,7 +53,10 @@ impl Lb {
         let syncing = Arc::default();
         let events = EventSubs::default();
 
-        let result = Self { config, keychain, db, docs, client, search, syncing, events, status };
+        let id = LbID::load_or_generate(&config.writeable_path)?;
+
+        let result =
+            Self { config, keychain, db, docs, client, search, syncing, events, status, id };
 
         result.setup_search();
         result.setup_status().await?;
@@ -68,6 +72,7 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+use crate::service::lb_id::LbID;
 use crate::service::logging;
 use io::docs::AsyncDocs;
 use io::network::Network;
