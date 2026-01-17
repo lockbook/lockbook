@@ -31,7 +31,7 @@ impl<'ast> Editor {
         }
         self.buffer.queue(ops);
         response |= self.buffer.update();
-        response.into()
+        response
     }
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
