@@ -6,6 +6,7 @@ enum FileOperationSheetInfo: Identifiable {
     case rename(file: File)
     case share(file: File)
     case importPicker
+    case camera
     
     var id: String {
         switch self {
@@ -19,6 +20,8 @@ enum FileOperationSheetInfo: Identifiable {
             return "share-\(file.id)"
         case .importPicker:
             return "importPicker"
+        case .camera:
+            return "camera"
         }
     }
 }

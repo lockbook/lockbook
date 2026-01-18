@@ -11,6 +11,7 @@ pub struct IOSResponse {
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
     pub url_opened: *mut c_char,
+    pub open_camera: bool,
     pub has_virtual_keyboard_shown: bool,
     pub virtual_keyboard_shown: bool,
 
@@ -49,6 +50,7 @@ impl From<crate::Response> for IOSResponse {
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
+                    open_camera,
                 },
             redraw_in,
             copied_text,
@@ -77,6 +79,7 @@ impl From<crate::Response> for IOSResponse {
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
             url_opened,
+            open_camera,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             scroll_updated: markdown_editor_scroll_updated,

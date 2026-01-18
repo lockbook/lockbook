@@ -32,6 +32,8 @@ pub struct Response {
     pub tabs_changed: bool,
 
     pub failure_messages: Vec<String>, // shown as toasts in egui client
+
+    pub open_camera: bool,
 }
 
 #[derive(Default, Clone)]

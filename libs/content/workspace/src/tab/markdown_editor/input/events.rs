@@ -6,7 +6,7 @@ use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use comrak::nodes::AstNode;
 use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
-use lb_rs::model::text::buffer;
+use lb_rs::model::text::buffer::{self, Response};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 use markdown_editor::Editor;
 use markdown_editor::input::{Event, Region};
@@ -14,7 +14,7 @@ use markdown_editor::input::{Event, Region};
 use super::{Bound, Location, mutation};
 
 impl<'ast> Editor {
-    pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> bool {
+    pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> Response {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
         for event in mem::take(&mut self.event.internal_events) {
@@ -31,7 +31,7 @@ impl<'ast> Editor {
         }
         self.buffer.queue(ops);
         response |= self.buffer.update();
-        response.into()
+        response
     }
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {

@@ -51,6 +51,7 @@ pub struct Response {
     pub text_updated: bool,
     pub selection_updated: bool,
     pub scroll_updated: bool,
+    pub open_camera: bool,
 }
 
 pub struct Editor {
@@ -325,7 +326,11 @@ impl Editor {
             *images_updated = false;
             result
         };
-        if !self.initialized || self.process_events(ui.ctx(), root) {
+
+        let buffer_resp = self.process_events(ui.ctx(), root);
+        resp.open_camera = buffer_resp.open_camera;
+
+        if !self.initialized || buffer_resp.text_updated {
             resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
