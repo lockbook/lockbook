@@ -302,44 +302,7 @@ import SwiftUI
     }
 
 #else
-    public struct WorkspaceView: View, Equatable {
-        @FocusState var focused: Bool
-        @ObservedObject var workspaceInput: WorkspaceInputState
-        @ObservedObject var workspaceOutput: WorkspaceOutputState
-
-        let nsEditorView: NSWS
-
-        public init(
-            _ workspaceInput: WorkspaceInputState,
-            _ workspaceOutput: WorkspaceOutputState,
-            _ coreHandle: UnsafeMutableRawPointer?
-        ) {
-            self.workspaceInput = workspaceInput
-            self.workspaceOutput = workspaceOutput
-
-            nsEditorView = NSWS(workspaceInput, workspaceOutput, coreHandle)
-        }
-
-        public var body: some View {
-            nsEditorView
-                .focused($focused)
-                .onAppear {
-                    focused = true
-                }
-                .onReceive(
-                    workspaceInput.focus,
-                    perform: { newValue in
-                        focused = true
-                    }
-                )
-        }
-
-        public static func == (lhs: WorkspaceView, rhs: WorkspaceView) -> Bool {
-            true
-        }
-    }
-
-    public struct NSWS: NSViewRepresentable {
+    public struct WorkspaceView: NSViewRepresentable, Equatable {
         @ObservedObject public var workspaceInput: WorkspaceInputState
         @ObservedObject public var workspaceOutput: WorkspaceOutputState
 
@@ -363,7 +326,9 @@ import SwiftUI
             Coordinator()
         }
 
-        public func makeNSView(context: NSViewRepresentableContext<NSWS>)
+        public func makeNSView(
+            context: NSViewRepresentableContext<WorkspaceView>
+        )
             -> MacMTK
         {
             let mtkView = MacMTK()
@@ -377,12 +342,28 @@ import SwiftUI
                 }
                 .store(in: &context.coordinator.cancellables)
 
+            workspaceOutput.$openDoc.sink(receiveValue: { _ in
+                guard let window = mtkView.window else { return }
+                window.makeFirstResponder(mtkView)
+            })
+            .store(in: &context.coordinator.cancellables)
+
+            workspaceInput.focus.sink(receiveValue: { _ in
+                guard let window = mtkView.window else { return }
+                window.makeFirstResponder(mtkView)
+            })
+            .store(in: &context.coordinator.cancellables)
+
             return mtkView
         }
 
         public func updateNSView(
             _ nsView: MacMTK,
-            context: NSViewRepresentableContext<NSWS>
+            context: NSViewRepresentableContext<WorkspaceView>
         ) {}
+
+        public static func == (lhs: WorkspaceView, rhs: WorkspaceView) -> Bool {
+            return true
+        }
     }
 #endif
