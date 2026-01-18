@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 import UIKit
+import UniformTypeIdentifiers
 
 struct CameraView: UIViewControllerRepresentable {
     @EnvironmentObject var homeState: HomeState
@@ -9,9 +10,9 @@ struct CameraView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIImagePickerController {
         let picker = UIImagePickerController()
         picker.sourceType = .camera
-        picker.delegate = context.coordinator
-        picker.allowsEditing = true
         picker.cameraCaptureMode = .photo
+        picker.delegate = context.coordinator
+        picker.showsCameraControls = true
         return picker
     }
 
@@ -35,15 +36,17 @@ struct CameraView: UIViewControllerRepresentable {
             didFinishPickingMediaWithInfo info: [UIImagePickerController
                 .InfoKey: Any]
         ) {
-            guard let image = info[.editedImage] as? UIImage,
-                let data = image.pngData()
+            guard let image = info[.originalImage] as? UIImage,
+                let data = image.normalizedImage()?.jpegData(
+                    compressionQuality: 1.0
+                )
             else {
 
                 AppState.shared.error = .custom(
                     title: "Could not save image",
                     msg: ""
                 )
-                
+
                 return
             }
 
@@ -53,6 +56,22 @@ struct CameraView: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.homeState.sheetInfo = nil
+        }
+    }
+}
+
+extension UIImage {
+    func normalizedImage() -> UIImage? {
+        if imageOrientation == .up { return self }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = self.scale
+        format.opaque = false
+
+        let renderer = UIGraphicsImageRenderer(size: self.size, format: format)
+
+        return renderer.image { context in
+            self.draw(in: CGRect(origin: .zero, size: self.size))
         }
     }
 }
