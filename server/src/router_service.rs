@@ -233,6 +233,7 @@ where
         .or(core_req!(CancelSubscriptionRequest, ServerState::cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, ServerState::get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
+        .or(core_req!(UpsertDebugInfoRequest, ServerState::upsert_debug_info, server_state))
         .or(core_req!(
             AdminDisappearAccountRequest,
             ServerState::admin_disappear_account,

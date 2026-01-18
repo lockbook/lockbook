@@ -4,7 +4,7 @@ use crate::service::lb_id::LbID;
 use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::Path;
 use std::sync::atomic::Ordering;
@@ -12,7 +12,7 @@ use time::Duration;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DebugInfo {
     pub time: String,
     pub name: String,

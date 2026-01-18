@@ -8,6 +8,7 @@ use std::fmt::Write;
 use super::errors::{LbErrKind, LbResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
+pub const BETA_USERS: &[&str] = &["parth", "travis", "smail", "adam", "krish", "aravd"];
 
 pub type Username = String;
 pub type ApiUrl = String;
@@ -151,7 +152,7 @@ impl Account {
     /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
     /// mechanism of consent may evolve over time.
     pub fn is_beta(&self) -> bool {
-        matches!(self.username.as_str(), "parth" | "travis" | "smail" | "adam" | "krish" | "aravd")
+        BETA_USERS.contains(&self.username.as_str())
     }
 }
 

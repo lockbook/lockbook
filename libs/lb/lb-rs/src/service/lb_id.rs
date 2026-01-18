@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 /// Represents an LB id, would be destoreyd on re-download or delation of the lb_id.bin file
 /// used to identify the Lb instance on debug users to inform crash analytics.
-#[derive(Clone, Copy, Serialize, Deserialize)]
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Debug, Hash)]
 pub struct LbID(Option<Uuid>);
 
 pub const FILE_NAME: &str = "lb_id.bin";
