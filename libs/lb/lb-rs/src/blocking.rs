@@ -18,6 +18,7 @@ use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
+use crate::service::debug::DebugInfo;
 use crate::service::events::Event;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::service::sync::{SyncProgress, SyncStatus};
@@ -325,10 +326,14 @@ impl Lb {
         self.rt.block_on(self.lb.status())
     }
 
-    pub fn debug_info(&self, os_info: String) -> String {
+    pub fn get_debug_info_string(&self, os_info: String) -> String {
         self.rt
-            .block_on(self.lb.debug_info(os_info))
+            .block_on(self.lb.get_debug_info_string(os_info))
             .unwrap_or_else(|e| format!("failed to produce debug info: {:?}", e.to_string()))
+    }
+
+    pub fn get_debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
+        self.rt.block_on(self.lb.get_debug_info(os_info))
     }
 
     pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {

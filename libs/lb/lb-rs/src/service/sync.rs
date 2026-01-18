@@ -3,7 +3,8 @@ use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
+    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest,
+    UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
@@ -147,6 +148,13 @@ impl Lb {
                 self.events.doc_written(*id, Some(Actor::Sync));
             }
         }
+
+        let debug_info = self.get_debug_info("".into()).await?;
+
+        let _ = self
+            .client
+            .request(self.get_account()?, UpsertDebugInfoRequest { debug_info, lb_id: self.id })
+            .await;
 
         Ok(ctx.summarize())
     }

@@ -549,7 +549,6 @@ impl Request for GetSubscriptionInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpsertDebugInfoRequest {
-    pub username: String,
     pub debug_info: DebugInfo,
     pub lb_id: LbID,
 }

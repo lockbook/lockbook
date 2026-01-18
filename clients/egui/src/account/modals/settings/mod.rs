@@ -80,7 +80,7 @@ impl SettingsModal {
             let debug = debug.clone();
 
             move || {
-                let debug_str = core.debug_info("None provided".into());
+                let debug_str = core.get_debug_info_string("None provided".into());
                 *debug.lock().unwrap() = debug_str;
             }
         });

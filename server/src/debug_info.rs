@@ -1,16 +1,15 @@
-use crate::{ServerError::ClientError, debug_info};
-use std::collections::HashSet;
+use crate::ServerError::ClientError;
 use std::fmt::Debug;
 use std::ops::DerefMut;
 
 use db_rs::Db;
 use lb_rs::model::{
     account::BETA_USERS,
-    account::Username,
     api::{UpsertDebugInfoError, UpsertDebugInfoRequest},
     file_metadata::Owner,
 };
 use libsecp256k1::PublicKey;
+use tracing::debug;
 
 use crate::{
     RequestContext, ServerError, ServerState,
@@ -56,7 +55,13 @@ where
         tx.drop_safely()?;
 
         if panics_count > old_panics_count {
-            // notify discord
+            debug!("User has new panics! Total panics: {}", panics_count);
+            // self.discord_client
+            //     .post("webhook url")
+            //     .json(&owner)
+            //     .send()
+            //     .await
+            //     .ok();
         }
 
         Ok(())

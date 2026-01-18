@@ -516,7 +516,7 @@ pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_c
     let lb = rlb(lb);
     let os_info = rstring(os_info);
 
-    cstring(lb.debug_info(os_info))
+    cstring(lb.get_debug_info_string(os_info))
 }
 
 #[unsafe(no_mangle)]
