@@ -11,6 +11,7 @@ struct CameraView: UIViewControllerRepresentable {
         picker.sourceType = .camera
         picker.delegate = context.coordinator
         picker.allowsEditing = true
+        picker.cameraCaptureMode = .photo
         return picker
     }
 
