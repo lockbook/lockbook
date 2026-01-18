@@ -60,6 +60,8 @@ struct CameraView: UIViewControllerRepresentable {
 }
 
 extension UIImage {
+    // The camera's native orientation is landscape (with correction in EXIF metadata)
+    // Workspace doesn't handle EXIF data, so this function automatically corrects the orientation
     func normalizedImage() -> UIImage? {
         if imageOrientation == .up { return self }
 
