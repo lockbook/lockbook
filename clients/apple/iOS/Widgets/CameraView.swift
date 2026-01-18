@@ -41,7 +41,6 @@ struct CameraView: UIViewControllerRepresentable {
                     compressionQuality: 1.0
                 )
             else {
-
                 AppState.shared.error = .custom(
                     title: "Could not save image",
                     msg: ""
