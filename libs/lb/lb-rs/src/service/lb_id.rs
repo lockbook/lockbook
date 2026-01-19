@@ -18,8 +18,7 @@ impl LbID {
     }
 
     fn save_to_file(&self, path: &PathBuf) -> io::Result<()> {
-        let encoded =
-            bincode::serialize(self).map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let encoded = bincode::serialize(self).map_err(io::Error::other)?;
         fs::write(path, encoded)
     }
 

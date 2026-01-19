@@ -75,7 +75,7 @@ where
     }
 
     async fn send_panic_to_discord(
-        &self, debug_info: &lb_rs::service::debug::DebugInfo, webhook_url: &String, panic: &String,
+        &self, debug_info: &lb_rs::service::debug::DebugInfo, webhook_url: &str, panic: &str,
     ) -> Result<(), ServerError<UpsertDebugInfoError>> {
         let maybe_new_line_index = panic.find('\n');
         let mut panic_title = None;
