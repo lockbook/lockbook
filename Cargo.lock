@@ -110,7 +110,7 @@ checksum = "f26201604c87b1e01bd3d98f8d5d9a8fcbb815e8cedb41ffccbeb4bf593a35fe"
 
 [[package]]
 name = "admin"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -3993,7 +3993,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "lb-rs",
 ]
@@ -4005,7 +4005,7 @@ source = "git+https://github.com/lockbook/lb-fonts#cac0e8530eae3e7fc3b406f646753
 
 [[package]]
 name = "lb-fs"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4017,7 +4017,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4025,7 +4025,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4155,7 +4155,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4363,7 +4363,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "cli-rs 0.2.0",
  "colored 3.0.0",
@@ -4377,7 +4377,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4398,7 +4398,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "egui",
  "egui_wgpu_renderer",
@@ -4416,7 +4416,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4455,7 +4455,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "clipboard-win 4.5.0",
  "egui",
@@ -7279,7 +7279,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -8930,7 +8930,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -8940,7 +8940,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -8989,7 +8989,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.1.14"
+version = "26.1.19"
 dependencies = [
  "egui",
  "egui_extras",

@@ -1,6 +1,6 @@
 [package]
 name = "workspace"
-version = "26.1.14"
+version = "26.1.19"
 edition = "2021"
 
 [lib]
