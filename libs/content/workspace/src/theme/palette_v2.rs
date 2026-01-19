@@ -1,4 +1,4 @@
-use egui::{Color32, Id, style};
+use egui::{style::{self, Widgets}, Color32, Id};
 use epaint::hex_color;
 
 #[derive(Clone, Copy)]
@@ -58,6 +58,22 @@ impl ThemeVariant {
             Palette::White => self.white,
         }
     }
+
+    pub fn primary(&self) -> Color32 {
+        self.from_palette(self.primary)
+    }
+
+    pub fn secondary(&self) -> Color32 {
+        self.from_palette(self.secondary)
+    }
+
+    pub fn tertiary(&self) -> Color32 {
+        self.from_palette(self.tertiary)
+    }
+
+    pub fn quaternary(&self) -> Color32 {
+        self.from_palette(self.quaternary)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -95,7 +111,7 @@ impl Theme {
                 white: hex_color!("#D0D0D0"),
 
                 bg: Palette::White,
-                fg: Palette::Blue,
+                fg: Palette::Black,
 
                 primary: Palette::Blue,
                 secondary: Palette::Green,
@@ -148,48 +164,21 @@ impl Theme {
             override_text_color: None,
             window_fill: self.bg().black,
             extreme_bg_color: self.bg().black,
+            widgets: Widgets {
+                noninteractive: todo!(),
+                inactive: todo!(),
+                hovered: todo!(),
+                active: todo!(),
+                open: todo!(),
+            },
+            selection: style::Selection { bg_fill: self.bg().primary(), ..Default::default() },
+            hyperlink_color: self.fg().secondary(),
+            faint_bg_color: self.bg().black.gamma_multiply(0.1),
+            code_bg_color: self.bg().black,
+            warn_fg_color: self.fg().yellow,
+            error_fg_color: self.fg().red,
+            panel_fill: self.bg().black,
             ..Default::default()
-            // widgets: style::Widgets {
-            //     noninteractive: style::WidgetVisuals {
-            //         bg_fill: (),
-            //         weak_bg_fill: (),
-            //         bg_stroke: (),
-            //         rounding: (),
-            //         fg_stroke: (),
-            //         expansion: (),
-            //     },
-            //     inactive: (),
-            //     hovered: (),
-            //     active: (),
-            //     open: (),
-            // },
-            // selection: (),
-            // hyperlink_color: (),
-            // faint_bg_color: (),
-            // extreme_bg_color: (),
-            // code_bg_color: (),
-            // warn_fg_color: (),
-            // error_fg_color: (),
-            // window_rounding: (),
-            // window_shadow: (),
-            // window_fill: (),
-            // window_stroke: (),
-            // window_highlight_topmost: (),
-            // menu_rounding: (),
-            // panel_fill: (),
-            // popup_shadow: (),
-            // resize_corner_size: (),
-            // text_cursor: (),
-            // clip_rect_margin: (),
-            // button_frame: (),
-            // collapsing_header_frame: (),
-            // indent_has_left_vline: (),
-            // striped: (),
-            // slider_trailing_fill: (),
-            // handle_shape: (),
-            // interact_cursor: (),
-            // image_loading_spinners: (),
-            // numeric_color_space: (),
         }
     }
 
