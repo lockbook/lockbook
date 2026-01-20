@@ -48,9 +48,11 @@ where
         let debug_info = context.request.debug_info.clone();
         let panics_count = debug_info.panics.len();
 
-        let maybe_old_debug_info =
-            db.debug_info
-                .insert(owner, context.request.lb_id, context.request.debug_info)?;
+        let maybe_old_debug_info = db.debug_info.insert(
+            owner,
+            context.request.debug_info.lb_id,
+            context.request.debug_info,
+        )?;
 
         let old_panics_count =
             if let Some(debug_info) = maybe_old_debug_info { debug_info.panics.len() } else { 0 };

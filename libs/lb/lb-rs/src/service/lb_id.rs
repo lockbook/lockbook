@@ -5,8 +5,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-/// Represents an LB id, would be destoreyd on re-download or delation of the lb_id.bin file
-/// used to identify the Lb instance on debug users to inform crash analytics.
+/// Persistant for a device across sessions, would only be destoreyd on re-download
+/// or delation of the lb_id.bin file.
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Debug, Hash)]
 pub struct LbID(Option<Uuid>);
 

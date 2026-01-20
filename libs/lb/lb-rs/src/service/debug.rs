@@ -103,41 +103,10 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_debug_info_string(&self, os_info: String) -> LbResult<String> {
-        let account = self.get_account()?;
-
-        let arch = env::consts::ARCH;
-        let os = env::consts::OS;
-        let family = env::consts::FAMILY;
-
-        let (integrity, last_synced, panics) = tokio::join!(
-            self.test_repo_integrity(),
-            self.human_last_synced(),
-            self.collect_panics()
-        );
-
-        let mut status = self.status().await;
-        status.space_used = None;
-        let status = format!("{status:?}");
-        let is_syncing = self.syncing.load(Ordering::Relaxed);
-
-        Ok(serde_json::to_string_pretty(&DebugInfo {
-            time: self.now(),
-            name: account.username.clone(),
-            lb_version: get_code_version().into(),
-            lb_id: self.id,
-            rust_triple: format!("{arch}.{family}.{os}"),
-            server_url: account.api_url.clone(),
-            integrity: format!("{integrity:?}"),
-            lb_dir: self.config.writeable_path.clone(),
-            last_synced,
-            os_info,
-            status,
-            is_syncing,
-            panics: panics?,
-        })?)
+        let debug_info = self.get_debug_info(os_info).await?;
+        Ok(serde_json::to_string_pretty(&debug_info)?)
     }
 
-    // todo: make this dry
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn get_debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         let account = self.get_account()?;

@@ -153,7 +153,7 @@ impl Lb {
 
         let _ = self
             .client
-            .request(self.get_account()?, UpsertDebugInfoRequest { debug_info, lb_id: self.id })
+            .request(self.get_account()?, UpsertDebugInfoRequest { debug_info })
             .await;
 
         Ok(ctx.summarize())
