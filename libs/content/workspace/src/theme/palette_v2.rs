@@ -1,4 +1,4 @@
-use egui::{style::{self, Widgets}, Color32, Id};
+use egui::{Color32, Id, style::{self, WidgetVisuals, Widgets}};
 use epaint::hex_color;
 
 #[derive(Clone, Copy)]
@@ -57,6 +57,14 @@ impl ThemeVariant {
             Palette::Cyan => self.cyan,
             Palette::White => self.white,
         }
+    }
+
+    pub fn fg_color(&self) -> Color32 {
+        self.from_palette(Palette::Foreground)
+    }
+
+    pub fn bg_color(&self) -> Color32 {
+        self.from_palette(Palette::Background)
     }
 
     pub fn primary(&self) -> Color32 {
@@ -159,27 +167,27 @@ impl ThemeExt for egui::Context {
 
 impl Theme {
     fn base_visuals(&self) -> egui::Visuals {
-        egui::Visuals {
+        let mut base = egui::Visuals {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
             window_fill: self.bg().black,
             extreme_bg_color: self.bg().black,
-            widgets: Widgets {
-                noninteractive: todo!(),
-                inactive: todo!(),
-                hovered: todo!(),
-                active: todo!(),
-                open: todo!(),
-            },
             selection: style::Selection { bg_fill: self.bg().primary(), ..Default::default() },
             hyperlink_color: self.fg().secondary(),
-            faint_bg_color: self.bg().black.gamma_multiply(0.1),
+            faint_bg_color: self.bg().black.gamma_multiply(0.9),
             code_bg_color: self.bg().black,
             warn_fg_color: self.fg().yellow,
             error_fg_color: self.fg().red,
             panel_fill: self.bg().black,
             ..Default::default()
-        }
+        };
+
+        base.widgets.noninteractive.bg_fill = self.bg().black.gamma_multiply(0.8);
+        base.widgets.noninteractive.weak_bg_fill = self.bg().black.gamma_multiply(0.6);
+        base.widgets.noninteractive.bg_stroke = self.fg().fg
+        base.widgets.noninteractive.weak_bg_fill = self.bg().black.gamma_multiply(0.6);
+
+        base
     }
 
     pub fn dark(&self) -> egui::Visuals {
