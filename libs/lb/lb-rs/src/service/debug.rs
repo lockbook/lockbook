@@ -2,10 +2,10 @@ use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, Utc};
 use serde::Serialize;
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use time::Duration;
 use tokio::fs::{self, OpenOptions};
@@ -48,7 +48,7 @@ impl Lb {
         now.format("%Y-%m-%d %H:%M:%S %Z").to_string()
     }
 
-    async fn collect_panics(&self) -> LbResult<Vec<String>> {
+    async fn collect_panics(&self, populate_content: bool) -> LbResult<Vec<PanicInfo>> {
         let mut panics = vec![];
 
         let dir_path = &self.config.writeable_path;
@@ -68,19 +68,35 @@ impl Lb {
                 let timestamp_str = &file_name[prefix.len()..file_name.len() - suffix.len()];
 
                 // Parse the timestamp
-                if let Ok(timestamp) =
-                    NaiveDateTime::parse_from_str(timestamp_str, timestamp_format)
-                {
+                if let Ok(time) = NaiveDateTime::parse_from_str(timestamp_str, timestamp_format) {
                     let file_path = path.join(file_name);
-                    let contents = fs::read_to_string(file_path).await?;
-                    let contents = format!("time: {timestamp}: contents: {contents}");
-                    panics.push(contents);
+                    let content = if populate_content {
+                        let contents = fs::read_to_string(&file_path).await?;
+                        let contents = format!("time: {time}: contents: {contents}");
+                        contents
+                    } else {
+                        Default::default()
+                    };
+
+                    panics.push(PanicInfo { time, file_path, content });
                 }
             }
         }
         panics.reverse();
 
         Ok(panics)
+    }
+
+    /// returns true if we have crashed within the last 5 seconds
+    pub async fn recent_panic(&self) -> LbResult<bool> {
+        let panics = self.collect_panics(false).await?;
+        for panic in panics {
+            if (panic.time - Utc::now().naive_utc()).num_seconds().abs() <= 5 {
+                return Ok(true);
+            }
+        }
+
+        Ok(false)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -110,8 +126,10 @@ impl Lb {
         let (integrity, last_synced, panics) = tokio::join!(
             self.test_repo_integrity(),
             self.human_last_synced(),
-            self.collect_panics()
+            self.collect_panics(true)
         );
+
+        let panics = panics?.into_iter().map(|panic| panic.content).collect();
 
         let mut status = self.status().await;
         status.space_used = None;
@@ -130,9 +148,16 @@ impl Lb {
             os_info,
             status,
             is_syncing,
-            panics: panics?,
+            panics,
         })?)
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct PanicInfo {
+    pub time: NaiveDateTime,
+    pub file_path: PathBuf,
+    pub content: String,
 }
 
 pub fn generate_panic_filename(path: &str) -> String {
