@@ -2,7 +2,7 @@ use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
-use chrono::{NaiveDateTime, Utc};
+use chrono::{Local, NaiveDateTime, TimeZone};
 use serde::Serialize;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -91,7 +91,14 @@ impl Lb {
     pub async fn recent_panic(&self) -> LbResult<bool> {
         let panics = self.collect_panics(false).await?;
         for panic in panics {
-            if (panic.time - Utc::now().naive_utc()).num_seconds().abs() <= 5 {
+            let timestamp_local_time = Local
+                .from_local_datetime(&panic.time)
+                .single()
+                .unwrap_or_default();
+
+            let seconds_ago = (Local::now() - timestamp_local_time).abs().num_seconds();
+
+            if seconds_ago <= 5 {
                 return Ok(true);
             }
         }
