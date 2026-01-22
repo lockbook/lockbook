@@ -84,7 +84,7 @@ impl Workspace {
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(writeable_path),
+            cfg: WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path),
             ctx: ctx.clone(),
             core: core.clone(),
             show_tabs,
@@ -819,8 +819,13 @@ impl Default for WsPresistentData {
 }
 
 impl WsPersistentStore {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(recent_crash: bool, path: PathBuf) -> Self {
         let default = WsPresistentData::default();
+
+        if recent_crash && path.exists() {
+            warn!("removing persistence file due to recent crash");
+            fs::remove_file(&path).log_and_ignore();
+        }
 
         match fs::File::open(&path) {
             Ok(f) => WsPersistentStore {

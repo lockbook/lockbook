@@ -211,7 +211,7 @@ impl Editor {
                 background_work: false,
             })
             .unwrap(),
-            WsPersistentStore::new(format!("/tmp/{}", Uuid::new_v4()).into()),
+            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into()),
             md,
             Uuid::new_v4(),
             None,
