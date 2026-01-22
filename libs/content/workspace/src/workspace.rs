@@ -422,7 +422,7 @@ impl Workspace {
 
                         if is_supported_image_fmt(&ext) {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id, &ext, &bytes,
+                                id, &ext, bytes,
                             )));
                         } else if ext == "pdf" {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(

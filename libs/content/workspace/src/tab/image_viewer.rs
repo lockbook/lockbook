@@ -11,8 +11,7 @@ pub struct ImageViewer {
 }
 
 impl ImageViewer {
-    pub fn new(id: Uuid, ext: &str, bytes: &[u8]) -> Self {
-        let bytes = Vec::from(bytes);
+    pub fn new(id: Uuid, ext: &str, bytes: Vec<u8>) -> Self {
         let uri = format!("bytes://{id}.{ext}");
         let img = Image::from_bytes(uri, bytes);
 
