@@ -509,7 +509,11 @@ impl Workspace {
                                         self.out.markdown_editor_scroll_updated = true;
                                     }
                                 }
-                                TabContent::Image(img) => img.show(ui),
+                                TabContent::Image(img) => {
+                                    if let Err(err) = img.show(ui) {
+                                        tab.content = ContentState::Failed(err.into());
+                                    }
+                                }
                                 TabContent::Pdf(pdf) => pdf.show(ui),
                                 TabContent::Svg(svg) => {
                                     let res = svg.show(ui);

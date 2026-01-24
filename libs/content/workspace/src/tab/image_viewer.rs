@@ -1,5 +1,5 @@
 use egui::Image;
-use lb_rs::Uuid;
+use lb_rs::{LbErrKind, LbResult, Uuid};
 
 use super::svg_editor::SVGEditor;
 
@@ -19,7 +19,7 @@ impl ImageViewer {
         Self { id, img, zoom_factor: 1.0, pan: egui::Vec2::ZERO }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
+    pub fn show(&mut self, ui: &mut egui::Ui) -> LbResult<()> {
         let mut painter = ui.painter().clone();
         // avoid overlapping the tab strip
         painter.set_clip_rect(ui.available_rect_before_wrap());
@@ -72,7 +72,11 @@ impl ImageViewer {
         self.pan += pan;
 
         // draw the image according to pan and zoom levels
-        let texture_id = tlr.as_ref().ok().and_then(|t| t.texture_id()).unwrap();
+        let texture_id = tlr
+            .as_ref()
+            .ok()
+            .and_then(|t| t.texture_id())
+            .ok_or(LbErrKind::Unexpected("failed to load the image's texture".to_owned()))?;
         let rect = egui::Rect::from_center_size(
             ui.available_rect_before_wrap().center() + self.pan,
             ui_size * self.zoom_factor,
@@ -84,6 +88,8 @@ impl ImageViewer {
             egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
             egui::Color32::WHITE,
         );
+
+        Ok(())
     }
 }
 
