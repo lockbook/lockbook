@@ -233,13 +233,13 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             }
         )
 
-        // let's set the default state of the bottom navigation. there are cases
-        // when the sliding pane will be open like if the activity was killed
+        // let's set the default state of the bottom navigation. there are cases where the
+        // sliding pane will be open on startup for example if the activity was killed
         // due to memory pressure. toggle "don't keep activities" to reproduce
         slidingPaneLayout.post {
-            if ( slidingPaneLayout.isOpen){
+            if (slidingPaneLayout.isOpen) {
                 binding.bottomNavigation.visibility = View.GONE
-            }else{
+            } else {
                 binding.bottomNavigation.visibility = View.VISIBLE
             }
         }
