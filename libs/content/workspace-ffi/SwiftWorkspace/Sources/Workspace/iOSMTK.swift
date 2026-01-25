@@ -1656,6 +1656,7 @@
                     clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
                 }
             case .image(let image):
+                let image = image.normalizedImage()
                 if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
                     workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
