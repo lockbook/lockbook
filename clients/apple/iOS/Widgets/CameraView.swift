@@ -37,7 +37,7 @@ struct CameraView: UIViewControllerRepresentable {
                 .InfoKey: Any]
         ) {
             guard let image = info[.originalImage] as? UIImage,
-                let data = image.normalizedImage()?.jpegData(
+                let data = image.normalizedImage().jpegData(
                     compressionQuality: 1.0
                 )
             else {
@@ -55,24 +55,6 @@ struct CameraView: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             parent.homeState.sheetInfo = nil
-        }
-    }
-}
-
-extension UIImage {
-    // The camera's native orientation is landscape (with correction in EXIF metadata)
-    // Workspace doesn't handle EXIF data, so this function automatically corrects the orientation
-    func normalizedImage() -> UIImage? {
-        if imageOrientation == .up { return self }
-
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = self.scale
-        format.opaque = false
-
-        let renderer = UIGraphicsImageRenderer(size: self.size, format: format)
-
-        return renderer.image { context in
-            self.draw(in: CGRect(origin: .zero, size: self.size))
         }
     }
 }
