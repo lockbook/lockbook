@@ -1,5 +1,5 @@
 use egui::Image;
-use lb_rs::{LbErrKind, LbResult, Uuid};
+use lb_rs::{LbErrKind, LbResult, Uuid, model::errors::Unexpected};
 
 use super::svg_editor::SVGEditor;
 
@@ -74,9 +74,10 @@ impl ImageViewer {
         // draw the image according to pan and zoom levels
         let texture_id = tlr
             .as_ref()
-            .ok()
-            .and_then(|t| t.texture_id())
+            .map_unexpected()
+            .map(|t| t.texture_id())?
             .ok_or(LbErrKind::Unexpected("failed to load the image's texture".to_owned()))?;
+
         let rect = egui::Rect::from_center_size(
             ui.available_rect_before_wrap().center() + self.pan,
             ui_size * self.zoom_factor,
