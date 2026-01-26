@@ -146,6 +146,7 @@ pub struct ServerConfig {
     pub max_auth_delay: u128,
     pub log_path: String,
     pub pd_api_key: Option<String>,
+    pub discord_webhook_url: Option<String>,
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
     pub min_core_version: VersionReq,
@@ -158,14 +159,15 @@ impl ServerConfig {
         let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
         let log_path = env_or_panic("LOG_PATH").parse().unwrap();
         let pd_api_key = env_or_empty("PD_KEY");
+        let discord_webhook_url = env_or_empty("DISCORD_WEBHOOK_URL");
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
         let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
 
-        match (&pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
+        match (&discord_webhook_url, &ssl_cert_location, &ssl_private_key_location) {
             (Some(_), Some(_), Some(_)) | (None, None, None) => {}
             _ => panic!(
-                "Invalid config, pd & ssl must all be Some (production) or all be None (local)"
+                "Invalid config, discord pd & ssl must all be Some (production) or all be None (local)"
             ),
         }
 
@@ -175,6 +177,7 @@ impl ServerConfig {
             max_auth_delay,
             log_path,
             pd_api_key,
+            discord_webhook_url,
             ssl_cert_location,
             ssl_private_key_location,
             min_core_version,

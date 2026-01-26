@@ -15,6 +15,7 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
+use crate::service::lb_id::LbID;
 use crate::{Lb, LbErrKind, LbResult};
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
@@ -32,6 +33,7 @@ pub type CoreDb = CoreV4;
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV3 {
+    pub id: Single<LbID>,
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,
@@ -47,6 +49,7 @@ pub struct CoreV3 {
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV4 {
+    pub id: Single<LbID>,
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,
@@ -65,6 +68,10 @@ pub async fn migrate_and_init(cfg: &Config, docs: &AsyncDocs) -> LbResult<CoreV4
     let mut db =
         CoreDb::init(cfg.clone()).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
     let mut old = CoreV3::init(cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+
+    if db.id.get().is_none() {
+        db.id.insert(LbID::generate())?;
+    }
 
     // --- migration begins ---
     let tx = db.begin_transaction()?;

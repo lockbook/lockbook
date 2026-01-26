@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
+use lb::service::debug::DebugInfoDisplay;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
 use workspace_rs::workspace::WsPersistentStore;
@@ -80,7 +81,7 @@ impl SettingsModal {
             let debug = debug.clone();
 
             move || {
-                let debug_str = core.get_debug_info_string("None provided".into());
+                let debug_str = core.debug_info("None provided".into()).to_string();
                 *debug.lock().unwrap() = debug_str;
             }
         });

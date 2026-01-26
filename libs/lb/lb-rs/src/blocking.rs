@@ -326,14 +326,8 @@ impl Lb {
         self.rt.block_on(self.lb.status())
     }
 
-    pub fn get_debug_info_string(&self, os_info: String) -> String {
-        self.rt
-            .block_on(self.lb.get_debug_info_string(os_info))
-            .unwrap_or_else(|e| format!("failed to produce debug info: {:?}", e.to_string()))
-    }
-
-    pub fn get_debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
-        self.rt.block_on(self.lb.get_debug_info(os_info))
+    pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
+        self.rt.block_on(self.lb.debug_info(os_info))
     }
 
     pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {

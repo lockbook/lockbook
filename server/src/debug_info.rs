@@ -1,6 +1,6 @@
 use crate::ServerError::ClientError;
+use std::fmt::Debug;
 use std::ops::DerefMut;
-use std::{env, fmt::Debug};
 
 use db_rs::Db;
 use lb_rs::model::{
@@ -39,14 +39,14 @@ where
 
         let tx = db.begin_transaction()?;
 
-        if !Self::is_beta_user::<UpsertDebugInfoError>(db, &context.public_key)? {
+        if !Self::is_beta_user::<UpsertDebugInfoError>(db, &context.public_key) {
             return Err(ClientError(UpsertDebugInfoError::NotPermissioned));
         }
 
         let owner = Owner(context.public_key);
 
         let debug_info = context.request.debug_info.clone();
-        let panics_count = debug_info.panics.len();
+        let new_panics_count = debug_info.panics.len();
 
         let maybe_old_debug_info = db.debug_info.insert(
             owner,
@@ -57,17 +57,11 @@ where
         let old_panics_count =
             if let Some(debug_info) = maybe_old_debug_info { debug_info.panics.len() } else { 0 };
 
-        let maybe_webhook_url = env::var("DISCORD_WEBHOOK_PANIC_CAPTURE");
+        if new_panics_count > old_panics_count {
+            if let Some(panic) = debug_info.panics.last() {
+                debug!(?debug_info.name, ?debug_info, "beta user experienced a panic");
 
-        for i in old_panics_count..panics_count {
-            let webhook_url = match maybe_webhook_url {
-                Ok(ref val) => val,
-                Err(_) => break,
-            };
-
-            if let Some(panic) = debug_info.panics.get(i) {
-                self.send_panic_to_discord(&debug_info, webhook_url, panic)
-                    .await?;
+                self.send_panic_to_discord(&debug_info, panic).await?;
             }
         }
 
@@ -77,8 +71,13 @@ where
     }
 
     async fn send_panic_to_discord(
-        &self, debug_info: &lb_rs::service::debug::DebugInfo, webhook_url: &str, panic: &str,
+        &self, debug_info: &lb_rs::service::debug::DebugInfo, panic: &str,
     ) -> Result<(), ServerError<UpsertDebugInfoError>> {
+        let discord_webhook_url = match &self.config.server.discord_webhook_url {
+            Some(url) => url,
+            None => return Ok(()),
+        };
+
         let maybe_new_line_index = panic.find('\n');
         let mut panic_title = None;
 
@@ -96,7 +95,7 @@ where
         });
 
         let debug_info_part = multipart::Part::bytes(serde_json::to_vec_pretty(&debug_info)?)
-            .file_name("debug_info.json")
+            .file_name(format!("{}_{}_debug_info.json", debug_info.name, debug_info.panics.len()))
             .mime_str("application/json")?;
 
         let form = multipart::Form::new()
@@ -105,7 +104,7 @@ where
 
         let response = self
             .discord_client
-            .post(webhook_url)
+            .post(discord_webhook_url)
             .multipart(form)
             .send()
             .await?;
@@ -122,14 +121,12 @@ where
         Ok(())
     }
 
-    pub fn is_beta_user<E: Debug>(
-        db: &ServerDb, public_key: &PublicKey,
-    ) -> Result<bool, ServerError<E>> {
-        let is_debug = match db.accounts.get().get(&Owner(*public_key)) {
+    pub fn is_beta_user<E: Debug>(db: &ServerDb, public_key: &PublicKey) -> bool {
+        let is_beta = match db.accounts.get().get(&Owner(*public_key)) {
             None => false,
             Some(account) => BETA_USERS.contains(&account.username.as_str()),
         };
 
-        Ok(is_debug)
+        is_beta
     }
 }

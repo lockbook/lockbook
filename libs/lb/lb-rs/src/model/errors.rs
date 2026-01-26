@@ -495,6 +495,17 @@ impl From<ApiError<api::UpsertError>> for LbErr {
     }
 }
 
+impl From<ApiError<api::UpsertDebugInfoError>> for LbErr {
+    fn from(e: ApiError<api::UpsertDebugInfoError>) -> Self {
+        match e {
+            ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
+            ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
+            e => core_err_unexpected(e),
+        }
+        .into()
+    }
+}
+
 impl From<ApiError<api::ChangeDocError>> for LbErr {
     fn from(e: ApiError<api::ChangeDocError>) -> Self {
         match e {

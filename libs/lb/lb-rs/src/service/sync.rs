@@ -149,12 +149,14 @@ impl Lb {
             }
         }
 
-        let debug_info = self.get_debug_info("".into()).await?;
+        let account = self.get_account()?;
+        if account.is_beta() {
+            let debug_info = self.debug_info("".into()).await?;
 
-        let _ = self
-            .client
-            .request(self.get_account()?, UpsertDebugInfoRequest { debug_info })
-            .await;
+            self.client
+                .request(account, UpsertDebugInfoRequest { debug_info })
+                .await?;
+        }
 
         Ok(ctx.summarize())
     }

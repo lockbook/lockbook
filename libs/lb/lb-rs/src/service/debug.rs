@@ -1,7 +1,7 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
-use crate::{Lb, get_code_version};
+use crate::{Lb, LbErrKind, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
@@ -14,11 +14,11 @@ use tokio::io::AsyncWriteExt;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DebugInfo {
+    pub lb_id: LbID,
     pub time: String,
     pub name: String,
     pub last_synced: String,
     pub lb_version: String,
-    pub lb_id: LbID,
     pub rust_triple: String,
     pub os_info: String,
     pub lb_dir: String,
@@ -27,6 +27,19 @@ pub struct DebugInfo {
     pub is_syncing: bool,
     pub status: String,
     pub panics: Vec<String>,
+}
+
+pub trait DebugInfoDisplay {
+    fn to_string(&self) -> String;
+}
+
+impl DebugInfoDisplay for LbResult<DebugInfo> {
+    fn to_string(&self) -> String {
+        match self {
+            Ok(debug_info) => serde_json::to_string_pretty(debug_info).unwrap_or_default(),
+            Err(err) => format!("Error retrieving debug info: {:?}", err),
+        }
+    }
 }
 
 impl Lb {
@@ -102,13 +115,7 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn get_debug_info_string(&self, os_info: String) -> LbResult<String> {
-        let debug_info = self.get_debug_info(os_info).await?;
-        Ok(serde_json::to_string_pretty(&debug_info)?)
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn get_debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
+    pub async fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
@@ -126,11 +133,17 @@ impl Lb {
         let status = format!("{status:?}");
         let is_syncing = self.syncing.load(Ordering::Relaxed);
 
+        let db = self.db.read().await;
+        let id = db
+            .id
+            .get()
+            .ok_or(LbErrKind::Unexpected("Couldn't get Lb ID".to_string()))?;
+
         Ok(DebugInfo {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
-            lb_id: self.id,
+            lb_id: *id,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),

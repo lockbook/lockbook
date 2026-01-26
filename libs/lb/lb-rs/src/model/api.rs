@@ -554,7 +554,6 @@ pub struct UpsertDebugInfoRequest {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpsertDebugInfoError {
     NotPermissioned,
-    UserNotFound,
 }
 
 impl Request for UpsertDebugInfoRequest {

@@ -56,8 +56,8 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 jsonwebtoken = "8.2.0"
 x509-parser = { version = "0.15.0", features = ["verify", "validate"] }
-db-rs = { path = "../../db-rs/db" }
-db-rs-derive = { path = "../../db-rs/derive" }
+db-rs = "0.3.4"
+db-rs-derive = "0.3.4"
 semver = "1.0.17"
 async-trait = "0.1.68"
 
