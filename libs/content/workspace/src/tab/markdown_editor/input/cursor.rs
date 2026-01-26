@@ -25,12 +25,21 @@ impl Editor {
     pub fn show_range(
         &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
     ) {
+        for rect in self.range_rects(highlight_range) {
+            ui.painter()
+                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+        }
+    }
+
+    pub fn range_rects(&self, range: (DocCharOffset, DocCharOffset)) -> Vec<Rect> {
+        let mut result = Vec::new();
+
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
-            let GalleyInfo { range, galley, mut rect, padded } = galley_info;
-            if range.end() < highlight_range.start() {
+            let GalleyInfo { range: galley_range, galley, mut rect, padded } = galley_info;
+            if galley_range.end() < range.start() {
                 break;
-            } else if range.start() > highlight_range.end() {
+            } else if galley_range.start() > range.end() {
                 continue;
             }
 
@@ -38,24 +47,26 @@ impl Editor {
                 rect = rect.expand2(INLINE_PADDING * Vec2::X);
             }
 
-            if range.contains_inclusive(highlight_range.start()) {
+            if galley_range.contains_inclusive(range.start()) {
                 let cursor = galley.from_ccursor(CCursor {
-                    index: (highlight_range.start() - range.start()).0,
+                    index: (range.start() - galley_range.start()).0,
                     prefer_next_row: true,
                 });
                 rect.min.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
-            if range.contains_inclusive(highlight_range.end()) {
+            if galley_range.contains_inclusive(range.end()) {
                 let cursor = galley.from_ccursor(CCursor {
-                    index: (highlight_range.end() - range.start()).0,
+                    index: (range.end() - galley_range.start()).0,
                     prefer_next_row: true,
                 });
                 rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
 
-            ui.painter()
-                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+            result.push(rect);
         }
+
+        result.reverse();
+        result
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.
