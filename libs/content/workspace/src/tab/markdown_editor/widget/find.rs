@@ -39,7 +39,9 @@ impl Find {
 
         if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift) {
             if self.term.is_none() {
-                self.term = Some(String::from(&buffer[buffer.current.selection]));
+                let term = String::from(&buffer[buffer.current.selection]);
+                self.match_count = Self::match_count(&term, &buffer.current.text);
+                self.term = Some(term);
                 ui.memory_mut(|m| m.request_focus(self.id));
             } else if ui.memory(|m| m.has_focus(self.id)) {
                 self.term = None;
@@ -82,14 +84,7 @@ impl Find {
                 .hint_text("Search")
                 .ui(ui);
             if term != &before_term {
-                if term.is_empty() {
-                    self.match_count = 0;
-                } else {
-                    self.match_count = text
-                        .to_lowercase()
-                        .matches(term.to_lowercase().as_str())
-                        .count();
-                }
+                self.match_count = Self::match_count(term, text);
             }
             ui.add_space(5.);
 
@@ -127,6 +122,16 @@ impl Find {
             result
         })
         .inner
+    }
+
+    fn match_count(term: &str, text: &str) -> usize {
+        if term.is_empty() {
+            0
+        } else {
+            text.to_lowercase()
+                .matches(term.to_lowercase().as_str())
+                .count()
+        }
     }
 }
 
