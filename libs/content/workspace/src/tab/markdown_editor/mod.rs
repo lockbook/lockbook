@@ -620,11 +620,6 @@ impl Editor {
                             let response_properly_clicked =
                                 response.clicked() && !response.fake_primary_click;
                             if response.hovered() || response_properly_clicked {
-                                ui.painter().rect_stroke(
-                                    rect,
-                                    1.,
-                                    Stroke::new(1., egui::Color32::RED),
-                                );
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
                             }
