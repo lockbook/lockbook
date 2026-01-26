@@ -161,8 +161,8 @@ pub fn calc<'ast>(
     result
 }
 
-use std::io::Cursor;
 use image::{DynamicImage, ImageDecoder};
+use std::io::Cursor;
 
 pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, String> {
     // Create a reader so we can access the decoder (and its metadata)
