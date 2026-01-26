@@ -33,7 +33,6 @@ pub type CoreDb = CoreV4;
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV3 {
-    pub id: Single<LbID>,
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,

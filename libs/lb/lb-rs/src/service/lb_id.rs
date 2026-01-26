@@ -7,8 +7,6 @@ use uuid::Uuid;
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Debug, Hash)]
 pub struct LbID(Uuid);
 
-pub const FILE_NAME: &str = "lb_id.bin";
-
 impl LbID {
     pub fn generate() -> Self {
         LbID(Uuid::new_v4())
