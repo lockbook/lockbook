@@ -616,7 +616,14 @@ impl Editor {
                                 // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
                                 self.focus(ui.ctx());
                             }
-                            if response.hovered() || response.clicked() {
+                            let response_properly_clicked =
+                                response.clicked() && !response.fake_primary_click;
+                            if response.hovered() || response_properly_clicked {
+                                ui.painter().rect_stroke(
+                                    rect,
+                                    1.,
+                                    Stroke::new(1., egui::Color32::RED),
+                                );
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
                             }
