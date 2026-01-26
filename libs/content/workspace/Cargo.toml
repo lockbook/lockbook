@@ -16,7 +16,8 @@ egui_animation = "0.5.0"
 egui_extras = { version = "0.28.1" }
 epaint = "0.28.1"
 glam = "0.22.0"
-image = "0.25"
+# Annoyingly egui depends on a version match here for feature toggling reasons
+image = "0.25.9"
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
 hayro = "0.4.0"
 linkify = "0.10.0"

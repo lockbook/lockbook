@@ -120,7 +120,7 @@ pub fn calc<'ast>(
                         };
 
                         let image =
-                            image::load_from_memory(&image_bytes).map_err(|e| e.to_string())?;
+                            decode_with_orientation(&image_bytes).map_err(|e| e.to_string())?;
                         let size_pixels = [image.width() as usize, image.height() as usize];
 
                         let egui_image = egui::ImageData::Color(
@@ -159,6 +159,29 @@ pub fn calc<'ast>(
     }
 
     result
+}
+
+use image::{DynamicImage, ImageDecoder};
+use std::io::Cursor;
+
+pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, String> {
+    // Create a reader so we can access the decoder (and its metadata)
+    let reader = image::ImageReader::new(Cursor::new(image_bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?;
+
+    let mut decoder = reader.into_decoder().map_err(|e| e.to_string())?;
+
+    // Read orientation (usually from Exif; if not present, this is NoTransforms)
+    let orientation = decoder.orientation().map_err(|e| e.to_string())?;
+
+    // Decode pixels
+    let mut img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+
+    // Apply rotation/flip in-place
+    img.apply_orientation(orientation);
+
+    Ok(img)
 }
 
 fn download_image(
