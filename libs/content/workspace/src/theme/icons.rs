@@ -28,6 +28,7 @@ impl Icon {
     pub const BRING_TO_FRONT: Self = ic("\u{f0601}"); // 󰘁
     pub const BRUSH: Self = ic("\u{f1a0d}"); // 󰃣
     pub const BOLD: Self = ic("\u{f0264}"); // 󰉤
+    pub const CAMERA: Self = ic("\u{f030}"); // 
     pub const CHECK_CIRCLE: Self = ic("\u{f05e0}"); // 󰗠
     pub const CIRCLE: Self = ic("\u{eabc}"); // 
     pub const CHEVRON_LEFT: Self = ic("\u{f0141}"); // 󰅁

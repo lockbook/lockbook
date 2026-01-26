@@ -11,7 +11,7 @@ class HomeState: ObservableObject {
     @Published var showSettings: Bool = false
     @Published var showPendingShares: Bool = false
     @Published var showUpgradeAccount: Bool = false
-    
+
     @Published var sheetInfo: FileOperationSheetInfo? = nil
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
@@ -66,6 +66,15 @@ class HomeState: ObservableObject {
             
             DispatchQueue.main.async {
                 self?.sheetInfo = .rename(file: file)
+            }
+        }
+        .store(in: &cancellables)
+        
+        workspaceOutput.$openCamera.sink { [weak self] openCamera in
+            if openCamera {
+                DispatchQueue.main.async {
+                    self?.sheetInfo = .camera
+                }
             }
         }
         .store(in: &cancellables)

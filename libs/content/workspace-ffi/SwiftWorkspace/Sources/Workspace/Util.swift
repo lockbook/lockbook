@@ -26,6 +26,29 @@ extension NSCursor {
 }
 #endif
 
+#if os(iOS)
+import UIKit
+
+extension UIImage {
+    // The camera's native orientation is landscape (with correction in EXIF metadata)
+    // Workspace doesn't handle EXIF data, so this function automatically corrects the orientation
+    public func normalizedImage() -> UIImage {
+        if imageOrientation == .up { return self }
+
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = self.scale
+        format.opaque = false
+
+        let renderer = UIGraphicsImageRenderer(size: self.size, format: format)
+
+        return renderer.image { context in
+            self.draw(in: CGRect(origin: .zero, size: self.size))
+        }
+    }
+}
+
+#endif
+
 func textFromPtr(s: UnsafeMutablePointer<CChar>!) -> String {
     if s == nil {
         return ""

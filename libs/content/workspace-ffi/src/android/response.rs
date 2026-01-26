@@ -50,6 +50,7 @@ impl From<crate::Response> for AndroidResponse {
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed: _,
+                    open_camera: _,
                 },
             redraw_in,
             copied_text,

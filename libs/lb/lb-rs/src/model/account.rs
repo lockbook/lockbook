@@ -8,7 +8,7 @@ use std::fmt::Write;
 use super::errors::{LbErrKind, LbResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
-pub const BETA_USERS: &[&str] = &["parth", "travis", "smail", "adam", "krish", "aravd"];
+pub const BETA_USERS: &[&str] = &["parth", "travis", "smail", "adam", "krish", "aravd", "luca"];
 
 pub type Username = String;
 pub type ApiUrl = String;

@@ -109,6 +109,7 @@ pub enum Event {
     IncrementBaseFontSize,
     DecrementBaseFontSize,
     Link { region: Region, url: String }, // turn the region into a markdown link to the given url
+    Camera,                               // launch camera on platform
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {

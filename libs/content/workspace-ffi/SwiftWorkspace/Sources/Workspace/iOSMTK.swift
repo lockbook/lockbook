@@ -68,22 +68,30 @@
                 // this supports checkboxes and other interactive markdown elements in the text area (crudely)
                 gestureRecognizer.delaysTouchesBegan = false
                 gestureRecognizer.delaysTouchesEnded = false
-                if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
-                    gestureRecognizer.cancelsTouchesInView = false
-                }
-
-                // send interactive refinements to our handler
-                // this is the intended way to support a floating cursor
-                if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
+                
+                switch gestureRecognizer.name {
+                case "UITextInteractionNameInteractiveRefinement":
+                    // send interactive refinements to our handler
+                    // this is the intended way to support a floating cursor
                     gestureRecognizer.addTarget(
                         self, action: #selector(handleInteractiveRefinement(_:)))
-                }
-
-                // send range adjustments to our handler
-                // this supports automatic scrolling when dragging selection handles
-                if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
+                    
+                    // workspace gets priority on single taps; see checkCancelCursorPlacement()
+                    gestureRecognizer.cancelsTouchesInView = false
+                case "UITextInteractionNameSingleTap":
+                    // workspace gets priority on single taps; see checkCancelCursorPlacement()
+                    gestureRecognizer.cancelsTouchesInView = false
+                case "UITextInteractionNameTapAndAHalf":
+                    break
+                case "UITextInteractionNameRangeAdjustment":
+                    // send range adjustments to our handler
+                    // this supports automatic scrolling when dragging selection handles
                     gestureRecognizer.addTarget(
                         self, action: #selector(handleRangeAdjustment(_:)))
+                case "UITextInteractionNameLinkTap":
+                    break
+                default:
+                    break
                 }
             }
 
@@ -201,8 +209,13 @@
                 let location = touch.location(in: self.mtkView)
                 if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y)) {
                     for gestureRecognizer in self.gestureRecognizers ?? [] {
-                        if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                        switch gestureRecognizer.name {
+                        case "UITextInteractionNameSingleTap":
                             gestureRecognizer.state = .failed
+                        case "UITextInteractionNameInteractiveRefinement":
+                            gestureRecognizer.state = .failed
+                        default:
+                            break
                         }
                     }
                 }
@@ -1234,6 +1247,10 @@
                     mtkView.workspaceOutput?.urlOpened = url
                 }
             }
+            
+            if output.open_camera {
+                mtkView.workspaceOutput?.openCamera = true
+            }
 
             if let text = output.copied_text {
                 let text = textFromPtr(s: text)
@@ -1646,27 +1663,19 @@
                     guard let data = try? Data(contentsOf: url) else {
                         return
                     }
-
-                    sendImage(img: data, isPaste: isPaste)
+                    
+                    workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 } else {
                     clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
                 }
             case .image(let image):
-                if let img = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
-                    sendImage(img: img, isPaste: isPaste)
+                let image = image.normalizedImage()
+                if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
+                    workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
             case .text(let text):
                 clipboard_paste(wsHandle, text)
             }
-        }
-
-        func sendImage(img: Data, isPaste: Bool) {
-            let imgPtr = img.withUnsafeBytes {
-                (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
-                return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
-            }
-
-            clipboard_send_image(wsHandle, imgPtr, UInt(img.count), isPaste)
         }
 
         func isDarkMode() -> Bool {

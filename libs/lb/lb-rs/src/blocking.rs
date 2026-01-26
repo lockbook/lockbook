@@ -330,6 +330,10 @@ impl Lb {
         self.rt.block_on(self.lb.debug_info(os_info))
     }
 
+    pub fn recent_panic(&self) -> LbResult<bool> {
+        self.rt.block_on(self.lb.recent_panic())
+    }
+
     pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
         self.rt
             .block_on(self.lb.write_panic_to_file(error_header, bt))

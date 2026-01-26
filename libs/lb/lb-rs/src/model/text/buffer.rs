@@ -78,7 +78,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
         self.selection = range;
-        Response { text_updated: false }
+        Response { text_updated: false, open_camera: false }
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> Response {
@@ -95,7 +95,7 @@ impl Snapshot {
             &mut self.selection,
         );
 
-        Response { text_updated: true }
+        Response { text_updated: true, open_camera: false }
     }
 
     fn invert(&self, op: &Operation) -> InverseOperation {
@@ -185,18 +185,14 @@ struct External {
 
 #[derive(Default)]
 pub struct Response {
-    text_updated: bool,
+    pub text_updated: bool,
+    pub open_camera: bool,
 }
 
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
-    }
-}
-
-impl From<Response> for bool {
-    fn from(value: Response) -> Self {
-        value.text_updated
+        self.open_camera |= other.open_camera;
     }
 }
 

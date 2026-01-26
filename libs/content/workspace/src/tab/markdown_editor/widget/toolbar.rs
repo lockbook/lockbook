@@ -45,7 +45,8 @@ impl<'ast> Editor {
                 ui.horizontal(|ui| {
                     ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
 
-                    let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
+                    let is_ios = cfg!(target_os = "ios");
+                    let is_mobile = is_ios || cfg!(target_os = "android");
 
                     ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
@@ -131,6 +132,16 @@ impl<'ast> Editor {
                         ui,
                     )
                     .map(|e| events.push(e));
+
+                    // only supported on iOS (for now)
+                    if is_ios
+                        && IconButton::new(Icon::CAMERA.size(ICON_SIZE))
+                            .tooltip("Camera")
+                            .show(ui)
+                            .clicked()
+                    {
+                        events.push(Event::Camera);
+                    }
 
                     add_seperator(ui);
 

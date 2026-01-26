@@ -57,6 +57,9 @@ impl<'ast> Editor {
                     operations,
                 );
             }
+            Event::Camera => {
+                response.open_camera = true;
+            }
             Event::Newline { shift } => {
                 // insert/extend/terminate container blocks
                 let mut handled = || {
