@@ -11,7 +11,7 @@ use lb_rs::model::{
 use libsecp256k1::PublicKey;
 use reqwest::multipart;
 use serde_json::json;
-use tracing::{debug, info};
+use tracing::{info, warn};
 
 use crate::{
     RequestContext, ServerError, ServerState,
@@ -59,7 +59,7 @@ where
 
         if new_panics_count > old_panics_count {
             if let Some(panic) = debug_info.panics.last() {
-                debug!(?debug_info.name, ?debug_info, "beta user experienced a panic");
+                warn!(?debug_info, "beta user experienced a panic");
 
                 self.send_panic_to_discord(&debug_info, panic).await?;
             }
@@ -112,11 +112,7 @@ where
         if response.status().is_success() {
             info!("Notifed discord of a panic!");
         } else {
-            debug!(
-                "Failed to notify discord: {:?} {:?}",
-                response.status(),
-                response.text().await?
-            );
+            warn!("Failed to notify discord: {:?} {:?}", response.status(), response.text().await?);
         }
         Ok(())
     }

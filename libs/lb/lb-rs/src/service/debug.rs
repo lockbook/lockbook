@@ -1,10 +1,10 @@
 use crate::model::clock;
-use crate::model::errors::LbResult;
+use crate::model::errors::{LbErr, LbResult};
 use crate::service::lb_id::LbID;
 use crate::{Lb, LbErrKind, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
-use serde::{Deserialize, Serialize};
 use chrono::{Local, NaiveDateTime, TimeZone};
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -56,6 +56,16 @@ impl Lb {
         } else {
             "never".to_string()
         }
+    }
+
+    async fn lb_id(&self) -> LbResult<LbID> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        db.id
+            .get()
+            .copied()
+            .ok_or_else(|| LbErr::from(LbErrKind::Unexpected("Couldn't get Lb ID".to_string())))
     }
 
     fn now(&self) -> String {
@@ -145,10 +155,11 @@ impl Lb {
         let os = env::consts::OS;
         let family = env::consts::FAMILY;
 
-        let (integrity, last_synced, panics) = tokio::join!(
+        let (integrity, last_synced, panics, lb_id) = tokio::join!(
             self.test_repo_integrity(),
             self.human_last_synced(),
-            self.collect_panics(true)
+            self.collect_panics(true),
+            self.lb_id()
         );
 
         let panics = panics?.into_iter().map(|panic| panic.content).collect();
@@ -158,17 +169,11 @@ impl Lb {
         let status = format!("{status:?}");
         let is_syncing = self.syncing.load(Ordering::Relaxed);
 
-        let db = self.db.read().await;
-        let id = db
-            .id
-            .get()
-            .ok_or(LbErrKind::Unexpected("Couldn't get Lb ID".to_string()))?;
-
         Ok(DebugInfo {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
-            lb_id: *id,
+            lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),
@@ -177,12 +182,12 @@ impl Lb {
             os_info,
             status,
             is_syncing,
-            panics: panics?,
+            panics,
         })
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanicInfo {
     pub time: NaiveDateTime,
     pub file_path: PathBuf,

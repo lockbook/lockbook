@@ -164,10 +164,10 @@ impl ServerConfig {
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
         let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
 
-        match (&discord_webhook_url, &ssl_cert_location, &ssl_private_key_location) {
-            (Some(_), Some(_), Some(_)) | (None, None, None) => {}
+        match (&discord_webhook_url, &pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
+            (Some(_), Some(_), Some(_), Some(_)) | (None, None, None, None) => {}
             _ => panic!(
-                "Invalid config, discord pd & ssl must all be Some (production) or all be None (local)"
+                "Invalid config, discord & pd & ssl must all be Some (production) or all be None (local)"
             ),
         }
 
