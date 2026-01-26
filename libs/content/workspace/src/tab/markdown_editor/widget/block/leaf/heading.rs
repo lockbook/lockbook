@@ -169,7 +169,8 @@ impl<'ast> Editor {
         // todo: proper hit-testing (this ignores anything covering the space)
         let show_fold_button = self.touch_mode
             || resp.hovered
-            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
+            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+            || self.fold(node).is_some();
         if !show_fold_button {
             return;
         }
