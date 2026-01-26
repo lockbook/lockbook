@@ -68,22 +68,30 @@
                 // this supports checkboxes and other interactive markdown elements in the text area (crudely)
                 gestureRecognizer.delaysTouchesBegan = false
                 gestureRecognizer.delaysTouchesEnded = false
-                if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
-                    gestureRecognizer.cancelsTouchesInView = false
-                }
-
-                // send interactive refinements to our handler
-                // this is the intended way to support a floating cursor
-                if gestureRecognizer.name == "UITextInteractionNameInteractiveRefinement" {
+                
+                switch gestureRecognizer.name {
+                case "UITextInteractionNameInteractiveRefinement":
+                    // send interactive refinements to our handler
+                    // this is the intended way to support a floating cursor
                     gestureRecognizer.addTarget(
                         self, action: #selector(handleInteractiveRefinement(_:)))
-                }
-
-                // send range adjustments to our handler
-                // this supports automatic scrolling when dragging selection handles
-                if gestureRecognizer.name == "UITextInteractionNameRangeAdjustment" {
+                    
+                    // workspace gets priority on single taps; see checkCancelCursorPlacement()
+                    gestureRecognizer.cancelsTouchesInView = false
+                case "UITextInteractionNameSingleTap":
+                    // workspace gets priority on single taps; see checkCancelCursorPlacement()
+                    gestureRecognizer.cancelsTouchesInView = false
+                case "UITextInteractionNameTapAndAHalf":
+                    break
+                case "UITextInteractionNameRangeAdjustment":
+                    // send range adjustments to our handler
+                    // this supports automatic scrolling when dragging selection handles
                     gestureRecognizer.addTarget(
                         self, action: #selector(handleRangeAdjustment(_:)))
+                case "UITextInteractionNameLinkTap":
+                    break
+                default:
+                    break
                 }
             }
 
@@ -201,8 +209,13 @@
                 let location = touch.location(in: self.mtkView)
                 if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y)) {
                     for gestureRecognizer in self.gestureRecognizers ?? [] {
-                        if gestureRecognizer.name == "UITextInteractionNameSingleTap" {
+                        switch gestureRecognizer.name {
+                        case "UITextInteractionNameSingleTap":
                             gestureRecognizer.state = .failed
+                        case "UITextInteractionNameInteractiveRefinement":
+                            gestureRecognizer.state = .failed
+                        default:
+                            break
                         }
                     }
                 }
