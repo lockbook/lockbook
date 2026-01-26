@@ -253,18 +253,6 @@ To create a heading, add up to six `#`'s plus a space before your text. More `#`
 > ##### Heading 5
 > ###### Heading 6
 
-You can also create a heading using an underline composed of `=`'s (Heading 1) or `-`'s (Heading 2) on the following line.
-```md
-Heading 1
-===
-Heading 2
----
-```
-> Heading 1
-> ===
-> Heading 2
-> ---
-
 ## Lists
 Create a list item by adding `- `, `+ `, or `* ` for a bulleted list, `1. ` for a numbered list, or `- [ ] `, `+ [ ] `, or `* [ ] ` for a task list at the start of the line. The added characters are called the *list marker*.
 ```md
