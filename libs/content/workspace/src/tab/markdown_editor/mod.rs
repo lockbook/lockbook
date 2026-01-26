@@ -276,6 +276,7 @@ impl Editor {
         let arena = Arena::new();
         let mut options = Options::default();
         options.parse.smart = true;
+        options.parse.ignore_setext = true;
         options.extension.alerts = true;
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
