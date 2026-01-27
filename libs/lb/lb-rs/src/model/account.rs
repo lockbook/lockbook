@@ -8,6 +8,13 @@ use std::fmt::Write;
 use super::errors::{LbErrKind, LbResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
+
+/// A flag for which users have volunteers as beta testers.
+///
+/// Beta users are users to which riskier code is enabled first for testing.
+/// Beta users are also users who have opted into telemetry by way of approving a PR that adds
+/// their name to this list. Certainly telemetry in lockbook will always be opt in but the
+/// mechanism of consent may evolve over time.
 pub const BETA_USERS: &[&str] = &["parth", "travis", "smail", "adam", "krish", "aravd", "luca"];
 
 pub type Username = String;
@@ -145,12 +152,6 @@ impl Account {
         (result[0], result[1], result[2])
     }
 
-    /// A flag for which users have volunteers as beta testers.
-    ///
-    /// Beta users are users to which riskier code is enabled first for testing.
-    /// Beta users are also users who have opted into telemetry by way of approving a PR that adds
-    /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
-    /// mechanism of consent may evolve over time.
     pub fn is_beta(&self) -> bool {
         BETA_USERS.contains(&self.username.as_str())
     }

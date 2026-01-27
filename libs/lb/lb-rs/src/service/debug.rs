@@ -1,7 +1,7 @@
 use crate::model::clock;
-use crate::model::errors::{LbErr, LbResult};
+use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
-use crate::{Lb, LbErrKind, get_code_version};
+use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use serde::{Deserialize, Serialize};
@@ -58,14 +58,21 @@ impl Lb {
         }
     }
 
-    async fn lb_id(&self) -> LbResult<LbID> {
-        let tx = self.ro_tx().await;
+    async fn lb_id(&self) -> LbID {
+        let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        db.id
-            .get()
-            .copied()
-            .ok_or_else(|| LbErr::from(LbErrKind::Unexpected("Couldn't get Lb ID".to_string())))
+        let lb_id = if let Some(id) = db.id.get().copied() {
+            id
+        } else {
+            let new_id = LbID::generate();
+            db.id.insert(new_id);
+            new_id
+        };
+
+        tx.end();
+
+        lb_id
     }
 
     fn now(&self) -> String {
@@ -173,7 +180,7 @@ impl Lb {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
-            lb_id: lb_id?,
+            lb_id,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),

@@ -68,10 +68,6 @@ pub async fn migrate_and_init(cfg: &Config, docs: &AsyncDocs) -> LbResult<CoreV4
         CoreDb::init(cfg.clone()).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
     let mut old = CoreV3::init(cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
 
-    if db.id.get().is_none() {
-        db.id.insert(LbID::generate())?;
-    }
-
     // --- migration begins ---
     let tx = db.begin_transaction()?;
 
