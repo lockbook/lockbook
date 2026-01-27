@@ -17,6 +17,7 @@ use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
@@ -55,7 +56,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
     let lb = rlb(&mut env, &class);
 
     let os_info = rstring(&mut env, os_info);
-    jni_string(&mut env, lb.debug_info(os_info)).into_raw()
+    jni_string(&mut env, lb.debug_info(os_info).to_string()).into_raw()
 }
 
 #[unsafe(no_mangle)]

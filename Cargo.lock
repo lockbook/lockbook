@@ -1965,20 +1965,21 @@ checksum = "5c297a1c74b71ae29df00c3e22dd9534821d60eb9af5a0192823fa2acea70c2a"
 
 [[package]]
 name = "db-rs"
-version = "0.3.3"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93a4efba22d3d2b323261cd6b58eaa96fe62adb5e9610606f46bf65999b9387"
+checksum = "62c52605418add511c27f3c5aa34cca89676323b7ab7b2c938675ce56e4c7200"
 dependencies = [
  "bincode",
  "fs2",
  "serde",
+ "uuid 1.8.0",
 ]
 
 [[package]]
 name = "db-rs-derive"
-version = "0.3.3"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c38552e09849b70b30407f9d94411dff3058ccc0568f00ef3d16adba7e3452ef"
+checksum = "42200afe7c0befd113043052a849eb0b639f14da0c2425e94c40f3e83a1161ea"
 dependencies = [
  "db-rs",
  "quote",
@@ -6564,6 +6565,7 @@ dependencies = [
  "js-sys",
  "log",
  "mime",
+ "mime_guess",
  "once_cell",
  "percent-encoding 2.3.1",
  "pin-project-lite",

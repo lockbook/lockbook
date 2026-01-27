@@ -15,6 +15,7 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
+use crate::service::lb_id::LbID;
 use crate::{Lb, LbErrKind, LbResult};
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
@@ -47,6 +48,7 @@ pub struct CoreV3 {
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV4 {
+    pub id: Single<LbID>,
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,

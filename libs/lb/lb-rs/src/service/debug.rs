@@ -1,9 +1,10 @@
 use crate::model::clock;
 use crate::model::errors::LbResult;
+use crate::service::lb_id::LbID;
 use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
 use chrono::{Local, NaiveDateTime, TimeZone};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -11,8 +12,9 @@ use time::Duration;
 use tokio::fs::{self, OpenOptions};
 use tokio::io::AsyncWriteExt;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DebugInfo {
+    pub lb_id: LbID,
     pub time: String,
     pub name: String,
     pub last_synced: String,
@@ -25,6 +27,19 @@ pub struct DebugInfo {
     pub is_syncing: bool,
     pub status: String,
     pub panics: Vec<String>,
+}
+
+pub trait DebugInfoDisplay {
+    fn to_string(&self) -> String;
+}
+
+impl DebugInfoDisplay for LbResult<DebugInfo> {
+    fn to_string(&self) -> String {
+        match self {
+            Ok(debug_info) => serde_json::to_string_pretty(debug_info).unwrap_or_default(),
+            Err(err) => format!("Error retrieving debug info: {:?}", err),
+        }
+    }
 }
 
 impl Lb {
@@ -41,6 +56,23 @@ impl Lb {
         } else {
             "never".to_string()
         }
+    }
+
+    async fn lb_id(&self) -> LbResult<LbID> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let lb_id = if let Some(id) = db.id.get().copied() {
+            id
+        } else {
+            let new_id = LbID::generate();
+            db.id.insert(new_id)?;
+            new_id
+        };
+
+        tx.end();
+
+        Ok(lb_id)
     }
 
     fn now(&self) -> String {
@@ -123,17 +155,18 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn debug_info(&self, os_info: String) -> LbResult<String> {
+    pub async fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
         let os = env::consts::OS;
         let family = env::consts::FAMILY;
 
-        let (integrity, last_synced, panics) = tokio::join!(
+        let (integrity, last_synced, panics, lb_id) = tokio::join!(
             self.test_repo_integrity(),
             self.human_last_synced(),
-            self.collect_panics(true)
+            self.collect_panics(true),
+            self.lb_id()
         );
 
         let panics = panics?.into_iter().map(|panic| panic.content).collect();
@@ -143,10 +176,11 @@ impl Lb {
         let status = format!("{status:?}");
         let is_syncing = self.syncing.load(Ordering::Relaxed);
 
-        Ok(serde_json::to_string_pretty(&DebugInfo {
+        Ok(DebugInfo {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
+            lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),
@@ -156,11 +190,11 @@ impl Lb {
             status,
             is_syncing,
             panics,
-        })?)
+        })
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PanicInfo {
     pub time: NaiveDateTime,
     pub file_path: PathBuf,

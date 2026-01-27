@@ -12,6 +12,7 @@ pub use lb_rs::blocking::Lb;
 pub use lb_rs::model::core_config::Config;
 use lb_rs::model::file::ShareMode;
 use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
 use lb_work::LbSyncRes;
@@ -516,7 +517,7 @@ pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_c
     let lb = rlb(lb);
     let os_info = rstring(os_info);
 
-    cstring(lb.debug_info(os_info))
+    cstring(lb.debug_info(os_info).to_string())
 }
 
 #[unsafe(no_mangle)]

@@ -42,6 +42,7 @@ where
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
+    pub discord_client: reqwest::Client,
     pub recent_new_account_ips: Arc<Mutex<VecDeque<IpData>>>,
 }
 
@@ -102,6 +103,7 @@ where
 pub mod account_service;
 pub mod billing;
 pub mod config;
+pub mod debug_info;
 pub mod defense;
 pub mod document_service;
 pub mod error_handler;

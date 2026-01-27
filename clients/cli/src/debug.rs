@@ -1,4 +1,5 @@
 use cli_rs::cli_error::{CliError, CliResult};
+use lb_rs::service::debug::DebugInfoDisplay;
 
 use crate::input::FileInput;
 use crate::{core, ensure_account};
@@ -55,6 +56,6 @@ pub async fn whereami() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn debug_info() -> Result<(), CliError> {
     let lb = &core().await?;
-    println!("{}", lb.debug_info("None Provided".to_string()).await?);
+    println!("{}", lb.debug_info("None Provided".to_string()).await.to_string());
     Ok(())
 }

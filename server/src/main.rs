@@ -25,6 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let stripe_client = stripe::Client::new(&cfg.billing.stripe.stripe_secret);
     let google_play_client = get_google_play_client(&cfg.billing.google.service_account_key).await;
     let app_store_client = reqwest::Client::new();
+    let discord_client = reqwest::Client::new();
 
     let index_db = ServerV5::init(db_rs::Config::in_folder(&cfg.index_db.db_location))
         .expect("Failed to load index_db");
@@ -43,6 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         google_play_client,
         app_store_client,
         document_service,
+        discord_client,
         recent_new_account_ips: Default::default(),
     });
 

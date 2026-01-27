@@ -165,6 +165,12 @@ impl From<reqwest::Error> for ServerError<UpgradeAccountAppStoreError> {
     }
 }
 
+impl From<reqwest::Error> for ServerError<UpsertDebugInfoError> {
+    fn from(err: reqwest::Error) -> Self {
+        internal!("reqwest error: {:?}", err)
+    }
+}
+
 impl From<base64::DecodeError> for ServerError<AppStoreNotificationError> {
     fn from(_: DecodeError) -> Self {
         ClientError(AppStoreNotificationError::InvalidJWS)
