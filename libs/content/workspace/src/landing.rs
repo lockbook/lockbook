@@ -17,7 +17,7 @@ use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
 
-#[derive(Default, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct LandingPage {
     search_term: String,
     doc_types: Vec<DocType>,
@@ -26,6 +26,20 @@ pub struct LandingPage {
     sort: Sort,
     sort_asc: bool,
     flatten_tree: bool,
+}
+
+impl Default for LandingPage {
+    fn default() -> Self {
+        Self {
+            search_term: Default::default(),
+            doc_types: Default::default(),
+            collaborators: Default::default(),
+            only_me: Default::default(),
+            sort: Default::default(),
+            sort_asc: Default::default(),
+            flatten_tree: true,
+        }
+    }
 }
 
 #[derive(Default, PartialEq, Clone, Serialize, Deserialize)]
