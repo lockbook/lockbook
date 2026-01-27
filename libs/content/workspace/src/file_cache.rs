@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
@@ -12,41 +13,45 @@ pub struct FileCache {
     pub files: Vec<File>,
     pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
+    pub size_bytes_recursive: HashMap<Uuid, u64>,
 }
 
 impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
-        Ok(Self {
-            files: lb.list_metadatas()?,
-            suggested: lb.suggested_docs(Default::default())?,
-            shared: lb.get_pending_share_files()?,
-        })
-    }
+        let files = lb.list_metadatas()?;
+        let suggested = lb.suggested_docs(Default::default())?;
+        let shared = lb.get_pending_share_files()?;
 
-    pub fn size_bytes_recursive(&self, id: Uuid) -> u64 {
-        self.files
-            .descendents(id)
-            .iter()
-            .map(|f| f.id)
-            .chain(iter::once(id))
-            .map(|id| self.files.get_by_id(id).unwrap().size_bytes)
-            .sum::<_>()
+        let mut size_recursive = HashMap::new();
+        for file in &files {
+            size_recursive.insert(
+                file.id,
+                files
+                    .descendents(file.id)
+                    .iter()
+                    .map(|f| f.id)
+                    .chain(iter::once(file.id))
+                    .map(|id| files.get_by_id(id).unwrap().size_bytes)
+                    .sum::<_>(),
+            );
+        }
+
+        Ok(Self { files, suggested, shared, size_bytes_recursive: size_recursive })
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
-        self.size_bytes_recursive(id) as f32
-            / self.size_bytes_recursive(self.files.get_by_id(id).unwrap().parent) as f32
+        self.size_bytes_recursive[&id] as f32
+            / self.size_bytes_recursive[&self.files.get_by_id(id).unwrap().parent] as f32
     }
 
     /// returns the uncompressed, recursive size of a file scaled relative to
-    /// siblings so that the biggest sibling is 1.0
-    pub fn usage_portion_scaled(&self, id: Uuid) -> f32 {
-        let siblings = self.files.siblings(id);
-        let current_usage = self.size_bytes_recursive(id);
+    /// peers so that the biggest sibling is 1.0
+    pub fn usage_portion_scaled(&self, id: Uuid, peers: &[&File]) -> f32 {
+        let current_usage = self.size_bytes_recursive[&id];
 
-        let max_sibling_usage = siblings
+        let max_sibling_usage = peers
             .iter()
-            .map(|sibling| self.size_bytes_recursive(sibling.id))
+            .map(|peer| self.size_bytes_recursive[&peer.id])
             .chain(std::iter::once(current_usage))
             .max()
             .unwrap_or(1);

@@ -580,7 +580,7 @@ impl Workspace {
             Sort::Modified => {
                 descendents.sort_by_key(|f| u64::MAX - files.last_modified_recursive(f.id))
             }
-            Sort::Size => descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id)),
+            Sort::Size => descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive[&f.id]),
         }
         if !self.landing_page.sort_asc {
             descendents.reverse()
@@ -951,7 +951,7 @@ impl Workspace {
 
                             // Usage
                             ui.label(RichText::new({
-                                bytes_to_human(files.size_bytes_recursive(child.id) as _)
+                                bytes_to_human(files.size_bytes_recursive[&child.id] as _)
                             }));
 
                             // Usage bar chart
@@ -959,7 +959,7 @@ impl Workspace {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                                let (_, rect) = ui.allocate_space(Vec2::ZERO);
+                                let (_, rect) = ui.allocate_space(ui.available_height() * Vec2::Y);
                                 let cell_left = rect.min.x;
 
                                 let available_width = scroll_area_right - cell_left;
@@ -968,8 +968,8 @@ impl Workspace {
                                     Vec2::new(available_width, ui.available_height()),
                                 );
 
-                                let target_width =
-                                    rect.width() * files.usage_portion_scaled(child.id);
+                                let target_width = rect.width()
+                                    * files.usage_portion_scaled(child.id, &descendents);
                                 let excess_width = rect.width() - target_width;
                                 rect.max.x -= excess_width;
 
