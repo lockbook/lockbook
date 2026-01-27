@@ -593,7 +593,6 @@ impl Workspace {
             });
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.allocate_space(ui.available_width() * Vec2::X);
-
                 egui::Grid::new("files_grid")
                     .num_columns(6)
                     .spacing([40.0, 10.0])
@@ -603,52 +602,45 @@ impl Workspace {
 
                         // Header: Name / Type
                         ui.horizontal(|ui| {
-                            ui.horizontal(|ui| {
-                                let text = if self.landing_page.sort == Sort::Type {
-                                    "Type"
-                                } else {
-                                    "Name"
-                                };
-                                if ui
-                                    .add(
-                                        Button::new(RichText::new(text).font(header_font.clone()))
-                                            .frame(false),
-                                    )
-                                    .clicked()
-                                {
-                                    // Click to cycle through sorting by name or type (inspired by Spotify 'Title' / 'Artist' sort)
-                                    match (&self.landing_page.sort, self.landing_page.sort_asc) {
-                                        (Sort::Name, true) => {
-                                            // name asc -> name desc
-                                            self.landing_page.sort_asc = false;
-                                        }
-                                        (Sort::Name, false) => {
-                                            // name desc -> type asc
-                                            self.landing_page.sort = Sort::Type;
-                                            self.landing_page.sort_asc = true;
-                                        }
-                                        (Sort::Type, true) => {
-                                            // type asc -> type desc
-                                            self.landing_page.sort_asc = false;
-                                        }
-                                        _ => {
-                                            // type desc (or anything else) -> name asc
-                                            self.landing_page.sort = Sort::Name;
-                                            self.landing_page.sort_asc = true;
-                                        }
+                            let text =
+                                if self.landing_page.sort == Sort::Type { "Type" } else { "Name" };
+                            if ui
+                                .add(
+                                    Button::new(RichText::new(text).font(header_font.clone()))
+                                        .frame(false),
+                                )
+                                .clicked()
+                            {
+                                // Click to cycle through sorting by name or type (inspired by Spotify 'Title' / 'Artist' sort)
+                                match (&self.landing_page.sort, self.landing_page.sort_asc) {
+                                    (Sort::Name, true) => {
+                                        // name asc -> name desc
+                                        self.landing_page.sort_asc = false;
+                                    }
+                                    (Sort::Name, false) => {
+                                        // name desc -> type asc
+                                        self.landing_page.sort = Sort::Type;
+                                        self.landing_page.sort_asc = true;
+                                    }
+                                    (Sort::Type, true) => {
+                                        // type asc -> type desc
+                                        self.landing_page.sort_asc = false;
+                                    }
+                                    _ => {
+                                        // type desc (or anything else) -> name asc
+                                        self.landing_page.sort = Sort::Name;
+                                        self.landing_page.sort_asc = true;
                                     }
                                 }
-                                if matches!(self.landing_page.sort, Sort::Name | Sort::Type) {
-                                    let chevron = if self.landing_page.sort_asc {
-                                        Icon::CHEVRON_UP
-                                    } else {
-                                        Icon::CHEVRON_DOWN
-                                    };
-                                    ui.label(
-                                        RichText::new(chevron.icon).font(FontId::monospace(12.0)),
-                                    );
-                                }
-                            });
+                            }
+                            if matches!(self.landing_page.sort, Sort::Name | Sort::Type) {
+                                let chevron = if self.landing_page.sort_asc {
+                                    Icon::CHEVRON_UP
+                                } else {
+                                    Icon::CHEVRON_DOWN
+                                };
+                                ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
+                            }
                         });
 
                         // Header: Modified
@@ -748,7 +740,7 @@ impl Workspace {
 
                                     ui.vertical(|ui| {
                                         if !current_time_category.is_empty() {
-                                            ui.add_space(20.);
+                                            ui.add_space(10.);
                                         }
                                         ui.horizontal(|ui| {
                                             ui.add_space(-20.);
@@ -963,26 +955,30 @@ impl Workspace {
                             }));
 
                             // Usage bar chart
-                            ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
-                                |ui| {
-                                    ui.add_space(20.);
-                                    let (_, mut rect) = ui.allocate_space(Vec2::new(
-                                        ui.available_width(),
-                                        ui.available_height(),
-                                    ));
-                                    let target_width =
-                                        rect.width() * files.usage_portion_scaled(child.id);
-                                    let excess_width = rect.width() - target_width;
-                                    rect.max.x -= excess_width;
+                            let scroll_area_right = ui.max_rect().max.x;
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing = Vec2::ZERO;
 
-                                    ui.painter().rect_filled(
-                                        rect,
-                                        2.0,
-                                        ui.visuals().widgets.active.bg_fill.gamma_multiply(0.8),
-                                    );
-                                },
-                            );
+                                let (_, rect) = ui.allocate_space(Vec2::ZERO);
+                                let cell_left = rect.min.x;
+
+                                let available_width = scroll_area_right - cell_left;
+                                let mut rect = Rect::from_min_size(
+                                    rect.min,
+                                    Vec2::new(available_width, ui.available_height()),
+                                );
+
+                                let target_width =
+                                    rect.width() * files.usage_portion_scaled(child.id);
+                                let excess_width = rect.width() - target_width;
+                                rect.max.x -= excess_width;
+
+                                ui.painter().rect_filled(
+                                    rect,
+                                    2.0,
+                                    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.8),
+                                );
+                            });
 
                             ui.end_row();
                         }
