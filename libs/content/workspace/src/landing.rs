@@ -616,14 +616,29 @@ impl Workspace {
                                     )
                                     .clicked()
                                 {
-                                    if self.landing_page.sort == Sort::Name {
-                                        self.landing_page.sort_asc = !self.landing_page.sort_asc;
-                                    } else {
-                                        self.landing_page.sort = Sort::Name;
-                                        self.landing_page.sort_asc = true;
+                                    // Click to cycle through sorting by name or type (inspired by Spotify 'Title' / 'Artist' sort)
+                                    match (&self.landing_page.sort, self.landing_page.sort_asc) {
+                                        (Sort::Name, true) => {
+                                            // name asc -> name desc
+                                            self.landing_page.sort_asc = false;
+                                        }
+                                        (Sort::Name, false) => {
+                                            // name desc -> type asc
+                                            self.landing_page.sort = Sort::Type;
+                                            self.landing_page.sort_asc = true;
+                                        }
+                                        (Sort::Type, true) => {
+                                            // type asc -> type desc
+                                            self.landing_page.sort_asc = false;
+                                        }
+                                        _ => {
+                                            // type desc (or anything else) -> name asc
+                                            self.landing_page.sort = Sort::Name;
+                                            self.landing_page.sort_asc = true;
+                                        }
                                     }
                                 }
-                                if self.landing_page.sort == Sort::Name {
+                                if matches!(self.landing_page.sort, Sort::Name | Sort::Type) {
                                     let chevron = if self.landing_page.sort_asc {
                                         Icon::CHEVRON_UP
                                     } else {
