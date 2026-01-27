@@ -487,6 +487,7 @@ impl Workspace {
             .get_by_id(self.effective_focused_parent())
             .unwrap();
 
+        // Filter
         let descendents = if self.landing_page.flatten_tree {
             files.files.descendents(folder.id)
         } else {
@@ -554,265 +555,197 @@ impl Workspace {
             .collect();
 
         // Sort
-        if self.landing_page.flatten_tree {
-            // When flattened, always sort by modified
-            descendents.sort_by_key(|f| files.last_modified_recursive(f.id));
-        } else {
-            match self.landing_page.sort {
-                Sort::Name => {
-                    descendents.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-                }
-                Sort::Type => {
-                    descendents.sort_by(|a, b| {
-                        // Folders first, then sort by document type
-                        match (a.is_folder(), b.is_folder()) {
-                            (true, false) => std::cmp::Ordering::Less,
-                            (false, true) => std::cmp::Ordering::Greater,
-                            (true, true) => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
-                            (false, false) => {
-                                let a_type = DocType::from_name(&a.name);
-                                let b_type = DocType::from_name(&b.name);
-                                a_type
-                                    .to_string()
-                                    .cmp(&b_type.to_string())
-                                    .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-                            }
-                        }
-                    })
-                }
-                Sort::Modified => {
-                    descendents.sort_by_key(|f| u64::MAX - files.last_modified_recursive(f.id))
-                }
-                Sort::Size => {
-                    descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id))
-                }
+        match self.landing_page.sort {
+            Sort::Name => {
+                descendents.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
             }
+            Sort::Type => {
+                descendents.sort_by(|a, b| {
+                    // Folders first, then sort by document type
+                    match (a.is_folder(), b.is_folder()) {
+                        (true, false) => std::cmp::Ordering::Less,
+                        (false, true) => std::cmp::Ordering::Greater,
+                        (true, true) => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+                        (false, false) => {
+                            let a_type = DocType::from_name(&a.name);
+                            let b_type = DocType::from_name(&b.name);
+                            a_type
+                                .to_string()
+                                .cmp(&b_type.to_string())
+                                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                        }
+                    }
+                })
+            }
+            Sort::Modified => {
+                descendents.sort_by_key(|f| u64::MAX - files.last_modified_recursive(f.id))
+            }
+            Sort::Size => descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive(f.id)),
         }
         if !self.landing_page.sort_asc {
             descendents.reverse()
         }
 
+        // Show
         if !descendents.is_empty() {
             ui.ctx().style_mut(|style| {
                 style.spacing.scroll = egui::style::ScrollStyle::thin();
             });
             egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.allocate_space(ui.available_width() * Vec2::X);
+
                 egui::Grid::new("files_grid")
-                    .num_columns(if self.landing_page.flatten_tree { 3 } else { 6 })
+                    .num_columns(6)
                     .spacing([40.0, 10.0])
                     .show(ui, |ui| {
-                        // Header
                         let header_font =
                             FontId::new(16.0, egui::FontFamily::Name(Arc::from("Bold")));
-                        if !self.landing_page.flatten_tree {
-                            // Header: Name
+
+                        // Header: Name / Type
+                        ui.horizontal(|ui| {
                             ui.horizontal(|ui| {
-                                ui.add_space(20.0);
-                                ui.horizontal(|ui| {
-                                    if ui
-                                        .add(
-                                            Button::new(
-                                                RichText::new("Name")
-                                                    .font(header_font.clone())
-                                                    .weak(),
-                                            )
+                                let text = if self.landing_page.sort == Sort::Type {
+                                    "Type"
+                                } else {
+                                    "Name"
+                                };
+                                if ui
+                                    .add(
+                                        Button::new(RichText::new(text).font(header_font.clone()))
                                             .frame(false),
-                                        )
-                                        .clicked()
-                                    {
-                                        if self.landing_page.sort == Sort::Name {
-                                            self.landing_page.sort_asc =
-                                                !self.landing_page.sort_asc;
-                                        } else {
-                                            self.landing_page.sort = Sort::Name;
-                                            self.landing_page.sort_asc = true;
-                                        }
-                                    }
+                                    )
+                                    .clicked()
+                                {
                                     if self.landing_page.sort == Sort::Name {
-                                        let chevron = if self.landing_page.sort_asc {
-                                            Icon::CHEVRON_UP
-                                        } else {
-                                            Icon::CHEVRON_DOWN
-                                        };
-                                        ui.label(
-                                            RichText::new(chevron.icon)
-                                                .font(FontId::monospace(12.0))
-                                                .weak(),
-                                        );
-                                    }
-                                });
-                            });
-
-                            // Header: Type
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .add(
-                                        Button::new(
-                                            RichText::new("Type").font(header_font.clone()).weak(),
-                                        )
-                                        .frame(false),
-                                    )
-                                    .clicked()
-                                {
-                                    if self.landing_page.sort == Sort::Type {
                                         self.landing_page.sort_asc = !self.landing_page.sort_asc;
                                     } else {
-                                        self.landing_page.sort = Sort::Type;
+                                        self.landing_page.sort = Sort::Name;
                                         self.landing_page.sort_asc = true;
                                     }
                                 }
-                                if self.landing_page.sort == Sort::Type {
+                                if self.landing_page.sort == Sort::Name {
                                     let chevron = if self.landing_page.sort_asc {
                                         Icon::CHEVRON_UP
                                     } else {
                                         Icon::CHEVRON_DOWN
                                     };
                                     ui.label(
-                                        RichText::new(chevron.icon)
-                                            .font(FontId::monospace(12.0))
-                                            .weak(),
+                                        RichText::new(chevron.icon).font(FontId::monospace(12.0)),
                                     );
                                 }
                             });
+                        });
 
-                            // Header: Collaborators
-                            ui.label(
-                                RichText::new("Collaborators")
-                                    .font(header_font.clone())
-                                    .weak(),
-                            );
-
-                            // Header: Modified
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .add(
-                                        Button::new(
-                                            RichText::new("Modified")
-                                                .font(header_font.clone())
-                                                .weak(),
-                                        )
-                                        .frame(false),
+                        // Header: Modified
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add(
+                                    Button::new(
+                                        RichText::new("Modified").font(header_font.clone()),
                                     )
-                                    .clicked()
-                                {
-                                    if self.landing_page.sort == Sort::Modified {
-                                        self.landing_page.sort_asc = !self.landing_page.sort_asc;
-                                    } else {
-                                        self.landing_page.sort = Sort::Modified;
-                                        self.landing_page.sort_asc = true;
-                                    }
-                                }
+                                    .frame(false),
+                                )
+                                .clicked()
+                            {
                                 if self.landing_page.sort == Sort::Modified {
-                                    let chevron = if self.landing_page.sort_asc {
-                                        Icon::CHEVRON_UP
-                                    } else {
-                                        Icon::CHEVRON_DOWN
-                                    };
-                                    ui.label(
-                                        RichText::new(chevron.icon)
-                                            .font(FontId::monospace(12.0))
-                                            .weak(),
-                                    );
+                                    self.landing_page.sort_asc = !self.landing_page.sort_asc;
+                                } else {
+                                    self.landing_page.sort = Sort::Modified;
+                                    self.landing_page.sort_asc = true;
                                 }
-                            });
+                            }
+                            if self.landing_page.sort == Sort::Modified {
+                                let chevron = if self.landing_page.sort_asc {
+                                    Icon::CHEVRON_UP
+                                } else {
+                                    Icon::CHEVRON_DOWN
+                                };
+                                ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
+                            }
+                        });
 
-                            // Header: Usage
-                            ui.horizontal(|ui| {
-                                if ui
-                                    .add(
-                                        Button::new(
-                                            RichText::new("Size").font(header_font.clone()).weak(),
-                                        )
+                        // Header: Collaborators
+                        ui.label(RichText::new("Collaborators").font(header_font.clone()));
+
+                        // Header: Usage
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add(
+                                    Button::new(RichText::new("Size").font(header_font.clone()))
                                         .frame(false),
-                                    )
-                                    .clicked()
-                                {
-                                    if self.landing_page.sort == Sort::Size {
-                                        self.landing_page.sort_asc = !self.landing_page.sort_asc;
-                                    } else {
-                                        self.landing_page.sort = Sort::Size;
-                                        self.landing_page.sort_asc = true;
-                                    }
-                                }
+                                )
+                                .clicked()
+                            {
                                 if self.landing_page.sort == Sort::Size {
-                                    let chevron = if self.landing_page.sort_asc {
-                                        Icon::CHEVRON_UP
-                                    } else {
-                                        Icon::CHEVRON_DOWN
-                                    };
-                                    ui.label(
-                                        RichText::new(chevron.icon)
-                                            .font(FontId::monospace(12.0))
-                                            .weak(),
-                                    );
+                                    self.landing_page.sort_asc = !self.landing_page.sort_asc;
+                                } else {
+                                    self.landing_page.sort = Sort::Size;
+                                    self.landing_page.sort_asc = true;
                                 }
-                            });
-                            ui.label("");
-                            ui.end_row();
-                        }
+                            }
+                            if self.landing_page.sort == Sort::Size {
+                                let chevron = if self.landing_page.sort_asc {
+                                    Icon::CHEVRON_UP
+                                } else {
+                                    Icon::CHEVRON_DOWN
+                                };
+                                ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
+                            }
+                        });
 
-                        let mut current_time_category = -1;
+                        // Header: Usage (Bar Chart)
+                        ui.label("");
+
+                        ui.end_row();
+
+                        let mut current_time_category = "";
                         let mut child_idx = 0;
                         while child_idx < descendents.len() {
                             let child = descendents[child_idx];
 
-                            // Check if we need to insert a time separator (only when flattening)
-                            if self.landing_page.flatten_tree {
+                            // Check if we need to insert a time separator (only when sorting by modified)
+                            if self.landing_page.sort == Sort::Modified {
                                 let current_modified = files.last_modified_recursive(child.id);
                                 let now = lb_rs::model::clock::get_time().0;
                                 let current_time_diff = now - current_modified as i64;
 
-                                let get_time_category = |time_diff: i64| -> i32 {
-                                    if time_diff <= 24 * 60 * 60 * 1000 {
-                                        0
+                                let get_time_category = |millis: i64| -> &str {
+                                    let day = 24 * 60 * 60 * 1000;
+                                    if millis <= day {
+                                        "Today"
+                                    } else if millis <= 2 * day {
+                                        "Yesterday"
+                                    } else if millis <= 7 * day {
+                                        "This Week"
+                                    } else if millis <= 30 * day {
+                                        "This Month"
+                                    } else if millis <= 365 * day {
+                                        "This Year"
+                                    } else {
+                                        "All Time"
                                     }
-                                    // Today
-                                    else if time_diff <= 2 * 24 * 60 * 60 * 1000 {
-                                        1
-                                    }
-                                    // Yesterday
-                                    else if time_diff <= 7 * 24 * 60 * 60 * 1000 {
-                                        2
-                                    }
-                                    // This week
-                                    else if time_diff <= 30 * 24 * 60 * 60 * 1000 {
-                                        3
-                                    }
-                                    // This month
-                                    else if time_diff <= 365 * 24 * 60 * 60 * 1000 {
-                                        4
-                                    }
-                                    // This year
-                                    else {
-                                        5
-                                    } // All time
                                 };
 
                                 let new_category = get_time_category(current_time_diff);
 
-                                if new_category > current_time_category {
+                                if new_category != current_time_category {
                                     current_time_category = new_category;
-                                    let category_name = match current_time_category {
-                                        0 => "Today",
-                                        1 => "Yesterday",
-                                        2 => "This Week",
-                                        3 => "This Month",
-                                        4 => "This Year",
-                                        _ => "All Time",
-                                    };
 
                                     ui.vertical(|ui| {
-                                        if current_time_category != -1 {
+                                        if !current_time_category.is_empty() {
                                             ui.add_space(20.);
                                         }
-                                        ui.label(
-                                            RichText::new(category_name)
-                                                .font(FontId::new(
-                                                    16.0,
-                                                    egui::FontFamily::Name(Arc::from("Bold")),
-                                                ))
-                                                .weak(),
-                                        );
+                                        ui.horizontal(|ui| {
+                                            ui.add_space(-20.);
+                                            ui.label(
+                                                RichText::new(current_time_category)
+                                                    .font(FontId::new(
+                                                        16.0,
+                                                        egui::FontFamily::Name(Arc::from("Bold")),
+                                                    ))
+                                                    .weak(),
+                                            );
+                                        });
                                     });
                                     ui.label("");
                                     ui.end_row();
@@ -823,9 +756,7 @@ impl Workspace {
 
                             // File name
                             ui.horizontal(|ui| {
-                                ui.add_space(20.0);
-
-                                // File icon
+                                // Icon
                                 if child.is_folder() {
                                     let folder_icon = if !child.shares.is_empty() {
                                         Icon::SHARED_FOLDER
@@ -836,27 +767,20 @@ impl Workspace {
                                         RichText::new(folder_icon.icon)
                                             .font(FontId::monospace(19.0))
                                             .color(ui.style().visuals.widgets.active.bg_fill),
-                                    );
+                                    )
+                                    .on_hover_ui(|ui| {
+                                        ui.label("Folder");
+                                    });
                                 } else {
+                                    let doc_type = DocType::from_name(&child.name);
                                     ui.label(
-                                        RichText::new(
-                                            DocType::from_name(&child.name).to_icon().icon,
-                                        )
-                                        .font(FontId::monospace(19.0))
-                                        .color(ui.visuals().weak_text_color()),
-                                    );
-                                }
-
-                                // Show parent path if tree is flattened
-                                if self.landing_page.flatten_tree
-                                    && !child.is_root()
-                                    && child.parent != folder.id
-                                {
-                                    let parent = files.files.get_by_id(child.parent).unwrap();
-                                    if ui.link(RichText::new(&parent.name).weak()).clicked() {
-                                        response.open_file = Some(parent.id);
-                                    }
-                                    ui.label(RichText::new(" / ").weak());
+                                        RichText::new(doc_type.to_icon().icon)
+                                            .font(FontId::monospace(19.0))
+                                            .color(ui.visuals().weak_text_color()),
+                                    )
+                                    .on_hover_ui(|ui| {
+                                        ui.label(format!("{doc_type}"));
+                                    });
                                 }
 
                                 let doc_type = DocType::from_name(&child.name);
@@ -880,13 +804,33 @@ impl Workspace {
                                 });
                             });
 
-                            // Type column
-                            if !self.landing_page.flatten_tree {
-                                ui.label(RichText::new(if child.is_folder() {
-                                    "Folder".to_string()
-                                } else {
-                                    DocType::from_name(&child.name).to_string()
-                                }));
+                            // Last modified
+                            {
+                                let last_modified_timestamp =
+                                    files.last_modified_recursive(child.id);
+                                let formatted_date = {
+                                    let system_time = std::time::UNIX_EPOCH
+                                        + std::time::Duration::from_millis(last_modified_timestamp);
+                                    let datetime: chrono::DateTime<chrono::Local> =
+                                        system_time.into();
+                                    datetime.format("%B %d, %Y at %I:%M %p").to_string()
+                                };
+
+                                ui.horizontal(|ui: &mut Ui| {
+                                    ui.label(RichText::new(
+                                        last_modified_timestamp.elapsed_human_string(),
+                                    ))
+                                    .on_hover_text(&formatted_date);
+
+                                    let mut last_modified_by =
+                                        files.last_modified_by_recursive(child.id);
+                                    if last_modified_by == account.username {
+                                        last_modified_by = "you";
+                                    }
+                                    ui.label(
+                                        RichText::new(format!("by {}", last_modified_by)).weak(),
+                                    );
+                                });
                             }
 
                             // Collaborators
@@ -988,93 +932,32 @@ impl Workspace {
                                 });
                             });
 
-                            // Last modified
-                            {
-                                let last_modified_timestamp =
-                                    files.last_modified_recursive(child.id);
-                                let formatted_date = {
-                                    let system_time = std::time::UNIX_EPOCH
-                                        + std::time::Duration::from_millis(last_modified_timestamp);
-                                    let datetime: chrono::DateTime<chrono::Local> =
-                                        system_time.into();
-                                    datetime.format("%B %d, %Y at %I:%M %p").to_string()
-                                };
+                            // Usage
+                            ui.label(RichText::new({
+                                bytes_to_human(files.size_bytes_recursive(child.id) as _)
+                            }));
 
-                                if self.landing_page.flatten_tree {
-                                    ui.with_layout(
-                                        Layout {
-                                            main_dir: Direction::RightToLeft,
-                                            main_wrap: false,
-                                            main_align: Align::Max,
-                                            main_justify: false,
-                                            cross_align: Align::Min,
-                                            cross_justify: false,
-                                        },
-                                        |ui| {
-                                            let mut last_modified_by =
-                                                files.last_modified_by_recursive(child.id);
-                                            if last_modified_by == account.username {
-                                                last_modified_by = "you";
-                                            }
-                                            ui.label(
-                                                RichText::new(format!("by {}", last_modified_by))
-                                                    .weak(),
-                                            );
+                            // Usage bar chart
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.add_space(20.);
+                                    let (_, mut rect) = ui.allocate_space(Vec2::new(
+                                        ui.available_width(),
+                                        ui.available_height(),
+                                    ));
+                                    let target_width =
+                                        rect.width() * files.usage_portion_scaled(child.id);
+                                    let excess_width = rect.width() - target_width;
+                                    rect.max.x -= excess_width;
 
-                                            ui.label(RichText::new(
-                                                last_modified_timestamp.elapsed_human_string(),
-                                            ))
-                                            .on_hover_text(&formatted_date);
-                                        },
+                                    ui.painter().rect_filled(
+                                        rect,
+                                        2.0,
+                                        ui.visuals().widgets.active.bg_fill.gamma_multiply(0.8),
                                     );
-                                } else {
-                                    ui.horizontal(|ui: &mut Ui| {
-                                        ui.label(RichText::new(
-                                            last_modified_timestamp.elapsed_human_string(),
-                                        ))
-                                        .on_hover_text(&formatted_date);
-
-                                        let mut last_modified_by =
-                                            files.last_modified_by_recursive(child.id);
-                                        if last_modified_by == account.username {
-                                            last_modified_by = "you";
-                                        }
-                                        ui.label(
-                                            RichText::new(format!("by {}", last_modified_by))
-                                                .weak(),
-                                        );
-                                    });
-                                }
-                            }
-
-                            if !self.landing_page.flatten_tree {
-                                // Usage
-                                ui.label(RichText::new({
-                                    bytes_to_human(files.size_bytes_recursive(child.id) as _)
-                                }));
-
-                                // Usage bar chart
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        ui.add_space(20.);
-                                        let (_, mut rect) = ui.allocate_space(Vec2::new(
-                                            ui.available_width(),
-                                            ui.available_height(),
-                                        ));
-                                        let target_width =
-                                            rect.width() * files.usage_portion_scaled(child.id);
-                                        let excess_width = rect.width() - target_width;
-                                        rect.max.x -= excess_width;
-
-                                        ui.painter().rect_filled(
-                                            rect,
-                                            2.0,
-                                            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.8),
-                                        );
-                                    },
-                                );
-                            }
+                                },
+                            );
 
                             ui.end_row();
                         }
