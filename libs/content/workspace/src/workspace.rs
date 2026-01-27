@@ -20,9 +20,9 @@ use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
 
 use crate::file_cache::FileCache;
+use crate::landing::LandingPage;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
-use crate::show::LandingPage;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
