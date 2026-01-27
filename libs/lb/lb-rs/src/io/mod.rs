@@ -48,7 +48,6 @@ pub struct CoreV3 {
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
 pub struct CoreV4 {
-    pub id: Single<LbID>,
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,
@@ -59,6 +58,7 @@ pub struct CoreV4 {
     pub pub_key_lookup: LookupTable<Owner, String>,
 
     pub doc_events: List<DocEvent>,
+    pub id: Single<LbID>,
 }
 
 pub async fn migrate_and_init(cfg: &Config, docs: &AsyncDocs) -> LbResult<CoreV4> {
