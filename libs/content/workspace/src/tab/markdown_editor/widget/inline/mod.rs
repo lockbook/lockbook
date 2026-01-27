@@ -251,6 +251,16 @@ impl<'ast> Editor {
         }
     }
 
+    /// Returns the range of the leading syntax characters that define this node
+    pub fn head_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+        if matches!(node.data.borrow().value, NodeValue::Code(_)) {
+            let range = self.node_range(node);
+            Some((range.start(), range.start() + 1)) // code has no children; contains text directly
+        } else {
+            self.prefix_range(node)
+        }
+    }
+
     /// Returns the range between the end of the node's last child if there is
     /// one, and the end of the node.
     pub fn postfix_range(
@@ -267,6 +277,16 @@ impl<'ast> Editor {
             self.span_section(wrap, postfix_range, self.text_format_syntax(node))
         } else {
             0.
+        }
+    }
+
+    /// Returns the range of the trailing syntax characters that define this node
+    pub fn tail_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+        if matches!(node.data.borrow().value, NodeValue::Code(_)) {
+            let range = self.node_range(node);
+            Some((range.end() - 1, range.end())) // code has no children; contains text directly
+        } else {
+            self.postfix_range(node)
         }
     }
 
