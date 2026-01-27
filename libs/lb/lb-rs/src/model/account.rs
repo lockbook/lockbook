@@ -15,7 +15,8 @@ pub const MAX_USERNAME_LENGTH: usize = 32;
 /// Beta users are also users who have opted into telemetry by way of approving a PR that adds
 /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
 /// mechanism of consent may evolve over time.
-pub const BETA_USERS: &[&str] = &["parth", "travis", "smail", "adam", "krish", "aravd", "luca", "krishma"];
+pub const BETA_USERS: &[&str] =
+    &["parth", "travis", "smail", "adam", "krish", "aravd", "luca", "krishma"];
 
 pub type Username = String;
 pub type ApiUrl = String;
