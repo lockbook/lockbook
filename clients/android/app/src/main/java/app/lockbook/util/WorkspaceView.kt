@@ -40,6 +40,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -56,7 +57,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private val nativeLock = ReentrantLock()
 
-    var ignoreSelectionUpdate = false
+    var ignoreSelectionUpdate = AtomicBoolean(false)
 
     private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
     private val frameOutputJsonParser = Json {
@@ -77,8 +78,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 val delayTime = drawWorkspace()
 
                 select<Unit> {
-                    redrawChannel.onReceive { }
-                    onTimeout(delayTime) { }
+                    redrawChannel.onReceive {
+                        ignoreSelectionUpdate.set(true)
+                    }
+                    onTimeout(delayTime) {
+                        ignoreSelectionUpdate.set(false)
+                    }
                 }
             }
         }
@@ -169,6 +174,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     private suspend fun drawWorkspace(): Long {
+        println("draw immedate: ${ignoreSelectionUpdate.get()}")
         val responseJson = nativeLock.withLock {
             if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
                 return 0
@@ -231,9 +237,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
                 (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (response.selectionUpdated && !ignoreSelectionUpdate) {
-                        textInputWrapper.wsInputConnection.notifySelectionUpdated()
-                    }
+//                    if (response.selectionUpdated && !ignoreSelectionUpdate.get()) {
+//                        textInputWrapper.wsInputConnection.notifySelectionUpdated()
+//                    }
 
                     if (response.textUpdated && contextMenu != null) {
                         contextMenu?.finish()
@@ -261,6 +267,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     fun drawImmediately() {
+        println("draw immediate")
         redrawChannel.trySend(Unit)
     }
 
