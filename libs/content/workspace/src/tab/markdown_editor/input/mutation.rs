@@ -776,7 +776,7 @@ impl<'ast> Editor {
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
-                if self.prefix_range(start_node).unwrap().end() < range.start() {
+                if self.head_range(start_node).unwrap().end() < range.start() {
                     let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
@@ -789,7 +789,7 @@ impl<'ast> Editor {
 
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
-                if self.postfix_range(end_node).unwrap().start() > range.end() {
+                if self.tail_range(end_node).unwrap().start() > range.end() {
                     let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
@@ -1000,14 +1000,14 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
 
 impl<'ast> Editor {
     fn dehead_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(prefix_range) = self.prefix_range(node) {
-            operations.push(Operation::Replace(Replace { range: prefix_range, text: "".into() }));
+        if let Some(range) = self.head_range(node) {
+            operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
 
     fn detail_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(postfix_range) = self.postfix_range(node) {
-            operations.push(Operation::Replace(Replace { range: postfix_range, text: "".into() }));
+        if let Some(range) = self.tail_range(node) {
+            operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
 
