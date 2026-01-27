@@ -114,7 +114,7 @@ impl Lb {
                 }
             }
         }
-        panics.reverse();
+        panics.sort_by(|a, b| b.time.cmp(&a.time));
 
         Ok(panics)
     }

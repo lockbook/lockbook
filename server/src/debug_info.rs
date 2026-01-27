@@ -58,7 +58,7 @@ where
             if let Some(debug_info) = maybe_old_debug_info { debug_info.panics.len() } else { 0 };
 
         if new_panics_count > old_panics_count {
-            if let Some(panic) = debug_info.panics.last() {
+            if let Some(panic) = debug_info.panics.first() {
                 warn!(?debug_info, "beta user experienced a panic");
 
                 self.send_panic_to_discord(&debug_info, panic).await?;
