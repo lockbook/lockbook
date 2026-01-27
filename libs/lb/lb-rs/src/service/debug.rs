@@ -58,7 +58,7 @@ impl Lb {
         }
     }
 
-    async fn lb_id(&self) -> LbID {
+    async fn lb_id(&self) -> LbResult<LbID> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
@@ -66,13 +66,13 @@ impl Lb {
             id
         } else {
             let new_id = LbID::generate();
-            db.id.insert(new_id);
+            db.id.insert(new_id)?;
             new_id
         };
 
         tx.end();
 
-        lb_id
+        Ok(lb_id)
     }
 
     fn now(&self) -> String {
@@ -180,7 +180,7 @@ impl Lb {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
-            lb_id,
+            lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
             integrity: format!("{integrity:?}"),
