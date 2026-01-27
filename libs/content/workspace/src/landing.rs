@@ -852,24 +852,34 @@ impl Workspace {
                             ui.horizontal(|ui| {
                                 let share_count = child.shares.len();
                                 let label_response = if share_count > 0 {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(Icon::ACCOUNT.icon)
-                                                .font(FontId::monospace(16.0))
-                                                .color(ui.visuals().weak_text_color()),
-                                        )
-                                        .union(ui.label(RichText::new(share_count.to_string())))
-                                    })
+                                    ui.allocate_ui_with_layout(
+                                        ui.available_size_before_wrap(),
+                                        Layout::right_to_left(Align::Center),
+                                        |ui| {
+                                            ui.label(RichText::new(share_count.to_string())).union(
+                                                ui.label(
+                                                    RichText::new(Icon::ACCOUNT.icon)
+                                                        .font(FontId::monospace(16.0))
+                                                        .color(ui.visuals().weak_text_color()),
+                                                ),
+                                            )
+                                        },
+                                    )
                                     .inner
                                 } else {
-                                    ui.horizontal(|ui| {
-                                        ui.label(
-                                            RichText::new(Icon::ACCOUNT.icon)
-                                                .font(FontId::monospace(16.0))
-                                                .color(Color32::TRANSPARENT),
-                                        )
-                                        .union(ui.label(RichText::new("-").weak()))
-                                    })
+                                    ui.allocate_ui_with_layout(
+                                        ui.available_size_before_wrap(),
+                                        Layout::right_to_left(Align::Center),
+                                        |ui| {
+                                            ui.label(RichText::new("-").weak()).union(
+                                                ui.label(
+                                                    RichText::new(Icon::ACCOUNT.icon)
+                                                        .font(FontId::monospace(16.0))
+                                                        .color(Color32::TRANSPARENT),
+                                                ),
+                                            )
+                                        },
+                                    )
                                     .inner
                                 };
 
