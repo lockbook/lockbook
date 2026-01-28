@@ -1160,6 +1160,11 @@ impl HeadTail for NodeValue {
             NodeValue::Strikethrough => "~~",
             NodeValue::Link(_) => "[",
             NodeValue::Image(_) => "![",
+            NodeValue::Highlight => "==",
+            NodeValue::Underline => "__",
+            NodeValue::SpoileredText => "||",
+            NodeValue::Subscript => "~",
+            NodeValue::Superscript => "^",
             _ => unimplemented!(), // many such cases!
         }
     }
@@ -1172,6 +1177,11 @@ impl HeadTail for NodeValue {
             NodeValue::Strikethrough => "~~",
             NodeValue::Link(_) => "]()",
             NodeValue::Image(_) => "]()",
+            NodeValue::Highlight => "==",
+            NodeValue::Underline => "__",
+            NodeValue::SpoileredText => "||",
+            NodeValue::Subscript => "~",
+            NodeValue::Superscript => "^",
             _ => unimplemented!(), // many such cases!
         }
     }

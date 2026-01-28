@@ -47,6 +47,11 @@ pub struct ToolbarPersistence {
     emph: bool,
     code: bool,
     strikethrough: bool,
+    highlight: bool,
+    underline: bool,
+    spoiler: bool,
+    subscript: bool,
+    superscript: bool,
     ordered_list: bool,
     unordered_list: bool,
     task_list: bool,
@@ -168,6 +173,56 @@ impl<'ast> Editor {
                         self.style(
                             Icon::STRIKETHROUGH.size(ICON_SIZE),
                             NodeValue::Strikethrough,
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.highlight || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(Icon::HIGHLIGHT.size(ICON_SIZE), NodeValue::Highlight, root, ui)
+                            .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.underline || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(Icon::UNDERLINE.size(ICON_SIZE), NodeValue::Underline, root, ui)
+                            .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.spoiler || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::SPOILER.size(ICON_SIZE),
+                            NodeValue::SpoileredText,
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.subscript || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(Icon::SUBSCRIPT.size(ICON_SIZE), NodeValue::Subscript, root, ui)
+                            .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.superscript || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::SUPERSCRIPT.size(ICON_SIZE),
+                            NodeValue::Superscript,
                             root,
                             ui,
                         )
@@ -534,6 +589,81 @@ impl<'ast> Editor {
                                 self.persisted.toolbar.strikethrough ^= true;
                             }
                             tl.y += self.menu_toggle_height("~~Strikethrough~~");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    tl,
+                                    mdw,
+                                    "==Highlight==",
+                                    IconButton::new(Icon::HIGHLIGHT.size(ICON_SIZE))
+                                        .colored(self.persisted.toolbar.highlight),
+                                )
+                                .clicked()
+                            {
+                                self.persisted.toolbar.highlight ^= true;
+                            }
+                            tl.y += self.menu_toggle_height("==Highlight==");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    tl,
+                                    mdw,
+                                    "__Underline__",
+                                    IconButton::new(Icon::UNDERLINE.size(ICON_SIZE))
+                                        .colored(self.persisted.toolbar.underline),
+                                )
+                                .clicked()
+                            {
+                                self.persisted.toolbar.underline ^= true;
+                            }
+                            tl.y += self.menu_toggle_height("__Underline__");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    tl,
+                                    mdw,
+                                    "||Spoiler||",
+                                    IconButton::new(Icon::SPOILER.size(ICON_SIZE))
+                                        .colored(self.persisted.toolbar.spoiler),
+                                )
+                                .clicked()
+                            {
+                                self.persisted.toolbar.spoiler ^= true;
+                            }
+                            tl.y += self.menu_toggle_height("||Spoiler||");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    tl,
+                                    mdw,
+                                    "~Subscript~",
+                                    IconButton::new(Icon::SUBSCRIPT.size(ICON_SIZE))
+                                        .colored(self.persisted.toolbar.subscript),
+                                )
+                                .clicked()
+                            {
+                                self.persisted.toolbar.subscript ^= true;
+                            }
+                            tl.y += self.menu_toggle_height("~Subscript~");
+
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    tl,
+                                    mdw,
+                                    "^Superscript^",
+                                    IconButton::new(Icon::SUPERSCRIPT.size(ICON_SIZE))
+                                        .colored(self.persisted.toolbar.superscript),
+                                )
+                                .clicked()
+                            {
+                                self.persisted.toolbar.superscript ^= true;
+                            }
+                            tl.y += self.menu_toggle_height("^Superscript^");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             tl.y += MENU_SPACE;
