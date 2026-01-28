@@ -9,10 +9,10 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::{BLOCK_SPACING, MARGIN};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
@@ -36,7 +36,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width,
+            NodeValue::Document => self.width - 2. * MARGIN,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items

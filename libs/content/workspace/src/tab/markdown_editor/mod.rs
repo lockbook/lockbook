@@ -106,7 +106,8 @@ pub struct Editor {
     scroll_to_cursor: bool,
 
     // layout
-    /// width used to render the root node, populated at frame start
+    /// width of the viewport, useful for doc render width and image size
+    /// constraints, populated at frame start
     width: f32,
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
@@ -294,7 +295,7 @@ impl Editor {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
+        let width = ui.max_rect().width().min(MAX_WIDTH);
         let height_updated = self.height != height;
         let width_updated = self.width != width;
         self.height = height;
@@ -404,7 +405,7 @@ impl Editor {
                                     style.spacing.scroll.bar_width = 10.;
                                 });
 
-                                if !self.toolbar.settings_open {
+                                if !self.toolbar.menu_open {
                                     // these are computed during render
                                     self.galleys.galleys.clear();
                                     self.bounds.wrap_lines.clear();
@@ -427,7 +428,7 @@ impl Editor {
                                     Some(scroll_area_id)
                                 } else {
                                     // show toolbar settings
-                                    self.show_toolbar_settings(ui);
+                                    self.show_toolbar_menu(ui);
 
                                     None
                                 }
@@ -593,14 +594,14 @@ impl Editor {
             .iter()
             .any(|rect| rect.contains(pos))
             || self.scroll_area_velocity.abs().max_elem() > 0.
-            || self.toolbar.settings_open
+            || self.toolbar.menu_open
     }
 
     fn show_scrollable_editor<'a>(
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
         let margin: Margin =
-            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { MARGIN.into() };
+            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
@@ -621,7 +622,7 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+                            let top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -633,8 +634,10 @@ impl Editor {
 
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
-                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
-                            let rect = rect.expand2(Vec2::X * margin.left); // clickable margins (more forgivable to click beginning of line)
+                            let rect = Rect::from_min_size(
+                                top_left,
+                                Vec2::new(self.width - 2. * MARGIN, height),
+                            );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
                             let focused = self.focused(ui.ctx());
