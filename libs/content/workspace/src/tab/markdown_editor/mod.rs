@@ -92,15 +92,19 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
 
+    // persistence
+    pub persisted: MdPersistence,
+
     // selection state
     /// During drag operations, stores the selection that would be applied
     /// without actually updating the buffer selection (which would affect syntax reveal)
     pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
 
-    // ?
+    // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
 
+    // layout
     /// width used to render the root node, populated at frame start
     width: f32,
     /// height of the viewport, useful for image size constraints, populated at
@@ -119,7 +123,7 @@ impl Drop for Editor {
 
 static PRINT: bool = false;
 
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdPersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
@@ -168,6 +172,8 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
+            persisted: Default::default(), // initialized first frame
+
             readonly: cfg.readonly,
             file_id,
             hmac,
@@ -191,6 +197,7 @@ impl Editor {
 
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
+
             width: Default::default(),
             height: Default::default(),
 
@@ -457,11 +464,11 @@ impl Editor {
 
                 // persistence: read
                 if !self.initialized {
-                    let persisted = self.persistence.get_markdown();
+                    self.persisted = self.persistence.get_markdown();
                     ui.data_mut(|d| {
                         let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
                         if let Some(mut state) = state {
-                            state.offset.y = persisted.scroll_offset;
+                            state.offset.y = self.persisted.scroll_offset;
                             d.insert_temp(scroll_area_id, state);
                         }
                     });
@@ -469,7 +476,7 @@ impl Editor {
                     // set the selection using low-level API; using internal
                     // events causes touch devices to scroll to cursor on 2nd
                     // frame
-                    let (start, end) = persisted.selection;
+                    let (start, end) = self.persisted.selection;
                     let selection = (
                         start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
                         end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
@@ -541,8 +548,10 @@ impl Editor {
             let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
             let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
             let selection = self.buffer.current.selection;
-            self.persistence
-                .set_markdown(MdPersistence { scroll_offset, selection });
+
+            self.persisted.scroll_offset = scroll_offset;
+            self.persisted.selection = selection;
+            self.persistence.set_markdown(self.persisted.clone());
         }
 
         // focus editor by default
