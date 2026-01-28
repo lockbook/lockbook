@@ -185,52 +185,59 @@ private struct OnboardingThreeView: View {
     @State var working = false
     
     var body: some View {
-        VStack(alignment: .leading) {
-            
-            Text("Your account key")
-                .font(.title)
-                .fontWeight(.bold)
-            
-            Spacer()
-            
-            Text("This key confirms your identity and keeps your account secure. It's **confidential** and **cannot** be recovered if lost. You can always access your key in the **settings**.")
-            
-            AccountPhraseView()
-            
-            Toggle(isOn: $storedSecurely, label: {
-                Text("I've stored my account key in safe place.")
-                    .font(.callout)
-                    .foregroundStyle(.primary)
-            })
-            .toggleStyle(iOSCheckboxToggleStyle())
-            .padding(.top)
-            .padding(.bottom)
-            
-            Button {
-                copyCompactKey()
-            } label: {
-                Text("Copy compact key")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading) {
+                    
+                    Text("Your account key")
+                        .font(.title)
+                        .fontWeight(.bold)
+                        .padding(.bottom)
+                                        
+                    Text("This key confirms your identity and keeps your account secure. It's **confidential** and **cannot** be recovered if lost. You can always access your key in the **settings**.")
+                    
+                    Spacer()
+                    
+                    AccountPhraseView()
+                    
+                    Toggle(isOn: $storedSecurely, label: {
+                        Text("I've stored my account key in safe place.")
+                            .font(.callout)
+                            .foregroundStyle(.primary)
+                    })
+                    .toggleStyle(iOSCheckboxToggleStyle())
+                    .padding(.top)
+                    .padding(.bottom)
+                    
+                    Button {
+                        copyCompactKey()
+                    } label: {
+                        Text("Copy compact key")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.bottom, 6)
+                    
+                    Button {
+                        goToMainScreen()
+                    } label: {
+                        Text("Next")
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 30)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!storedSecurely || working)
+                }
+                .padding(.top, 35)
+                .padding(.bottom)
+                .padding(.horizontal, 25)
+                .frame(minHeight: geometry.size.height)
             }
-            .buttonStyle(.bordered)
-            .padding(.bottom, 6)
-            
-            Button {
-                goToMainScreen()
-            } label: {
-                Text("Next")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(!storedSecurely || working)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.top, 35)
-        .padding(.bottom)
-        .padding(.horizontal, 25)
         .navigationBarBackButtonHidden()
     }
     
