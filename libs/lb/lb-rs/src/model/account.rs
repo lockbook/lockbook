@@ -16,8 +16,18 @@ pub const MAX_USERNAME_LENGTH: usize = 32;
 /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
 /// mechanism of consent may evolve over time.
 pub const BETA_USERS: &[&str] = &[
-    "parth", "travis", "smail", "adam", "krish", "aravd", "luca", "krishma", "steve", "rahul",
+    "parth",
+    "travis",
+    "smail",
+    "adam",
+    "krish",
+    "aravd",
+    "luca",
+    "krishma",
+    "steve",
+    "rahul",
     "chetna",
+    "chefbowyer",
 ];
 
 pub type Username = String;
