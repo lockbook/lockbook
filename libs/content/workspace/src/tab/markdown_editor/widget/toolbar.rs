@@ -1,16 +1,20 @@
+use std::mem;
 use std::time::{Duration, Instant};
 
+use comrak::Arena;
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
 use egui::scroll_area::ScrollBarVisibility;
-use egui::{Frame, Margin, ScrollArea, Separator, Stroke, Ui};
+use egui::{Frame, Margin, Rect, ScrollArea, Sense, Separator, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
+use serde::{Deserialize, Serialize};
 
+use crate::tab::markdown_editor::widget::MARGIN;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 
-use crate::tab::markdown_editor::{self, Editor};
+use crate::tab::markdown_editor::{self, Editor, print_ast};
 use markdown_editor::Event;
 use markdown_editor::input::Region;
 
@@ -18,16 +22,39 @@ pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 pub const ICON_SIZE: f32 = 16.0;
 
 pub struct Toolbar {
+    pub settings_open: bool,
     heading_last_click_at: Instant,
 }
 
 impl Default for Toolbar {
     fn default() -> Self {
-        Self { heading_last_click_at: Instant::now() }
+        Self { settings_open: false, heading_last_click_at: Instant::now() }
     }
 }
 
+#[derive(Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ToolbarPersistence {
+    undo: bool,
+    redo: bool,
+    heading: bool,
+    strong: bool,
+    emph: bool,
+    code: bool,
+    strikethrough: bool,
+    ordered_list: bool,
+    unordered_list: bool,
+    task_list: bool,
+    link: bool,
+    image: bool,
+    indent: bool,
+    deindent: bool,
+}
+
 impl<'ast> Editor {
+    fn toolbar_is_default(&self) -> bool {
+        self.persisted.toolbar == Default::default()
+    }
+
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
@@ -59,120 +86,208 @@ impl<'ast> Editor {
                         add_seperator(ui);
                     }
 
-                    if IconButton::new(Icon::UNDO.size(16.0))
-                        .tooltip("Undo")
-                        .show(ui)
-                        .clicked()
-                    {
-                        events.push(Event::Undo);
-                    }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::REDO.size(16.0))
-                        .tooltip("Redo")
-                        .show(ui)
-                        .clicked()
-                    {
-                        events.push(Event::Redo);
-                    }
-
-                    add_seperator(ui);
-
-                    self.heading_button(root, ui).map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(Icon::BOLD.size(ICON_SIZE), NodeValue::Strong, root, ui)
-                        .map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(Icon::ITALIC.size(ICON_SIZE), NodeValue::Emph, root, ui)
-                        .map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(
-                        Icon::CODE.size(ICON_SIZE),
-                        NodeValue::Code(Default::default()),
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(
-                        Icon::STRIKETHROUGH.size(ICON_SIZE),
-                        NodeValue::Strikethrough,
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-
-                    add_seperator(ui);
-
-                    self.style(
-                        Icon::NUMBER_LIST.size(ICON_SIZE),
-                        NodeValue::List(NodeList {
-                            list_type: ListType::Ordered,
-                            ..Default::default()
-                        }),
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(
-                        Icon::BULLET_LIST.size(ICON_SIZE),
-                        NodeValue::List(NodeList {
-                            list_type: ListType::Bullet,
-                            ..Default::default()
-                        }),
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-                    ui.add_space(5.);
-                    self.style(
-                        Icon::TODO_LIST.size(ICON_SIZE),
-                        NodeValue::List(NodeList {
-                            list_type: ListType::Bullet,
-                            is_task_list: true,
-                            ..Default::default()
-                        }),
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-
-                    add_seperator(ui);
-
-                    self.style(
-                        Icon::LINK.size(ICON_SIZE),
-                        NodeValue::Link(Default::default()),
-                        root,
-                        ui,
-                    )
-                    .map(|e| events.push(e));
-
-                    // only supported on iOS (for now)
-                    if is_ios
-                        && IconButton::new(Icon::CAMERA.size(ICON_SIZE))
-                            .tooltip("Camera")
+                    let mut any_undo_redo = false;
+                    if self.persisted.toolbar.undo || self.toolbar_is_default() {
+                        if IconButton::new(Icon::UNDO.size(16.0))
+                            .tooltip("Undo")
                             .show(ui)
                             .clicked()
-                    {
-                        events.push(Event::Camera);
+                        {
+                            events.push(Event::Undo);
+                        }
+
+                        any_undo_redo = true;
+                    }
+                    if self.persisted.toolbar.redo || self.toolbar_is_default() {
+                        if any_undo_redo {
+                            ui.add_space(5.);
+                        }
+
+                        if IconButton::new(Icon::REDO.size(16.0))
+                            .tooltip("Redo")
+                            .show(ui)
+                            .clicked()
+                        {
+                            events.push(Event::Redo);
+                        }
+
+                        any_undo_redo = true;
+                    }
+                    if any_undo_redo {
+                        add_seperator(ui);
                     }
 
-                    add_seperator(ui);
-
-                    if IconButton::new(Icon::INDENT.size(ICON_SIZE))
-                        .tooltip("Indent")
-                        .show(ui)
-                        .clicked()
-                    {
-                        events.push(Event::Indent { deindent: false });
+                    let mut any_style = false;
+                    if self.persisted.toolbar.heading || self.toolbar_is_default() {
+                        self.heading_button(root, ui).map(|e| events.push(e));
+                        any_style = true;
                     }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
-                        .tooltip("De-indent")
-                        .show(ui)
-                        .clicked()
-                    {
-                        events.push(Event::Indent { deindent: true });
+                    if self.persisted.toolbar.strong || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(Icon::BOLD.size(ICON_SIZE), NodeValue::Strong, root, ui)
+                            .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.emph || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(Icon::ITALIC.size(ICON_SIZE), NodeValue::Emph, root, ui)
+                            .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.code || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::CODE.size(ICON_SIZE),
+                            NodeValue::Code(Default::default()),
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if self.persisted.toolbar.strikethrough || self.toolbar_is_default() {
+                        if any_style {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::STRIKETHROUGH.size(ICON_SIZE),
+                            NodeValue::Strikethrough,
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_style = true;
+                    }
+                    if any_style {
+                        add_seperator(ui);
+                    }
+
+                    let mut any_list = false;
+                    if self.persisted.toolbar.ordered_list || self.toolbar_is_default() {
+                        self.style(
+                            Icon::NUMBER_LIST.size(ICON_SIZE),
+                            NodeValue::List(NodeList {
+                                list_type: ListType::Ordered,
+                                ..Default::default()
+                            }),
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_list = true;
+                    }
+                    if self.persisted.toolbar.unordered_list || self.toolbar_is_default() {
+                        if any_list {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::BULLET_LIST.size(ICON_SIZE),
+                            NodeValue::List(NodeList {
+                                list_type: ListType::Bullet,
+                                ..Default::default()
+                            }),
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_list = true;
+                    }
+                    if self.persisted.toolbar.task_list || self.toolbar_is_default() {
+                        if any_list {
+                            ui.add_space(5.);
+                        }
+                        self.style(
+                            Icon::TODO_LIST.size(ICON_SIZE),
+                            NodeValue::List(NodeList {
+                                list_type: ListType::Bullet,
+                                is_task_list: true,
+                                ..Default::default()
+                            }),
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_list = true;
+                    }
+                    if any_list {
+                        add_seperator(ui);
+                    }
+
+                    let mut any_media = false;
+                    if self.persisted.toolbar.link || self.toolbar_is_default() {
+                        self.style(
+                            Icon::LINK.size(ICON_SIZE),
+                            NodeValue::Link(Default::default()),
+                            root,
+                            ui,
+                        )
+                        .map(|e| events.push(e));
+                        any_media = true;
+                    }
+                    if self.persisted.toolbar.image || self.toolbar_is_default() {
+                        // only supported on iOS (for now)
+                        if is_ios {
+                            if any_media {
+                                ui.add_space(5.);
+                            }
+                            if IconButton::new(Icon::CAMERA.size(ICON_SIZE))
+                                .tooltip("Camera")
+                                .show(ui)
+                                .clicked()
+                            {
+                                events.push(Event::Camera);
+                            }
+                            any_media = true;
+                        }
+                    }
+                    if any_media {
+                        add_seperator(ui);
+                    }
+
+                    let mut any_indent = false;
+                    if self.persisted.toolbar.indent || self.toolbar_is_default() {
+                        if IconButton::new(Icon::INDENT.size(ICON_SIZE))
+                            .tooltip("Indent")
+                            .show(ui)
+                            .clicked()
+                        {
+                            events.push(Event::Indent { deindent: false });
+                        }
+                        any_indent = true;
+                    }
+                    if self.persisted.toolbar.deindent || self.toolbar_is_default() {
+                        if any_indent {
+                            ui.add_space(5.);
+                        }
+                        if IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
+                            .tooltip("De-indent")
+                            .show(ui)
+                            .clicked()
+                        {
+                            events.push(Event::Indent { deindent: true });
+                        }
+                        any_indent = true;
+                    }
+
+                    if is_mobile {
+                        if any_indent {
+                            add_seperator(ui);
+                        }
+
+                        if IconButton::new(Icon::SETTINGS.size(ICON_SIZE))
+                            .tooltip("Toolbar Settings")
+                            .show(ui)
+                            .clicked()
+                        {
+                            self.toolbar.settings_open = !self.toolbar.settings_open;
+                        }
+                        ui.add_space(5.);
                     }
 
                     ui.add_space(ui.available_width());
@@ -246,6 +361,101 @@ impl<'ast> Editor {
         } else {
             None
         }
+    }
+
+    pub fn show_toolbar_settings(&mut self, ui: &mut Ui) {
+        let margin: Margin =
+            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { MARGIN.into() };
+        ScrollArea::vertical()
+            .drag_to_scroll(true)
+            .id_source("toolbar_settings")
+            .show(ui, |ui| {
+                ui.vertical_centered_justified(|ui| {
+                    Frame::canvas(ui.style())
+                        .inner_margin(margin)
+                        .stroke(Stroke::NONE)
+                        .fill(self.theme.bg().neutral_primary)
+                        .show(ui, |ui| {
+                            // store values
+                            let buffer = mem::replace(&mut self.buffer, "==highlight==\n".into());
+                            let paragraphs = mem::take(&mut self.bounds.paragraphs);
+                            let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
+                            let source_lines = mem::take(&mut self.bounds.source_lines);
+                            self.layout_cache.clear(); // non-functional recompute
+
+                            let galleys = mem::take(&mut self.galleys.galleys);
+                            let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
+                            let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+
+                            // parse
+                            let arena = Arena::new();
+                            let options = Self::comrak_options();
+                            let text_with_newline = self.buffer.current.text.to_string() + "\n";
+                            let root = comrak::parse_document(&arena, &text_with_newline, &options);
+                            print_ast(root);
+
+                            // pre-render work
+                            self.calc_source_lines();
+                            self.compute_bounds(root);
+                            self.bounds.paragraphs.sort();
+                            self.bounds.inline_paragraphs.sort();
+                            self.calc_words();
+
+                            let scroll_view_height = ui.max_rect().height();
+                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+                            let padding = (ui.available_width() - self.width) / 2.;
+
+                            let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+                            let height = {
+                                let document_height = self.height(root);
+                                let unfilled_space = if document_height < scroll_view_height {
+                                    scroll_view_height - document_height
+                                } else {
+                                    0.
+                                };
+
+                                document_height + unfilled_space
+                            };
+                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
+                            let rect = rect.expand2(Vec2::X * margin.left); // clickable margins (more forgivable to click beginning of line)
+
+                            ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
+                            let focused = self.focused(ui.ctx());
+                            let response = ui.interact(
+                                rect,
+                                self.id(),
+                                Sense { click: true, drag: !self.touch_mode, focusable: true },
+                            );
+                            if focused && !self.focused(ui.ctx()) {
+                                // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
+                                self.focus(ui.ctx());
+                            }
+                            let response_properly_clicked =
+                                response.clicked() && !response.fake_primary_click;
+                            if response.hovered() || response_properly_clicked {
+                                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
+                                // overridable by widgets
+                            }
+
+                            ui.advance_cursor_after_rect(rect);
+
+                            ui.allocate_ui_at_rect(rect, |ui| {
+                                self.show_block(ui, root, top_left);
+                            });
+
+                            // restore stored value
+                            self.buffer = buffer;
+                            self.bounds.paragraphs = paragraphs;
+                            self.bounds.inline_paragraphs = inline_paragraphs;
+                            self.bounds.source_lines = source_lines;
+
+                            self.galleys.galleys = galleys;
+                            self.bounds.wrap_lines = wrap_lines;
+                            self.touch_consuming_rects = touch_consuming_rects;
+                        });
+                });
+                self.galleys.galleys.sort_by_key(|g| g.range);
+            });
     }
 }
 
