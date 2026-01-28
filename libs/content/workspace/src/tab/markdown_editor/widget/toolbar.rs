@@ -461,12 +461,13 @@ impl<'ast> Editor {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            let mut tl = ui.max_rect().min + padding * Vec2::X;
-                            let mdw = self.width - MENU_MARGIN;
+                            let mut top_left =
+                                ui.max_rect().min + (padding + MENU_MARGIN) * Vec2::X;
+                            let md_width = self.width - 2. * MENU_MARGIN;
 
                             // page title
                             ui.add_space(MENU_SPACE);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             ui.vertical_centered_justified(|ui| {
                                 let font =
@@ -474,18 +475,18 @@ impl<'ast> Editor {
                                 Label::new(RichText::from("Show / Hide Toolbar Buttons").font(font))
                                     .ui(ui)
                             });
-                            tl.y += ui.text_style_height(&egui::TextStyle::Heading)
+                            top_left.y += ui.text_style_height(&egui::TextStyle::Heading)
                                 + ui.spacing().item_spacing.y;
 
                             ui.add_space(MENU_SPACE);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             // undo / redo
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "Undo",
                                     IconButton::new(Icon::UNDO.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.undo),
@@ -494,13 +495,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.undo ^= true;
                             }
-                            tl.y += self.menu_toggle_height("Undo");
+                            top_left.y += self.menu_toggle_height("Undo");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "Redo",
                                     IconButton::new(Icon::REDO.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.redo),
@@ -509,17 +510,17 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.redo ^= true;
                             }
-                            tl.y += self.menu_toggle_height("Redo");
+                            top_left.y += self.menu_toggle_height("Redo");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             // styles
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "### Heading",
                                     IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.heading),
@@ -528,13 +529,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.heading ^= true;
                             }
-                            tl.y += self.menu_toggle_height("### Heading");
+                            top_left.y += self.menu_toggle_height("### Heading");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "**Bold**",
                                     IconButton::new(Icon::BOLD.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.bold),
@@ -543,13 +544,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.bold ^= true;
                             }
-                            tl.y += self.menu_toggle_height("**Bold**");
+                            top_left.y += self.menu_toggle_height("**Bold**");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "*Italic*",
                                     IconButton::new(Icon::ITALIC.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.emph),
@@ -558,13 +559,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.emph ^= true;
                             }
-                            tl.y += self.menu_toggle_height("*Italic*");
+                            top_left.y += self.menu_toggle_height("*Italic*");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "`Code`",
                                     IconButton::new(Icon::CODE.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.code),
@@ -573,13 +574,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.code ^= true;
                             }
-                            tl.y += self.menu_toggle_height("`Code`");
+                            top_left.y += self.menu_toggle_height("`Code`");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "~~Strikethrough~~",
                                     IconButton::new(Icon::STRIKETHROUGH.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.strikethrough),
@@ -588,13 +589,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.strikethrough ^= true;
                             }
-                            tl.y += self.menu_toggle_height("~~Strikethrough~~");
+                            top_left.y += self.menu_toggle_height("~~Strikethrough~~");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "==Highlight==",
                                     IconButton::new(Icon::HIGHLIGHT.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.highlight),
@@ -603,13 +604,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.highlight ^= true;
                             }
-                            tl.y += self.menu_toggle_height("==Highlight==");
+                            top_left.y += self.menu_toggle_height("==Highlight==");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "__Underline__",
                                     IconButton::new(Icon::UNDERLINE.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.underline),
@@ -618,13 +619,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.underline ^= true;
                             }
-                            tl.y += self.menu_toggle_height("__Underline__");
+                            top_left.y += self.menu_toggle_height("__Underline__");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "||Spoiler||",
                                     IconButton::new(Icon::SPOILER.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.spoiler),
@@ -633,13 +634,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.spoiler ^= true;
                             }
-                            tl.y += self.menu_toggle_height("||Spoiler||");
+                            top_left.y += self.menu_toggle_height("||Spoiler||");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "~Subscript~",
                                     IconButton::new(Icon::SUBSCRIPT.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.subscript),
@@ -648,13 +649,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.subscript ^= true;
                             }
-                            tl.y += self.menu_toggle_height("~Subscript~");
+                            top_left.y += self.menu_toggle_height("~Subscript~");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "^Superscript^",
                                     IconButton::new(Icon::SUPERSCRIPT.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.superscript),
@@ -663,17 +664,17 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.superscript ^= true;
                             }
-                            tl.y += self.menu_toggle_height("^Superscript^");
+                            top_left.y += self.menu_toggle_height("^Superscript^");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             // lists
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "1. Ordered List",
                                     IconButton::new(Icon::NUMBER_LIST.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.ordered_list),
@@ -682,13 +683,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.ordered_list ^= true;
                             }
-                            tl.y += self.menu_toggle_height("1. Ordered List");
+                            top_left.y += self.menu_toggle_height("1. Ordered List");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "- Unordered List",
                                     IconButton::new(Icon::BULLET_LIST.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.unordered_list),
@@ -697,13 +698,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.unordered_list ^= true;
                             }
-                            tl.y += self.menu_toggle_height("- Unordered List");
+                            top_left.y += self.menu_toggle_height("- Unordered List");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "- [ ] Task List",
                                     IconButton::new(Icon::TODO_LIST.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.task_list),
@@ -712,17 +713,17 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.task_list ^= true;
                             }
-                            tl.y += self.menu_toggle_height("- [ ] Task List");
+                            top_left.y += self.menu_toggle_height("- [ ] Task List");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             // media
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "[Link](url)",
                                     IconButton::new(Icon::LINK.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.link),
@@ -731,13 +732,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.link ^= true;
                             }
-                            tl.y += self.menu_toggle_height("[Link](url)");
+                            top_left.y += self.menu_toggle_height("[Link](url)");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "![Image](url)",
                                     IconButton::new(Icon::CAMERA.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.image),
@@ -746,17 +747,17 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.image ^= true;
                             }
-                            tl.y += self.menu_toggle_height("![Image](url)");
+                            top_left.y += self.menu_toggle_height("![Image](url)");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
-                            tl.y += MENU_SPACE;
+                            top_left.y += MENU_SPACE;
 
                             // indent
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "Indent",
                                     IconButton::new(Icon::INDENT.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.indent),
@@ -765,13 +766,13 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.indent ^= true;
                             }
-                            tl.y += self.menu_toggle_height("Indent");
+                            top_left.y += self.menu_toggle_height("Indent");
 
                             if self
                                 .menu_toggle(
                                     ui,
-                                    tl,
-                                    mdw,
+                                    top_left,
+                                    md_width,
                                     "De-indent",
                                     IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
                                         .colored(self.persisted.toolbar.deindent),
@@ -780,16 +781,16 @@ impl<'ast> Editor {
                             {
                                 self.persisted.toolbar.deindent ^= true;
                             }
-                            tl.y += self.menu_toggle_height("De-indent");
+                            top_left.y += self.menu_toggle_height("De-indent");
 
                             // fill remaining space
-                            let cumulative_height = tl.y - ui.max_rect().min.y;
+                            let cumulative_height = top_left.y - ui.max_rect().min.y;
                             let height = if cumulative_height < scroll_view_height {
                                 scroll_view_height - cumulative_height
                             } else {
                                 0.
                             };
-                            let rect = Rect::from_min_size(tl, Vec2::new(self.width, height));
+                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
                             ui.advance_cursor_after_rect(rect);
                         });
@@ -810,17 +811,20 @@ impl<'ast> Editor {
         let height = md_height.max(40.);
 
         let margin = (height - md_height) / 2.;
-        let md_top_left = top_left + MENU_MARGIN * Vec2::X + margin * Vec2::Y;
+        let md_top_left = top_left + margin * Vec2::Y;
         self.markdown_label(ui, md_top_left, width, md);
-        ui.allocate_ui_with_layout(
-            Vec2::new(ui.available_width(), height),
+
+        let padding = (ui.max_rect().width() - width) / 2.;
+        let resp = ui.allocate_ui_with_layout(
+            Vec2::new(width, height),
             Layout::right_to_left(egui::Align::Center),
             |ui| {
-                ui.add_space(MENU_MARGIN);
+                ui.add_space(padding);
                 icon_button.show(ui)
             },
-        )
-        .inner
+        );
+
+        resp.inner
     }
 
     pub fn markdown_label_height(&mut self, md: &str) -> f32 {

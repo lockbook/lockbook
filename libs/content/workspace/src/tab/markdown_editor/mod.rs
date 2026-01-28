@@ -600,8 +600,11 @@ impl Editor {
     fn show_scrollable_editor<'a>(
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
-        let margin: Margin =
-            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
+        let margin: Margin = if cfg!(target_os = "android") {
+            Margin::symmetric(0.0, 60.0)
+        } else {
+            Margin::symmetric(0.0, 15.0)
+        };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
