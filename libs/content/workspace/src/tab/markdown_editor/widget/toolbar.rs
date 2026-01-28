@@ -829,10 +829,11 @@ impl<'ast> Editor {
 
     pub fn markdown_label_height(&mut self, md: &str) -> f32 {
         // store values
+        let source_lines = mem::take(&mut self.bounds.source_lines);
         let buffer = mem::replace(&mut self.buffer, md.into());
         let paragraphs = mem::take(&mut self.bounds.paragraphs);
         let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
-        let source_lines = mem::take(&mut self.bounds.source_lines);
+        self.calc_words();
         self.layout_cache.clear(); // non-functional recompute
 
         let galleys = mem::take(&mut self.galleys.galleys);
@@ -862,9 +863,10 @@ impl<'ast> Editor {
 
         // restore stored values
         self.buffer = buffer;
+        self.bounds.source_lines = source_lines;
         self.bounds.paragraphs = paragraphs;
         self.bounds.inline_paragraphs = inline_paragraphs;
-        self.bounds.source_lines = source_lines;
+        self.calc_words();
         self.layout_cache.clear(); // non-functional recompute
 
         self.galleys.galleys = galleys;
@@ -877,9 +879,10 @@ impl<'ast> Editor {
     pub fn markdown_label(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str) {
         // store values
         let buffer = mem::replace(&mut self.buffer, md.into());
+        let source_lines = mem::take(&mut self.bounds.source_lines);
         let paragraphs = mem::take(&mut self.bounds.paragraphs);
         let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
-        let source_lines = mem::take(&mut self.bounds.source_lines);
+        self.calc_words();
         self.layout_cache.clear(); // non-functional recompute
 
         let galleys = mem::take(&mut self.galleys.galleys);
@@ -912,9 +915,10 @@ impl<'ast> Editor {
 
         // restore stored values
         self.buffer = buffer;
+        self.bounds.source_lines = source_lines;
         self.bounds.paragraphs = paragraphs;
         self.bounds.inline_paragraphs = inline_paragraphs;
-        self.bounds.source_lines = source_lines;
+        self.calc_words();
         self.layout_cache.clear(); // non-functional recompute
 
         self.galleys.galleys = galleys;
