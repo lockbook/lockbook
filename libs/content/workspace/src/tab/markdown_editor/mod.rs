@@ -37,7 +37,6 @@ pub mod bounds;
 mod galleys;
 pub mod input;
 pub mod output;
-mod style;
 mod theme;
 mod widget;
 

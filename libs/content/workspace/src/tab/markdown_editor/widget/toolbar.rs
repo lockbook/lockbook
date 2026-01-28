@@ -1,11 +1,11 @@
 use std::time::{Duration, Instant};
 
-use comrak::nodes::{AstNode, NodeHeading, NodeValue};
+use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
 use egui::scroll_area::ScrollBarVisibility;
 use egui::{Frame, Margin, ScrollArea, Separator, Stroke, Ui};
 use lb_rs::model::text::offset_types::RangeExt as _;
-use pulldown_cmark::{HeadingLevel, LinkType};
 
+use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
@@ -13,7 +13,6 @@ use crate::widgets::IconButton;
 use crate::tab::markdown_editor::{self, Editor};
 use markdown_editor::Event;
 use markdown_editor::input::Region;
-use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 pub const ICON_SIZE: f32 = 16.0;
@@ -80,18 +79,23 @@ impl<'ast> Editor {
 
                     self.heading_button(root, ui).map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(Icon::BOLD.size(ICON_SIZE), InlineNode::Bold, root, ui)
+                    self.style(Icon::BOLD.size(ICON_SIZE), NodeValue::Strong, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(Icon::ITALIC.size(ICON_SIZE), InlineNode::Italic, root, ui)
+                    self.style(Icon::ITALIC.size(ICON_SIZE), NodeValue::Emph, root, ui)
                         .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(Icon::CODE.size(ICON_SIZE), InlineNode::Code, root, ui)
-                        .map(|e| events.push(e));
+                    self.style(
+                        Icon::CODE.size(ICON_SIZE),
+                        NodeValue::Code(Default::default()),
+                        root,
+                        ui,
+                    )
+                    .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.inline(
+                    self.style(
                         Icon::STRIKETHROUGH.size(ICON_SIZE),
-                        InlineNode::Strikethrough,
+                        NodeValue::Strikethrough,
                         root,
                         ui,
                     )
@@ -99,25 +103,35 @@ impl<'ast> Editor {
 
                     add_seperator(ui);
 
-                    self.block(
+                    self.style(
                         Icon::NUMBER_LIST.size(ICON_SIZE),
-                        BlockNode::ListItem(ListItem::Numbered(1), 0),
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Ordered,
+                            ..Default::default()
+                        }),
                         root,
                         ui,
                     )
                     .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.block(
+                    self.style(
                         Icon::BULLET_LIST.size(ICON_SIZE),
-                        BlockNode::ListItem(ListItem::Bulleted, 0),
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            ..Default::default()
+                        }),
                         root,
                         ui,
                     )
                     .map(|e| events.push(e));
                     ui.add_space(5.);
-                    self.block(
+                    self.style(
                         Icon::TODO_LIST.size(ICON_SIZE),
-                        BlockNode::ListItem(ListItem::Todo(false), 0),
+                        NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            is_task_list: true,
+                            ..Default::default()
+                        }),
                         root,
                         ui,
                     )
@@ -125,9 +139,9 @@ impl<'ast> Editor {
 
                     add_seperator(ui);
 
-                    self.inline(
+                    self.style(
                         Icon::LINK.size(ICON_SIZE),
-                        InlineNode::Link(LinkType::Inline, "".into(), "".into()),
+                        NodeValue::Link(Default::default()),
                         root,
                         ui,
                     )
@@ -184,7 +198,7 @@ impl<'ast> Editor {
                     .node_range(node)
                     .contains_range(&self.buffer.current.selection, true, true)
                 {
-                    current_heading_level = *level as usize;
+                    current_heading_level = *level;
                     applied = true;
                     break;
                 }
@@ -196,13 +210,11 @@ impl<'ast> Editor {
         } else {
             current_heading_level.min(5) + 1
         };
-        let style = MarkdownNode::Block(BlockNode::Heading(
-            HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
-        ));
+        let style = NodeValue::Heading(NodeHeading { level, ..Default::default() });
 
         let resp = IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
             .colored(applied)
-            .tooltip(format!("{style}"))
+            .tooltip(style.name())
             .show(ui);
         if resp.clicked() {
             self.toolbar.heading_last_click_at = Instant::now();
@@ -212,24 +224,22 @@ impl<'ast> Editor {
         }
     }
 
-    fn inline(
-        &self, icon: Icon, style: InlineNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
+    fn style(
+        &self, icon: Icon, style: NodeValue, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
-        let applied = self.inline_styled(root, self.buffer.current.selection, &style);
-        self.button(icon, MarkdownNode::Inline(style), applied, ui)
+        let applied = if style.is_inline() {
+            self.inline_styled(root, self.buffer.current.selection, &style)
+        } else {
+            self.unapply_block(root, &style)
+        };
+
+        self.button(icon, style, applied, ui)
     }
 
-    fn block(
-        &self, icon: Icon, style: BlockNode, root: &'ast AstNode<'ast>, ui: &mut Ui,
-    ) -> Option<Event> {
-        let applied = self.unapply_block(root, &style);
-        self.button(icon, MarkdownNode::Block(style), applied, ui)
-    }
-
-    fn button(&self, icon: Icon, style: MarkdownNode, applied: bool, ui: &mut Ui) -> Option<Event> {
+    fn button(&self, icon: Icon, style: NodeValue, applied: bool, ui: &mut Ui) -> Option<Event> {
         let resp = IconButton::new(icon)
             .colored(applied)
-            .tooltip(format!("{style}"))
+            .tooltip(style.name())
             .show(ui);
         if resp.clicked() {
             Some(Event::ToggleStyle { region: Region::Selection, style })
@@ -245,4 +255,65 @@ fn add_seperator(ui: &mut Ui) {
             .shrink(ui.available_height() * 0.3)
             .spacing(20.),
     );
+}
+
+trait Name {
+    fn name(&self) -> &'static str;
+}
+
+impl Name for NodeValue {
+    fn name(&self) -> &'static str {
+        match self {
+            NodeValue::Document => "",
+            NodeValue::FrontMatter(_) => "",
+            NodeValue::BlockQuote => "Quote",
+            NodeValue::List(NodeList {
+                list_type: ListType::Bullet, is_task_list: false, ..
+            }) => "Bulleted List",
+            NodeValue::List(NodeList { list_type: ListType::Ordered, .. }) => "Numbered List",
+            NodeValue::List(NodeList {
+                list_type: ListType::Bullet, is_task_list: true, ..
+            }) => "Task List",
+            NodeValue::Item(_) => "Item",
+            NodeValue::DescriptionList => "",
+            NodeValue::DescriptionItem(_) => "",
+            NodeValue::DescriptionTerm => "",
+            NodeValue::DescriptionDetails => "",
+            NodeValue::CodeBlock(_) => "",
+            NodeValue::HtmlBlock(_) => "",
+            NodeValue::Paragraph => "",
+            NodeValue::Heading(_) => "Heading",
+            NodeValue::ThematicBreak => "",
+            NodeValue::FootnoteDefinition(_) => "",
+            NodeValue::Table(_) => "",
+            NodeValue::TableRow(_) => "",
+            NodeValue::TableCell => "",
+            NodeValue::Text(_) => "",
+            NodeValue::TaskItem(_) => "",
+            NodeValue::SoftBreak => "",
+            NodeValue::LineBreak => "",
+            NodeValue::Code(_) => "Code",
+            NodeValue::HtmlInline(_) => "",
+            NodeValue::Raw(_) => "",
+            NodeValue::Emph => "Italic",
+            NodeValue::Strong => "Bold",
+            NodeValue::Strikethrough => "Strikethrough",
+            NodeValue::Highlight => "Highlight",
+            NodeValue::Superscript => "Superscript",
+            NodeValue::Link(_) => "Link",
+            NodeValue::Image(_) => "Image",
+            NodeValue::FootnoteReference(_) => "",
+            NodeValue::ShortCode(_) => "",
+            NodeValue::Math(_) => "",
+            NodeValue::MultilineBlockQuote(_) => "",
+            NodeValue::Escaped => "",
+            NodeValue::WikiLink(_) => "",
+            NodeValue::Underline => "Underline",
+            NodeValue::Subscript => "Subscript",
+            NodeValue::SpoileredText => "SpoileredText",
+            NodeValue::EscapedTag(_) => "",
+            NodeValue::Alert(_) => "",
+            NodeValue::Subtext => "",
+        }
+    }
 }
