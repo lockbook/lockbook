@@ -2,8 +2,8 @@ use lb_rs::Lb;
 use lb_rs::service::activity::RankingWeights;
 use test_utils::*;
 use tokio::time;
-use tokio::time::Duration;
 use uuid::Uuid;
+use web_time::Duration;
 
 #[tokio::test]
 async fn suggest_docs() {

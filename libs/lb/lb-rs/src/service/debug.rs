@@ -9,7 +9,9 @@ use std::env;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use time::Duration;
+#[cfg(not(target_family = "wasm"))]
 use tokio::fs::{self, OpenOptions};
+#[cfg(not(target_family = "wasm"))]
 use tokio::io::AsyncWriteExt;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -80,6 +82,7 @@ impl Lb {
         now.format("%Y-%m-%d %H:%M:%S %Z").to_string()
     }
 
+    #[cfg(not(target_family = "wasm"))]
     async fn collect_panics(&self, populate_content: bool) -> LbResult<Vec<PanicInfo>> {
         let mut panics = vec![];
 
@@ -120,6 +123,7 @@ impl Lb {
     }
 
     /// returns true if we have crashed within the last 5 seconds
+    #[cfg(not(target_family = "wasm"))]
     pub async fn recent_panic(&self) -> LbResult<bool> {
         let panics = self.collect_panics(false).await?;
         for panic in panics {
@@ -139,6 +143,7 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
+    #[cfg(not(target_family = "wasm"))]
     pub async fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
         let file_name = generate_panic_filename(&self.config.writeable_path);
         let content = generate_panic_content(&error_header, &bt);
@@ -155,6 +160,7 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
+    #[cfg(not(target_family = "wasm"))]
     pub async fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 

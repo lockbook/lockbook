@@ -12,7 +12,7 @@ mod shapes;
 mod toolbar;
 mod util;
 
-use std::time::Instant;
+use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;

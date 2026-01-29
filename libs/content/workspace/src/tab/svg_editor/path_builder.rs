@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
-use std::time::Instant;
+
+use web_time::Instant;
 
 use bezier_rs::{Bezier, Subpath};
 use glam::DVec2;

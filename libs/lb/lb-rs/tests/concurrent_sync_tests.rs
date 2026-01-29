@@ -1,8 +1,8 @@
 use lb_rs::Lb;
 use std::future::IntoFuture;
 use std::thread;
-use std::time::{Duration, SystemTime};
 use test_utils::{random_name, test_config, test_core_with_account, url};
+use web_time::{Duration, SystemTime};
 
 #[tokio::test]
 #[ignore]

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mt-24 ml-48 text-egshell max-sm:ml-0 max-sm:px-7">
+  <div class="relative">
+    <h1 class="mb-2 text-4xl font-bold text-egshell ">{{ section.title }}</h1>
+    <h2 class="mb-16 text-sm">Technical details about how we build lockbook - a look between the pages</h2>  
+    <span class=" -z-10 pointer-events-none  w-[44rem]  h-[44rem] left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[48%] bg-[radial-gradient(at_center,_theme('colors.surfline')_-130%,_transparent_30%)]"></span>
+  </div>
+  
+  <ul class="list-disc list-inside">
+    {% for page in section.pages %}
+    <li class="mt-2"><a class="text-xs underline text-egshell" href="{{ page.permalink | safe }}">{{ page.title }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+
+{% endblock content %}

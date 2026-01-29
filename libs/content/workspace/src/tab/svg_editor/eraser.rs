@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
@@ -14,7 +14,7 @@ pub struct Eraser {
     last_pos: Option<egui::Pos2>,
     is_building: bool,
     build_touch_id: Option<egui::TouchId>,
-    first_build_frame: Option<std::time::Instant>,
+    first_build_frame: Option<web_time::Instant>,
 }
 
 impl Default for Eraser {
