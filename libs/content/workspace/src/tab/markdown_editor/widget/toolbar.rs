@@ -457,6 +457,8 @@ impl<'ast> Editor {
                             // setup
                             ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
 
+                            let is_ios = cfg!(target_os = "ios");
+
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
                             let padding = (ui.available_width() - self.width) / 2.;
@@ -746,20 +748,22 @@ impl<'ast> Editor {
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
 
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
-                                    "![Image](url)",
-                                    IconButton::new(Icon::CAMERA.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.image),
-                                )
-                                .clicked()
-                            {
-                                self.persisted.toolbar.image ^= true;
+                            if is_ios {
+                                if self
+                                    .menu_toggle(
+                                        ui,
+                                        top_left,
+                                        md_width,
+                                        "![Image](url)",
+                                        IconButton::new(Icon::CAMERA.size(ICON_SIZE))
+                                            .colored(self.persisted.toolbar.image),
+                                    )
+                                    .clicked()
+                                {
+                                    self.persisted.toolbar.image ^= true;
+                                }
+                                top_left.y += self.menu_toggle_height("![Image](url)");
                             }
-                            top_left.y += self.menu_toggle_height("![Image](url)");
 
                             Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;
