@@ -63,7 +63,7 @@ impl Toolbar {
                     }
 
                     let highlighter_btn = Button::default()
-                        .icon(&Icon::HIGHLIGHTER.size(tool_icon_size))
+                        .icon(&Icon::PENCIL.size(tool_icon_size))
                         .show(ui);
                     if highlighter_btn.clicked() || highlighter_btn.drag_started() {
                         set_tool!(self, Tool::Highlighter);

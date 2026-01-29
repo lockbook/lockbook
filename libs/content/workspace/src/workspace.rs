@@ -875,7 +875,7 @@ impl WsPersistentStore {
     }
 
     pub fn get_markdown(&mut self) -> MdPersistence {
-        self.data.read().unwrap().markdown
+        self.data.read().unwrap().markdown.clone()
     }
 
     pub fn get_auto_sync(&self) -> bool {

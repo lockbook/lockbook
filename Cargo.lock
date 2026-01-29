@@ -6171,17 +6171,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
-name = "pulldown-cmark"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57206b407293d2bcd3af849ce869d52068623f19e1b5ff8e8778e3309439682b"
-dependencies = [
- "bitflags 2.10.0",
- "memchr",
- "unicase",
-]
-
-[[package]]
 name = "pxfm"
 version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9432,7 +9421,6 @@ dependencies = [
  "ndk-sys 0.4.1+23.1.7779620",
  "num_cpus",
  "pollster 0.2.5",
- "pulldown-cmark",
  "rand 0.8.5",
  "raw-window-handle 0.6.2",
  "rayon",

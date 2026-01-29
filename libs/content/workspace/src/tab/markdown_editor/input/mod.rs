@@ -4,11 +4,10 @@ pub mod cursor;
 pub mod events;
 pub mod mutation;
 
+use comrak::nodes::NodeValue;
 use egui::Pos2;
 
-use crate::tab::markdown_editor;
 use lb_rs::model::text::offset_types::DocCharOffset;
-use markdown_editor::style::MarkdownNode;
 
 /*
  * This module processes input events, with the following major concerns:
@@ -96,7 +95,7 @@ pub enum Region {
 pub enum Event {
     Select { region: Region },
     Replace { region: Region, text: String, advance_cursor: bool }, // replace region with text and optionally advance cursor to end of new text
-    ToggleStyle { region: Region, style: MarkdownNode }, // supports toolbar and inline tyle keyboard shortcuts
+    ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
@@ -108,8 +107,7 @@ pub enum Event {
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,
-    Link { region: Region, url: String }, // turn the region into a markdown link to the given url
-    Camera,                               // launch camera on platform
+    Camera, // launch camera on platform
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {
