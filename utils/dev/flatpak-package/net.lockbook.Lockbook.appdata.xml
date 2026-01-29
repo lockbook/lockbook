@@ -6,7 +6,7 @@
   <summary>Lockbook is an open source note taking app.</summary>
 
   <metadata_license>MIT</metadata_license>
-  <project_license>MIT</project_license>
+  <project_license>Unlicense</project_license>
 
   <supports>
     <control>pointing</control>
