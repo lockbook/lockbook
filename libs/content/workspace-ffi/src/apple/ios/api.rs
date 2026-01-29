@@ -624,8 +624,12 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect)
     };
 
-    let start_line = markdown.cursor_line(selection_representing_rect.start());
-    let end_line = markdown.cursor_line(selection_representing_rect.end());
+    let Some(start_line) = markdown.cursor_line(selection_representing_rect.start()) else {
+        return CRect::default();
+    };
+    let Some(end_line) = markdown.cursor_line(selection_representing_rect.end()) else {
+        return CRect::default();
+    };
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -695,7 +699,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let line = markdown.cursor_line(pos.pos.into());
+    let Some(line) = markdown.cursor_line(pos.pos.into()) else { return CRect::default() };
 
     CRect {
         min_x: line[0].x as f64,

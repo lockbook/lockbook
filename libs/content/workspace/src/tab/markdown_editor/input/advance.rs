@@ -15,7 +15,7 @@ pub trait AdvanceExt {
         segs: &UnicodeSegs, galleys: &Galleys, bounds: &Bounds,
     ) -> Self;
     fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self;
-    fn x(self, galleys: &Galleys) -> f32;
+    fn x(self, galleys: &Galleys) -> Option<f32>;
 }
 
 impl AdvanceExt for DocCharOffset {
@@ -30,7 +30,10 @@ impl AdvanceExt for DocCharOffset {
             Offset::By(Increment::Lines(n)) => {
                 let mut result = self;
                 for _ in 0..n {
-                    let x_target = maybe_x_target_value.unwrap_or(result.x(galleys));
+                    let Some(result_x) = result.x(galleys) else {
+                        break;
+                    };
+                    let x_target = maybe_x_target_value.unwrap_or(result_x);
                     result = result.advance_by_line(x_target, backwards, galleys);
                     if result != 0 && result != segs.last_cursor_position() {
                         *maybe_x_target = Some(x_target);
@@ -42,7 +45,9 @@ impl AdvanceExt for DocCharOffset {
     }
 
     fn advance_by_line(self, x_target: f32, backwards: bool, galleys: &Galleys) -> Self {
-        let (cur_galley_idx, cur_ecursor) = galleys.galley_and_cursor_by_offset(self);
+        let Some((cur_galley_idx, cur_ecursor)) = galleys.galley_and_cursor_by_offset(self) else {
+            return self;
+        };
         let cur_galley = &galleys[cur_galley_idx];
         if backwards {
             let at_top_of_cur_galley = cur_ecursor.rcursor.row == 0;
@@ -147,9 +152,9 @@ impl AdvanceExt for DocCharOffset {
     }
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
-    fn x(self, galleys: &Galleys) -> f32 {
-        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_offset(self);
+    fn x(self, galleys: &Galleys) -> Option<f32> {
+        let (cur_galley_idx, cur_cursor) = galleys.galley_and_cursor_by_offset(self)?;
         let cur_galley = &galleys[cur_galley_idx];
-        cursor::x_impl(cur_galley, cur_cursor)
+        Some(cursor::x_impl(cur_galley, cur_cursor))
     }
 }

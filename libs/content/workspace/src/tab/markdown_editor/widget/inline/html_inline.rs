@@ -20,12 +20,20 @@ impl<'ast> Editor {
     pub fn span_html_inline(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
-        if self.foldee(node).is_some() {
+        let node_range = self.node_range(node).trim(&range);
+        let reveal = self.node_intersects_selection(node);
+
+        // html comments not rendered unless revealed
+        let node_text = &self.buffer[node_range];
+        if !self.node_intersects_selection(node)
+            && node_text.starts_with("<!--")
+            && node_text.ends_with("-->")
+        {
             return 0.;
         }
 
-        let node_range = self.node_range(node).trim(&range);
-        let text_format = self.text_format(node);
+        let text_format =
+            if reveal { self.text_format_syntax(node) } else { self.text_format(node) };
 
         let mut tmp_wrap = wrap.clone();
 
@@ -49,22 +57,27 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        if self.foldee(node).is_some() {
+        let node_range = self.node_range(node).trim(&range);
+        let reveal = self.node_intersects_selection(node);
+
+        // html comments not rendered unless revealed
+        let node_text = &self.buffer[node_range];
+        if !reveal && node_text.starts_with("<!--") && node_text.ends_with("-->") {
             return Default::default();
         }
-
-        let node_range = self.node_range(node).trim(&range);
 
         let mut response = Default::default();
 
         if !node_range.is_empty() {
             let sense = self.sense_inline(ui, node);
+            let text_format =
+                if reveal { self.text_format_syntax(node) } else { self.text_format(node) };
             response |= self.show_override_section(
                 ui,
                 top_left,
                 wrap,
                 node_range,
-                self.text_format(node),
+                text_format,
                 false,
                 None,
                 sense,
