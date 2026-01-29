@@ -179,7 +179,7 @@ impl<'ast> Editor {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
                 let icon = Icon::CHEVRON_RIGHT
                     .size(fold_button_size)
-                    .color(self.theme.fg().neutral_quarternary);
+                    .color(self.theme.fg().accent_secondary);
                 if IconButton::new(icon)
                     .tooltip("Show Contents")
                     .show(ui)
