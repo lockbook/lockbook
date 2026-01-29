@@ -25,6 +25,13 @@ impl<'ast> Editor {
         }
 
         let node_range = self.node_range(node).trim(&range);
+
+        // html comments not rendered
+        let node_text = &self.buffer[node_range];
+        if node_text.starts_with("<!--") && node_text.ends_with("-->") {
+            return 0.;
+        }
+
         let text_format = self.text_format(node);
 
         let mut tmp_wrap = wrap.clone();
@@ -54,6 +61,12 @@ impl<'ast> Editor {
         }
 
         let node_range = self.node_range(node).trim(&range);
+
+        // html comments not rendered
+        let node_text = &self.buffer[node_range];
+        if node_text.starts_with("<!--") && node_text.ends_with("-->") {
+            return Default::default();
+        }
 
         let mut response = Default::default();
 
