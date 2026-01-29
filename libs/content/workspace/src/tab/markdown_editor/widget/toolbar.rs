@@ -443,6 +443,8 @@ impl<'ast> Editor {
     }
 
     pub fn show_toolbar_menu(&mut self, ui: &mut Ui) {
+        let margin: Margin =
+            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
         ScrollArea::vertical()
             .drag_to_scroll(true)
             .id_source("toolbar_settings")
@@ -450,7 +452,7 @@ impl<'ast> Editor {
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
-                        .inner_margin(Margin::ZERO)
+                        .inner_margin(margin)
                         .stroke(Stroke::NONE)
                         .fill(self.theme.bg().neutral_primary)
                         .show(ui, |ui| {
