@@ -11,7 +11,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterEx
 use markdown_editor::Editor;
 use markdown_editor::input::{Event, Region};
 
-use super::{Bound, Location, mutation};
+use super::{Bound, Location};
 
 impl<'ast> Editor {
     pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> Response {
@@ -184,7 +184,7 @@ impl<'ast> Editor {
             } else if response.clicked() {
                 // android native context menu: tapped selection
                 if cfg!(target_os = "android") {
-                    let offset = mutation::pos_to_char_offset(pos, &self.galleys);
+                    let offset = self.pos_to_char_offset(pos);
                     if self.buffer.current.selection.contains(offset, true, true) {
                         ctx.set_context_menu(
                             self.context_menu_pos(self.buffer.current.selection)

@@ -5,9 +5,7 @@ use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::{
-    Bound, Event, Increment, Offset, Region, mutation,
-};
+use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
@@ -665,10 +663,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let galleys = &markdown.galleys;
-
-    let offset =
-        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
+    let offset = markdown.pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 });
 
     CTextPosition { none: false, pos: offset.0 }
 }
