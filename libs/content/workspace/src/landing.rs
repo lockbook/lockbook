@@ -3,7 +3,8 @@ use egui::{
     Rect, RichText, Stroke, Ui, Vec2,
 };
 use lb_rs::Uuid;
-use lb_rs::model::file::ShareMode;
+use lb_rs::model::account::Account;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::usage::bytes_to_human;
 use serde::{Deserialize, Serialize};
 use std::f32;
@@ -11,7 +12,7 @@ use std::ops::BitOrAssign;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::file_cache::FilesExt;
+use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
@@ -488,14 +489,7 @@ impl Workspace {
         response
     }
 
-    /// Files table with columns that you click to select a sort key
-    fn show_files(&mut self, ui: &mut egui::Ui) -> Response {
-        let mut response = Response::default();
-
-        let (Some(files), Some(account)) = (&self.files, &self.account) else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
+    fn filtered_sorted_files<'a>(&self, files: &'a FileCache, account: &Account) -> Vec<&'a File> {
         let folder = files
             .files
             .get_by_id(self.effective_focused_parent())
@@ -599,6 +593,19 @@ impl Workspace {
         if !self.landing_page.sort_asc {
             descendents.reverse()
         }
+
+        descendents
+    }
+
+    /// Files table with columns that you click to select a sort key
+    fn show_files(&mut self, ui: &mut egui::Ui) -> Response {
+        let mut response = Response::default();
+
+        let (Some(files), Some(account)) = (&self.files, &self.account) else {
+            ui.ctx().request_repaint_after(Duration::from_millis(8));
+            return response;
+        };
+        let descendents = self.filtered_sorted_files(files, account);
 
         // Show
         if !descendents.is_empty() {
