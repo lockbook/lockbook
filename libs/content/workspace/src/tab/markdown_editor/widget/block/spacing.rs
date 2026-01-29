@@ -132,10 +132,6 @@ impl<'ast> Editor {
             // table rows never spaced
             return 0.;
         }
-        if self.hidden_by_fold(node) {
-            // folded nodes unspaced
-            return 0.;
-        }
 
         let width = self.width(node);
 
@@ -174,10 +170,6 @@ impl<'ast> Editor {
         };
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             // table rows never spaced
-            return;
-        }
-        if self.hidden_by_fold(node) {
-            // folded nodes unspaced
             return;
         }
 
