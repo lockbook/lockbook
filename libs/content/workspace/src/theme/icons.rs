@@ -54,8 +54,13 @@ impl Icon {
     pub const FULLSCREEN: Self = ic("\u{f0293}"); // 󰊓
     pub const FULLSCREEN_EXIT: Self = ic("\u{f0294}"); // 󰊔
     pub const GROUP: Self = ic("\u{f0c0}"); // 
-    pub const HIGHLIGHTER: Self = ic("\u{f0cb6}"); // 󰙒
+    pub const PENCIL: Self = ic("\u{f0cb6}"); // 󰲶
+    pub const HIGHLIGHT: Self = ic("\u{f0652}"); // 󰙒
     pub const HEADER_1: Self = ic("\u{f026b}"); // 󰉫
+    pub const SPOILER: Self = ic("\u{f070}"); // 
+    pub const SUBSCRIPT: Self = ic("\u{f12c}"); // 
+    pub const SUPERSCRIPT: Self = ic("\u{f12b}"); // 
+    pub const UNDERLINE: Self = ic("\u{f0cd}"); // 
     pub const TOGGLE_SIDEBAR: Self = ic("\u{ebf3}"); // 
     pub const HAND: Self = ic("\u{f01bf}"); // 
     pub const IMAGE: Self = ic("\u{f02e9}"); // 󰋩
