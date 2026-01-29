@@ -1,9 +1,8 @@
 use crate::tab::markdown_editor::{self, Editor};
+use comrak::nodes::{ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use markdown_editor::input::{Bound, Event, Increment, Offset, Region};
-use markdown_editor::style::{BlockNode, InlineNode, ListItem, MarkdownNode};
-use pulldown_cmark::{HeadingLevel, LinkType};
 
 impl From<Modifiers> for Offset {
     fn from(modifiers: Modifiers) -> Self {
@@ -90,7 +89,12 @@ impl Editor {
                     }
                 }
                 if link_paste {
-                    Some(Event::Link { region: Region::Selection, url: text.clone() })
+                    Some(Event::ToggleStyle {
+                        region: Region::Selection,
+                        style: NodeValue::Link(
+                            NodeLink { url: text.clone(), ..Default::default() }.into(),
+                        ),
+                    })
                 } else {
                     Some(Event::Replace {
                         region: Region::Selection,
@@ -172,19 +176,13 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::ToggleStyle {
-                    region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Bold),
-                })
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Strong })
             }
             egui::Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::ToggleStyle {
-                    region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Italic),
-                })
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Emph })
             }
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
@@ -195,10 +193,15 @@ impl Editor {
                 if !modifiers.alt {
                     Some(Event::ToggleStyle {
                         region: Region::Selection,
-                        style: MarkdownNode::Inline(InlineNode::Code),
+                        style: NodeValue::Code(Default::default()),
                     })
                 } else {
-                    Some(Event::toggle_block_style(BlockNode::Code("".into())))
+                    Some({
+                        Event::ToggleStyle {
+                            region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                            style: NodeValue::CodeBlock(Default::default()),
+                        }
+                    })
                 }
             }
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
@@ -209,7 +212,51 @@ impl Editor {
                 }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Strikethrough),
+                    style: NodeValue::Strikethrough,
+                })
+            }
+            egui::Event::Key { key: Key::H, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Highlight })
+            }
+            egui::Event::Key { key: Key::U, pressed: true, modifiers, .. } if modifiers.command => {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Underline })
+            }
+            egui::Event::Key { key: Key::P, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: NodeValue::SpoileredText,
+                })
+            }
+            egui::Event::Key { key: Key::S, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Subscript })
+            }
+            egui::Event::Key { key: Key::E, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: NodeValue::Superscript,
                 })
             }
             egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
@@ -218,11 +265,7 @@ impl Editor {
                 }
                 Some(Event::ToggleStyle {
                     region: Region::Selection,
-                    style: MarkdownNode::Inline(InlineNode::Link(
-                        LinkType::Inline,
-                        "".into(),
-                        "".into(),
-                    )),
+                    style: NodeValue::Link(Default::default()),
                 })
             }
             egui::Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
@@ -231,7 +274,15 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Numbered(1), 0)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::List(NodeList {
+                            list_type: ListType::Ordered,
+                            ..Default::default()
+                        }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
@@ -239,7 +290,15 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Bulleted, 0)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            ..Default::default()
+                        }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
@@ -247,7 +306,16 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::ListItem(ListItem::Todo(false), 0)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::List(NodeList {
+                            list_type: ListType::Bullet,
+                            is_task_list: true,
+                            ..Default::default()
+                        }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -255,7 +323,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H1)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 1, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -263,7 +336,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H2)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 2, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -271,7 +349,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H3)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 3, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -279,7 +362,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H4)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 4, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -287,7 +375,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H5)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 5, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -295,7 +388,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Heading(HeadingLevel::H6)))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::Heading(NodeHeading { level: 6, ..Default::default() }),
+                    }
+                })
             }
             egui::Event::Key { key: Key::Q, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -303,7 +401,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Quote))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::BlockQuote,
+                    }
+                })
             }
             egui::Event::Key { key: Key::R, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
@@ -311,7 +414,12 @@ impl Editor {
                 if self.readonly {
                     return None;
                 }
-                Some(Event::toggle_block_style(BlockNode::Rule))
+                Some({
+                    Event::ToggleStyle {
+                        region: Region::Bound { bound: Bound::Paragraph, backwards: false },
+                        style: NodeValue::ThematicBreak,
+                    }
+                })
             }
             egui::Event::Key { key: Key::F2, pressed: true, .. } => Some(Event::ToggleDebug),
             egui::Event::Key { key: Key::Equals, pressed: true, modifiers, .. }
@@ -328,17 +436,4 @@ impl Editor {
         }
     }
 }
-impl Event {
-    pub fn toggle_block_style(block: BlockNode) -> Self {
-        Event::ToggleStyle {
-            region: Region::Bound { bound: Bound::Paragraph, backwards: false },
-            style: MarkdownNode::Block(block),
-        }
-    }
-
-    pub fn toggle_heading_style(level: usize) -> Self {
-        Self::toggle_block_style(BlockNode::Heading(
-            HeadingLevel::try_from(level).unwrap_or(HeadingLevel::H1),
-        ))
-    }
-}
+impl Event {}
