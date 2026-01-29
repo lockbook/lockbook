@@ -122,8 +122,7 @@ impl Editor {
     }
 
     /// Show source text specified by the given range or override text. In the
-    /// override case, the given range must be empty, and clicking the text will
-    /// place the cursor at the given range.
+    /// override case, clicking the text will select the given range.
     ///
     /// The text must not contain newlines. It doesn't matter if it wraps. It
     /// doesn't have to be a whole line.
@@ -159,7 +158,13 @@ impl Editor {
         layout_job.round_output_size_to_nearest_ui_point = false;
 
         let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-        let galley_info = GalleyInfo { range, galley, rect: Rect::ZERO, padded: false }; // used for wrap line calculation
+        let galley_info = GalleyInfo {
+            range,
+            galley,
+            rect: Rect::ZERO,
+            padded: false,
+            is_override: override_text.is_some(),
+        }; // used for wrap line calculation
         let pos = top_left + Vec2::new(0., wrap.row() as f32 * (wrap.row_height + ROW_SPACING));
 
         let mut hovered = false;
@@ -201,7 +206,7 @@ impl Editor {
                     ui.painter()
                         .rect_stroke(row_expanded_rect, 2., Stroke::new(1., background));
                 }
-            } else if padded {
+            } else if padded && override_text != Some("") {
                 let stroke_color = if background == self.background_color_highlight() {
                     self.background_color_highlight()
                 } else {
@@ -226,7 +231,7 @@ impl Editor {
             }
 
             let galley_info = if override_text.is_some() {
-                GalleyInfo { range, galley: row_galley, rect: row_rect, padded }
+                GalleyInfo { range, galley: row_galley, rect: row_rect, padded, is_override: true }
             } else {
                 let row_galley_byte_range = (galley_start, galley_start + row.text().len());
                 let row_galley_range = self.range_to_char(row_galley_byte_range);
@@ -253,7 +258,13 @@ impl Editor {
                 };
                 wrap.add_range(wrap_line_range);
 
-                GalleyInfo { range: wrap_line_range, galley: row_galley, rect: row_rect, padded }
+                GalleyInfo {
+                    range: wrap_line_range,
+                    galley: row_galley,
+                    rect: row_rect,
+                    padded,
+                    is_override: false,
+                }
             };
 
             self.galleys.push(galley_info);

@@ -36,7 +36,7 @@ impl Editor {
 
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
-            let GalleyInfo { range: galley_range, galley, mut rect, padded } = galley_info;
+            let GalleyInfo { range: galley_range, galley, mut rect, padded, .. } = galley_info;
             if galley_range.end() < range.start() {
                 break;
             } else if galley_range.start() > range.end() {

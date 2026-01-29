@@ -21,30 +21,17 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let node_range = self.node_range(node).trim(&range);
-        let reveal = self.node_intersects_selection(node);
-
-        // html comments not rendered unless revealed
-        let node_text = &self.buffer[node_range];
-        if !self.node_intersects_selection(node)
-            && node_text.starts_with("<!--")
-            && node_text.ends_with("-->")
-        {
-            return 0.;
-        }
-
-        let text_format =
-            if reveal { self.text_format_syntax(node) } else { self.text_format(node) };
+        let reveal = self.node_intersects_selection(node) || self.foldee(node).is_none();
 
         let mut tmp_wrap = wrap.clone();
 
         if !node_range.is_empty() {
+            let text_format =
+                if reveal { self.text_format_syntax(node) } else { self.text_format(node) };
+            let text = if reveal { &self.buffer[node_range] } else { "" };
+
             let pre_span = self.text_pre_span(&tmp_wrap, text_format.clone());
-            let mid_span = self.text_mid_span(
-                &tmp_wrap,
-                pre_span,
-                &self.buffer[node_range],
-                text_format.clone(),
-            );
+            let mid_span = self.text_mid_span(&tmp_wrap, pre_span, text, text_format.clone());
             let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, text_format);
 
             tmp_wrap.offset += pre_span + mid_span + post_span;
@@ -58,13 +45,7 @@ impl<'ast> Editor {
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
         let node_range = self.node_range(node).trim(&range);
-        let reveal = self.node_intersects_selection(node);
-
-        // html comments not rendered unless revealed
-        let node_text = &self.buffer[node_range];
-        if !reveal && node_text.starts_with("<!--") && node_text.ends_with("-->") {
-            return Default::default();
-        }
+        let reveal = self.node_intersects_selection(node) || self.foldee(node).is_none();
 
         let mut response = Default::default();
 
@@ -72,6 +53,8 @@ impl<'ast> Editor {
             let sense = self.sense_inline(ui, node);
             let text_format =
                 if reveal { self.text_format_syntax(node) } else { self.text_format(node) };
+            let override_text = if reveal { None } else { Some("") };
+
             response |= self.show_override_section(
                 ui,
                 top_left,
@@ -79,7 +62,7 @@ impl<'ast> Editor {
                 node_range,
                 text_format,
                 false,
-                None,
+                override_text,
                 sense,
             );
         }

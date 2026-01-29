@@ -833,7 +833,7 @@ impl<'ast> Editor {
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
         let mut current_selection = self.buffer.current.selection;
         match region {
-            Region::Location(location) => self.location_to_char_offset(location).to_range(),
+            Region::Location(location) => self.location_to_range(location),
             Region::ToLocation(location) => {
                 (current_selection.0, self.location_to_char_offset(location))
             }
@@ -895,12 +895,16 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+    pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
         match location {
-            Location::CurrentCursor => self.buffer.current.selection.1,
-            Location::DocCharOffset(o) => o,
-            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys),
+            Location::CurrentCursor => self.buffer.current.selection,
+            Location::DocCharOffset(o) => o.into_range(),
+            Location::Pos(pos) => pos_to_range(pos, &self.galleys),
         }
+    }
+
+    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+        self.location_to_range(location).0
     }
 
     fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
@@ -931,7 +935,7 @@ impl<'ast> Editor {
 }
 
 // todo: find a better home
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
+pub fn pos_to_range(pos: Pos2, galleys: &Galleys) -> (DocCharOffset, DocCharOffset) {
     let galley_idx = pos_to_galley(pos, galleys);
     let galley = &galleys[galley_idx];
     let relative_pos = pos - galley.rect.min;
@@ -939,18 +943,31 @@ pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
     if galley.range.is_empty() {
         // empty galley range means every position in the galley maps to
         // that location
-        galley.range.start()
+        let result = galley.range.start();
+        result.into_range()
     } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
         // every position lower than the final galley's bottom maps to its end
-        galley.range.end()
+        // todo: should map to the last cursor position
+        let result = galley.range.end();
+        result.into_range()
     } else {
         // clamp y coordinate for forgiving cursor placement clicks
         let relative_pos =
             Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
 
-        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        galleys.offset_by_galley_and_cursor(galley, new_cursor)
+        if galley.is_override {
+            // click an override galley to select the whole thing
+            galley.range
+        } else {
+            let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+            let result = galleys.offset_by_galley_and_cursor(galley, new_cursor);
+            result.into_range()
+        }
     }
+}
+
+pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
+    pos_to_range(pos, galleys).0
 }
 
 pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {

@@ -12,6 +12,7 @@ pub struct Galleys {
 
 #[derive(Debug)]
 pub struct GalleyInfo {
+    pub is_override: bool,
     pub range: (DocCharOffset, DocCharOffset),
     pub galley: Arc<Galley>,
     pub rect: Rect,
