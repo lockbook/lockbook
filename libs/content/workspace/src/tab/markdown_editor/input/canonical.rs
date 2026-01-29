@@ -215,6 +215,50 @@ impl Editor {
                     style: NodeValue::Strikethrough,
                 })
             }
+            egui::Event::Key { key: Key::H, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Highlight })
+            }
+            egui::Event::Key { key: Key::U, pressed: true, modifiers, .. } if modifiers.command => {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Underline })
+            }
+            egui::Event::Key { key: Key::P, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: NodeValue::SpoileredText,
+                })
+            }
+            egui::Event::Key { key: Key::S, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Subscript })
+            }
+            egui::Event::Key { key: Key::E, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleStyle {
+                    region: Region::Selection,
+                    style: NodeValue::Superscript,
+                })
+            }
             egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
                 if self.readonly {
                     return None;
