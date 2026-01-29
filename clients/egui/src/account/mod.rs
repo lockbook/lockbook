@@ -20,6 +20,7 @@ use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
 use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
@@ -374,7 +375,7 @@ impl AccountScreen {
         }
 
         // Ctrl-E toggle zen mode
-        if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::E)) {
+        if ctx.input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::E)) {
             let current_zen_mode = self.settings.read().unwrap().zen_mode;
             self.update_zen_mode(!current_zen_mode);
         }
