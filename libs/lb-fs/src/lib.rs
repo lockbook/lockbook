@@ -4,15 +4,17 @@ use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::model::core_config::Config;
 use lb_rs::service::sync::SyncProgress;
 use lb_rs::{Lb, Uuid};
-use nfsserve::tcp::{NFSTcp, NFSTcpListener};
+use nfs3_server::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
 use std::io::IsTerminal;
 use std::process::exit;
 use std::sync::Arc;
 use std::time::Duration;
-use tracing::info;
+use tokio::time;
+use tracing::{error, info};
 
 pub mod cache;
+pub(crate) mod file_handle;
 pub mod fs_impl;
 pub mod logger;
 pub mod mount;
@@ -20,7 +22,17 @@ pub mod utils;
 
 impl Drive {
     pub async fn init() -> Self {
-        let lb = Lb::init(Config::cli_config("drive")).await.unwrap();
+        let lb = Lb::init(Config {
+            writeable_path: Config::writeable_path("drive"),
+            background_work: false,
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+        })
+        .await
+        .unwrap();
+
+        logger::init();
 
         let root = lb.root().await.map(|file| file.id).unwrap_or(Uuid::nil());
 
@@ -62,7 +74,12 @@ impl Drive {
         // capture ctrl_c and try to cleanup
         tokio::spawn(async move {
             tokio::signal::ctrl_c().await.unwrap();
-            umount().await;
+            let mut unmount_success = umount().await;
+            while !unmount_success {
+                error!("unmount failed, please close any apps using lb-fs! Retrying in 1s.");
+                time::sleep(Duration::from_secs(1)).await;
+                unmount_success = umount().await;
+            }
             info!("cleaned up, goodbye!");
             exit(0);
         });
@@ -71,8 +88,8 @@ impl Drive {
         let syncer = drive.clone();
         tokio::spawn(async move {
             loop {
-                info!("will sync in 5 minutes");
-                tokio::time::sleep(Duration::from_secs(300)).await;
+                info!("will sync in 30 seconds");
+                tokio::time::sleep(Duration::from_secs(30)).await;
                 info!("syncing");
                 syncer.sync().await;
             }

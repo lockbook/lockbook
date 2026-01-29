@@ -1,25 +1,26 @@
 use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt, RelCharOffset};
+use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 use std::cmp;
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
-use workspace_rs::tab::markdown_editor::bounds::RangesExt;
 use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::{cursor, mutation};
-use workspace_rs::tab::markdown_editor::input::{Bound, Event, Increment, Offset, Region};
+use workspace_rs::tab::markdown_editor::input::{
+    Bound, Event, Increment, Offset, Region, mutation,
+};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
-use workspace_rs::tab::{ContentState, ExtendedInput as _};
+use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
 
 use super::super::response::*;
 use super::response::*;
-use crate::apple::keyboard::UIKeys;
 use crate::WgpuWorkspace;
+use crate::apple::keyboard::UIKeys;
 
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
@@ -36,13 +37,18 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
     if content == "\n" {
-        obj.context
-            .push_markdown_event(Event::Newline { advance_cursor: true });
+        obj.renderer
+            .context
+            .push_markdown_event(Event::Newline { shift: false });
     } else if content == "\t" {
-        obj.context
+        obj.renderer
+            .context
             .push_markdown_event(Event::Indent { deindent: false });
     } else {
-        obj.raw_input.events.push(egui::Event::Text(content));
+        obj.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Text(content));
     }
 }
 
@@ -54,7 +60,7 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.raw_input.events.push(egui::Event::Key {
+    obj.renderer.raw_input.events.push(egui::Event::Key {
         key: Key::Backspace,
         physical_key: None,
         pressed: true,
@@ -89,8 +95,11 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 
     let region: Option<Region> = range.into();
     if let Some(region) = region {
-        obj.context
-            .push_markdown_event(Event::Replace { region, text });
+        obj.renderer.context.push_markdown_event(Event::Replace {
+            region,
+            text,
+            advance_cursor: true,
+        });
     }
 }
 
@@ -99,7 +108,7 @@ pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text:
 #[no_mangle]
 pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Copy);
+    obj.renderer.context.push_markdown_event(Event::Copy);
 }
 
 /// # Safety
@@ -107,7 +116,7 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Cut);
+    obj.renderer.context.push_markdown_event(Event::Cut);
 }
 
 /// # Safety
@@ -162,7 +171,9 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if let Some(region) = range.into() {
-        obj.context.push_markdown_event(Event::Select { region });
+        obj.renderer
+            .context
+            .push_markdown_event(Event::Select { region });
     }
 }
 
@@ -171,7 +182,7 @@ pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
 #[no_mangle]
 pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::Bound { bound: Bound::Word, backwards: true },
     });
 }
@@ -181,7 +192,7 @@ pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn select_all(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::Bound { bound: Bound::Doc, backwards: true },
     });
 }
@@ -246,12 +257,12 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Start,
@@ -259,24 +270,27 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         force,
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        });
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Move,
@@ -284,7 +298,8 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
         force,
     });
 
-    obj.raw_input
+    obj.renderer
+        .raw_input
         .events
         .push(egui::Event::PointerMoved(Pos2 { x, y }));
 }
@@ -294,13 +309,13 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::End,
@@ -308,14 +323,17 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         force,
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety
@@ -323,12 +341,12 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).context.frame_nr()))]
+#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Cancel,
@@ -336,7 +354,7 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
         force,
     });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 /// # Safety
@@ -348,11 +366,13 @@ pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y:
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };
 
-    obj.context.push_event(workspace_rs::Event::PredictedTouch {
-        id: TouchId(id),
-        force,
-        pos: Pos2 { x, y },
-    });
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::PredictedTouch {
+            id: TouchId(id),
+            force,
+            pos: Pos2 { x, y },
+        });
 }
 
 /// # Safety
@@ -364,6 +384,44 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.workspace.tabs.len() as i64
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
+            svg.detect_islands_interaction(egui::pos2(x, y))
+        } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.will_consume_touch(egui::pos2(x, y))
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn pan(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::KineticPan { x: scroll_x, y: scroll_y });
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn zoom(obj: *mut c_void, scale: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.renderer.raw_input.events.push(egui::Event::Zoom(scale));
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
@@ -431,7 +489,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
             Offset::Next(Bound::Char)
         } else {
-            Offset::By(Increment::Line)
+            Offset::By(Increment::Lines(1))
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
@@ -460,9 +518,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .bounds
-        .is_position_at_boundary(text_position, at_boundary, backwards)
+    markdown.is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -482,9 +538,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .bounds
-        .is_position_within_text_unit(text_position, at_boundary, backwards)
+    markdown.is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -505,7 +559,6 @@ pub unsafe extern "C" fn bound_from_position(
     let to_boundary = granularity.into();
 
     markdown
-        .bounds
         .position_from(text_position, to_boundary, backwards)
         .into()
 }
@@ -527,10 +580,7 @@ pub unsafe extern "C" fn bound_at_position(
     let text_position = pos.pos.into();
     let with_granularity = granularity.into();
 
-    let result =
-        markdown
-            .bounds
-            .range_enclosing_position(text_position, with_granularity, backwards);
+    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
 
     result.into()
 }
@@ -549,8 +599,6 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 
     let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
 
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
@@ -576,8 +624,8 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         (selection_start, end_of_rect)
     };
 
-    let start_line = cursor::line(selection_representing_rect.start(), galleys, text, appearance);
-    let end_line = cursor::line(selection_representing_rect.end(), galleys, text, appearance);
+    let start_line = markdown.cursor_line(selection_representing_rect.start());
+    let end_line = markdown.cursor_line(selection_representing_rect.end());
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -592,7 +640,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Cut);
+    obj.renderer.context.push_markdown_event(Event::Cut);
 }
 
 /// # Safety
@@ -600,7 +648,7 @@ pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Copy);
+    obj.renderer.context.push_markdown_event(Event::Copy);
 }
 
 /// # Safety
@@ -613,16 +661,10 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.buffer.current.segs;
     let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
 
-    let offset = mutation::pos_to_char_offset(
-        Pos2 { x: point.x as f32, y: point.y as f32 },
-        galleys,
-        segs,
-        text,
-    );
+    let offset =
+        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -653,11 +695,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
-
-    let line = cursor::line(pos.pos.into(), galleys, text, appearance);
+    let line = markdown.cursor_line(pos.pos.into());
 
     CRect {
         min_x: line[0].x as f64,
@@ -692,11 +730,6 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let galleys = &markdown.galleys;
-    let text = &markdown.bounds.text;
-    let appearance = &markdown.appearance;
-    let bounds = &markdown.bounds;
-
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     let range = match range {
         Some(range) => range,
@@ -706,28 +739,13 @@ pub unsafe extern "C" fn selection_rects(
         }
     };
 
-    let mut selection_rects = vec![];
-
-    let lines = bounds.lines.find_intersecting(range, false);
-    for line in lines.iter() {
-        let mut line = bounds.lines[line];
-        if line.0 < range.start() {
-            line.0 = range.start();
-        }
-        if line.1 > range.end() {
-            line.1 = range.end();
-        }
-        if line.is_empty() {
-            continue;
-        }
-
-        let start_line = cursor::line(line.0, galleys, text, appearance);
-        let end_line = cursor::line(line.1, galleys, text, appearance);
+    let mut selection_rects = Vec::new();
+    for rect in markdown.range_rects(range) {
         selection_rects.push(CRect {
-            min_x: (start_line[1].x) as f64,
-            min_y: start_line[0].y as f64,
-            max_x: end_line[1].x as f64,
-            max_y: end_line[1].y as f64,
+            min_x: rect.min.x as f64,
+            min_y: rect.min.y as f64,
+            max_x: rect.max.x as f64,
+            max_y: rect.max.y as f64,
         });
     }
 
@@ -775,7 +793,9 @@ pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
 #[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.context.push_markdown_event(Event::Indent { deindent });
+    obj.renderer
+        .context
+        .push_markdown_event(Event::Indent { deindent });
 }
 
 /// # Safety
@@ -784,9 +804,9 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     if redo {
-        obj.context.push_markdown_event(Event::Redo);
+        obj.renderer.context.push_event(workspace_rs::Event::Redo);
     } else {
-        obj.context.push_markdown_event(Event::Undo);
+        obj.renderer.context.push_event(workspace_rs::Event::Undo);
     }
 }
 
@@ -800,7 +820,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.buffer.can_undo()
+    !markdown.readonly && markdown.buffer.can_undo()
 }
 
 /// # Safety
@@ -813,7 +833,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    markdown.buffer.can_redo()
+    !markdown.readonly && markdown.buffer.can_redo()
 }
 
 /// # Safety
@@ -824,7 +844,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.raw_input.events.push(egui::Event::Key {
+    obj.renderer.raw_input.events.push(egui::Event::Key {
         key: Key::Backspace,
         physical_key: None,
         pressed: true,
@@ -848,6 +868,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
+                TabContent::SpaceInspector(_) => 8,
             },
             _ => 1,
         },
@@ -858,12 +879,38 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn is_current_tab_editable(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.workspace
+        .current_tab()
+        .map(|tab| !tab.read_only)
+        .unwrap_or(true)
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn toggle_drawing_tool(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar
-            .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
+        svg.toolbar.set_tool(
+            svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
+            &mut svg.settings,
+            &mut svg.cfg,
+        );
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn show_tool_popover_at_cursor(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
+        svg.toolbar.toggle_at_cursor_tool_popover();
     }
 }
 
@@ -874,7 +921,8 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        svg.toolbar.toggle_tool_between_eraser()
+        svg.toolbar
+            .toggle_tool_between_eraser(&mut svg.settings, &mut svg.cfg)
     }
 }
 
@@ -944,13 +992,13 @@ pub unsafe extern "C" fn ios_key_event(
 
     let modifiers = egui::Modifiers { alt: option, ctrl, shift, mac_cmd: command, command };
 
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 
     let Some(key) = UIKeys::from(key_code) else { return };
 
     // Event::Key
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(egui::Event::Key {
+        obj.renderer.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
             pressed,
@@ -958,4 +1006,13 @@ pub unsafe extern "C" fn ios_key_event(
             modifiers,
         });
     }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn set_ws_inset(obj: *mut c_void, inset: f32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    obj.renderer.bottom_inset = Some(inset as u32);
 }

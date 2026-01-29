@@ -16,6 +16,7 @@ import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.screen.*
+import net.lockbook.File
 
 fun AndroidViewModel.getString(
     @StringRes stringRes: Int,
@@ -70,9 +71,6 @@ fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
 fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
     (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
 
-fun SharesActivity.maybeGetCreateLinkFragment(): CreateLinkFragment? =
-    (supportFragmentManager.findFragmentById(R.id.shared_files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? CreateLinkFragment
-
 fun getString(
     res: Resources,
     @StringRes stringRes: Int,
@@ -101,6 +99,22 @@ class ExtensionHelper(val fileName: String) {
     val isDrawing: Boolean get() = extension == "svg"
 
     val isPdf: Boolean get() = extension == "pdf"
+}
+
+fun File.getIconResource(): Int {
+    return when (this.type) {
+        File.FileType.Folder -> R.drawable.ic_baseline_folder_24
+        File.FileType.Link -> R.drawable.ic_baseline_miscellaneous_services_24
+        File.FileType.Document -> {
+            val extensionHelper = ExtensionHelper(this.name)
+            when {
+                extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+                extensionHelper.isImage -> R.drawable.ic_outline_image_24
+                extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+                else -> R.drawable.ic_outline_insert_drive_file_24
+            }
+        }
+    }
 }
 
 val <T> T.exhaustive: T

@@ -26,7 +26,7 @@ impl FromStr for ShareMode {
 
 impl fmt::Display for ShareMode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -56,5 +56,9 @@ impl File {
 
     pub fn is_folder(&self) -> bool {
         self.file_type == FileType::Folder
+    }
+
+    pub fn is_root(&self) -> bool {
+        self.id == self.parent
     }
 }

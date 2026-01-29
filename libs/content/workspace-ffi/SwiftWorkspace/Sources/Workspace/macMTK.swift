@@ -9,12 +9,12 @@ public class MacMTK: MTKView, MTKViewDelegate {
     var trackingArea : NSTrackingArea?
     var pasteBoardEventId: Int = 0
     var pasteboardString: String?
-
-    var workspaceState: WorkspaceState?
+    
+    var workspaceInput: WorkspaceInputState?
+    var workspaceOutput: WorkspaceOutputState?
 
     // todo this will probably just become us hanging on to the last output
     var currentOpenDoc: UUID? = nil
-    var currentSelectedFolder: UUID? = nil
 
     var redrawTask: DispatchWorkItem? = nil
 
@@ -29,30 +29,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.delegate = self
         self.isPaused = true
         self.enableSetNeedsDisplay = true
-    }
-
-    func openFile(id: UUID) {
-        let uuid = CUuid(_0: id.uuid)
-        open_file(wsHandle, uuid, false)
-        drawImmediately()
-    }
-
-    func requestSync() {
-        request_sync(wsHandle)
-        setNeedsDisplay(self.frame)
-    }
-
-    func fileOpCompleted(fileOp: WSFileOpCompleted) {
-        switch fileOp {
-        case .Delete(let id):
-            workspaceState?.openDoc = nil
-            currentOpenDoc = nil
-            close_tab(wsHandle, id.uuidString)
-            setNeedsDisplay(self.frame)
-        case .Rename(let id, let newName):
-            tab_renamed(wsHandle, id.uuidString, newName)
-            setNeedsDisplay(self.frame)
-        }
     }
 
     func modifiersChanged(event: NSEvent) -> NSEvent {
@@ -86,7 +62,8 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
-        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode())
+        self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
+        workspaceInput?.wsHandle = wsHandle
 
         modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
         registerForDraggedTypes([.png, .tiff, .fileURL, .string])
@@ -165,14 +142,47 @@ public class MacMTK: MTKView, MTKViewDelegate {
     }
 
     public override func keyDown(with event: NSEvent) {
-        if event.modifierFlags.contains(.command) && event.keyCode == 9 { // cmd+v
-            let _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
-        } else {
-            let text = event.characters ?? ""
-            
-            key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), true, text)
+        sendKeyEvent(event, true)
+    }
+    
+    public override func keyUp(with event: NSEvent) {
+        sendKeyEvent(event, false)
+    }
+    
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        // Let system handle their shortcuts first
+        if super.performKeyEquivalent(with: event) {
+            return true
         }
 
+        guard event.modifierFlags.contains(.command) else {
+            return false
+        }
+
+        switch event.keyCode {
+        case 9: // V key
+            // If first responder isn't a text editor then we hijack the paste
+            if !(window?.firstResponder is NSTextView) {
+                _ = importFromPasteboard(NSPasteboard.general, isPaste: true)
+                setNeedsDisplay(frame)
+                return true
+            }
+            
+            return false
+
+        case 13: // Return key
+            sendKeyEvent(event, true)
+            return true
+        default:
+            return false
+        }
+    }
+    
+    func sendKeyEvent(_ event: NSEvent, _ isDownPress: Bool) {
+        let text = event.characters ?? ""
+        
+        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), isDownPress, text)
+        
         setNeedsDisplay(self.frame)
     }
 
@@ -186,14 +196,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
         self.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
     }
 
-    public override func keyUp(with event: NSEvent) {
-        let text = event.characters ?? ""
-        
-        key_event(wsHandle, event.keyCode, event.modifierFlags.contains(.shift), event.modifierFlags.contains(.control), event.modifierFlags.contains(.option), event.modifierFlags.contains(.command), false, text)
-        
-        setNeedsDisplay(self.frame)
-    }
-
     func setClipboard(){
         pasteboardString = NSPasteboard.general.string(forType: .string)
         self.pasteBoardEventId = NSPasteboard.general.changeCount
@@ -201,7 +203,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
 
     func pasteText(text: String) {
         clipboard_paste(wsHandle, text)
-        workspaceState?.pasted = true
     }
 
     func importFromPasteboard(_ pasteBoard: NSPasteboard, isPaste: Bool) -> Bool {
@@ -284,58 +285,50 @@ public class MacMTK: MTKView, MTKViewDelegate {
             setClipboard()
         }
 
-        switch self.workspaceState?.selectedFolder{
-        case .none:
-            no_folder_selected(wsHandle)
-        case .some(let f):
-            folder_selected(wsHandle, CUuid(_0: f.uuid))
-        }
-
         let scale = Float(self.window?.backingScaleFactor ?? 1.0)
         dark_mode(wsHandle, isDarkMode())
         set_scale(wsHandle, scale)
         let output = macos_frame(wsHandle)
-
-        if output.status_updated {
-            let status = get_status(wsHandle)
-            let msg = String(cString: status.msg)
-            free_text(status.msg)
-            let syncing = status.syncing
-            workspaceState?.syncing = syncing
-            workspaceState?.statusMsg = msg
+        
+        if output.selected_folder_changed {
+            let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
+            if selectedFolder.isNil() {
+                self.workspaceOutput?.selectedFolder = nil
+            } else {
+                self.workspaceOutput?.selectedFolder = selectedFolder
+            }
         }
-
-        workspaceState?.reloadFiles = output.refresh_files
-
+        
         let selectedFile = UUID(uuid: output.selected_file._0)
         if !selectedFile.isNil() {
             currentOpenDoc = selectedFile
-            if selectedFile != self.workspaceState?.openDoc {
-                self.workspaceState?.openDoc = selectedFile
+            if selectedFile != self.workspaceOutput?.openDoc {
+                self.workspaceOutput?.openDoc = selectedFile
             }
         }
 
         let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
         if currentTab == .Welcome && currentOpenDoc != nil {
             currentOpenDoc = nil
-            self.workspaceState?.openDoc = nil
+            self.workspaceOutput?.openDoc = nil
         }
 
+//      FIXME:  Can we just do this in rust?
         let newFile = UUID(uuid: output.doc_created._0)
         if !newFile.isNil() {
-            openFile(id: newFile)
+            workspaceInput?.openFile(id: newFile)
         }
 
         if let openedUrl = output.url_opened {
             let url = textFromPtr(s: openedUrl)
 
             if let url = URL(string: url) {
-                NSWorkspace.shared.open(url)
+                self.workspaceOutput?.urlOpened = url
             }
         }
 
         if output.new_folder_btn_pressed {
-            workspaceState?.newFolderButtonPressed = true
+            self.workspaceOutput?.newFolderButtonPressed = ()
         }
 
         if let text = output.copied_text {

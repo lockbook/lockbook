@@ -1,38 +1,33 @@
+use futures::executor::block_on;
 use std::{collections::HashMap, future::Future, path::PathBuf};
 
-use futures::executor::block_on;
-
+use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
 #[cfg(not(target_family = "wasm"))]
 use {std::sync::Arc, tokio::runtime::Runtime};
 
-use crate::{
-    model::{
-        account::{Account, Username},
-        api::{
-            AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse,
-            AdminSetUserTierInfo, AdminValidateAccount, AdminValidateServer, ServerIndex,
-            StripeAccountTier, SubscriptionInfo,
-        },
-        core_config::Config,
-        crypto::DecryptedDocument,
-        errors::{LbResult, Warning},
-        file::{File, ShareMode},
-        file_metadata::{DocumentHmac, FileType},
-        path_ops::Filter,
-    },
-    service::{
-        activity::RankingWeights,
-        import_export::{ExportFileInfo, ImportStatus},
-        sync::{SyncProgress, SyncStatus},
-        usage::{UsageItemMetric, UsageMetrics},
-    },
-    subscribers::{
-        search::{SearchConfig, SearchResult},
-        status::Status,
-    },
+#[cfg(not(target_family = "wasm"))]
+use crate::subscribers::search::{SearchConfig, SearchResult};
+
+use crate::model::account::{Account, Username};
+use crate::model::api::{
+    AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
+    AdminValidateAccount, AdminValidateServer, ServerIndex, StripeAccountTier, SubscriptionInfo,
 };
+use crate::model::core_config::Config;
+use crate::model::crypto::DecryptedDocument;
+use crate::model::errors::{LbResult, Warning};
+use crate::model::file::{File, ShareMode};
+use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::path_ops::Filter;
+use crate::service::activity::RankingWeights;
+use crate::service::debug::DebugInfo;
+use crate::service::events::Event;
+use crate::service::import_export::{ExportFileInfo, ImportStatus};
+use crate::service::sync::{SyncProgress, SyncStatus};
+use crate::service::usage::{UsageItemMetric, UsageMetrics};
+use crate::subscribers::status::Status;
 
 #[derive(Clone)]
 pub struct Lb {
@@ -165,6 +160,10 @@ impl Lb {
         self.block_on(self.lb.get_pending_shares())
     }
 
+    pub fn get_pending_share_files(&self) -> LbResult<Vec<File>> {
+        self.block_on(self.lb.get_pending_share_files())
+    }
+
     pub fn delete_pending_share(&self, id: &Uuid) -> LbResult<()> {
         self.block_on(async { self.lb.reject_share(id).await })
     }
@@ -221,6 +220,14 @@ impl Lb {
         self.block_on(self.lb.suggested_docs(settings))
     }
 
+    pub fn clear_suggested(&self) -> LbResult<()> {
+        self.block_on(self.lb.clear_suggested())
+    }
+
+    pub fn clear_suggested_id(&self, target_id: Uuid) -> LbResult<()> {
+        self.block_on(self.lb.clear_suggested_id(target_id))
+    }
+
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.block_on(self.lb.get_usage())
@@ -247,10 +254,12 @@ impl Lb {
         self.block_on(self.lb.export_file(id, dest, edit, export_progress))
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn search_file_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
         self.block_on(async { self.lb.search(input, SearchConfig::Paths).await })
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         self.block_on(self.lb.search(input, cfg))
     }
@@ -329,12 +338,28 @@ impl Lb {
         self.block_on(self.lb.set_user_tier(username, info))
     }
 
+    pub fn subscribe(&self) -> Receiver<Event> {
+        self.lb.subscribe()
+    }
+
     pub fn status(&self) -> Status {
         self.block_on(self.lb.status())
     }
 
-    pub fn debug_info(&self, os_info: String) -> String {
-        self.block_on(self.lb.debug_info(os_info))
-            .unwrap_or_else(|e| format!("failed to produce debug info: {:?}", e.to_string()))
+    #[cfg(not(target_family = "wasm"))]
+    pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
+        self.rt.block_on(self.lb.debug_info(os_info))
+    }
+
+    pub fn recent_panic(&self) -> LbResult<bool> {
+        #[cfg(not(target_family = "wasm"))]
+        return self.block_on(self.lb.recent_panic());
+        #[cfg(target_family = "wasm")]
+        Ok(false)
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    pub fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
+        self.block_on(self.lb.write_panic_to_file(error_header, bt))
     }
 }

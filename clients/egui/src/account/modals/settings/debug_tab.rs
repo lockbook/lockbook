@@ -1,12 +1,13 @@
 use egui::ScrollArea;
-use workspace_rs::{theme::icons::Icon, widgets::IconButton};
+use workspace_rs::theme::icons::Icon;
+use workspace_rs::widgets::IconButton;
 
 impl super::SettingsModal {
     pub fn show_debug_tab(&mut self, ui: &mut egui::Ui) {
         let debug_str = self.debug.lock().unwrap().clone();
 
         ui.horizontal(|ui| {
-            if IconButton::new(&Icon::CONTENT_COPY).show(ui).clicked() {
+            if IconButton::new(Icon::CONTENT_COPY).show(ui).clicked() {
                 ui.output_mut(|o| o.copied_text = debug_str.clone());
             }
             ui.heading("Debug");

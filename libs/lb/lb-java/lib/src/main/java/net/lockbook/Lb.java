@@ -8,6 +8,9 @@ public class Lb {
 
     public static native void init(String path) throws LbError;
     public static native String getDebugInfo(String osInfo) throws LbError;
+
+    public static native String writePanicToFile(String errorHeader, String backtrace) throws LbError;
+
     public static native Account createAccount(String username, String apiUrl, boolean welcomeDoc) throws LbError;
     public static native Account importAccount(String key) throws LbError;
     public static native Account getAccount() throws LbError;
@@ -40,6 +43,7 @@ public class Lb {
     public static native String[] getLocalChanges() throws LbError;
     public static native void sync(SyncProgress syncProgress) throws LbError;
     public static native File[] getPendingShares() throws LbError;
+    public static native File[] getPendingShareFiles() throws LbError;
     public static native void deletePendingShare(String id) throws LbError;
 
     public static native void upgradeAccountGooglePlay(String purchaseToken, String accountId) throws LbError;
@@ -48,6 +52,10 @@ public class Lb {
 
     public static native SearchResult[] search(String input) throws LbError;
     public static native String[] suggestedDocs() throws LbError;
+
+
+    public static native void clearSuggestedId(String id) throws LbError;
+    public static native void clearSuggested() throws LbError;
 
     public static native void logout() throws LbError;
     public static native void deleteAccount() throws LbError;

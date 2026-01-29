@@ -1,11 +1,14 @@
-use crate::model::errors::{core_err_unexpected, LbResult};
 use crate::Config;
-use chrono::Local;
+use crate::model::errors::{LbResult, core_err_unexpected};
+use crate::service::debug::{generate_panic_content, generate_panic_filename};
 use std::backtrace::Backtrace;
-use std::{env, fs, panic};
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::{env, panic};
 use tracing::metadata::LevelFilter;
 use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::{filter, fmt, prelude::*, Layer};
+use tracing_subscriber::prelude::*;
+use tracing_subscriber::{Layer, filter, fmt};
 
 pub static LOG_FILE: &str = "lockbook.log";
 
@@ -39,9 +42,9 @@ pub fn init(config: &Config) -> LbResult<()> {
             #[cfg(not(target_os = "android"))]
             layers.push(
                 fmt::Layer::new()
-                    .pretty()
+                    .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_ansi(config.colored_logs)
-                    .with_target(false)
+                    .with_target(true)
                     .with_filter(lockbook_log_level)
                     .with_filter(filter::filter_fn(|metadata| {
                         metadata.target().starts_with("lb_rs")
@@ -84,13 +87,19 @@ pub fn init(config: &Config) -> LbResult<()> {
 
 fn panic_capture(config: &Config) {
     let path = config.writeable_path.clone();
-    panic::set_hook(Box::new(move |panic_info| {
+    panic::set_hook(Box::new(move |error_header| {
         let bt = Backtrace::force_capture();
-        tracing::error!("panic detected: {panic_info} {}", bt);
-        eprintln!("panic detected and logged: {panic_info} {}", bt);
-        let timestamp = Local::now().format("%Y-%m-%d---%H-%M-%S");
-        let file_name = format!("{}/panic---{}.log", path, timestamp);
-        let file = format!("INFO: {}\nBT: {}", panic_info, bt);
-        fs::write(file_name, file).unwrap();
+        tracing::error!("panic detected: {error_header} {}", bt);
+        eprintln!("panic detected and logged: {error_header} {bt}");
+        let file_name = generate_panic_filename(&path);
+        let content = generate_panic_content(&error_header.to_string(), &bt.to_string());
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_name)
+            .unwrap();
+
+        file.write_all(content.as_bytes()).unwrap();
     }));
 }

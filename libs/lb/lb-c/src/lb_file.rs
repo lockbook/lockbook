@@ -1,17 +1,12 @@
-use std::{ffi::c_char, ptr};
+use std::ffi::c_char;
+use std::ptr;
 
-use lb_rs::{
-    model::{
-        file::{File, Share, ShareMode},
-        file_metadata::FileType,
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::file::{File, Share, ShareMode};
+use lb_rs::model::file_metadata::FileType;
 
-use crate::{
-    ffi_utils::{carray, cstring},
-    LbUuid,
-};
+use crate::LbUuid;
+use crate::ffi_utils::{carray, cstring};
 
 #[repr(C)]
 pub struct LbFileList {

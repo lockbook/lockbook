@@ -1,29 +1,24 @@
 use std::cmp::Ordering;
 use std::fmt::{self, Debug, Formatter};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::service::usage::UsageMetrics;
-use lb_rs::Uuid;
 
 pub struct FileCache {
     pub files: Vec<File>,
+    pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
-    pub usage: UsageMetrics,
 }
 
 impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
         Ok(Self {
             files: lb.list_metadatas()?,
-            suggested: lb
-                .suggested_docs(Default::default())?
-                .into_iter()
-                .take(5)
-                .collect(),
-            usage: lb.get_usage()?,
+            suggested: lb.suggested_docs(Default::default())?,
+            shared: lb.get_pending_share_files()?,
         })
     }
 }
@@ -31,25 +26,39 @@ impl FileCache {
 impl Debug for FileCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileCache")
-            .field("files", &self.files.len())
-            .field("suggested", &self.suggested.len())
-            .field("usage", &self.usage.usages.len())
+            .field("files.len()", &self.files.len())
+            .field("suggested.len()", &self.suggested.len())
             .finish()
     }
 }
 
 pub trait FilesExt {
-    fn root(&self) -> Uuid;
+    fn root(&self) -> &File;
     fn get_by_id(&self, id: Uuid) -> Option<&File>;
     fn children(&self, id: Uuid) -> Vec<&File>;
     fn descendents(&self, id: Uuid) -> Vec<&File>;
+
+    /// returns all known parents until we can't find one (share) or we hit root
+    fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
+        let mut ancestors = vec![];
+        if let Some(us) = self.get_by_id(id) {
+            if us.is_root() {
+                return ancestors;
+            }
+
+            let parent = us.parent;
+            ancestors.push(parent);
+            ancestors.extend_from_slice(&self.ancestors(parent));
+        }
+        ancestors
+    }
 }
 
 impl FilesExt for [File] {
-    fn root(&self) -> Uuid {
+    fn root(&self) -> &File {
         for file in self {
-            if file.parent == file.id {
-                return file.id;
+            if file.is_root() {
+                return file;
             }
         }
         unreachable!("unable to find root in metadata list")
@@ -83,7 +92,7 @@ impl FilesExt for [File] {
 }
 
 impl FilesExt for Vec<File> {
-    fn root(&self) -> Uuid {
+    fn root(&self) -> &File {
         self.as_slice().root()
     }
 

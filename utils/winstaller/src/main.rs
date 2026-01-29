@@ -2,10 +2,8 @@
 
 #[cfg(feature = "build-winstaller")]
 fn main() {
-    use std::env;
-    use std::fs;
-    use std::io;
     use std::sync::mpsc;
+    use std::{env, fs, io};
 
     use eframe::egui;
     use mslnk::ShellLink;

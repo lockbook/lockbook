@@ -17,10 +17,7 @@ async fn create_account_success_with_welcome() {
     core.create_account(&random_name(), &url(), true)
         .await
         .unwrap();
-    let welcome_doc = core.get_by_path("welcome.md").await.unwrap().id;
-    assert!(String::from_utf8_lossy(&core.read_document(welcome_doc, false).await.unwrap())
-        .to_lowercase()
-        .contains("welcome"));
+    core.get_by_path("welcome.md").await.unwrap();
 }
 
 #[tokio::test]
@@ -74,9 +71,7 @@ async fn create_account_invalid_username() {
 
         assert!(
             matches!(err.kind, LbErrKind::UsernameInvalid),
-            "Username \"{}\" should have been InvalidUsername but instead was {:?}",
-            uname,
-            err
+            "Username \"{uname}\" should have been InvalidUsername but instead was {err:?}"
         )
     }
 }

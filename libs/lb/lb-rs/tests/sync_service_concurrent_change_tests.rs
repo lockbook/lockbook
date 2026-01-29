@@ -1,11 +1,10 @@
+use lb_rs::Lb;
 use lb_rs::model::file::ShareMode;
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::Lb;
 use test_utils::*;
 
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work
 /// should be none, devices dbs should be equal, deleted files should be pruned).
-
 async fn sync_and_assert(c1: &Lb, c2: &Lb) {
     c1.sync(None).await.unwrap();
     c2.sync(None).await.unwrap();
@@ -1155,8 +1154,8 @@ async fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
 }
 
 #[tokio::test]
-async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_in_prior_parent(
-) {
+async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_name_in_prior_parent()
+ {
     let mut cores = [vec![test_core_with_account().await], vec![test_core_with_account().await]];
     let new_client = another_client(&cores[1][0]).await;
     cores[1].push(new_client);

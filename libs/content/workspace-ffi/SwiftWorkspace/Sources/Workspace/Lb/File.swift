@@ -9,8 +9,16 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var lastModifiedBy: String
     public var lastModified: UInt64
     public var shares: [Share]
-    
-    public var isRoot: Bool { parent == id }
+        
+    init(id: UUID, parent: UUID, name: String, type: FileType, lastModifiedBy: String, lastModified: UInt64, shares: [Share]) {
+        self.id = id
+        self.parent = parent
+        self.name = name
+        self.type = type
+        self.lastModifiedBy = lastModifiedBy
+        self.lastModified = lastModified
+        self.shares = shares
+    }
     
     init(_ file: LbFile) {
         self.id = file.id.toUUID()
@@ -21,6 +29,9 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
         self.lastModified = file.lastmod
         self.shares = Array(UnsafeBufferPointer(start: file.shares.list, count: Int(file.shares.count))).toShares()
     }
+    
+    public var isRoot: Bool { parent == id }
+    public var isFolder: Bool { self.type == .folder }
         
     public static func == (lhs: File, rhs: File) -> Bool {
         return lhs.type == rhs.type &&
@@ -39,14 +50,18 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     
     public static func <(lhs: File, rhs: File) -> Bool {
         if lhs.type == .folder && rhs.type == .document {
-                return true
-            }
+            return true
+        }
 
         if rhs.type == .folder && lhs.type == .document {
             return false
         }
 
         return lhs.name < rhs.name
+    }
+    
+    public func shareFrom(to: String) -> String? {
+        return self.shares.filter({ $0.with == to }).first?.by
     }
 }
 

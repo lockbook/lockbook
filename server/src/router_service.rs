@@ -5,22 +5,21 @@ use crate::billing::stripe_client::StripeClient;
 use crate::config::Config;
 use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
-use crate::{handle_version_header, router_service, verify_auth, ServerError, ServerState};
+use crate::{ServerError, ServerState, handle_version_header, router_service, verify_auth};
 use lazy_static::lazy_static;
-use lb_rs::model::api::*;
-use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper};
+use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
-    register_counter_vec, register_histogram_vec, CounterVec, HistogramVec, TextEncoder,
+    CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
-use serde::de::DeserializeOwned;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::*;
 use warp::http::{HeaderValue, Method, StatusCode};
 use warp::hyper::body::Bytes;
-use warp::{reject, Filter, Rejection};
+use warp::{Filter, Rejection, reject};
 
 lazy_static! {
     pub static ref HTTP_REQUEST_DURATION_HISTOGRAM: HistogramVec = register_histogram_vec!(
@@ -60,6 +59,9 @@ macro_rules! core_req {
                  request: Bytes,
                  version: Option<String>,
                  ip: Option<SocketAddr>| {
+                    if ip.is_none() {
+                        tracing::error!("ip not present in request");
+                    }
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
@@ -93,7 +95,6 @@ macro_rules! core_req {
                                 }
                             };
 
-                        debug!("request verified successfully");
                         let req_pk = request.signed_request.public_key;
                         let username = {
                             let db = state.index_db.lock().await;
@@ -115,37 +116,38 @@ macro_rules! core_req {
                             username = username.as_str(),
                             public_key = req_pk.as_str()
                         );
+                        if ip.is_none() {
+                            tracing::error!("ip not present in request");
+                        }
                         let rc: RequestContext<$Req> = RequestContext {
                             request: request.signed_request.timestamped_value.value,
                             public_key: request.signed_request.public_key,
+                            ip,
                         };
 
                         async move {
                             let status;
-                            let log;
                             let mut level = tracing::Level::INFO;
                             let to_serialize = match $handler(state, rc).await {
                                 Ok(response) => {
                                     status = warp::http::StatusCode::OK;
-                                    log = "request processed successfully".to_string();
                                     Ok(response)
                                 }
                                 Err(ServerError::ClientError(e)) => {
                                     status = warp::http::StatusCode::BAD_REQUEST;
                                     level = tracing::Level::WARN;
-                                    log =
-                                        format!("request rejected due to a client error: {:?}", e);
                                     Err(ErrorWrapper::Endpoint(e))
                                 }
                                 Err(ServerError::InternalError(e)) => {
                                     status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
                                     level = tracing::Level::ERROR;
-                                    log = format!("Internal error {}: {}", <$Req>::ROUTE, e);
+                                    tracing::error!("internal: {e}");
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
                             let response =
                                 warp::reply::with_status(warp::reply::json(&to_serialize), status);
+                            let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
                             match level {
                                 tracing::Level::INFO => {
@@ -191,7 +193,9 @@ macro_rules! core_req {
 
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -199,14 +203,18 @@ where
     D: DocumentService,
 {
     core_req!(NewAccountRequest, ServerState::new_account, server_state)
+        .or(core_req!(NewAccountRequestV2, ServerState::new_account_v2, server_state))
         .or(core_req!(ChangeDocRequest, ServerState::change_doc, server_state))
+        .or(core_req!(ChangeDocRequestV2, ServerState::change_doc_v2, server_state))
         .or(core_req!(UpsertRequest, ServerState::upsert_file_metadata, server_state))
+        .or(core_req!(UpsertRequestV2, ServerState::upsert_file_metadata_v2, server_state))
         .or(core_req!(GetDocRequest, ServerState::get_document, server_state))
         .or(core_req!(GetPublicKeyRequest, ServerState::get_public_key, server_state))
         .or(core_req!(GetUsernameRequest, ServerState::get_username, server_state))
         .or(core_req!(GetUsageRequest, ServerState::get_usage, server_state))
         .or(core_req!(GetFileIdsRequest, ServerState::get_file_ids, server_state))
         .or(core_req!(GetUpdatesRequest, ServerState::get_updates, server_state))
+        .or(core_req!(GetUpdatesRequestV2, ServerState::get_updates_v2, server_state))
         .or(core_req!(
             UpgradeAccountGooglePlayRequest,
             ServerState::upgrade_account_google_play,
@@ -225,6 +233,7 @@ where
         .or(core_req!(CancelSubscriptionRequest, ServerState::cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, ServerState::get_subscription_info, server_state))
         .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
+        .or(core_req!(UpsertDebugInfoRequest, ServerState::upsert_debug_info, server_state))
         .or(core_req!(
             AdminDisappearAccountRequest,
             ServerState::admin_disappear_account,
@@ -292,7 +301,9 @@ static STRIPE_WEBHOOK_ROUTE: &str = "stripe-webhooks";
 
 pub fn stripe_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -312,7 +323,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", STRIPE_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{STRIPE_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -346,7 +357,9 @@ static PLAY_WEBHOOK_ROUTE: &str = "google_play_notification_webhook";
 
 pub fn google_play_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -368,7 +381,7 @@ where
                     Level::INFO,
                     "matched_request",
                     method = "POST",
-                    route = format!("/{}", PLAY_WEBHOOK_ROUTE).as_str()
+                    route = format!("/{PLAY_WEBHOOK_ROUTE}").as_str()
                 );
                 let _enter = span.enter();
                 info!("webhook routed");
@@ -408,7 +421,9 @@ where
 static APP_STORE_WEBHOOK_ROUTE: &str = "app_store_notification_webhook";
 pub fn app_store_notification_webhooks<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
-) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = warp::Rejection>
++ Clone
++ use<S, A, G, D>
 where
     S: StripeClient,
     A: AppStoreClient,
@@ -426,7 +441,7 @@ where
                 Level::INFO,
                 "matched_request",
                 method = "POST",
-                route = format!("/{}", APP_STORE_WEBHOOK_ROUTE).as_str()
+                route = format!("/{APP_STORE_WEBHOOK_ROUTE}").as_str()
             );
             let _enter = span.enter();
             info!("webhook routed");
@@ -456,11 +471,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
     warp::method()
         .and(warp::any().map(move || name.clone()))
         .and_then(|request: Method, intention: Method| async move {
-            if request == intention {
-                Ok(())
-            } else {
-                Err(reject::not_found())
-            }
+            if request == intention { Ok(()) } else { Err(reject::not_found()) }
         })
         .untuple_one()
 }

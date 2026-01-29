@@ -1,10 +1,9 @@
-use crate::model::account::Account;
-use crate::model::account::Username;
-use crate::model::crypto::*;
-use crate::model::file_metadata::{DocumentHmac, FileDiff, FileMetadata, Owner};
-use crate::model::server_file::ServerFile;
-use crate::model::signed_file::SignedFile;
 use crate::model::ValidationFailure;
+use crate::model::account::{Account, Username};
+use crate::model::crypto::*;
+use crate::model::file_metadata::{DocumentHmac, FileDiff, Owner};
+use crate::model::signed_file::SignedFile;
+use crate::service::debug::DebugInfo;
 use http::Method;
 use libsecp256k1::PublicKey;
 use serde::de::DeserializeOwned;
@@ -14,7 +13,10 @@ use std::fmt::Debug;
 use std::str::FromStr;
 use uuid::Uuid;
 
-pub const FREE_TIER_USAGE_SIZE: u64 = 1000000;
+use super::server_meta::ServerMeta;
+use super::signed_meta::SignedMeta;
+
+pub const FREE_TIER_USAGE_SIZE: u64 = 25000000;
 pub const PREMIUM_TIER_USAGE_SIZE: u64 = 30000000000;
 /// a fee of 1000 bytes allows 1000 file creations under the free tier.
 pub const METADATA_FEE: u64 = 1000;
@@ -54,6 +56,19 @@ impl Request for UpsertRequest {
     const ROUTE: &'static str = "/upsert-file-metadata";
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct UpsertRequestV2 {
+    pub updates: Vec<FileDiff<SignedMeta>>,
+}
+
+impl Request for UpsertRequestV2 {
+    type Response = ();
+
+    type Error = UpsertError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upsert-file-metadata-v2";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum UpsertError {
     /// Arises during a call to upsert, when the caller does not have the correct old version of the
@@ -77,6 +92,9 @@ pub enum UpsertError {
     /// Metas in upsert cannot contain changes to digest
     HmacModificationInvalid,
 
+    /// Metas in upsert cannot contain changes to doc size
+    SizeModificationInvalid,
+
     RootModificationInvalid,
 
     /// Found update to a deleted file
@@ -95,9 +113,16 @@ pub struct ChangeDocRequest {
     pub new_content: EncryptedDocument,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct ChangeDocRequestV2 {
+    pub diff: FileDiff<SignedMeta>,
+    pub new_content: EncryptedDocument,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub enum ChangeDocError {
     HmacMissing,
+    NewSizeIncorrect,
     DocumentNotFound,
     DocumentDeleted,
     NotPermissioned,
@@ -111,6 +136,13 @@ impl Request for ChangeDocRequest {
     type Error = ChangeDocError;
     const METHOD: Method = Method::PUT;
     const ROUTE: &'static str = "/change-document-content";
+}
+
+impl Request for ChangeDocRequestV2 {
+    type Response = ();
+    type Error = ChangeDocError;
+    const METHOD: Method = Method::PUT;
+    const ROUTE: &'static str = "/change-document-content-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -128,6 +160,7 @@ pub struct GetDocumentResponse {
 pub enum GetDocumentError {
     DocumentNotFound,
     NotPermissioned,
+    BandwidthExceeded,
 }
 
 impl Request for GetDocRequest {
@@ -240,10 +273,21 @@ pub struct GetUpdatesRequest {
     pub since_metadata_version: u64,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetUpdatesRequestV2 {
+    pub since_metadata_version: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct GetUpdatesResponse {
     pub as_of_metadata_version: u64,
     pub file_metadata: Vec<SignedFile>,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct GetUpdatesResponseV2 {
+    pub as_of_metadata_version: u64,
+    pub file_metadata: Vec<SignedMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -258,6 +302,13 @@ impl Request for GetUpdatesRequest {
     const ROUTE: &'static str = "/get-updates";
 }
 
+impl Request for GetUpdatesRequestV2 {
+    type Response = GetUpdatesResponseV2;
+    type Error = GetUpdatesError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-updates-v2";
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct NewAccountRequest {
     pub username: Username,
@@ -265,15 +316,29 @@ pub struct NewAccountRequest {
     pub root_folder: SignedFile,
 }
 
-impl NewAccountRequest {
-    pub fn new(account: &Account, root_folder: &ECSigned<FileMetadata>) -> Self {
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub struct NewAccountRequestV2 {
+    pub username: Username,
+    pub public_key: PublicKey,
+    pub root_folder: SignedMeta,
+}
+
+impl NewAccountRequestV2 {
+    pub fn new(account: &Account, root_folder: &SignedMeta) -> Self {
         let root_folder = root_folder.clone();
-        NewAccountRequest {
+        NewAccountRequestV2 {
             username: account.username.clone(),
             public_key: account.public_key(),
             root_folder,
         }
     }
+}
+
+impl Request for NewAccountRequestV2 {
+    type Response = NewAccountResponse;
+    type Error = NewAccountError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/new-account-v2";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -288,6 +353,7 @@ pub enum NewAccountError {
     InvalidUsername,
     FileIdTaken,
     Disabled,
+    RateLimited,
 }
 
 impl Request for NewAccountRequest {
@@ -481,6 +547,23 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct UpsertDebugInfoRequest {
+    pub debug_info: DebugInfo,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum UpsertDebugInfoError {
+    NotPermissioned,
+}
+
+impl Request for UpsertDebugInfoRequest {
+    type Response = ();
+    type Error = UpsertDebugInfoError;
+    const METHOD: Method = Method::POST;
+    const ROUTE: &'static str = "/upsert-debug-info";
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct AdminDisappearAccountRequest {
     pub username: String,
 }
@@ -670,9 +753,9 @@ pub struct AdminFileInfoRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AdminFileInfoResponse {
-    pub file: ServerFile,
-    pub ancestors: Vec<ServerFile>,
-    pub descendants: Vec<ServerFile>,
+    pub file: ServerMeta,
+    pub ancestors: Vec<ServerMeta>,
+    pub descendants: Vec<ServerMeta>,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]

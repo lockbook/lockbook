@@ -9,21 +9,27 @@ pub mod docs;
 pub mod network;
 
 use crate::model::account::Account;
+use crate::model::core_config::Config;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
-use crate::Lb;
+use crate::service::lb_id::LbID;
+use crate::{Lb, LbErrKind, LbResult};
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
+use docs::AsyncDocs;
+use std::fs;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
 use uuid::Uuid;
 use web_time::{Duration, Instant};
 
-pub(crate) type LbDb = Arc<RwLock<CoreV3>>;
+pub(crate) type LbDb = Arc<RwLock<CoreDb>>;
 // todo: limit visibility
-pub type CoreDb = CoreV3;
+pub type CoreDb = CoreV4;
 
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
@@ -40,11 +46,102 @@ pub struct CoreV3 {
     pub doc_events: List<DocEvent>,
 }
 
+#[derive(Schema, Debug)]
+#[cfg_attr(feature = "no-network", derive(Clone))]
+pub struct CoreV4 {
+    pub account: Single<Account>,
+    pub last_synced: Single<i64>,
+    pub root: Single<Uuid>,
+    pub local_metadata: LookupTable<Uuid, SignedMeta>,
+    pub base_metadata: LookupTable<Uuid, SignedMeta>,
+
+    /// map from pub key to username
+    pub pub_key_lookup: LookupTable<Owner, String>,
+
+    pub doc_events: List<DocEvent>,
+    pub id: Single<LbID>,
+}
+
+pub async fn migrate_and_init(cfg: &Config, docs: &AsyncDocs) -> LbResult<CoreV4> {
+    let cfg = db_rs::Config::in_folder(&cfg.writeable_path);
+
+    let mut db =
+        CoreDb::init(cfg.clone()).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+    let mut old = CoreV3::init(cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
+
+    // --- migration begins ---
+    let tx = db.begin_transaction()?;
+
+    info!("evaluating migration");
+    if old.account.get().is_some() && db.account.get().is_none() {
+        info!("performing migration");
+        if let Some(account) = old.account.get().cloned() {
+            db.account.insert(account)?;
+        }
+
+        if let Some(last_synced) = old.last_synced.get().copied() {
+            db.last_synced.insert(last_synced)?;
+        }
+
+        if let Some(root) = old.root.get().copied() {
+            db.root.insert(root)?;
+        }
+        for (id, file) in old.base_metadata.get() {
+            let mut meta: SignedMeta = file.clone().into();
+            if meta.is_document() {
+                if let Some(doc) = docs.maybe_get(*id, file.document_hmac().copied()).await? {
+                    meta.timestamped_value
+                        .value
+                        .set_hmac_and_size(file.document_hmac().copied(), Some(doc.value.len()));
+                } else {
+                    warn!("local document missing for {id}");
+                }
+            }
+            db.base_metadata.insert(*id, meta)?;
+        }
+
+        for (id, file) in old.local_metadata.get() {
+            let mut meta: SignedMeta = file.clone().into();
+            if meta.is_document() {
+                if let Some(doc) = docs.maybe_get(*id, file.document_hmac().copied()).await? {
+                    meta.timestamped_value
+                        .value
+                        .set_hmac_and_size(file.document_hmac().copied(), Some(doc.value.len()));
+                } else {
+                    warn!("local document missing for {id}");
+                }
+            }
+
+            db.local_metadata.insert(*id, meta)?;
+        }
+
+        for (o, s) in old.pub_key_lookup.get() {
+            db.pub_key_lookup.insert(*o, s.clone())?;
+        }
+
+        for event in old.doc_events.get() {
+            db.doc_events.push(*event)?;
+        }
+    } else {
+        info!("no migration");
+    }
+
+    tx.drop_safely()?;
+    // --- migration ends ---
+
+    info!("cleaning up");
+    old.account.clear()?;
+    let old_db = old.config()?.db_location_v2()?;
+    let _ = fs::remove_file(old_db);
+
+    Ok(db)
+}
+
 pub struct LbRO<'a> {
     guard: RwLockReadGuard<'a, CoreDb>,
 }
 
-impl<'a> LbRO<'a> {
+impl LbRO<'_> {
     pub fn db(&self) -> &CoreDb {
         self.guard.deref()
     }
@@ -55,7 +152,7 @@ pub struct LbTx<'a> {
     tx: TxHandle,
 }
 
-impl<'a> LbTx<'a> {
+impl LbTx<'_> {
     pub fn db(&mut self) -> &mut CoreDb {
         self.guard.deref_mut()
     }

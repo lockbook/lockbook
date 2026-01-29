@@ -4,10 +4,19 @@ use egui::TouchPhase;
 use resvg::usvg::Transform;
 use tracing::trace;
 
-use super::{element::BoundedElement, SVGEditor};
-use lb_rs::model::svg::{buffer::u_transform_to_bezier, element::Element};
+use crate::tab::ExtendedInput as _;
+use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar};
+use crate::tab::svg_editor::util::get_pan;
 
-use super::{toolbar::ToolContext, Buffer};
+use super::element::BoundedElement;
+use super::util::transform_rect;
+use super::{SVGEditor, ViewportSettings};
+use lb_rs::model::svg::buffer::u_transform_to_bezier;
+use lb_rs::model::svg::element::Element;
+
+use super::Buffer;
+use super::toolbar::ToolContext;
+pub const MIN_ZOOM_LEVEL: f32 = 0.1;
 
 #[derive(Default)]
 pub struct GestureHandler {
@@ -38,7 +47,9 @@ enum Shortcut {
 }
 
 impl GestureHandler {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) {
+    pub fn handle_input(
+        &mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext, hide_overlay: bool,
+    ) {
         if !*gesture_ctx.allow_viewport_changes {
             self.current_gesture = None;
             return;
@@ -56,7 +67,14 @@ impl GestureHandler {
                 self.handle_event(e, gesture_ctx)
             }
         });
-        self.change_viewport(ui, gesture_ctx);
+        for e in ui.ctx().read_events() {
+            match e {
+                crate::Event::Undo => gesture_ctx.history.undo(gesture_ctx.buffer),
+                crate::Event::Redo => gesture_ctx.history.redo(gesture_ctx.buffer),
+                _ => {}
+            };
+        }
+        self.change_viewport(ui, gesture_ctx, hide_overlay);
     }
 
     fn handle_event(&mut self, event: &egui::Event, gesture_ctx: &mut ToolContext) {
@@ -129,33 +147,46 @@ impl GestureHandler {
         }
     }
 
-    fn change_viewport(&mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>) {
+    fn change_viewport(
+        &mut self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext<'_>, hide_overlay: bool,
+    ) {
         let zoom_delta = ui.input(|r| r.zoom_delta());
         let is_zooming = zoom_delta != 1.0;
-        let pan = self.get_pan(ui, gesture_ctx);
+        let pan: Option<egui::Vec2> = get_pan(ui, gesture_ctx.settings.pencil_only_drawing);
 
-        let touch_positions = get_touch_positions(ui);
+        let touch_positions = SVGEditor::get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
         let mut sum_pos = egui::Pos2::default();
-        for pos in get_touch_positions(ui).values() {
+        for pos in SVGEditor::get_touch_positions(ui).values() {
             sum_pos.x += pos.x;
             sum_pos.y += pos.y;
         }
 
-        let pos = if pos_cardinality != 0 {
-            sum_pos / pos_cardinality as f32
+        let maybe_pos = if pos_cardinality != 0 {
+            Some(sum_pos / pos_cardinality as f32)
         } else {
-            match ui.ctx().pointer_hover_pos() {
-                Some(cp) => {
-                    if gesture_ctx.painter.clip_rect().contains(cp) {
-                        cp
-                    } else {
-                        return;
-                    }
-                }
-                None => egui::Pos2::ZERO,
-            }
+            ui.ctx().pointer_hover_pos()
         };
+
+        let container_rect_with_mini_map = if Toolbar::should_show_mini_map(
+            hide_overlay,
+            gesture_ctx.settings,
+            gesture_ctx.viewport_settings,
+        ) {
+            egui::Rect::from_min_size(
+                gesture_ctx.viewport_settings.container_rect.min,
+                egui::vec2(
+                    gesture_ctx.viewport_settings.container_rect.width() - MINI_MAP_WIDTH,
+                    gesture_ctx.viewport_settings.container_rect.height(),
+                ),
+            )
+        } else {
+            gesture_ctx.viewport_settings.container_rect
+        };
+
+        if maybe_pos.is_some() && !container_rect_with_mini_map.contains(maybe_pos.unwrap()) {
+            return;
+        }
 
         let mut t = Transform::identity();
         if let Some(p) = pan {
@@ -169,11 +200,13 @@ impl GestureHandler {
             t = t.post_scale(zoom_delta, zoom_delta);
 
             // correct the zoom to center
-            t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+            if let Some(pos) = maybe_pos {
+                t = t.post_translate((1.0 - zoom_delta) * pos.x, (1.0 - zoom_delta) * pos.y);
+            }
         }
 
         if pan.is_some() || is_zooming {
-            SVGEditor::transform_canvas(gesture_ctx.buffer, t);
+            transform_canvas(gesture_ctx.buffer, gesture_ctx.viewport_settings, t);
         }
     }
 
@@ -207,32 +240,6 @@ impl GestureHandler {
         trace!(num_touches, "applied gesture");
     }
 
-    fn get_pan(&self, ui: &mut egui::Ui, gesture_ctx: &mut ToolContext) -> Option<egui::Vec2> {
-        if let Some(current_gesture) = &self.current_gesture {
-            let mut active_touches = current_gesture.touch_infos.values().filter(|v| v.is_active);
-
-            if active_touches.clone().count() == 1 && gesture_ctx.settings.pencil_only_drawing {
-                let touch = active_touches.next().unwrap();
-                return Some(touch.frame_delta);
-            }
-        }
-        ui.input(|r| {
-            if r.raw_scroll_delta.x.abs() > 0.0 || r.raw_scroll_delta.y.abs() > 0.0 {
-                Some(r.raw_scroll_delta)
-            } else if let Some(touch_gesture) = r.multi_touch() {
-                if touch_gesture.translation_delta.x.abs() > 0.0
-                    || touch_gesture.translation_delta.y.abs() > 0.0
-                {
-                    Some(touch_gesture.translation_delta)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
-    }
-
     // todo: tech debt lol, should refactor the eraser instead of doing this
     pub fn is_locked_vw_pen_only_draw(&self) -> bool {
         if let Some(current_gesture) = &self.current_gesture {
@@ -248,55 +255,76 @@ impl GestureHandler {
     }
 }
 
-impl SVGEditor {
-    pub fn get_zoom_fit_transform(buffer: &mut Buffer, ui: &mut egui::Ui) -> Option<Transform> {
-        let elements_bound = match calc_elements_bounds(buffer) {
-            Some(rect) => rect,
-            None => return None,
-        };
-        let inner_rect = ui.painter().clip_rect();
-        let is_width_smaller = elements_bound.width() < elements_bound.height();
-        let padding_coeff = 0.7;
-        let zoom_delta = if is_width_smaller {
-            inner_rect.height() * padding_coeff / elements_bound.height()
-        } else {
-            inner_rect.width() * padding_coeff / elements_bound.width()
-        };
-        let center_x = inner_rect.center().x
-            - zoom_delta * (elements_bound.left() + elements_bound.width() / 2.0);
-        let center_y = inner_rect.center().y
-            - zoom_delta * (elements_bound.top() + elements_bound.height() / 2.0);
-        Some(
-            Transform::identity()
-                .post_scale(zoom_delta, zoom_delta)
-                .post_translate(center_x, center_y),
-        )
+pub fn transform_canvas(
+    buffer: &mut Buffer, viewport_settings: &mut ViewportSettings, t: Transform,
+) {
+    let new_transform = viewport_settings.master_transform.post_concat(t);
+
+    // max allowed zoom level is 10%
+    if viewport_settings.master_transform.sx < MIN_ZOOM_LEVEL
+        && new_transform.sx < viewport_settings.master_transform.sx
+    {
+        return;
     }
-    pub fn transform_canvas(buffer: &mut Buffer, t: Transform) {
-        let new_transform = buffer.master_transform.post_concat(t);
-        if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
-            return;
-        }
-        buffer.master_transform = new_transform;
-        for el in buffer.elements.values_mut() {
-            match el {
-                Element::Path(path) => {
-                    path.diff_state.transformed = Some(t);
-                    path.data.apply_transform(u_transform_to_bezier(&t));
-                }
-                Element::Image(image) => {
-                    if let Some(new_vbox) = image.view_box.transform(t) {
-                        image.view_box = new_vbox;
-                    }
-                    image.diff_state.transformed = Some(t);
-                }
-                Element::Text(_) => todo!(),
+    if new_transform.sx == 0.0 || new_transform.sy == 0.0 {
+        return;
+    }
+    viewport_settings.master_transform = new_transform;
+    buffer.master_transform_changed = true;
+
+    for el in buffer.elements.values_mut() {
+        match el {
+            Element::Path(path) => {
+                path.diff_state.transformed = Some(t);
+                path.data.apply_transform(u_transform_to_bezier(&t));
             }
+            Element::Image(image) => {
+                if let Some(new_vbox) = image.view_box.transform(t) {
+                    image.view_box = new_vbox;
+                }
+                image.diff_state.transformed = Some(t);
+            }
+            Element::Text(_) => todo!(),
         }
     }
+    viewport_settings.bounded_rect = viewport_settings
+        .bounded_rect
+        .map(|rect| transform_rect(rect, t));
 }
 
-fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
+/// returns the fit transform in the non master transform plane
+pub fn get_zoom_fit_transform(viewport_settings: &ViewportSettings) -> Option<Transform> {
+    let elements_bound = viewport_settings.bounded_rect?;
+
+    get_rect_identity_transform(
+        viewport_settings.container_rect,
+        elements_bound,
+        0.7,
+        viewport_settings.container_rect.center(),
+    )
+}
+
+/// given two rects how to transform them such that they're both equal
+pub fn get_rect_identity_transform(
+    origin: egui::Rect, source: egui::Rect, padding_coeff: f32, anchor: egui::Pos2,
+) -> Option<Transform> {
+    let is_width_smaller = source.width() < source.height();
+    let zoom_delta = if is_width_smaller {
+        origin.height() * padding_coeff / source.height()
+    } else {
+        origin.width() * padding_coeff / source.width()
+    };
+    let center_x = anchor.x - zoom_delta * (source.left() + source.width() / 2.0);
+    let center_y = anchor.y - zoom_delta * (source.top() + source.height() / 2.0);
+    Some(
+        Transform::identity()
+            .post_scale(zoom_delta, zoom_delta)
+            .post_translate(center_x, center_y),
+    )
+}
+
+/// result is in absolute plane
+pub fn calc_elements_bounds(buffer: &Buffer) -> Option<egui::Rect> {
     let mut elements_bound =
         egui::Rect { min: egui::pos2(f32::MAX, f32::MAX), max: egui::pos2(f32::MIN, f32::MIN) };
     let mut dirty_bound = false;
@@ -314,36 +342,34 @@ fn calc_elements_bounds(buffer: &mut Buffer) -> Option<egui::Rect> {
         elements_bound.max.x = elements_bound.max.x.max(el_rect.max.x);
         elements_bound.max.y = elements_bound.max.y.max(el_rect.max.y);
     }
-    if !dirty_bound {
-        None
-    } else {
-        Some(elements_bound)
-    }
+    if !dirty_bound { None } else { Some(elements_bound) }
 }
 
 pub fn zoom_percentage_to_transform(
-    zoom_percentage: f32, buffer: &mut Buffer, ui: &mut egui::Ui,
+    zoom_percentage: f32, viewport_settings: &ViewportSettings, ui: &mut egui::Ui,
 ) -> Transform {
-    let zoom_delta = (zoom_percentage) / (buffer.master_transform.sx * 100.0);
-    return Transform::identity()
+    let zoom_delta = (zoom_percentage) / (viewport_settings.master_transform.sx * 100.0);
+    Transform::identity()
         .post_scale(zoom_delta, zoom_delta)
         .post_translate(
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().x,
             (1.0 - zoom_delta) * ui.ctx().screen_rect().center().y,
-        );
+        )
 }
 
-fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
-    ui.input(|r| {
-        let mut touch_positions = HashMap::new();
-        for e in r.events.iter() {
-            if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
-                if phase != egui::TouchPhase::Cancel {
-                    touch_positions.insert(id.0, pos);
+impl SVGEditor {
+    pub fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
+        ui.input(|r| {
+            let mut touch_positions = HashMap::new();
+            for e in r.events.iter() {
+                if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
+                    if phase != egui::TouchPhase::Cancel {
+                        touch_positions.insert(id.0, pos);
+                    }
                 }
             }
-        }
 
-        touch_positions
-    })
+            touch_positions
+        })
+    }
 }

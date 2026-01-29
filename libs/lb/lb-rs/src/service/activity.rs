@@ -1,8 +1,7 @@
+use crate::Lb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
-use serde::Deserialize;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::cmp;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -38,6 +37,29 @@ impl Lb {
         }
 
         Ok(result)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn clear_suggested(&self) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        db.doc_events.clear()?;
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn clear_suggested_id(&self, id: Uuid) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let mut entries = db.doc_events.get().to_vec();
+        db.doc_events.clear()?;
+        entries.retain(|e| e.id() != id);
+        for entry in entries {
+            db.doc_events.push(entry)?;
+        }
+
+        Ok(())
     }
 
     pub(crate) async fn add_doc_event(&self, event: DocEvent) -> LbResult<()> {
@@ -99,7 +121,7 @@ impl Lb {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialEq, PartialOrd, Eq, Hash, Copy)]
 pub enum DocEvent {
     Read(Uuid, i64),
     Write(Uuid, i64),

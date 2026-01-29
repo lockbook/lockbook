@@ -1,10 +1,13 @@
-use crate::billing::billing_model::SubscriptionProfile;
-use db_rs::{LookupSet, LookupTable};
+use db_rs::{LookupMap, LookupSet, LookupTable, Single};
 use db_rs_derive::Schema;
-use lb_rs::model::file_metadata::Owner;
-use lb_rs::model::server_file::ServerFile;
+use lb_rs::model::file_metadata::{DocumentHmac, Owner};
+use lb_rs::model::server_meta::ServerMeta;
+use lb_rs::service::debug::DebugInfo;
+use lb_rs::service::lb_id::LbID;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use crate::{billing::billing_model::SubscriptionProfile, defense::BandwidthReport};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OneKey;
@@ -15,14 +18,13 @@ pub struct Account {
     pub billing_info: SubscriptionProfile,
 }
 
-pub type ServerDb = ServerV4;
+pub type ServerDb = ServerV5;
 
 #[derive(Schema)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
-pub struct ServerV4 {
+pub struct ServerV5 {
     pub usernames: LookupTable<String, Owner>,
-    pub metas: LookupTable<Uuid, ServerFile>,
-    pub sizes: LookupTable<Uuid, u64>,
+    pub metas: LookupTable<Uuid, ServerMeta>,
     pub google_play_ids: LookupTable<String, Owner>,
     pub stripe_ids: LookupTable<String, Owner>,
     pub app_store_ids: LookupTable<String, Owner>,
@@ -31,4 +33,8 @@ pub struct ServerV4 {
     pub owned_files: LookupSet<Owner, Uuid>,
     pub shared_files: LookupSet<Owner, Uuid>,
     pub file_children: LookupSet<Uuid, Uuid>,
+    pub server_egress: Single<BandwidthReport>,
+    pub egress_by_owner: LookupTable<Owner, BandwidthReport>,
+    pub scheduled_file_cleanups: LookupTable<(Uuid, DocumentHmac), i64>,
+    pub debug_info: LookupMap<Owner, LbID, DebugInfo>,
 }

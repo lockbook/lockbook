@@ -58,7 +58,9 @@ public data class AndroidResponse(
     val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
     val tabTitleClicked: Boolean,
-
+    @SerialName("tabs_changed")
+    val tabsChanged: Boolean,
+    
     @SerialName("has_edit_menu")
     val hasEditMenu: Boolean,
     @SerialName("edit_menu_x")
@@ -83,9 +85,10 @@ object Workspace {
         print("do nothing")
     }
 
-    external fun initWS(surface: Surface, core: Long, scaleFactor: Float, darkMode: Boolean, oldWGPU: Long): Long
+    external fun initWS(surface: Surface, core: Long, darkMode: Boolean): Long
     external fun enterFrame(rustObj: Long): String
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
+    external fun setBottomInset(rustObj: Long, inset: Int)
 
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
@@ -93,10 +96,14 @@ object Workspace {
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesCancelled(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
-    external fun openDoc(rustObj: Long, id: String, newFile: Boolean)
+    external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
     external fun closeDoc(rustObj: Long, id: String)
+    external fun closeAllTabs(rustObj: Long)
     external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
+
+    external fun getTabs(rustObj: Long) : Array<String>
+
     external fun currentTab(rustObj: Long): Int
 
     external fun getStatus(rustObj: Long): String
@@ -146,6 +153,8 @@ data class JRect(
     val maxY: Float
 )
 
+const val NULL_UUID = "00000000-0000-0000-0000-000000000000"
+
 fun String.isNullUUID(): Boolean {
-    return this == "00000000-0000-0000-0000-000000000000"
+    return this == NULL_UUID
 }

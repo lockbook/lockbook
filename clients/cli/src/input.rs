@@ -1,11 +1,11 @@
-use std::{
-    fmt::{self, Debug, Display, Formatter},
-    io::{self, Write},
-    str::FromStr,
-};
+use std::fmt::{self, Debug, Display, Formatter};
+use std::io::{self, Write};
+use std::str::FromStr;
 
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::{model::file::File, model::path_ops::Filter, Lb, Uuid};
+use lb_rs::model::file::File;
+use lb_rs::model::path_ops::Filter;
+use lb_rs::{Lb, Uuid};
 
 use crate::core;
 
@@ -28,7 +28,7 @@ impl FileInput {
     pub async fn find(&self, lb: &Lb) -> CliResult<File> {
         let f = match self {
             FileInput::Id(id) => lb.get_file_by_id(*id).await?,
-            FileInput::Path(path) => lb.get_by_path(path).await?,
+            FileInput::Path(path) => lb.get_by_path(path.trim()).await?,
         };
 
         Ok(f)
@@ -100,12 +100,23 @@ pub async fn id_completor(lb: &Lb, prompt: &str, filter: Option<Filter>) -> CliR
         .collect())
 }
 
+#[tokio::main]
+pub async fn username_completor(prompt: &str) -> CliResult<Vec<String>> {
+    let lb = &core().await?;
+    Ok(lb
+        .known_usernames()
+        .await?
+        .into_iter()
+        .filter(|cand| cand.starts_with(prompt))
+        .collect())
+}
+
 pub fn std_in<T>(prompt: impl Display) -> Result<T, CliError>
 where
     T: FromStr,
     <T as FromStr>::Err: Debug,
 {
-    print!("{}", prompt);
+    print!("{prompt}");
     io::stdout().flush()?;
 
     let mut answer = String::new();

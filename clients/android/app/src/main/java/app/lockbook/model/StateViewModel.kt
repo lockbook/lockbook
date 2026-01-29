@@ -7,7 +7,6 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 import java.io.File
@@ -72,13 +71,12 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 
 sealed class ActivityScreen {
     data class Settings(val scrollToPreference: Int? = null) : ActivityScreen()
-    object Shares : ActivityScreen()
 }
 
 sealed class TransientScreen {
     data class Move(val files: List<net.lockbook.File>) : TransientScreen()
     data class Rename(val file: net.lockbook.File) : TransientScreen()
-    data class Create(val parentId: String, val extendedFileType: ExtendedFileType) : TransientScreen()
+    data class Create(val parentId: String) : TransientScreen()
     data class Info(val file: net.lockbook.File) : TransientScreen()
     data class ShareExport(val files: List<File>) : TransientScreen()
     data class ShareFile(val file: net.lockbook.File) : TransientScreen()
@@ -87,6 +85,7 @@ sealed class TransientScreen {
 
 sealed class UpdateMainScreenUI {
     data class OpenFile(val id: String?) : UpdateMainScreenUI()
+
     data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
     data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
     data class NotifyError(val error: LbError) : UpdateMainScreenUI()
@@ -94,16 +93,10 @@ sealed class UpdateMainScreenUI {
     object ShowSearch : UpdateMainScreenUI()
     object ShowFiles : UpdateMainScreenUI()
     object PopBackstackToWorkspace : UpdateMainScreenUI()
+    object ToggleBottomViewNavigation : UpdateMainScreenUI()
+    object CloseSlidingPane : UpdateMainScreenUI()
+    object CloseWorkspacePane : UpdateMainScreenUI()
+    object HideBottomViewNavigation : UpdateMainScreenUI()
+    object OpenWorkspacePane : UpdateMainScreenUI()
     object Sync : UpdateMainScreenUI()
-}
-
-sealed class ExtendedFileType {
-    object Document : ExtendedFileType()
-    object Drawing : ExtendedFileType()
-    object Folder : ExtendedFileType()
-
-    fun toFileType(): FileType = when (this) {
-        Drawing, Document -> FileType.Document
-        Folder -> FileType.Folder
-    }
 }

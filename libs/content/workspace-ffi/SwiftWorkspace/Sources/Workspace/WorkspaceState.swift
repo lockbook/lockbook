@@ -1,75 +1,134 @@
-import SwiftUI
-import Combine
 import Bridge
+import Combine
+import SwiftUI
 
-// todo can this go away enirely?
-public class WorkspaceState: ObservableObject {
-    
-    var wsHandle: UnsafeMutableRawPointer? = nil
-    public var showTabs: Bool = true
+public class WorkspaceOutputState: ObservableObject {
 
-    @Published public var pasted: Bool = false
-    @Published public var shouldFocus: Bool = false
-    
-    @Published public var openDoc: UUID? = nil {
-        didSet {
-            #if os(macOS)
-            shouldFocus = true
-            #endif
-            pendingSharesOpen = false
-        }
-    }
-    
-    @Published public var pendingSharesOpen: Bool = false
-    
+    // Should I be using combine state classes for these? Helps reduce refreshes
+    @Published public var openDoc: UUID? = nil
     @Published public var selectedFolder: UUID? = nil
-    
-    @Published public var syncing: Bool = false
-    @Published public var clientUpgrade: Bool = false
-    @Published public var outOfSpace: Bool = false
-    @Published public var offline: Bool = false
-    @Published public var syncProgress: Float? = nil
-    @Published public var statusMsg: String = ""
-    @Published public var reloadFiles: Bool = false
-    
-    @Published public var syncRequested: Bool = false
-    @Published public var openDocRequested: UUID? = nil
-    @Published public var closeAllTabsRequested: Bool = false
-    
-    @Published public var newFolderButtonPressed: Bool = false
-    
+    @Published public var newFolderButtonPressed: () = ()
     @Published public var currentTab: WorkspaceTab = .Welcome
-    
-    @Published public var renameOpenDoc: Bool = false
-    @Published public var fileOpCompleted: WSFileOpCompleted? = nil
-    @Published public var closeActiveTab: Bool = false
-    
+    @Published public var renameOpenDoc: () = ()
+    @Published public var urlOpened: URL? = nil
+    @Published public var openCamera: Bool = false
+
+    // Tab count includes non-files
+    // Tab ids includes only file ids
+    // Ideally want to combine these
     @Published public var tabCount: Int = 0
-        
+    @Published public var tabIds: [UUID] = []
+
     public init() {}
-    
+}
+
+public class WorkspaceInputState: ObservableObject {
+    public var coreHandle: UnsafeMutableRawPointer? = nil
+    public var wsHandle: UnsafeMutableRawPointer? = nil
+
+    public var redraw = PassthroughSubject<(), Never>()
+    public var focus = PassthroughSubject<(), Never>()
+    //    maybe make unfocus variable
+
+    public init(coreHandle: UnsafeMutableRawPointer?) {
+        self.coreHandle = coreHandle
+    }
+
+    public init() {}
+
+    public func openFile(id: UUID) {
+        guard let wsHandle else {
+            return
+        }
+
+        let uuid = CUuid(_0: id.uuid)
+        no_folder_selected(wsHandle)
+        open_file(wsHandle, uuid)
+        redraw.send(())
+        //        Will crash iOS, something with caret rects. Looks rust related
+        //        focus.send(())
+    }
+
+    public func selectFolder(id: UUID?) {
+        guard let wsHandle else { return }
+
+        if let id {
+            folder_selected(wsHandle, CUuid(_0: id.uuid))
+        } else {
+            no_folder_selected(wsHandle)
+        }
+        redraw.send(())
+    }
+
+    public func createDocAt(parent: UUID, drawing: Bool) {
+        guard let wsHandle else { return }
+
+        let parent = CUuid(_0: parent.uuid)
+        create_doc_at(wsHandle, parent, drawing)
+        redraw.send(())
+    }
+
     public func requestSync() {
-        self.syncRequested = true
+        guard let wsHandle else { return }
+
+        request_sync(wsHandle)
+        redraw.send(())
+    }
+
+    public func closeDoc(id: UUID) {
+        guard let wsHandle else { return }
+
+        close_tab(wsHandle, id.uuidString)
+        redraw.send(())
+    }
+
+    public func closeAllTabs() {
+        guard let wsHandle else { return }
+
+        close_all_tabs(wsHandle)
+        redraw.send(())
     }
     
-    public func requestOpenDoc(_ id: UUID) {
-        self.openDocRequested = id
-    }
-    
-    public func requestCloseAllTabs() {
-        self.closeAllTabsRequested = true
-    }
-    
-    public func getTabsIds() -> [UUID] {
-        let result = get_tabs_ids(wsHandle)
-        let buffer: [CUuid] = Array(UnsafeBufferPointer(start: result.ids, count: Int(result.size)))
+    public func pasteImage(data: Data, isPaste: Bool) {
+        guard let wsHandle else { return }
         
+        let imgPtr = data.withUnsafeBytes {
+            (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
+            return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
+        }
+
+        clipboard_send_image(wsHandle, imgPtr, UInt(data.count), isPaste)
+        redraw.send(())
+    }
+
+    public func fileOpCompleted(fileOp: WSFileOpCompleted) {
+        guard let wsHandle else { return }
+
+        switch fileOp {
+        case .Delete(let id):
+            close_tab(wsHandle, id.uuidString)
+        case .Rename(let id, let newName):
+            tab_renamed(wsHandle, id.uuidString, newName)
+        }
+
+        redraw.send(())
+    }
+
+    // IDEALLY PROVIDED WITHIN WORKSPACE RESP
+    public func getTabsIds() -> [UUID] {
+        guard let wsHandle else { return [] }
+
+        let result = get_tabs_ids(wsHandle)
+        let buffer: [CUuid] = Array(
+            UnsafeBufferPointer(start: result.ids, count: Int(result.size))
+        )
+
         let newBuffer = buffer.map({ id in
             return UUID(uuid: id._0)
         })
-        
+
         free_tab_ids(result)
-        
+
         return newBuffer
     }
 }
@@ -81,13 +140,32 @@ public enum WSFileOpCompleted {
 
 func createTempDir() -> URL? {
     let fileManager = FileManager.default
-    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("editor-tmp").appendingPathComponent(UUID().uuidString)
-    
+    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("editor-tmp").appendingPathComponent(
+            UUID().uuidString
+        )
+
     do {
-        try fileManager.createDirectory(at: tempTempURL, withIntermediateDirectories: true, attributes: nil)
+        try fileManager.createDirectory(
+            at: tempTempURL,
+            withIntermediateDirectories: true,
+            attributes: nil
+        )
     } catch {
         return nil
     }
-    
+
     return tempTempURL
+}
+
+extension WorkspaceInputState {
+    public static var preview: WorkspaceInputState {
+        return WorkspaceInputState()
+    }
+}
+
+extension WorkspaceOutputState {
+    public static var preview: WorkspaceOutputState {
+        return WorkspaceOutputState()
+    }
 }

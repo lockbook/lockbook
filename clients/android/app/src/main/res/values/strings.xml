@@ -8,7 +8,7 @@
     <string name="create_account">Create Account</string>
 
     <string name="import_description">Account key</string>
-    <string name="new_account_username">Username (a–z, 0–9)</string>
+    <string name="new_account_username">Username</string>
 
     <string name="import_qr_scanner_prompt">Place the account key QR code in view to scan.</string>
 
@@ -17,9 +17,11 @@
     <string name="popup_info_file_type">"File Type: "</string>
     <string name="popup_info_metadata_version">"Last modified: "</string>
 
-    <string name="settings_export_account_raw">Copy your account key to clipboard</string>
+    <string name="settings_export_account_raw">Copy  account key</string>
+    <string name="settings_export_account_phrase">Copy account phrase</string>
     <string name="settings_export_account_qr">Export your account key (QR Code)</string>
     <string name="settings_export_account_copied">Account key copied!</string>
+    <string name="settings_export_account_phrase_copied">Account phrase copied!</string>
     <string name="settings_protect_account_biometric">Biometric options</string>
 
     <string name="biometric_disabled">Disabled</string>
@@ -84,8 +86,6 @@
     <string name="file">File</string>
 
     <string name="create_file_title_folder">New Folder</string>
-    <string name="create_file_title_document">New Document</string>
-    <string name="create_file_title_drawing">New SVG</string>
 
     <string name="files_list_items_selected">%d Selected</string>
 
@@ -111,12 +111,23 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
 
-    <string name="learn_more"><a href="https://lockbook.net">Learn more…</a></string>
-    <string name="on_boarding_create">Create</string>
-    <string name="on_boarding_import">Import</string>
+
+    <string name="on_boarding_sub_header">the private note-taking platform.</string>
+    <string name="on_boarding_copy">The perfect place to record, sync, and share your thoughts.</string>
+    <string name="on_boarding_create">Get started</string>
+    <string name="on_boarding_import">I have an account</string>
+    <string name="import_header">Enter your key</string>
+    <string name="import_copy">Enter your phrase or private key, or scan your key QR from another device.\n\nIf you enter a phrase, please separate each word by a space or comma.</string>
+    <string name="create_header">Create a username</string>
+    <string name="create_copy">Use letters <b>(A–Z)</b> and numbers <b>(0–9)</b>. Special characters aren\'t allowed.\n\nYou cannot change your username later.</string>
+    <string name="copy_key_header">This is your account key</string>
+    <string name="copy_key_copy">It proves you\'re you, and it is a secret. If you lose it, you can\'t recover your account.\n\nYou can view your key again in the settings.</string>
+    <string name="copy_key_pledge">I\'ve stored my account key in a safe place.</string>
+    <string name="copy_account_phrase">Copy account phrase</string>
+    <string name="next">Next</string>
+
+
     <string name="import_account_starting_import">Starting import…</string>
-    <string name="before_you_start">Before you start…</string>
-    <string name="before_you_start_description">Lockbook <a href="https://en.wikipedia.org/wiki/End-to-end_encryption">encrypts</a> your notes with a key that stays on your Lockbook devices. This makes your notes unreadable to anyone but you. If you lose the key, your notes are not recoverable, so we recommend you make a backup in case something happens to this device.</string>
 
     <string name="free_space">%1$s used out of %2$s</string>
     <string name="last_sync">Synced %s</string>
@@ -159,6 +170,7 @@
 
     <string name="usage_bar_key" translatable="false">usage_bar</string>
 
+    <string name="export_account_phrase_key" translatable="false">export_account_phrase</string>
     <string name="export_account_raw_key" translatable="false">export_account_raw</string>
     <string name="export_account_qr_key" translatable="false">export_account_qr</string>
 
@@ -196,7 +208,7 @@
     <string name="premium_gb">30 GB</string>
     <string name="out_of_premium_gb">%s / 30 GB</string>
     <string name="per_month">/ month</string>
-    <string name="one_mb">1 MB</string>
+    <string name="twenty_five_mb">25 MB</string>
     <string name="premium_price">$2.99</string>
     <string name="success_subscription_benefit">Your data cap has been extended to 30 GB.</string>
     <string name="successful_purchase">Thank you for purchasing premium.</string>
@@ -210,17 +222,17 @@
     <string name="expiration_day">Expiration Date:</string>
     <string name="grace_period">End of Grace Period:</string>
 
-    <string name="backup_my_secret">Backup my secret</string>
     <string name="folder_action">Folder action</string>
     <string name="document_action">Document action</string>
 
-    <string name="suggested_docs">Suggested Documents</string>
+    <string name="suggested_docs">Suggested</string>
+    <string name="clear_suggested_docs">Clear all</string>
     <string name="suggested_docs_icon">Suggested file icon</string>
     <string name="suggested_docs_parent_folder">%s/</string>
     <string name="search">Search</string>
+    <string name="open_ws">Open workspace panel</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
-    <string name="note">note</string>
 
     <string name="running_out_of_space">You are running out of space!</string>
     <string name="out_of_space">You are out of space!</string>
@@ -230,9 +242,9 @@
     <string name="pending_shares">Pending Shares</string>
     <string name="set_theme">Set theme</string>
     <string name="shared_file_icon">Shared file icon</string>
-    <string name="reject_all_shared">Reject all</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
-    <string name="no_shared_files">No shared files.</string>
+    <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
+
     <string name="export">Export</string>
     <string name="write_access">Write access:</string>
     <string name="read_access">Read access:</string>
@@ -244,12 +256,20 @@
     <string name="access_mode">Access Mode</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
-    <string name="no_pending_shares">You have no pending shares!</string>
 
     <string name="no_username">Please enter a username.</string>
     <string name="no_access_mode">Please choose an access mode.</string>
-    <string name="reject_pending_share">Reject pending share</string>
+    <string name="open_pending_share_menu">Open pending share menu</string>
     <string name="accept_pending_share">Accept pending share</string>
+    <string name="reject_pending_share">Reject pending share</string>
+    <string name="new_folder">New Folder</string>
+    <string name="import_rcv_share_btn">Import</string>
+    <string name="home_navbar_item">Home</string>
+    <string name="shared_navbar_item">Shared</string>
+
+    <string name="expand_tabs_list">View more info about your tabs</string>
+    <string name="close_tab">Close a tab</string>
+    <string name="close_all_tabs">Close all tabs</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>

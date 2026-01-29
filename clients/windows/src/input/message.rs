@@ -1,8 +1,6 @@
-use std::mem;
-
-use windows::{
-    Win32::Foundation::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 use super::file_drop;
 
@@ -21,6 +19,7 @@ impl From<LPARAM> for Point<u16> {
 /// Windows message parsed to properly interpret or ignore wparam and lparam (but not to redefine any structs defined
 /// in winapi) for clarity and exhaustive matching.
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub enum Message<'a> {
     Unknown { msg: u32 },
     Unhandled { const_name: &'static str },
@@ -61,7 +60,7 @@ pub enum MessageAppDep {
     SetCursor,
 }
 
-impl<'a> Message<'a> {
+impl Message<'_> {
     pub fn new(msg: u32, wparam: WPARAM, lparam: LPARAM) -> Self {
         let lparam_loword = loword_l(lparam);
         let lparam_hiword = hiword_l(lparam);
@@ -95,7 +94,11 @@ impl<'a> Message<'a> {
             WM_COPY => Message::Unhandled { const_name: "WM_COPY" },
             WM_COPYDATA => Message::Unhandled { const_name: "WM_COPYDATA" },
             WM_CREATE => Message::NoDeps(MessageNoDeps::Create {
-                create_struct: unsafe { mem::transmute(lparam) },
+                create_struct: unsafe {
+                    std::mem::transmute::<windows::Win32::Foundation::LPARAM, &CREATESTRUCTA>(
+                        lparam,
+                    )
+                },
             }),
             WM_CTLCOLORBTN => Message::Unhandled { const_name: "WM_CTLCOLORBTN" },
             WM_CTLCOLORDLG => Message::Unhandled { const_name: "WM_CTLCOLORDLG" },

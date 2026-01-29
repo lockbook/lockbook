@@ -254,7 +254,8 @@ impl<T: TreeLike> LazyTree<T> {
         Ok(children)
     }
 
-    /// Returns ids of files for which the argument is an ancestor—the files' children, recursively. Does not include the argument.
+    /// Returns ids of files for which the argument is an ancestor—the files' children, recursively.
+    /// Does not include the argument.
     /// This function tolerates cycles.
     pub fn descendants(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         // todo: caching?
@@ -307,6 +308,54 @@ impl<T: TreeLike> LazyTree<T> {
             result.insert(*current_file.parent());
             current_file = self.find_parent(current_file)?;
         }
+        Ok(result)
+    }
+
+    pub fn pending_roots(&mut self, keychain: &Keychain) -> LbResult<Vec<Uuid>> {
+        let mut result = Vec::new();
+        let owner = Owner(keychain.get_pk()?);
+        for id in self.ids() {
+            // file must be owned by another user
+            if self.find(&id)?.owner() == owner {
+                continue;
+            }
+
+            // file must be shared with this user
+            if self.find(&id)?.access_mode(&owner).is_none() {
+                continue;
+            }
+
+            // file must not be deleted
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+
+            // file must not have any links pointing to it
+            if self.linked_by(&id)?.is_some() {
+                continue;
+            }
+
+            result.push(id);
+        }
+
+        Ok(result)
+    }
+
+    pub fn non_deleted_pending_files(&mut self, keychain: &Keychain) -> LbResult<Vec<Uuid>> {
+        let roots = self.pending_roots(keychain)?;
+        let mut result = vec![];
+
+        for id in roots {
+            result.push(id);
+            let descendants = self.descendants(&id)?;
+
+            for id in descendants {
+                if !self.calculate_deleted(&id)? {
+                    result.push(id);
+                }
+            }
+        }
+
         Ok(result)
     }
 

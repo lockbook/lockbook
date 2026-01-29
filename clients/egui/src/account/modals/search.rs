@@ -4,9 +4,9 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use egui::TextWrapMode;
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::subscribers::search::{SearchConfig, SearchResult};
-use lb::Uuid;
 
 use workspace_rs::show::DocType;
 
@@ -145,7 +145,7 @@ impl SearchModal {
                             .widgets
                             .active
                             .bg_fill
-                            .linear_multiply(0.1),
+                            .gamma_multiply(0.1),
                     )
                 } else {
                     None

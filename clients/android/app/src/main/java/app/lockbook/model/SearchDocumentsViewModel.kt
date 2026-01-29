@@ -1,10 +1,11 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.os.Build
 import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
-import androidx.core.content.res.ResourcesCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -31,7 +32,11 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
-    private val highlightColor = ResourcesCompat.getColor(getContext().resources, R.color.md_theme_inversePrimary, null)
+    private val highlightColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
+    } else {
+        ContextCompat.getColor(getContext(), R.color.md_theme_inversePrimary)
+    }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -155,8 +160,12 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
             val paragraphSpan = contentMatch.paragraph.makeSpannableString()
 
             paragraphsSpan.add(Pair(paragraphSpan, contentMatch.score))
-
             for (index in contentMatch.matchedIndices) {
+                // avoid index out of bounds error
+                if (index >= contentMatch.paragraph.length) {
+                    break
+                }
+
                 paragraphSpan.setSpan(
                     BackgroundColorSpan(highlightColor),
                     index,

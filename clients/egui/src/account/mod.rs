@@ -5,23 +5,26 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, Vec2};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
+use lb::service::events::broadcast::error::TryRecvError;
+use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
-use lb::Uuid;
-use tree::FilesExt;
+use lb::subscribers::status::Status;
+use workspace_rs::file_cache::FilesExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
-use crate::model::{AccountScreenInitData, Usage};
+use crate::account::tree::OpenRequest;
 use crate::settings::Settings;
 
 use self::full_doc_search::FullDocSearch;
@@ -38,11 +41,13 @@ pub struct AccountScreen {
     update_tx: mpsc::Sender<AccountUpdate>,
     update_rx: mpsc::Receiver<AccountUpdate>,
 
+    lb_rx: events::Receiver<Event>,
+
     tree: FileTree,
     is_new_user: bool,
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
-    usage: Result<Usage, String>,
+    lb_status: Status,
     workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
@@ -50,13 +55,12 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: &Lb, acct_data: AccountScreenInitData,
-        ctx: &egui::Context, is_new_user: bool,
+        settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
+        is_new_user: bool,
     ) -> Self {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
 
-        let AccountScreenInitData { sync_status, files, usage } = acct_data;
         let core_clone = core.clone();
 
         let toasts = egui_notify::Toasts::default()
@@ -70,13 +74,18 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(files),
+            tree: FileTree::new(
+                files,
+                core.get_pending_shares().unwrap(),
+                core.get_pending_share_files().unwrap(),
+            ),
             full_search_doc: FullDocSearch::default(),
-            sync: SyncPanel::new(sync_status),
-            usage,
-            workspace: Workspace::new(&core_clone, &ctx.clone()),
+            sync: SyncPanel::new(),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
             modals: Modals::default(),
             shutdown: None,
+            lb_rx: core.subscribe(),
+            lb_status: core.status(),
         };
         result.tree.recalc_suggested_files(&core, ctx);
         result
@@ -96,6 +105,7 @@ impl AccountScreen {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) {
+        self.process_lb_updates(ctx);
         self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
@@ -112,15 +122,15 @@ impl AccountScreen {
         // focus management
         let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
-        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
 
+        let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
         if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
             if !sidebar_expanded {
-                self.settings.write().unwrap().zen_mode = false;
+                self.update_zen_mode(false);
 
                 ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
             } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
-                self.settings.write().unwrap().zen_mode = true;
+                self.update_zen_mode(true);
 
                 ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
             } else {
@@ -143,16 +153,25 @@ impl AccountScreen {
                         .inner_margin(egui::Margin::symmetric(20.0, 20.0))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
-                            self.show_nav_panel(ui);
+                            self.show_sync_btn(ui);
 
                             ui.add_space(15.0);
-                            self.show_sync_error_warn(ui);
                         });
 
                     ui.vertical(|ui| {
                         let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
-                        if let Some(file) = full_doc_search_resp.file_to_open {
-                            self.workspace.open_file(file, false, true);
+                        if let Some(id) = full_doc_search_resp.file_to_open {
+                            if let Some(file) = self.tree.files.get_by_id(id) {
+                                if file.is_folder() {
+                                    self.tree.cursor = Some(file.id);
+                                    self.tree.selected.clear();
+                                    self.tree.selected.insert(file.id);
+                                    self.tree.reveal_selection();
+                                    self.tree.scroll_to_cursor = true;
+                                } else {
+                                    self.workspace.open_file(file.id, true, false);
+                                }
+                            }
                         }
                         if full_doc_search_resp.advance_focus {
                             ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
@@ -160,6 +179,10 @@ impl AccountScreen {
                             self.tree.selected = Some(self.tree.suggested_docs_folder_id)
                                 .into_iter()
                                 .collect();
+                        }
+
+                        if let Some(rect) = full_doc_search_resp.search_box_rect {
+                            self.show_icon_shelf(ui, rect);
                         }
 
                         let full_doc_search_term_empty = self
@@ -199,30 +222,10 @@ impl AccountScreen {
                             .frame(true)
                             .show(ui);
                         if zen_mode_btn.clicked() {
-                            self.settings.write().unwrap().zen_mode = false;
+                            self.update_zen_mode(false);
                         }
                         zen_mode_btn.on_hover_text("Show side panel");
                     });
-                }
-
-                if let Some((id, new_name)) = wso.file_renamed {
-                    for file in self.tree.files.iter_mut() {
-                        if file.id == id {
-                            file.name = new_name;
-                            break;
-                        }
-                    }
-                    self.tree.recalc_suggested_files(&self.core, ctx);
-                    ctx.request_repaint();
-                }
-                if let Some((id, new_parent)) = wso.file_moved {
-                    for file in self.tree.files.iter_mut() {
-                        if file.id == id {
-                            file.parent = new_parent;
-                            break;
-                        }
-                    }
-                    ctx.request_repaint();
                 }
 
                 if let Some(result) = wso.file_created {
@@ -234,11 +237,9 @@ impl AccountScreen {
                         self.tree.cursor = Some(file);
                         self.tree.selected.clear();
                         self.tree.selected.insert(file);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
                     }
-                }
-
-                if wso.sync_done.is_some() {
-                    self.refresh_tree(ctx);
                 }
 
                 for msg in wso.failure_messages {
@@ -249,7 +250,7 @@ impl AccountScreen {
         if self.is_new_user {
             if let Ok(metas) = self.core.list_metadatas() {
                 if let Some(welcome_doc) = metas.iter().find(|meta| meta.name == "welcome.md") {
-                    self.workspace.open_file(welcome_doc.id, false, true);
+                    self.workspace.open_file(welcome_doc.id, true, false);
                 }
             }
             self.is_new_user = false;
@@ -273,13 +274,26 @@ impl AccountScreen {
         }
     }
 
+    fn process_lb_updates(&mut self, ctx: &egui::Context) {
+        match self.lb_rx.try_recv() {
+            Ok(evt) => match evt {
+                Event::MetadataChanged | Event::PendingSharesChanged => {
+                    self.refresh_tree(ctx);
+                }
+                Event::StatusUpdated => {
+                    self.lb_status = self.core.status();
+                }
+                _ => {}
+            },
+            Err(TryRecvError::Empty) => {}
+            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
+        }
+    }
+
     fn process_updates(&mut self, ctx: &egui::Context) {
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
                 AccountUpdate::OpenModal(open_modal) => match open_modal {
-                    OpenModal::AcceptShare => {
-                        self.modals.accept_share = Some(AcceptShareModal::new(&self.core));
-                    }
                     OpenModal::ConfirmDelete(files) => {
                         self.modals.confirm_delete = Some(ConfirmDeleteModal::new(files));
                     }
@@ -314,22 +328,17 @@ impl AccountScreen {
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileImported(result) => match result {
-                    Ok(files) => {
-                        self.tree.update_files(files);
+                    Ok(()) => {
                         self.modals.file_picker = None;
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
-                AccountUpdate::FileDeleted(f) => {
-                    // inefficient but fine
-                    let mut files = self.tree.files.clone();
-                    files.retain(|file| file.id != f.id);
-                    self.tree.update_files(files);
+                AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
+                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
+                    self.tree.update_files(files, share_roots, share_files);
                     self.tree.recalc_suggested_files(&self.core, ctx);
                 }
-                AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree(files) => self.tree.update_files(files),
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -366,11 +375,8 @@ impl AccountScreen {
 
         // Ctrl-E toggle zen mode
         if ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::E)) {
-            let mut zen_mode = false;
-            if let Ok(settings) = &self.settings.read() {
-                zen_mode = !settings.zen_mode;
-            }
-            self.settings.write().unwrap().zen_mode = zen_mode;
+            let current_zen_mode = self.settings.read().unwrap().zen_mode;
+            self.update_zen_mode(!current_zen_mode);
         }
 
         // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
@@ -444,12 +450,27 @@ impl AccountScreen {
             .inner;
 
         if resp.new_file.is_some() {
-            self.workspace.create_file(false);
+            self.workspace.create_doc(false);
             ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
         }
 
         if resp.new_drawing.is_some() {
-            self.workspace.create_file(true);
+            self.workspace.create_doc(true);
+        }
+
+        if resp.clear_suggested {
+            self.core.clear_suggested().unwrap();
+            self.tree.recalc_suggested_files(&self.core, ui.ctx());
+        }
+
+        if let Some(id) = resp.clear_suggested_id {
+            self.core.clear_suggested_id(id).unwrap();
+            self.tree.recalc_suggested_files(&self.core, ui.ctx());
+        }
+
+        if resp.space_inspector_root.is_some() {
+            self.workspace
+                .start_space_inspector(self.core.clone(), resp.space_inspector_root);
         }
 
         if let Some(file) = resp.new_folder_modal {
@@ -474,20 +495,31 @@ impl AccountScreen {
             self.workspace.rename_file(rename_req, true);
         }
 
-        for id in resp.open_requests {
-            self.workspace.open_file(id, false, true);
+        for (id, OpenRequest { make_current, in_new_tab }) in resp.open_requests {
+            self.workspace.open_file(id, make_current, in_new_tab);
         }
 
         if !resp.delete_requests.is_empty() {
             let files = resp
                 .delete_requests
                 .iter()
-                .map(|&id| self.tree.files.get_by_id(id))
+                .map(|&id| self.tree.files.get_by_id(id).unwrap())
                 .cloned()
                 .collect();
             self.update_tx
                 .send(OpenModal::ConfirmDelete(files).into())
                 .unwrap();
+        }
+
+        if let Some(file) = resp.accepted_share {
+            self.update_tx
+                .send(OpenModal::PickShareParent(file).into())
+                .unwrap();
+            ui.ctx().request_repaint();
+        }
+
+        if let Some(file) = resp.rejected_share {
+            self.delete_share(file);
         }
 
         if let Some(id) = resp.dropped_on {
@@ -500,47 +532,47 @@ impl AccountScreen {
         }
     }
 
-    fn show_nav_panel(&mut self, ui: &mut egui::Ui) {
-        ui.allocate_ui_with_layout(
-            egui::vec2(ui.available_size_before_wrap().x, 40.0),
-            egui::Layout::left_to_right(egui::Align::Center),
-            |ui| {
-                self.show_sync_btn(ui);
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-                    if settings_btn.clicked() {
-                        self.update_tx.send(OpenModal::Settings.into()).unwrap();
-                        ui.ctx().request_repaint();
-                    };
-                    settings_btn.on_hover_text("Settings");
-
-                    let incoming_shares_btn = Button::default()
-                        .icon(
-                            &Icon::SHARED_FOLDER
-                                .badge(!self.workspace.status.dirtyness.pending_shares.is_empty()),
-                        )
-                        .show(ui);
-
-                    if incoming_shares_btn.clicked() {
-                        self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                        ui.ctx().request_repaint();
-                    };
-                    incoming_shares_btn.on_hover_text("Incoming shares");
-
-                    let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
-
-                    if zen_mode_btn.clicked() {
-                        self.settings.write().unwrap().zen_mode = true;
-                        if let Err(err) = self.settings.read().unwrap().to_file() {
-                            self.modals.error = Some(ErrorModal::new(err));
-                        }
-                    }
-
-                    zen_mode_btn.on_hover_text("Hide side panel");
-                });
+    fn show_icon_shelf(&mut self, ui: &mut egui::Ui, anchor_rect: egui::Rect) {
+        let rect = egui::Rect {
+            min: egui::pos2(anchor_rect.right(), anchor_rect.top()),
+            max: egui::pos2(ui.available_rect_before_wrap().right(), anchor_rect.bottom()),
+        };
+        let ui = &mut ui.child_ui(
+            rect,
+            egui::Layout {
+                main_dir: egui::Direction::RightToLeft,
+                main_wrap: false,
+                main_align: egui::Align::LEFT,
+                main_justify: false,
+                cross_align: egui::Align::Center,
+                cross_justify: true,
             },
+            None,
         );
+
+        ui.visuals_mut().override_text_color = Some(ui.visuals().text_color().linear_multiply(0.9));
+        ui.add_space(10.0);
+
+        let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+
+        if zen_mode_btn.clicked() {
+            self.update_zen_mode(true);
+        }
+
+        zen_mode_btn.on_hover_text("Hide side panel");
+
+        let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+        if settings_btn.clicked() {
+            self.update_tx.send(OpenModal::Settings.into()).unwrap();
+            ui.ctx().request_repaint();
+        };
+        settings_btn.on_hover_text("Settings");
+    }
+
+    fn update_zen_mode(&mut self, new_value: bool) {
+        if let Err(err) = self.settings.write().unwrap().write_zen_mode(new_value) {
+            self.modals.error = Some(ErrorModal::new(err));
+        }
     }
 
     fn save_settings(&mut self) {
@@ -556,9 +588,11 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let all_metas = core.list_metadatas().unwrap();
+            let files = core.list_metadatas().unwrap();
+            let share_roots = core.get_pending_shares().unwrap();
+            let share_files = core.get_pending_share_files().unwrap();
             update_tx
-                .send(AccountUpdate::ReloadTree(all_metas))
+                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
                 .unwrap();
             ctx.request_repaint();
         });
@@ -592,7 +626,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&params.name, &parent.id, params.ftype)
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
             update_tx.send(AccountUpdate::FileCreated(result)).unwrap();
         });
     }
@@ -602,7 +636,7 @@ impl AccountScreen {
             if cursor != self.tree.suggested_docs_folder_id
                 && self.tree.files.iter().any(|f| f.id == cursor)
             {
-                let cursor = self.tree.files.get_by_id(cursor);
+                let cursor = self.tree.files.get_by_id(cursor).unwrap();
                 return if cursor.is_folder() { Some(cursor.id) } else { Some(cursor.parent) };
             }
         }
@@ -641,7 +675,7 @@ impl AccountScreen {
         // pre-check name conflicts for atomicity
         let target_children = self.tree.files.children(target);
         for &file in &self.tree.selected {
-            let name = self.tree.files.get_by_id(file).name.clone();
+            let name = self.tree.files.get_by_id(file).unwrap().name.clone();
             if target_children.iter().any(|f| f.name == name) {
                 // todo: show error
                 println!("cannot move file into folder containing file with same name");
@@ -651,19 +685,20 @@ impl AccountScreen {
 
         // move files
         for &f in &self.tree.selected {
-            if self.tree.files.get_by_id(f).parent == target {
+            if self.tree.files.get_by_id(f).unwrap().parent == target {
                 continue;
             }
-            if let Err(err) = self.core.move_file(&f, &target) {
-                // todo: show error
-                println!("error moving file: {:?}", err);
-                return;
-            } else {
-                ctx.request_repaint();
+            match self.core.move_file(&f, &target) {
+                Err(err) => {
+                    // todo: show error
+                    println!("error moving file: {err:?}");
+                    return;
+                }
+                _ => {
+                    ctx.request_repaint();
+                }
             }
         }
-
-        self.refresh_tree(ctx);
 
         ctx.request_repaint();
     }
@@ -674,7 +709,7 @@ impl AccountScreen {
             f.id,
             dest.clone(),
             true,
-            &Some(Box::new(|info| println!("{:?}", info))),
+            &Some(Box::new(|info| println!("{info:?}"))),
         );
         match res {
             Ok(()) => self.toasts.success(format!(
@@ -703,7 +738,7 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core
                 .create_file(&target.name, &parent.id, FileType::Link { target: target.id })
-                .map_err(|err| format!("{:?}", err));
+                .map_err(|err| format!("{err:?}"));
 
             update_tx
                 .send(AccountUpdate::ShareAccepted(result))
@@ -718,7 +753,7 @@ impl AccountScreen {
 
         thread::spawn(move || {
             core.delete_pending_share(&target.id)
-                .map_err(|err| format!("{:?}", err))
+                .map_err(|err| format!("{err:?}"))
                 .unwrap();
         });
     }
@@ -735,21 +770,17 @@ impl AccountScreen {
         thread::spawn(move || {
             let result = core.import_files(&paths, parent.id, &|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
-                    println!("importing {} files", count);
+                    println!("importing {count} files");
                 }
                 ImportStatus::StartingItem(item) => {
-                    println!("starting import: {}", item);
+                    println!("starting import: {item}");
                 }
                 ImportStatus::FinishedItem(item) => {
                     println!("finished import of {} as lb://{}", item.name, item.id);
                 }
             });
 
-            let all_metas = core.list_metadatas().unwrap();
-
-            let result = result
-                .map(|_| all_metas)
-                .map_err(|err| format!("{:?}", err));
+            let result = result.map_err(|err| format!("{err:?}"));
 
             update_tx.send(AccountUpdate::FileImported(result)).unwrap();
             ctx.request_repaint();
@@ -761,37 +792,20 @@ impl AccountScreen {
         let update_tx = self.update_tx.clone();
         let ctx = ctx.clone();
 
-        let mut tabs_to_delete = vec![];
-        for (i, tab) in self.workspace.tabs.iter().enumerate() {
-            if files.iter().any(|f| Some(f.id) == tab.id()) {
-                tabs_to_delete.push(i);
-            }
-        }
-        for i in tabs_to_delete {
-            self.workspace.close_tab(i);
-        }
-
         thread::spawn(move || {
             for f in &files {
-                core.delete_file(&f.id).unwrap(); // TODO
-                update_tx
-                    .send(AccountUpdate::FileDeleted(f.clone()))
-                    .unwrap();
+                core.delete_file(&f.id).unwrap();
             }
             update_tx.send(AccountUpdate::DoneDeleting).unwrap();
             ctx.request_repaint();
         });
     }
 
+    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {
                 let (id, is_doc) = (f.id, f.is_document());
-
-                // inefficient but works
-                let mut files = self.tree.files.clone();
-                files.push(f);
-                self.tree.update_files(files);
 
                 if is_doc {
                     self.workspace.open_file(id, true, true);
@@ -816,16 +830,19 @@ pub enum AccountUpdate {
 
     FileCreated(Result<File, String>),
     FileShared(Result<(), String>),
-    FileDeleted(File),
 
     /// if a file has been imported successfully refresh the tree, otherwise show what went wrong
-    FileImported(Result<Vec<File>, String>),
+    FileImported(Result<(), String>),
 
     ShareAccepted(Result<File, String>),
 
     DoneDeleting,
 
-    ReloadTree(Vec<File>),
+    ReloadTree {
+        files: Vec<File>,
+        share_roots: Vec<File>,
+        share_files: Vec<File>,
+    },
 
     FinalSyncAttemptDone,
 }
@@ -834,7 +851,6 @@ pub enum OpenModal {
     NewFolder(Option<File>),
     InitiateShare(File),
     Settings,
-    AcceptShare,
     PickShareParent(File),
     PickDropParent(Vec<egui::DroppedFile>),
     ConfirmDelete(Vec<File>),

@@ -1,20 +1,19 @@
-use std::{
-    collections::HashMap,
-    ops::{Deref, DerefMut},
-};
+use std::collections::HashMap;
+use std::ops::{Deref, DerefMut};
 
 use bezier_rs::{Identifier, Subpath};
 use serde::{Deserialize, Serialize};
 
-use usvg::{self, Color, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
+use usvg::{self, Fill, ImageKind, NonZeroRect, Text, Transform, Visibility};
 use uuid::Uuid;
 
-use super::{buffer::u_transform_to_bezier, diff::DiffState};
+use super::buffer::u_transform_to_bezier;
+use super::diff::DiffState;
 
 #[derive(Clone)]
 pub enum Element {
     Path(Path),
-    Image(Image),
+    Image(Box<Image>),
     Text(Text),
 }
 
@@ -30,17 +29,44 @@ pub struct Path {
     pub opacity: f32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Stroke {
     pub color: DynamicColor,
     pub opacity: f32,
     pub width: f32,
 }
 
-#[derive(Clone, Copy)]
+impl Default for Stroke {
+    fn default() -> Self {
+        Self { color: Default::default(), opacity: 1.0, width: 1.0 }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
 pub struct DynamicColor {
-    pub light: usvg::Color,
-    pub dark: usvg::Color,
+    pub light: Color,
+    pub dark: Color,
+}
+
+#[derive(Clone, Copy, PartialEq, Serialize, Deserialize, Debug)]
+pub struct Color {
+    pub red: u8,
+    pub green: u8,
+    pub blue: u8,
+}
+
+impl Color {
+    pub fn new_rgb(red: u8, green: u8, blue: u8) -> Self {
+        Self { red, green, blue }
+    }
+
+    pub fn black() -> Self {
+        Self::new_rgb(0, 0, 0)
+    }
+
+    pub fn white() -> Self {
+        Self::new_rgb(255, 255, 255)
+    }
 }
 
 impl Default for DynamicColor {
@@ -70,19 +96,6 @@ pub struct Image {
     pub deleted: bool,
 }
 
-impl From<Transform> for WeakTransform {
-    fn from(value: Transform) -> Self {
-        WeakTransform {
-            sx: value.sx,
-            kx: value.kx,
-            ky: value.ky,
-            sy: value.sy,
-            tx: value.tx,
-            ty: value.ty,
-        }
-    }
-}
-
 impl Image {
     pub fn into_weak(&self, z_index: usize) -> WeakImage {
         WeakImage {
@@ -100,6 +113,23 @@ impl Image {
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
 pub struct WeakImages(HashMap<Uuid, WeakImage>);
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Default, Clone)]
+pub struct WeakPathPressures(HashMap<Uuid, Vec<f32>>);
+
+impl Deref for WeakPathPressures {
+    type Target = HashMap<Uuid, Vec<f32>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for WeakPathPressures {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 impl Deref for WeakImages {
     type Target = HashMap<Uuid, WeakImage>;
@@ -163,6 +193,24 @@ pub struct WeakTransform {
     pub ty: f32,
 }
 
+impl Default for WeakTransform {
+    fn default() -> Self {
+        Self { sx: 1.0, kx: 0.0, ky: 0.0, sy: 1.0, tx: 0.0, ty: 0.0 }
+    }
+}
+
+impl From<WeakTransform> for usvg::Transform {
+    fn from(wt: WeakTransform) -> Self {
+        usvg::Transform { sx: wt.sx, kx: wt.kx, ky: wt.ky, sy: wt.sy, tx: wt.tx, ty: wt.ty }
+    }
+}
+
+impl From<usvg::Transform> for WeakTransform {
+    fn from(t: usvg::Transform) -> Self {
+        WeakTransform { sx: t.sx, kx: t.kx, ky: t.ky, sy: t.sy, tx: t.tx, ty: t.ty }
+    }
+}
+
 impl Identifier for ManipulatorGroupId {
     fn new() -> Self {
         ManipulatorGroupId
@@ -190,6 +238,13 @@ impl Element {
         match self {
             Element::Path(p) => p.diff_state.data_changed,
             Element::Image(i) => i.diff_state.data_changed,
+            Element::Text(_) => todo!(),
+        }
+    }
+    pub fn mark_data_change(&mut self) {
+        match self {
+            Element::Path(p) => p.diff_state.data_changed = true,
+            Element::Image(i) => i.diff_state.data_changed = true,
             Element::Text(_) => todo!(),
         }
     }
@@ -239,5 +294,22 @@ impl Element {
             Element::Image(image) => image.opacity,
             Element::Text(_) => todo!(),
         }
+    }
+
+    pub fn stroke(&self) -> Option<Stroke> {
+        match self {
+            Element::Path(path) => path.stroke,
+            Element::Image(_) => None,
+            Element::Text(_) => todo!(),
+        }
+    }
+
+    pub fn set_stroke(&mut self, stroke: Stroke) {
+        match self {
+            Element::Path(path) => path.stroke = Some(stroke),
+            Element::Image(_) => {}
+            Element::Text(_) => {}
+        }
+        self.mark_data_change();
     }
 }

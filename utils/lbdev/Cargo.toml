@@ -1,0 +1,21 @@
+[package]
+name = "lbdev"
+version = "26.1.29"
+edition = "2021"
+
+[dependencies]
+cli-rs = "0.1.12"
+dotenvy = "0.15.7"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0.83"
+reqwest = { version = "0.11.12", features = ["blocking", "rustls-tls"], default-features = false }
+gh_release = "0.1.2"
+toml = "0.7.0"
+toml_edit = "0.19.0"
+sha2 = "0.10.2"
+hex = "0.4.3"
+zip = "0.6.4"
+google-androidpublisher3 = "5.0.2"
+tokio = { version = "1.20.1", features = ["rt-multi-thread"] }
+regex = "1.7.1"
+time = "0.3.20"

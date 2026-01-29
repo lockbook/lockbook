@@ -1,21 +1,23 @@
 use bezier_rs::Subpath;
 use egui::{PointerButton, TouchId, TouchPhase};
 use egui_animation::{animate_bool_eased, easing};
-use lb_rs::{
-    model::svg::{
-        diff::DiffState,
-        element::{DynamicColor, Element, Path, Stroke},
-    },
-    Uuid,
-};
+use lb_rs::Uuid;
+use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
+use lb_rs::model::svg::diff::DiffState;
+use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
-use tracing::{event, trace, Level};
+use serde::{Deserialize, Serialize};
+use tracing::{Level, event, trace};
 use tracing_test::traced_test;
 use web_time::{Duration, Instant};
 
-use crate::{tab::ExtendedInput, theme::palette::ThemePalette};
+use crate::tab::ExtendedInput;
+use crate::tab::svg_editor::util::is_scroll;
+use crate::theme::palette::ThemePalette;
 
-use super::{toolbar::ToolContext, util::is_multi_touch, InsertElement, PathBuilder};
+use super::toolbar::ToolContext;
+use super::util::is_multi_touch;
+use super::{InsertElement, PathBuilder};
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
@@ -23,13 +25,55 @@ pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
 #[derive(Default)]
 pub struct Pen {
     pub active_color: DynamicColor,
+    pub colors_history: [DynamicColor; 2],
     pub active_stroke_width: f32,
     pub active_opacity: f32,
+    pub pressure_alpha: f32,
     pub has_inf_thick: bool,
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
     hover_pos: Option<(egui::Pos2, Instant)>,
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct PenSettings {
+    pub color: egui::Color32,
+    pub width: f32,
+    pub opacity: f32,
+    pub pressure_alpha: f32,
+    pub has_inf_thick: bool,
+}
+
+impl Default for PenSettings {
+    fn default() -> Self {
+        PenSettings::default_pen()
+    }
+}
+
+impl PenSettings {
+    pub fn default_pen() -> Self {
+        let color = get_pen_colors()[0].dark;
+
+        Self {
+            color: egui::Color32::from_rgb(color.red, color.green, color.blue),
+            width: DEFAULT_PEN_STROKE_WIDTH,
+            opacity: 1.0,
+            pressure_alpha: if cfg!(target_os = "ios") { 0.5 } else { 0.0 },
+            has_inf_thick: false,
+        }
+    }
+    pub fn default_highlighter() -> Self {
+        let color = get_highlighter_colors()[0].dark;
+
+        Self {
+            color: egui::Color32::from_rgb(color.red, color.green, color.blue),
+            width: DEFAULT_HIGHLIGHTER_STROKE_WIDTH,
+            opacity: 0.1,
+            pressure_alpha: 0.0,
+            has_inf_thick: false,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -38,22 +82,37 @@ enum IntegrationEvent<'a> {
     Native(&'a egui::Event),
 }
 impl Pen {
-    pub fn new(active_color: DynamicColor, active_stroke_width: f32) -> Self {
+    pub fn new(settings: PenSettings) -> Self {
+        let active_color = get_dyn_color(Color {
+            red: settings.color.r(),
+            green: settings.color.g(),
+            blue: settings.color.b(),
+        });
+
+        let pen_colors = get_pen_colors();
+
         Pen {
             active_color,
-            active_stroke_width,
+            active_stroke_width: settings.width,
             current_id: Uuid::new_v4(),
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
-            active_opacity: 1.0,
+            active_opacity: settings.opacity,
             hover_pos: None,
-            has_inf_thick: false,
+            has_inf_thick: settings.has_inf_thick,
+            pressure_alpha: settings.pressure_alpha,
+            colors_history: [pen_colors[1], pen_colors[2]],
         }
     }
 
     /// returns true if a path is being built
     pub fn handle_input(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext) -> bool {
-        let input_state = PenPointerInput { is_multi_touch: is_multi_touch(ui) };
+        if pen_ctx.toolbar_has_interaction {
+            self.cancel_path(pen_ctx);
+        }
+
+        let input_state =
+            PenPointerInput { is_multi_touch: is_multi_touch(ui), is_scroll: is_scroll(ui) };
         let mut is_drawing = false;
 
         // clear the previous predicted touches and replace them with the actual touches
@@ -77,7 +136,7 @@ impl Pen {
         });
 
         // handle custom input events
-        ui.ctx().pop_events().iter().for_each(|e| {
+        ui.ctx().read_events().iter().for_each(|e| {
             if let Some(path_event) =
                 self.map_ui_event(IntegrationEvent::Custom(e), pen_ctx, &input_state)
             {
@@ -124,8 +183,11 @@ impl Pen {
             {
                 let mut radius = self.active_stroke_width / 2.0;
                 if !self.has_inf_thick {
-                    radius *= pen_ctx.buffer.master_transform.sx;
+                    radius *= pen_ctx.viewport_settings.master_transform.sx;
                 }
+
+                let pressure_adj = self.pressure_alpha * -0.5 + 1.;
+                radius *= pressure_adj;
 
                 pen_ctx.painter.circle_filled(
                     pos,
@@ -151,7 +213,7 @@ impl Pen {
 
             if path.len() > 2 && is_snapped {
                 self.path_builder
-                    .snap(pen_ctx.buffer.master_transform, path);
+                    .snap(pen_ctx.viewport_settings.master_transform, path);
             }
 
             pen_ctx
@@ -203,17 +265,32 @@ impl Pen {
                 };
 
                 if self.has_inf_thick {
-                    path_stroke.width /= pen_ctx.buffer.master_transform.sx;
+                    path_stroke.width /= pen_ctx.viewport_settings.master_transform.sx;
                 };
 
                 if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                     p.diff_state.data_changed = true;
                     p.stroke = Some(path_stroke);
 
-                    self.path_builder.line_to(payload.pos, &mut p.data);
-                    event!(Level::TRACE, "drawing");
+                    let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
+
+                    if new_seg_i.is_some() {
+                        if let Some(force) = payload.force {
+                            if let Some(forces) =
+                                pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                            {
+                                forces.push((force * 2. - 1.) * self.pressure_alpha);
+                            }
+                        }
+                    }
                 } else {
                     event!(Level::TRACE, "starting a new path");
+                    if let Some(force) = payload.force {
+                        pen_ctx
+                            .buffer
+                            .weak_path_pressures
+                            .insert(self.current_id, vec![(force * 2. - 1.) * self.pressure_alpha]);
+                    }
 
                     let el = Element::Path(Path {
                         data: Subpath::new(vec![], false),
@@ -221,7 +298,7 @@ impl Pen {
                         fill: None,
                         stroke: Some(path_stroke),
                         transform: Transform::identity(),
-                        opacity: self.active_opacity,
+                        opacity: 1.0,
                         diff_state: DiffState::default(),
                         deleted: false,
                     });
@@ -257,6 +334,17 @@ impl Pen {
                     let maybe_new_mg = self.path_builder.line_to(payload.pos, &mut p.data);
                     trace!(maybe_new_mg, "adding predicted touch to the path at");
 
+                    // let's repeat the last known force for predicted touches
+                    if maybe_new_mg.is_some() {
+                        if let Some(forces) =
+                            pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                        {
+                            if let Some(last_force) = forces.last() {
+                                forces.push(*last_force);
+                            }
+                        }
+                    }
+
                     if self.path_builder.first_predicted_mg.is_none() && maybe_new_mg.is_some() {
                         self.path_builder.first_predicted_mg = maybe_new_mg;
                         trace!(maybe_new_mg, "setting start of mg");
@@ -271,6 +359,12 @@ impl Pen {
                         for n in (first_predicted_mg..p.data.manipulator_groups().len()).rev() {
                             trace!(n, "removing predicted touch at ");
                             p.data.remove_manipulator_group(n);
+
+                            if let Some(forces) =
+                                pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
+                            {
+                                forces.pop();
+                            }
                         }
                         self.path_builder.first_predicted_mg = None;
                     } else {
@@ -385,8 +479,10 @@ impl Pen {
             *pen_ctx.allow_viewport_changes = true;
             // shouldn't handle non touch events on touch devices to avoid breaking ipad hover.
             if let IntegrationEvent::Native(&egui::Event::PointerMoved(pos)) = e {
-                if is_current_path_empty {
+                if is_current_path_empty && !input_state.is_scroll {
                     return Some(PathEvent::Hover(DrawPayload { pos, force: None, id: None }));
+                } else {
+                    *pen_ctx.allow_viewport_changes = false;
                 }
             }
             return None;
@@ -474,6 +570,7 @@ fn get_event_touch_id(event: &IntegrationEvent) -> Option<egui::TouchId> {
 #[derive(Clone, Copy)]
 struct PenPointerInput {
     is_multi_touch: bool,
+    is_scroll: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -496,7 +593,7 @@ pub struct DrawPayload {
 #[traced_test]
 #[test]
 fn correct_start_of_path() {
-    let mut pen = Pen::new(DynamicColor::default(), 1.0);
+    let mut pen = Pen::new(PenSettings::default_pen());
     let mut pen_ctx = ToolContext {
         painter: &mut egui::Painter::new(
             egui::Context::default(),
@@ -507,8 +604,10 @@ fn correct_start_of_path() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
-        settings: crate::tab::svg_editor::CanvasSettings::default(),
+        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
+        viewport_settings: &mut Default::default(),
+        toolbar_has_interaction: false,
     };
 
     let start_pos = egui::pos2(10.0, 10.0);
@@ -550,7 +649,7 @@ fn cancel_touch_ui_event() {
         },
     ];
 
-    let mut pen = Pen::new(DynamicColor::default(), 1.0);
+    let mut pen = Pen::new(PenSettings::default_pen());
     let mut pen_ctx = ToolContext {
         painter: &mut egui::Painter::new(
             egui::Context::default(),
@@ -561,11 +660,13 @@ fn cancel_touch_ui_event() {
         history: &mut crate::tab::svg_editor::history::History::default(),
         allow_viewport_changes: &mut false,
         is_touch_frame: true,
-        settings: crate::tab::svg_editor::CanvasSettings::default(),
+        settings: &mut crate::tab::svg_editor::CanvasSettings::default(),
         is_locked_vw_pen_only: false,
+        viewport_settings: &mut Default::default(),
+        toolbar_has_interaction: false,
     };
 
-    let input_state = PenPointerInput { is_multi_touch: false };
+    let input_state = PenPointerInput { is_multi_touch: false, is_scroll: false };
 
     events.iter().for_each(|e| {
         if let Some(path_event) =

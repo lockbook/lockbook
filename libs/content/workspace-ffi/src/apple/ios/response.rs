@@ -1,8 +1,6 @@
-use lb_c::{
-    model::text::offset_types::{DocCharOffset, RangeExt as _},
-    Uuid,
-};
-use std::ffi::{c_char, CString};
+use lb_c::Uuid;
+use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use std::ffi::{CString, c_char};
 use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
 use super::super::response::*;
@@ -13,6 +11,7 @@ pub struct IOSResponse {
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
     pub url_opened: *mut c_char,
+    pub open_camera: bool,
     pub has_virtual_keyboard_shown: bool,
     pub virtual_keyboard_shown: bool,
 
@@ -28,6 +27,7 @@ pub struct IOSResponse {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub tab_title_clicked: bool,
+    pub selected_folder_changed: bool,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -49,6 +49,8 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_scroll_updated,
                     tabs_changed,
                     failure_messages: _,
+                    selected_folder_changed,
+                    open_camera,
                 },
             redraw_in,
             copied_text,
@@ -77,12 +79,14 @@ impl From<crate::Response> for IOSResponse {
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
             url_opened,
+            open_camera,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             scroll_updated: markdown_editor_scroll_updated,
             tab_title_clicked,
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
+            selected_folder_changed,
         }
     }
 }
@@ -250,20 +254,12 @@ impl From<CTextRange> for Option<Region> {
 
 impl From<CTextPosition> for Option<Location> {
     fn from(value: CTextPosition) -> Self {
-        if value.none {
-            None
-        } else {
-            Some(Location::DocCharOffset(value.pos.into()))
-        }
+        if value.none { None } else { Some(Location::DocCharOffset(value.pos.into())) }
     }
 }
 
 impl From<CTextPosition> for Option<DocCharOffset> {
     fn from(value: CTextPosition) -> Self {
-        if value.none {
-            None
-        } else {
-            Some(value.pos.into())
-        }
+        if value.none { None } else { Some(value.pos.into()) }
     }
 }

@@ -76,12 +76,22 @@ impl AdminConfig {
 #[derive(Clone, Debug)]
 pub struct FeatureFlags {
     pub new_accounts: bool,
+    pub new_account_rate_limit: bool,
+    pub bandwidth_controls: bool,
 }
 
 impl FeatureFlags {
     pub fn from_env_vars() -> Self {
         Self {
             new_accounts: env::var("FEATURE_NEW_ACCOUNTS")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()
+                .unwrap(),
+            new_account_rate_limit: env::var("FEATURE_NEW_ACCOUNT_LIMITS")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap(),
+            bandwidth_controls: env::var("FEATURE_BANDWIDTH_CONTROLS")
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap(),
@@ -136,6 +146,7 @@ pub struct ServerConfig {
     pub max_auth_delay: u128,
     pub log_path: String,
     pub pd_api_key: Option<String>,
+    pub discord_webhook_url: Option<String>,
     pub ssl_cert_location: Option<String>,
     pub ssl_private_key_location: Option<String>,
     pub min_core_version: VersionReq,
@@ -148,14 +159,15 @@ impl ServerConfig {
         let max_auth_delay = env_or_panic("MAX_AUTH_DELAY").parse().unwrap();
         let log_path = env_or_panic("LOG_PATH").parse().unwrap();
         let pd_api_key = env_or_empty("PD_KEY");
+        let discord_webhook_url = env_or_empty("DISCORD_WEBHOOK_URL");
         let ssl_cert_location = env_or_empty("SSL_CERT_LOCATION");
         let ssl_private_key_location = env_or_empty("SSL_PRIVATE_KEY_LOCATION");
         let min_core_version = VersionReq::parse(&env_or_panic("MIN_CORE_VERSION")).unwrap();
 
-        match (&pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
-            (Some(_), Some(_), Some(_)) | (None, None, None) => {}
+        match (&discord_webhook_url, &pd_api_key, &ssl_cert_location, &ssl_private_key_location) {
+            (Some(_), Some(_), Some(_), Some(_)) | (None, None, None, None) => {}
             _ => panic!(
-                "Invalid config, pd & ssl must all be Some (production) or all be None (local)"
+                "Invalid config, discord & pd & ssl must all be Some (production) or all be None (local)"
             ),
         }
 
@@ -165,6 +177,7 @@ impl ServerConfig {
             max_auth_delay,
             log_path,
             pd_api_key,
+            discord_webhook_url,
             ssl_cert_location,
             ssl_private_key_location,
             min_core_version,
@@ -314,12 +327,9 @@ impl StripeConfig {
 }
 
 fn env_or_panic(var_name: &str) -> String {
-    env::var(var_name).unwrap_or_else(|_| panic!("Missing environment variable {}", var_name))
+    env::var(var_name).unwrap_or_else(|_| panic!("Missing environment variable {var_name}"))
 }
 
 fn env_or_empty(var_name: &str) -> Option<String> {
-    match env::var(var_name) {
-        Ok(var) => Some(var),
-        Err(_err) => None,
-    }
+    env::var(var_name).ok()
 }

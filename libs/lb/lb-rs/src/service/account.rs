@@ -1,11 +1,12 @@
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
-    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequest,
+    DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequestV2,
 };
-use crate::model::errors::{core_err_unexpected, LbErrKind, LbResult};
+use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
-use crate::model::file_metadata::{FileMetadata, FileType, Owner};
-use crate::{Lb, DEFAULT_API_LOCATION};
+use crate::model::file_metadata::{FileType, Owner};
+use crate::model::meta::Meta;
+use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 
@@ -37,12 +38,12 @@ impl Lb {
 
         let account = Account::new(username.clone(), api_url.to_string());
 
-        let root = FileMetadata::create_root(&account)?.sign_with(&account)?;
+        let root = Meta::create_root(&account)?.sign_with(&account)?;
         let root_id = *root.id();
 
         let last_synced = self
             .client
-            .request(&account, NewAccountRequest::new(&account, &root))
+            .request(&account, NewAccountRequestV2::new(&account, &root))
             .await?
             .last_synced;
 
@@ -63,7 +64,7 @@ impl Lb {
             let welcome_doc = self
                 .create_file("welcome.md", &root_id, FileType::Document)
                 .await?;
-            self.write_document(welcome_doc.id, &Self::welcome_message(&username))
+            self.write_document(welcome_doc.id, Self::WELCOME_MESSAGE.as_bytes())
                 .await?;
             self.sync(None).await?;
         }
@@ -205,53 +206,213 @@ impl Lb {
         Ok(())
     }
 
-    fn welcome_message(username: &str) -> Vec<u8> {
-        format!(r#"# Hello {username}
+    const WELCOME_MESSAGE: &'static str = r#"# Markdown Syntax
+Markdown is a language for easily formatting your documents. This document can help you get started.
 
-Welcome to Lockbook! This is an example note to help you get started with our note editor. You can keep it to use as a cheat sheet or delete it anytime.
+## Styled Text
+To style text, wrap your text in the corresponding characters.
+| Style         | Syntax              | Example           |
+|---------------|---------------------|-------------------|
+| emphasis      | `*emphasis*`        | *emphasis*        |
+| strong        | `**strong**`        | **strong**        |
+| strikethrough | `~~strikethrough~~` | ~~strikethrough~~ |
+| underline     | `__underline__`     | __underline__     |
+| code          | ``code``            | `code`            |
+| spoiler       | `||spoiler||`       | ||spoiler||       |
+| superscript   | `^superscript^`     | ^superscript^     |
+| subscript     | `~subscript~`       | ~subscript~       |
 
-Lockbook uses Markdown, a lightweight language for formatting plain text. You can use all our supported formatting just by typing. Here’s how it works:
-
-# This is a heading
-
-## This is a smaller heading
-
-### This is an even smaller heading
-
-###### Headings have 6 levels
-
-For italic, use single *asterisks* or _underscores_.
-
-For bold, use double **asterisks** or __underscores__.
-
-For inline code, use single `backticks`
-
-For code blocks, use
+## Links
+To make text into a link, wrap it with `[` `]`, add a link destination to the end , and wrap the destination with `(` `)`. The link destination can be a web URL or a relative path to another Lockbook file.
+```md
+[Lockbook's website](https://lockbook.net)
 ```
-triple
-backticks
+> [Lockbook's website](https://lockbook.net)
+
+## Images
+To embed an image, add a `!` to the beginning of the link syntax.
+```md
+![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
 ```
+> ![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
 
->For block quotes,
-use a greater-than sign
+## Headings
+To create a heading, add up to six `#`'s plus a space before your text. More `#`'s create a smaller heading.
+```md
+# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+##### Heading 5
+###### Heading 6
+```
+> # Heading 1
+> ## Heading 2
+> ### Heading 3
+> #### Heading 4
+> ##### Heading 5
+> ###### Heading 6
 
-Bulleted list items
-* start
-* with
-* asterisks
-- or
-- hyphens
-+ or
-+ plus
-+ signs
+## Lists
+Create a list item by adding `- `, `+ `, or `* ` for a bulleted list, `1. ` for a numbered list, or `- [ ] `, `+ [ ] `, or `* [ ] ` for a task list at the start of the line. The added characters are called the *list marker*.
+```md
+* bulleted list item
+- bulleted list item
++ bulleted list item
 
-Numbered list items
-1. start
-2. with
-3. numbers
-4. and
-5. periods
+1. numbered list item
+1. numbered list item
+1. numbered list item
 
-Happy note taking! You can report any issues to our [Github project](https://github.com/lockbook/lockbook/issues/new) or join our [Discord server](https://discord.gg/qv9fmAZCm6)."#).into()
-    }
+- [ ] task list item
+- [x] task list item
+```
+>* bulleted list item
+>- bulleted list item
+>+ bulleted list item
+>
+>1. numbered list item
+>1. numbered list item
+>1. numbered list item
+>
+>- [ ] task list item
+>- [x] task list item
+
+List items can be nested. To nest an inner item in an outer one, the inner item's line must start with at least one space for each character in the outer item's list marker: usually 2 for bulleted lists, 3 for numbered lists, or 2 for tasks lists (the trailing `[ ] ` is excluded).
+```md
+* This is a bulleted list
+    * An inner item needs at least 2 spaces
+1. This is a numbered list
+    1. An inner item needs at least 3 spaces
+* [ ] This is a task list
+    * [ ] An inner item needs at least 2 spaces
+```
+> * This is a bulleted list
+>   * An inner item needs at least 2 spaces
+> 1. This is a numbered list
+>    1. An inner item needs at least 3 spaces
+> * [ ] This is a task list
+>   * [ ] An inner item needs at least 2 spaces
+
+List items can contain formatted content. For non-text content, each line must start with the same number of spaces as an inner list item would.
+```md
+* This item contains text,
+    > a quote
+    ### and a heading.
+* This item contains two lines of text.
+The second line doesn't need spaces.
+```
+> * This item contains text,
+>   > a quote
+>   ### and a heading.
+> * This item contains two lines of text.
+> The second line doesn't need spaces.
+
+## Quotes
+To create a block quote, add `> ` to each line.
+```md
+> This is a quote
+```
+> This is a quote
+
+Like list items, block quotes can contain formatted content.
+```md
+> This quote contains some text,
+> ```rust
+> // some code
+> fn main() { println!("Hello, world!"); }
+> ```
+> ### and a heading.
+
+> This quote contains two lines of text.
+The second line doesn't need added characters.
+```
+> This quote contains some text,
+> ```rust
+> // some code
+> fn main() { println!("Hello, world!"); }
+> ```
+> ### and a heading.
+
+> This quote contains two lines of text.
+The second line doesn't need added characters.
+
+## Alerts
+To create an alert, add one of 5 tags to the first line of a quote: `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!CAUTION]`. An alternate title can be added after the tag.
+```md
+> [!NOTE]
+> This is a note.
+
+> [!TIP]
+> This is a tip.
+
+> [!IMPORTANT]
+> This is important.
+
+> [!WARNING]
+> This is a warning.
+
+> [!CAUTION] Caution!!!!!
+> This is a caution.
+```
+> [!NOTE]
+> This is a note.
+
+> [!TIP]
+> This is a tip.
+
+> [!IMPORTANT]
+> This is important.
+
+> [!WARNING]
+> This is a warning.
+
+> [!CAUTION] Caution!!!!!
+> This is a caution.
+
+## Tables
+A table is written with `|`'s between columns and a row after the header row whose cell's contents are `-`'s.
+```md
+| Style         | Syntax              | Example           |
+|---------------|---------------------|-------------------|
+| emphasis      | `*emphasis*`        | *emphasis*        |
+| strong        | `**strong**`        | **strong**        |
+```
+> | Style         | Syntax              | Example           |
+> |---------------|---------------------|-------------------|
+> | emphasis      | `*emphasis*`        | *emphasis*        |
+> | strong        | `**strong**`        | **strong**        |
+
+## Code
+A code block is wrapped by two lines containing three backticks. A language can be added after the opening backticks.
+```md
+    ```rust
+    // some code
+    fn main() { println!("Hello, world!"); }
+    ```
+```
+> ```rust
+> // some code
+> fn main() { println!("Hello, world!"); }
+> ```
+
+You can also create a code block by indenting each line with four spaces. Indented code blocks cannot have a language.
+```md
+    // some code
+    fn main() { println!("Hello, world!"); }
+```
+>     // some code
+>     fn main() { println!("Hello, world!"); }
+
+## Thematic Breaks
+A thematic break is written with `***`, `---`, or `___` and shows a horizontal line across the page.
+```md
+***
+---
+___
+```
+> ***
+> ---
+> ___
+"#;
 }

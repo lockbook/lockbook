@@ -1,37 +1,39 @@
+use crate::Lb;
 use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
-    ChangeDocRequest, GetDocRequest, GetFileIdsRequest, GetUpdatesRequest, GetUpdatesResponse,
-    GetUsernameError, GetUsernameRequest, UpsertRequest,
+    ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
+    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest,
+    UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
 use crate::model::filename::{DocumentType, NameComponents};
-use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::model::staged::StagedTreeLikeMut;
 use crate::model::svg::buffer::u_transform_to_bezier;
 use crate::model::svg::element::Element;
 use crate::model::text::buffer::Buffer;
 use crate::model::tree_like::TreeLike;
 use crate::model::work_unit::WorkUnit;
-use crate::model::{clock, svg};
-use crate::model::{symkey, ValidationFailure};
-use crate::Lb;
+use crate::model::{ValidationFailure, clock, svg, symkey};
 pub use basic_human_duration::ChronoHumanDuration;
-use futures::stream;
-use futures::StreamExt;
+use futures::{StreamExt, stream};
 use serde::Serialize;
-use std::collections::{hash_map, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, hash_map};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 use time::Duration;
+use usvg::Transform;
 use uuid::Uuid;
 use web_time::Instant;
+
+use super::events::Actor;
 
 pub type SyncFlag = Arc<AtomicBool>;
 
@@ -42,11 +44,13 @@ pub struct SyncContext {
 
     pk_cache: HashMap<Owner, String>,
     last_synced: u64,
-    remote_changes: Vec<SignedFile>,
+    remote_changes: Vec<SignedMeta>,
     update_as_of: u64,
-    root: Option<Uuid>,
-    pushed_metas: Vec<FileDiff<SignedFile>>,
-    pushed_docs: Vec<FileDiff<SignedFile>>,
+
+    /// is this the sync that populated root?
+    new_root: Option<Uuid>,
+    pushed_metas: Vec<FileDiff<SignedMeta>>,
+    pushed_docs: Vec<FileDiff<SignedMeta>>,
     pulled_docs: Vec<Uuid>,
 }
 
@@ -60,7 +64,10 @@ impl Lb {
 
         let remote_changes = self
             .client
-            .request(self.get_account()?, GetUpdatesRequest { since_metadata_version: last_synced })
+            .request(
+                self.get_account()?,
+                GetUpdatesRequestV2 { since_metadata_version: last_synced },
+            )
             .await?;
         let (deduped, latest_server_ts, _) = self.dedup(remote_changes).await?;
         let remote_dirty = deduped
@@ -131,8 +138,26 @@ impl Lb {
         if got_updates {
             // did it?
             self.events.meta_changed();
+            let owner = self.keychain.get_pk().map(Owner).ok();
+            // this is overly agressive as it'll notify on shares that have been accepted
+            // another strategy could be to diff the changes coming before and after a sync
+            if ctx.remote_changes.iter().any(|f| Some(f.owner()) != owner) {
+                self.events.pending_shares_changed();
+            }
             for id in &ctx.pulled_docs {
-                self.events.doc_written(*id);
+                self.events.doc_written(*id, Some(Actor::Sync));
+            }
+        }
+
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let account = self.get_account()?;
+            if account.is_beta() {
+                let debug_info = self.debug_info("".into()).await?;
+
+                self.client
+                    .request(account, UpsertDebugInfoRequest { debug_info })
+                    .await?;
             }
         }
 
@@ -159,7 +184,7 @@ impl Lb {
             current,
             total,
 
-            root: Default::default(),
+            new_root: Default::default(),
             update_as_of: Default::default(),
             remote_changes: Default::default(),
             pushed_docs: Default::default(),
@@ -217,7 +242,7 @@ impl Lb {
             .client
             .request(
                 self.get_account()?,
-                GetUpdatesRequest { since_metadata_version: ctx.last_synced },
+                GetUpdatesRequestV2 { since_metadata_version: ctx.last_synced },
             )
             .await?;
 
@@ -226,7 +251,7 @@ impl Lb {
 
         ctx.remote_changes = remote;
         ctx.update_as_of = as_of;
-        ctx.root = root;
+        ctx.new_root = root;
 
         Ok(!empty)
     }
@@ -408,8 +433,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            deletion_creations
+                            "sync failed to find a topomodelal order for file creations: {deletion_creations:?}"
                         ))
                         .into());
                     }
@@ -487,8 +511,7 @@ impl Lb {
                             }
                         }
                         return Err(LbErrKind::Unexpected(format!(
-                            "sync failed to find a topomodelal order for file creations: {:?}",
-                            creations
+                            "sync failed to find a topomodelal order for file creations: {creations:?}"
                         ))
                         .into());
                     }
@@ -629,7 +652,6 @@ impl Lb {
                                         self.docs.insert(id, hmac, &encrypted_document).await?;
                                     }
                                     DocumentType::Drawing => {
-                                        println!("sync merge");
                                         let base_document =
                                             String::from_utf8_lossy(&base_document).to_string();
                                         let remote_document =
@@ -646,14 +668,19 @@ impl Lb {
                                         for (_, el) in local_buffer.elements.iter_mut() {
                                             if let Element::Path(path) = el {
                                                 path.data.apply_transform(u_transform_to_bezier(
-                                                    &local_buffer.master_transform,
+                                                    &Transform::from(
+                                                        local_buffer
+                                                            .weak_viewport_settings
+                                                            .master_transform,
+                                                    ),
                                                 ));
                                             }
                                         }
                                         svg::buffer::Buffer::reload(
                                             &mut local_buffer.elements,
                                             &mut local_buffer.weak_images,
-                                            local_buffer.master_transform,
+                                            &mut local_buffer.weak_path_pressures,
+                                            &mut local_buffer.weak_viewport_settings,
                                             &base_buffer,
                                             &remote_buffer,
                                         );
@@ -762,8 +789,7 @@ impl Lb {
                                     continue 'merge_construction;
                                 } else {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link (deletion): {:?}",
-                                        link
+                                        "sync failed to resolve broken link (deletion): {link:?}"
                                     ))
                                     .into());
                                 }
@@ -794,8 +820,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve cycle: {:?}",
-                                        ids
+                                        "sync failed to resolve cycle: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -821,8 +846,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve path conflict: {:?}",
-                                        ids
+                                        "sync failed to resolve path conflict: {ids:?}"
                                     ))
                                     .into());
                                 }
@@ -843,8 +867,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                    "sync failed to resolve shared link: link: {:?}, shared_ancestor: {:?}",
-                                    link, shared_ancestor
+                                    "sync failed to resolve shared link: link: {link:?}, shared_ancestor: {shared_ancestor:?}"
                                 )).into());
                                 }
                             }
@@ -858,8 +881,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve duplicate link: target: {:?}",
-                                        target
+                                        "sync failed to resolve duplicate link: target: {target:?}"
                                     ))
                                     .into());
                                 }
@@ -868,8 +890,7 @@ impl Lb {
                                 // delete local link with this target
                                 if !links_to_delete.insert(*link) {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve broken link: {:?}",
-                                        link
+                                        "sync failed to resolve broken link: {link:?}"
                                     ))
                                     .into());
                                 }
@@ -892,8 +913,7 @@ impl Lb {
                                 }
                                 if !progress {
                                     return Err(LbErrKind::Unexpected(format!(
-                                        "sync failed to resolve owned link: {:?}",
-                                        link
+                                        "sync failed to resolve owned link: {link:?}"
                                     ))
                                     .into());
                                 }
@@ -956,8 +976,10 @@ impl Lb {
             let maybe_base_file = local.tree.base.maybe_find(&id);
 
             // change everything but document hmac and re-sign
-            local_change.document_hmac =
-                maybe_base_file.and_then(|f| f.timestamped_value.value.document_hmac);
+            local_change.set_hmac_and_size(
+                maybe_base_file.and_then(|f| f.document_hmac().copied()),
+                maybe_base_file.and_then(|f| *f.timestamped_value.value.doc_size()),
+            );
             let local_change = local_change.sign(&self.keychain)?;
 
             local_changes_no_digests.push(local_change.clone());
@@ -969,7 +991,7 @@ impl Lb {
 
         if !updates.is_empty() {
             self.client
-                .request(self.get_account()?, UpsertRequest { updates: updates.clone() })
+                .request(self.get_account()?, UpsertRequestV2 { updates: updates.clone() })
                 .await?;
             ctx.pushed_metas = updates;
         }
@@ -1006,10 +1028,13 @@ impl Lb {
 
             // change only document hmac and re-sign
             let mut local_change = base_file.timestamped_value.value.clone();
-            local_change.document_hmac = local.find(&id)?.timestamped_value.value.document_hmac;
+            local_change.set_hmac_and_size(
+                local.find(&id)?.document_hmac().copied(),
+                *local.find(&id)?.timestamped_value.value.doc_size(),
+            );
 
             if base_file.document_hmac() == local_change.document_hmac()
-                || local_change.document_hmac.is_none()
+                || local_change.document_hmac().is_none()
             {
                 continue;
             }
@@ -1060,14 +1085,14 @@ impl Lb {
         Ok(())
     }
 
-    async fn push_doc(&self, diff: FileDiff<SignedFile>) -> LbResult<Uuid> {
+    async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
         let id = *diff.new.id();
         let hmac = diff.new.document_hmac();
         let local_document_change = self.docs.get(id, hmac.copied()).await?;
         self.client
             .request(
                 self.get_account()?,
-                ChangeDocRequest { diff, new_content: local_document_change },
+                ChangeDocRequestV2 { diff, new_content: local_document_change },
             )
             .await?;
 
@@ -1075,8 +1100,8 @@ impl Lb {
     }
 
     async fn dedup(
-        &self, updates: GetUpdatesResponse,
-    ) -> LbResult<(Vec<SignedFile>, u64, Option<Uuid>)> {
+        &self, updates: GetUpdatesResponseV2,
+    ) -> LbResult<(Vec<SignedMeta>, u64, Option<Uuid>)> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -1107,8 +1132,8 @@ impl Lb {
     }
 
     async fn prune_remote_orphans(
-        &self, remote_changes: Vec<SignedFile>,
-    ) -> LbResult<Vec<SignedFile>> {
+        &self, remote_changes: Vec<SignedMeta>,
+    ) -> LbResult<Vec<SignedMeta>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -1136,7 +1161,7 @@ impl Lb {
         let db = tx.db();
         db.last_synced.insert(ctx.update_as_of as i64)?;
 
-        if let Some(root) = ctx.root {
+        if let Some(root) = ctx.new_root {
             db.root.insert(root)?;
         }
 

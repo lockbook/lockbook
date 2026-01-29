@@ -9,6 +9,15 @@ use super::errors::{LbErrKind, LbResult};
 
 pub const MAX_USERNAME_LENGTH: usize = 32;
 
+/// A flag for which users have volunteers as beta testers.
+///
+/// Beta users are users to which riskier code is enabled first for testing.
+/// Beta users are also users who have opted into telemetry by way of approving a PR that adds
+/// their name to this list. Certainly telemetry in lockbook will always be opt in but the
+/// mechanism of consent may evolve over time.
+pub const BETA_USERS: &[&str] =
+    &["parth", "travis", "smail", "adam", "krish", "aravd", "luca", "krishma"];
+
 pub type Username = String;
 pub type ApiUrl = String;
 
@@ -33,7 +42,7 @@ impl Account {
     pub fn get_phrase(&self) -> LbResult<[&'static str; 24]> {
         let key = self.private_key.serialize();
         let key_bits = key.iter().fold(String::new(), |mut out, byte| {
-            let _ = write!(out, "{:08b}", byte);
+            let _ = write!(out, "{byte:08b}");
             out
         });
 
@@ -41,12 +50,12 @@ impl Account {
             sha2::Sha256::digest(&key)
                 .into_iter()
                 .fold(String::new(), |mut out, byte| {
-                    let _ = write!(out, "{:08b}", byte);
+                    let _ = write!(out, "{byte:08b}");
                     out
                 });
 
         let checksum_last_4_bits = &checksum[..4];
-        let combined_bits = format!("{}{}", key_bits, checksum_last_4_bits);
+        let combined_bits = format!("{key_bits}{checksum_last_4_bits}");
 
         let mut phrase: [&str; 24] = Default::default();
 
@@ -107,7 +116,7 @@ impl Account {
             sha2::Sha256::digest(&key)
                 .iter()
                 .fold(String::new(), |mut acc, byte| {
-                    acc.push_str(&format!("{:08b}", byte));
+                    acc.push_str(&format!("{byte:08b}"));
                     acc
                 });
 
@@ -144,21 +153,14 @@ impl Account {
         (result[0], result[1], result[2])
     }
 
-    /// A flag for which users have volunteers as beta testers.
-    ///
-    /// Beta users are users to which riskier code is enabled first for testing.
-    /// Beta users are also users who have opted into telemetry by way of approving a PR that adds
-    /// their name to this list. Certainly telemetry in lockbook will always be opt in but the
-    /// mechanism of consent may evolve over time.
     pub fn is_beta(&self) -> bool {
-        matches!(self.username.as_str(), "parth" | "travis" | "smail" | "adam" | "krish")
+        BETA_USERS.contains(&self.username.as_str())
     }
 }
 
 pub mod secret_key_serializer {
     use libsecp256k1::SecretKey;
-    use serde::de::Deserialize;
-    use serde::de::Deserializer;
+    use serde::de::{Deserialize, Deserializer};
     use serde::ser::Serializer;
 
     pub fn serialize<S>(sk: &SecretKey, serializer: S) -> Result<S::Ok, S::Error>

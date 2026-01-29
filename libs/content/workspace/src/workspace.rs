@@ -1,12 +1,16 @@
+use chrono::Local;
 use egui::{Context, ViewportCommand};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::errors::{LbErr, LbErrKind};
+use lb_rs::model::account::Account;
+use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
-use lb_rs::Uuid;
+use lb_rs::service::events::{self, Actor, Event};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
@@ -15,13 +19,17 @@ use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::FileCache;
-use crate::mind_map::show::MindMap;
-use crate::output::{Response, WsStatus};
-use crate::tab::image_viewer::{is_supported_image_fmt, ImageViewer};
-use crate::tab::markdown_editor::Editor as Markdown;
 #[cfg(not(target_family = "wasm"))]
+use crate::mind_map::show::MindMap;
+#[cfg(not(target_family = "wasm"))]
+use tokio::sync::broadcast::error::TryRecvError;
+
+use crate::output::{Response, WsStatus};
+use crate::space_inspector::show::SpaceInspector;
+use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
+use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
 use crate::tab::pdf_viewer::PdfViewer;
-use crate::tab::svg_editor::SVGEditor;
+use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
 use crate::task_manager;
 use crate::task_manager::{
@@ -33,13 +41,13 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub user_last_seen: Instant,
+    pub account: Option<Account>,
 
     // Files and task status
     pub tasks: TaskManager,
     pub files: Option<FileCache>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
-    pub last_sync_status_refresh_completed: Option<Instant>,
 
     // Output
     pub status: WsStatus,
@@ -50,7 +58,7 @@ pub struct Workspace {
     pub ctx: Context,
 
     pub core: Lb,
-
+    pub lb_rx: events::Receiver<Event>,
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -60,33 +68,35 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context) -> Self {
+    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
+        let files = FileCache::new(core).log_and_ignore();
 
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
             user_last_seen: Instant::now(),
+            account: core.get_account().cloned().ok(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
-            files: None,
+            files,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
-            last_sync_status_refresh_completed: Default::default(),
 
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(writeable_path),
+            cfg: WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path),
             ctx: ctx.clone(),
             core: core.clone(),
-            show_tabs: true,
+            show_tabs,
             focused_parent: Default::default(),
 
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
+            lb_rx: core.subscribe(),
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
@@ -94,61 +104,29 @@ impl Workspace {
         open_tabs.iter().for_each(|&file_id| {
             if core.get_file_by_id(file_id).is_ok() {
                 info!(id = ?file_id, "opening persisted tab");
-                ws.open_file(file_id, false, false);
+                ws.open_file(file_id, false, true);
             }
         });
         if let Some(current_tab) = current_tab {
             info!(id = ?current_tab, "setting persisted current tab");
-            ws.current_tab = open_tabs
-                .iter()
-                .position(|&id| id == current_tab)
-                .unwrap_or_default();
+            ws.make_current_by_id(current_tab);
         }
 
         ws
     }
 
-    // todo: what happens if a save is in progress? what about non-file tabs?
-    pub fn invalidate_egui_references(&mut self, ctx: &Context, core: &Lb) {
-        self.ctx = ctx.clone();
-        self.core = core.clone();
-
-        let ids: Vec<Uuid> = self.tabs.iter().flat_map(|tab| tab.id()).collect();
-        let maybe_current_tab_id = self.current_tab().map(|tab| tab.id());
-
-        while self.current_tab != 0 {
-            self.close_tab(self.tabs.len() - 1);
-        }
-
-        for id in ids {
-            self.open_file(id, false, false)
-        }
-
-        if let Some(current_tab_id) = maybe_current_tab_id {
-            self.current_tab = self
-                .tabs
-                .iter()
-                .position(|tab| tab.id() == current_tab_id)
-                .unwrap_or(0);
-            self.current_tab_changed = true;
-        }
-    }
-
-    /// Creates a loading-state tab for a file if needed and returns true if a tab was created
-    pub fn upsert_loading_tab(&mut self, id: Uuid, make_current: bool) -> bool {
-        let tab_exists = self.tabs.iter().any(|t| t.id() == Some(id));
-        if !tab_exists {
-            self.create_tab(ContentState::Loading(id), make_current);
-        } else if make_current {
-            self.make_current_by_id(id);
-        }
-        !tab_exists
-    }
-
     pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
         let now = Instant::now();
-        let new_tab =
-            Tab { content, last_changed: now, last_saved: now, rename: None, is_closing: false };
+        let new_tab = Tab {
+            content,
+            back: Vec::new(),
+            forward: Vec::new(),
+            last_changed: now,
+            last_saved: now,
+            rename: None,
+            is_closing: false,
+            read_only: false,
+        };
         self.tabs.push(new_tab);
         if make_current {
             self.current_tab = self.tabs.len() - 1;
@@ -158,6 +136,18 @@ impl Workspace {
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         self.tabs.get_mut_by_id(id)
+    }
+
+    pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
+        for (idx, tab) in self.tabs.iter().enumerate() {
+            if let Some(tab_id) = tab.id() {
+                if tab_id == id {
+                    return Some(idx);
+                }
+            }
+        }
+
+        None
     }
 
     pub fn is_empty(&self) -> bool {
@@ -201,6 +191,12 @@ impl Workspace {
             self.ctx
                 .send_viewport_cmd(ViewportCommand::Title(self.tab_title(&self.tabs[i])));
 
+            if let Some(md) = self.current_tab_markdown() {
+                md.focus(&self.ctx);
+            }
+
+            self.ctx.request_repaint();
+
             true
         } else {
             false
@@ -233,13 +229,73 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: Uuid, is_new_file: bool, make_current: bool) {
-        let tab_created = self.upsert_loading_tab(id, make_current);
+    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
+        let mut create_tab = || {
+            if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
+                if make_current {
+                    self.make_current(pos);
+                }
+                return false;
+            }
+            if in_new_tab {
+                return true;
+            }
+            let Some(current_tab) = self.current_tab_mut() else {
+                return true;
+            };
+            if let Some(id) = current_tab.id() {
+                current_tab.back.push(id);
+                current_tab.forward.clear();
+            }
+            current_tab.content = ContentState::Loading(id);
+            false
+        };
+        let create_tab = create_tab();
+
+        if create_tab {
+            self.create_tab(ContentState::Loading(id), make_current);
+        }
+
         self.tasks
-            .queue_load(LoadRequest { id, is_new_file, tab_created });
+            .queue_load(LoadRequest { id, tab_created: create_tab, make_current });
+    }
+
+    pub fn back(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(back_id) = current_tab.back.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.forward.push(current_id);
+
+                    current_tab.content = ContentState::Loading(back_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: back_id,
+                        tab_created: true,
+                        make_current: false,
+                    });
+                }
+            }
+        }
+    }
+
+    pub fn forward(&mut self) {
+        if let Some(current_tab) = self.current_tab_mut() {
+            if let Some(forward_id) = current_tab.forward.pop() {
+                if let Some(current_id) = current_tab.id() {
+                    current_tab.back.push(current_id);
+
+                    current_tab.content = ContentState::Loading(forward_id);
+                    self.tasks.queue_load(LoadRequest {
+                        id: forward_id,
+                        tab_created: true,
+                        make_current: false,
+                    });
+                }
+            }
+        }
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        #[cfg(not(target_family = "wasm"))]
         if let ContentState::Open(TabContent::MindMap(mm)) = &mut self.tabs[i].content {
             mm.stop();
         }
@@ -263,15 +319,53 @@ impl Workspace {
     }
 
     #[instrument(level = "trace", skip_all)]
+    pub fn process_lb_updates(&mut self) {
+        match self.lb_rx.try_recv() {
+            Ok(evt) => match evt {
+                Event::MetadataChanged => {
+                    self.files = FileCache::new(&self.core).log_and_ignore();
+                    if let Some(files) = &self.files {
+                        let mut tabs_to_delete = vec![];
+                        for tab in &self.tabs {
+                            if let Some(id) = tab.id() {
+                                if !files
+                                    .files
+                                    .iter()
+                                    .chain(&files.shared)
+                                    .any(|f| Some(f.id) == tab.id())
+                                {
+                                    tabs_to_delete.push(id);
+                                }
+                            }
+                        }
 
-    pub fn process_updates(&mut self) {
-        let task_manager::Response {
-            completed_loads,
-            completed_saves,
-            completed_sync,
-            completed_sync_status_update,
-            completed_file_cache_refresh,
-        } = self.tasks.update();
+                        for id in tabs_to_delete {
+                            if let Some(idx) = self.get_idx_by_id(id) {
+                                self.remove_tab(idx);
+                            }
+                        }
+                    }
+                }
+                Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                    self.user_last_seen = Instant::now();
+                    for i in 0..self.tabs.len() {
+                        if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                            self.open_file(id, false, false);
+                        }
+                    }
+                }
+                _ => {}
+            },
+            #[cfg(not(target_family = "wasm"))]
+            Err(TryRecvError::Empty) => {}
+            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
+        }
+    }
+
+    // #[instrument(level = "trace", skip_all)]
+    pub fn process_task_updates(&mut self) {
+        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
+            self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -279,30 +373,20 @@ impl Workspace {
             {
                 {
                     let CompletedLoad {
-                        request: LoadRequest { id, is_new_file, tab_created },
+                        request: LoadRequest { id, tab_created, make_current },
                         content_result,
                         timing: _,
                     } = load;
 
-                    if let Some(tab) = self.current_tab() {
-                        self.ctx
-                            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
-                        self.out.selected_file = tab.id();
-                    };
-
                     let ctx = self.ctx.clone();
                     let core = self.core.clone();
-
-                    let canvas_settings = self
-                        .tabs
-                        .iter()
-                        .find_map(|tab| tab.svg().map(|svg| svg.settings));
+                    let show_tabs = self.show_tabs;
 
                     if let Some(tab) = self.tabs.get_mut_by_id(id) {
                         let (maybe_hmac, bytes) = match content_result {
                             Ok((hmac, bytes)) => (hmac, bytes),
                             Err(err) => {
-                                let msg = format!("failed to load file: {:?}", err);
+                                let msg = format!("failed to load file: {err:?}");
                                 error!(msg);
                                 tab.content =
                                     ContentState::Failed(TabFailure::Unexpected(msg.clone()));
@@ -311,40 +395,57 @@ impl Workspace {
                             }
                         };
 
-                        let ext = match self.core.get_file_by_id(id) {
-                            Ok(file) => file.name.split('.').last().unwrap_or_default().to_owned(),
+                        let (ext, read_only) = match self.core.get_file_by_id(id) {
+                            Ok(file) => {
+                                let ext = file
+                                    .name
+                                    .split('.')
+                                    .next_back()
+                                    .unwrap_or_default()
+                                    .to_owned();
+
+                                let read_only = if let Some(account) = &self.account {
+                                    file.shares.iter().any(|share| {
+                                        share.mode == ShareMode::Read
+                                            && share.shared_with == account.username
+                                            && share.shared_by != account.username
+                                    })
+                                } else {
+                                    false
+                                };
+
+                                (ext, read_only)
+                            }
                             Err(e) => {
                                 self.out
                                     .failure_messages
-                                    .push(format!("failed to get id for loaded file: {:?}", e));
+                                    .push(format!("failed to get id for loaded file: {e:?}"));
                                 continue;
                             }
                         };
 
+                        tab.read_only = read_only;
+
                         if is_supported_image_fmt(&ext) {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id, &ext, &bytes,
+                                id, &ext, bytes,
                             )));
                         } else if ext == "pdf" {
-                            #[cfg(not(target_family = "wasm"))]
-                            {
-                                tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                    id,
-                                    &bytes,
-                                    &ctx,
-                                    &self.core.get_config().writeable_path,
-                                    !self.show_tabs, // todo: use settings to determine toolbar visibility
-                                )));
-                            }
+                            tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
+                                id, bytes, &ctx,
+                                !show_tabs, // todo: use settings to determine toolbar visibility
+                            )));
                         } else if ext == "svg" {
-                            if tab_created {
+                            let reload = if tab.svg().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
                                     &bytes,
                                     &ctx,
                                     core.clone(),
                                     id,
                                     maybe_hmac,
-                                    canvas_settings,
+                                    &self.cfg,
+                                    tab.read_only,
                                 )));
                             } else {
                                 let svg = tab.svg_mut().unwrap();
@@ -352,7 +453,8 @@ impl Workspace {
                                 Buffer::reload(
                                     &mut svg.buffer.elements,
                                     &mut svg.buffer.weak_images,
-                                    svg.buffer.master_transform,
+                                    &mut svg.buffer.weak_path_pressures,
+                                    &mut svg.buffer.weak_viewport_settings,
                                     &svg.opened_content,
                                     &svg::buffer::Buffer::new(
                                         String::from_utf8_lossy(&bytes).as_ref(),
@@ -362,25 +464,30 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if ext == "md" || ext == "txt" {
-                            if tab_created {
+                            let reload =
+                                if tab.markdown().is_some() { !tab_created } else { false };
+                            if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
+                                        self.ctx.clone(),
                                         core.clone(),
+                                        self.cfg.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
-                                        is_new_file,
-                                        ext != "md",
+                                        MdConfig {
+                                            plaintext_mode: ext != "md",
+                                            readonly: tab.read_only,
+                                        },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.reload(String::from_utf8_lossy(&bytes).into());
+                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
                         } else {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
-                                "Unsupported file extension: {}",
-                                ext
+                                "Unsupported file extension: {ext}"
                             )));
                         };
 
@@ -388,6 +495,10 @@ impl Workspace {
                     } else {
                         error!("failed to load file: tab not found");
                     };
+
+                    if make_current {
+                        self.make_current_by_id(id);
+                    }
                 }
             }
         }
@@ -419,18 +530,21 @@ impl Workspace {
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
                                         svg.open_file_hmac = Some(hmac);
-                                        svg.opened_content = content;
+                                        svg.opened_content = *content;
                                     }
                                 }
                                 sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    debug!("reloading file after save failed with re-read required: {}", id);
+                                    debug!(
+                                        "reloading file after save failed with re-read required: {}",
+                                        id
+                                    );
                                     self.open_file(id, false, false);
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
-                                        format!("{:?}", err),
+                                        format!("{err:?}"),
                                     ))
                                 }
                             }
@@ -439,32 +553,13 @@ impl Workspace {
                     if sync {
                         self.tasks.queue_sync();
                     }
-                    self.tasks.queue_file_cache_refresh();
                 }
             }
         }
         start.warn_after("processing completed saves", Duration::from_millis(100));
-
-        let start = Instant::now();
         if let Some(sync) = completed_sync {
-            self.sync_done(sync)
+            self.last_sync_completed = Some(sync.timing.completed_at);
         }
-        start.warn_after("processing completed sync", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if let Some(update) = completed_sync_status_update {
-            self.sync_status_update_done(update)
-        }
-        start.warn_after("processing completed sync status update", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if let Some(refresh) = completed_file_cache_refresh {
-            match refresh.cache_result {
-                Ok(cache) => self.files = Some(cache),
-                Err(err) => error!("failed to refresh file cache: {:?}", err),
-            }
-        }
-        start.warn_after("processing completed file cache refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         {
@@ -481,26 +576,6 @@ impl Workspace {
 
         // background work: queue
         let now = Instant::now();
-        let start = Instant::now();
-        if let Some(last_sync_status_refresh) = self
-            .tasks
-            .sync_status_update_queued_at()
-            .or(self.last_sync_status_refresh_completed)
-        {
-            let instant_of_next_sync_status_refresh =
-                last_sync_status_refresh + Duration::from_secs(1);
-            if instant_of_next_sync_status_refresh < now {
-                self.tasks.queue_sync_status_update();
-            } else {
-                let duration_until_next_sync_status_refresh =
-                    instant_of_next_sync_status_refresh - now;
-                self.ctx
-                    .request_repaint_after(duration_until_next_sync_status_refresh);
-            }
-        } else {
-            self.tasks.queue_sync_status_update();
-        }
-        start.warn_after("processing sync status refresh", Duration::from_millis(100));
 
         let start = Instant::now();
         if self.cfg.get_auto_save() {
@@ -522,9 +597,9 @@ impl Workspace {
         if self.cfg.get_auto_sync() {
             if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
                 let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(60);
+                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
                 let sync_period = if user_active && focused {
-                    Duration::from_secs(5)
+                    Duration::from_secs(3)
                 } else {
                     Duration::from_secs(5 * 60)
                 };
@@ -576,9 +651,29 @@ impl Workspace {
         }
     }
 
-    pub fn create_file(&mut self, is_drawing: bool) {
+    pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
+        let file_format = if is_drawing { "svg" } else { "md" };
+        let date = Local::now().format("%Y-%m-%d");
+        let mut new_file = NameComponents {
+            name: date.to_string(),
+            variant: None,
+            extension: Some(file_format.into()),
+        };
+        new_file.next_in_children(self.core.get_children(&parent).unwrap());
+
+        let result = self
+            .core
+            .create_file(new_file.to_name().as_str(), &parent, FileType::Document)
+            .map_err(|err| format!("{err:?}"));
+
+        self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    pub fn create_doc(&mut self, is_drawing: bool) {
         let focused_parent = self
             .focused_parent
+            .or_else(|| self.current_tab_id())
             .unwrap_or_else(|| self.core.get_root().unwrap().id);
 
         let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
@@ -588,26 +683,36 @@ impl Workspace {
             focused_parent.id
         };
 
-        let file_format = if is_drawing { "svg" } else { "md" };
-        let new_file = NameComponents::from(&format!("untitled.{}", file_format))
-            .next_in_children(self.core.get_children(&focused_parent).unwrap());
-
-        let result = self
-            .core
-            .create_file(new_file.to_name().as_str(), &focused_parent, FileType::Document)
-            .map_err(|err| format!("{:?}", err));
-
-        self.out.file_created = Some(result.clone());
-        self.ctx.request_repaint();
+        self.create_doc_at(is_drawing, focused_parent);
     }
 
     /// Opens or focuses the tab for the mind map
+    #[cfg(not(target_family = "wasm"))]
     pub fn upsert_mind_map(&mut self, core: Lb) {
         if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
             self.make_current(i);
         } else {
             self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
         };
+    }
+    #[cfg(target_family = "wasm")]
+    pub fn upsert_mind_map(&mut self, core: Lb) {
+        warn!("Mind map is not supported on wasm targets");
+    }
+
+    /// Opens the tab for space inspector, closing any existing space inspectors (?)
+    pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
+        if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
+            self.close_tab(i);
+        }
+        self.create_tab(
+            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
+                &core,
+                folder,
+                self.ctx.clone(),
+            ))),
+            true,
+        );
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
@@ -620,7 +725,7 @@ impl Workspace {
                 if by_user {
                     self.out
                         .failure_messages
-                        .push(format!("Rename failed: {}", kind));
+                        .push(format!("Rename failed: {kind}"));
                 }
                 warn!(?id, "failed to rename file: {:?}", kind);
             }
@@ -645,7 +750,6 @@ impl Workspace {
         }
 
         self.out.file_renamed = Some((id, new_name));
-        self.tasks.queue_file_cache_refresh();
         self.ctx.request_repaint();
     }
 
@@ -654,13 +758,12 @@ impl Workspace {
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
                 self.out.file_moved = Some((id, new_parent));
-                self.tasks.queue_file_cache_refresh();
                 self.ctx.request_repaint();
             }
             Err(LbErr { kind, .. }) => {
                 self.out
                     .failure_messages
-                    .push(format!("Move failed: {}", kind));
+                    .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
             }
         }
@@ -703,23 +806,37 @@ pub struct WsPersistentStore {
     data: Arc<RwLock<WsPresistentData>>,
 }
 
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
+    canvas: CanvasSettings,
+    markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
 }
 
 impl Default for WsPresistentData {
     fn default() -> Self {
-        Self { auto_save: true, auto_sync: true, open_tabs: Vec::default(), current_tab: None }
+        Self {
+            auto_save: true,
+            auto_sync: true,
+            open_tabs: Vec::default(),
+            current_tab: None,
+            canvas: CanvasSettings::default(),
+            markdown: MdPersistence::default(),
+        }
     }
 }
 
 impl WsPersistentStore {
-    pub fn new(path: PathBuf) -> Self {
+    pub fn new(recent_crash: bool, path: PathBuf) -> Self {
         let default = WsPresistentData::default();
+
+        if recent_crash && path.exists() {
+            warn!("removing persistence file due to recent crash");
+            fs::remove_file(&path).log_and_ignore();
+        }
 
         match fs::File::open(&path) {
             Ok(f) => WsPersistentStore {
@@ -752,6 +869,26 @@ impl WsPersistentStore {
         (data_lock.open_tabs.clone(), data_lock.current_tab)
     }
 
+    pub fn set_canvas_settings(&mut self, canvas_settings: CanvasSettings) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.canvas = canvas_settings;
+        self.write_to_file();
+    }
+
+    pub fn get_canvas_settings(&mut self) -> CanvasSettings {
+        self.data.read().unwrap().canvas
+    }
+
+    pub fn set_markdown(&mut self, value: MdPersistence) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.markdown = value;
+        self.write_to_file();
+    }
+
+    pub fn get_markdown(&mut self) -> MdPersistence {
+        self.data.read().unwrap().markdown
+    }
+
     pub fn get_auto_sync(&self) -> bool {
         self.data.read().unwrap().auto_save
     }
@@ -775,11 +912,11 @@ impl WsPersistentStore {
     fn write_to_file(&self) {
         let data = self.data.clone();
         let path = self.path.clone();
-        thread::spawn(move || {
-            let data = data.read().unwrap();
-            let content = serde_json::to_string(&*data).unwrap();
-            fs::write(path, content)
-        });
+        // thread::spawn(move || {
+        //     let data = data.read().unwrap();
+        //     let content = serde_json::to_string(&*data).unwrap();
+        //     fs::write(path, content)
+        // });
     }
 }
 

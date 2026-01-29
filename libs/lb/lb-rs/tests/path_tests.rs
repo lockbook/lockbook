@@ -1,6 +1,7 @@
 use lb_rs::model::account::Account;
 use lb_rs::model::file_like::FileLike;
-use lb_rs::model::file_metadata::{FileMetadata, FileType};
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::meta::Meta;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::service::keychain::Keychain;
 use test_utils::*;
@@ -9,10 +10,7 @@ use test_utils::*;
 async fn test_create_path() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = FileMetadata::create_root(account)
-        .unwrap()
-        .sign(&keychain)
-        .unwrap();
+    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
     tree.create_at_path("test1", root.id(), &keychain).unwrap();
@@ -20,6 +18,8 @@ async fn test_create_path() {
     tree.create_at_path("test3", root.id(), &keychain).unwrap();
 
     let paths = tree.list_paths(None, &keychain).unwrap();
+    let paths: Vec<String> = paths.into_iter().map(|(_, path)| path).collect();
+
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
     assert!(paths.contains(&"/test1".to_string()));
@@ -31,16 +31,14 @@ async fn test_create_path() {
 async fn test_path2() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = FileMetadata::create_root(account)
-        .unwrap()
-        .sign(&keychain)
-        .unwrap();
+    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
     tree.create_at_path("test1/2/3", root.id(), &keychain)
         .unwrap();
 
     let paths = tree.list_paths(None, &keychain).unwrap();
+    let paths: Vec<String> = paths.into_iter().map(|(_, path)| path).collect();
 
     assert_eq!(paths.len(), 4);
     assert!(paths.contains(&"/".to_string()));
@@ -53,10 +51,7 @@ async fn test_path2() {
 async fn test_path_to_id() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = FileMetadata::create_root(account)
-        .unwrap()
-        .sign(&keychain)
-        .unwrap();
+    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
     tree.create_at_path("test1/2/3", root.id(), &keychain)
@@ -78,10 +73,7 @@ async fn test_path_to_id() {
 async fn test_path_file_types() {
     let account = &Account::new(random_name(), url());
     let keychain = Keychain::from(Some(account));
-    let root = FileMetadata::create_root(account)
-        .unwrap()
-        .sign(&keychain)
-        .unwrap();
+    let root = Meta::create_root(account).unwrap().sign(&keychain).unwrap();
 
     let mut tree = vec![root.clone()].to_lazy().stage(vec![]);
     tree.create_at_path("test1/2/3", root.id(), &keychain)

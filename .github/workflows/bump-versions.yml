@@ -3,11 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       bump_type:
-        description: 'Bump type (patch, minor, major)'
+        description: 'Bump type (today, patch, minor, major)'
         required: true
-        default: 'patch'
+        default: 'today'
         type: choice
         options:
+          - today
           - patch
           - minor
           - major
@@ -16,15 +17,12 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup Rust
         uses: actions-rs/toolchain@v1
         with:
-          profile: minimal
           toolchain: stable
       - name: run bump script
         run: |
-          cargo run -p releaser -- bump-versions ${{ github.event.inputs.bump_type }}
-      #- uses: stefanzweifel/git-auto-commit-action@v5
-      #  with:
-      #    commit_message: automatically bumped versions
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cargo run -p lbdev -- releaser bump-versions ${{ github.event.inputs.bump_type }}

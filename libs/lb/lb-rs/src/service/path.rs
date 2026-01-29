@@ -1,8 +1,8 @@
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::path_ops::Filter;
 use crate::model::tree_like::TreeLike;
-use crate::Lb;
 use uuid::Uuid;
 
 impl Lb {
@@ -75,6 +75,18 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
+        Ok(self
+            .list_paths_with_ids(filter)
+            .await?
+            .into_iter()
+            .map(|(_, path)| path)
+            .collect())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn list_paths_with_ids(
+        &self, filter: Option<Filter>,
+    ) -> LbResult<Vec<(Uuid, String)>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 

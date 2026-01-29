@@ -7,11 +7,11 @@ use lockbook_server_lib::config::AdminConfig;
 use lockbook_shared::file::ShareMode;
 use lockbook_shared::file_metadata::FileType::{Document, Folder, Link};
 use std::fmt::{Debug, Formatter};
-use std::time::Instant;
 use std::{fs, thread};
 use test_utils::*;
 use uuid::Uuid;
 use variant_count::VariantCount;
+use web_time::Instant;
 
 use super::coordinator::ThreadID;
 use super::trial_cache::TrialCache;
@@ -447,11 +447,7 @@ impl Trial {
         }
 
         self.status = if self.devices_by_user.is_empty() {
-            if let Err(err) = self.create_clients() {
-                err
-            } else {
-                Running
-            }
+            if let Err(err) = self.create_clients() { err } else { Running }
         } else {
             Running
         };

@@ -1,30 +1,31 @@
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 
-use egui::text::LayoutJob;
 use egui::Image;
+use egui::text::LayoutJob;
+use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
+use lb::model::file::File;
 use lb::service::sync::SyncProgress;
-use lb::DEFAULT_API_LOCATION;
 use workspace_rs::widgets::Button;
 
-use crate::model::{AccountPhraseData, AccountScreenInitData};
+use crate::model::AccountPhraseData;
 use crate::settings::Settings;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub acct_data: AccountScreenInitData,
+    pub acct_data: Vec<File>,
 }
 
 enum Update {
-    AccountCreated(Result<AccountScreenInitData, LbErr>),
+    AccountCreated(Result<Vec<File>, LbErr>),
     AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
     AccountImported(Option<LbErr>),
     ImportSyncProgress(SyncProgress),
     ImportSyncDone(Option<LbErr>),
-    AccountDataLoaded(Result<AccountScreenInitData, LbErr>),
+    AccountDataLoaded(Result<Vec<File>, LbErr>),
 }
 
 struct Router {
@@ -220,7 +221,6 @@ impl OnboardScreen {
                                                 .clicked()
                                             {
                                                 self.router.route = Route::Import;
-                                                self.router.needs_focus = true;
                                             };
                                         });
                                     });
@@ -326,7 +326,7 @@ impl OnboardScreen {
                                                     },
                                                 );
                                                 job.append(
-                                                    &format!("{}\n", word),
+                                                    &format!("{word}\n"),
                                                     0.0,
                                                     egui::TextFormat {
                                                         font_id: egui::FontId::new(
@@ -582,22 +582,10 @@ fn set_button_style(ui: &mut egui::Ui) {
     ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
 }
 
-fn load_account_data(core: &Lb) -> Result<AccountScreenInitData, LbErr> {
-    let files = match core.list_metadatas() {
-        Ok(files) => files,
-        Err(err) => return Err(err),
-    };
+fn load_account_data(core: &Lb) -> Result<Vec<File>, LbErr> {
+    let files = core.list_metadatas()?;
 
-    // todo: a bunch of this logic is duplicated, and we could consider consolidating it
-    // and letting the workspace manage this state in the background
-    let usage = match core.get_usage() {
-        Ok(metrics) => Ok(metrics.into()),
-        Err(err) => return Err(err),
-    };
-
-    let sync_status = core.get_last_synced_human_string();
-
-    Ok(AccountScreenInitData { sync_status, files, usage })
+    Ok(files)
 }
 
 #[derive(Clone, Copy, PartialEq)]

@@ -1,8 +1,8 @@
 use lb_rs::io::network::ApiError;
 use lb_rs::model::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, PaymentMethod, StripeAccountTier,
-    UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest, UpgradeAccountStripeError,
-    UpgradeAccountStripeRequest, FREE_TIER_USAGE_SIZE,
+    CancelSubscriptionError, CancelSubscriptionRequest, FREE_TIER_USAGE_SIZE, PaymentMethod,
+    StripeAccountTier, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
+    UpgradeAccountStripeError, UpgradeAccountStripeRequest,
 };
 use lb_rs::model::file_metadata::FileType;
 use rand::RngCore;
@@ -206,7 +206,7 @@ async fn card_decline() {
             Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
+            other => panic!("expected {expected_err:?}, got {other:?}"),
         }
     }
 }
@@ -269,7 +269,7 @@ async fn invalid_cards() {
             Err(ApiError::<UpgradeAccountStripeError>::Endpoint(err)) => {
                 assert_eq!(err, expected_err)
             }
-            other => panic!("expected {:?}, got {:?}", expected_err, other),
+            other => panic!("expected {expected_err:?}, got {other:?}"),
         }
     }
 }

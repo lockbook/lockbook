@@ -1,171 +1,99 @@
-import Foundation
 import SwiftUI
-import BackgroundTasks
-
-#if os(macOS)
-import AppKit 
-#endif
+import SwiftWorkspace
 
 @main struct LockbookApp: App {
-    @Environment(\.scenePhase) private var scenePhase
+    var body: some Scene {
+        #if os(macOS)
+        macOS
+        #else
+        iOS
+        #endif
+    }
     
     #if os(macOS)
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    #else
-    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    #endif
-    
-    var app: some View {
-        AppView()
-            .realDI()
-            .buttonStyle(PlainButtonStyle())
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .registeriOSBackgroundTasks(scenePhase: scenePhase, appDelegate: appDelegate)
-    }
-    
-    var window: some Scene {
-        #if os(macOS)
-        Window("Lockbook", id: "main") {
-            app
-        }
-        #else
+    @SceneBuilder
+    var macOS: some Scene {
         WindowGroup {
-            app
+            ContentView()
         }
-        #endif
-    }
-    
-    var body: some Scene {
-        window
         .commands {
-            CommandGroup(replacing: .saveItem) {}
-            
-            CommandGroup(replacing: CommandGroupPlacement.newItem) {
-                Button("New Doc", action: {
-                    DI.files.createDoc(isDrawing: false)
-                }).keyboardShortcut("N", modifiers: .command)
-                
-                #if os(iOS)
-                Button("New Drawing", action: {
-                    DI.files.createDoc(isDrawing: true)
-                }).keyboardShortcut("N", modifiers: [.command, .control])
-                #endif
-                
-                Button("New Folder", action: {
-                    DI.sheets.creatingFolderInfo = CreatingFolderInfo(parentPath: DI.files.getPathByIdOrParent() ?? "Error", maybeParent: nil)
-                }).keyboardShortcut("N", modifiers: [.command, .shift])
-            }
-                        
-            CommandMenu("Lockbook") {
-                Button("Sync", action: { DI.workspace.requestSync() }).keyboardShortcut("S", modifiers: .command)
-                Button("Search Paths", action: { DI.search.startSearchThread(isPathAndContentSearch: false) }).keyboardShortcut("O", modifiers: .command)
-                Button("Copy file link", action: {
-                    if let id = DI.workspace.openDoc {
-                        DI.files.copyFileLink(id: id)
-                    }
-                }).keyboardShortcut("L", modifiers: [.command, .shift])
-                
-                #if os(macOS)
-                Button("Logout", action: {
-                    WindowManager.shared.openLogoutConfirmationWindow()
-                })
-                #endif
-            }
             SidebarCommands()
+            
+            NewWindowCommand()
         }
         
-        #if os(macOS)
         Settings {
-            SettingsView().realDI()
+            SettingsView()
+                .environmentObject(AppState.billingState)
         }
-        #endif
-    }
-}
-
-extension View {
-    func registeriOSBackgroundTasks(scenePhase: ScenePhase, appDelegate: AppDelegate) -> some View {
-        #if os(iOS)
-        self
-            .onChange(of: scenePhase, perform: { newValue in
-                switch newValue {
-                case .background:
-                    appDelegate.scheduleBackgroundTask(initialRun: true)
-                case .active:
-                    appDelegate.endBackgroundTasks()
-                default:
-                    break
-                }
-            })
-        #else
-        self
-        #endif
-    }
-    
-}
-
-#if os(macOS)
-
-class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        return true
-    }
-}
-
-#else
-
-class AppDelegate: NSObject, UIApplicationDelegate {
-    
-    let backgroundSyncStartSecs = 60.0 * 5
-    let backgroundSyncContSecs = 60.0 * 60
-    
-    let backgroundSyncIdentifier = "app.lockbook.backgroundSync"
-
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        self.registerBackgroundTask()
         
-        return true
+        Window("Upgrade Account", id: "upgrade-account") {
+            UpgradeAccountView(settingsModel: SettingsViewModel())
+                .environmentObject(AppState.billingState)
+        }
     }
-    
-    func registerBackgroundTask() {
-        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundSyncIdentifier, using: nil) { task in
-            task.expirationHandler = {
-                task.setTaskCompleted(success: false)
-            }
+    #else
+    @SceneBuilder
+    var iOS: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+        .commands {
+            SidebarCommands()
             
-            DispatchQueue.main.async { [weak self] in
-                DI.sync.backgroundSync(onSuccess: {
-                    task.setTaskCompleted(success: true)
+            NewWindowCommand()
+        }
+    }
+    #endif
+}
 
-                    self?.scheduleBackgroundTask(initialRun: false)
-                }, onFailure: {
-                    task.setTaskCompleted(success: false)
-
-                    self?.scheduleBackgroundTask(initialRun: false)
+struct ContentView: View {
+    @StateObject var appState = AppState.shared
+    
+    var body: some View {
+        Group {
+            if appState.isLoggedIn {
+                HomeContextWrapper()
+            } else {
+                OnboardingView()
+            }
+        }
+        .alert(item: $appState.error) { err in
+            Alert(
+                title: Text(err.title),
+                message: Text(err.message),
+                dismissButton: .default(Text("Ok"), action: {
+                    AppState.shared.error = nil
                 })
-                
-                self?.scheduleBackgroundTask(initialRun: false)
-            }
+            )
         }
-    }
-    
-    func scheduleBackgroundTask(initialRun: Bool) {
-        let request = BGProcessingTaskRequest(identifier: backgroundSyncIdentifier)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: initialRun ? backgroundSyncStartSecs : backgroundSyncContSecs)
-        request.requiresExternalPower = false
-        request.requiresNetworkConnectivity = true
-        
-        do {
-            try BGTaskScheduler.shared.submit(request)
-            print("scheduled background task")
-            
-        } catch {
-            print("could not schedule background task")
-        }
-    }
-    
-    func endBackgroundTasks() {
-        BGTaskScheduler.shared.cancelAllTaskRequests()
     }
 }
 
-#endif
+struct HomeContextWrapper: View {
+    @StateObject var filesModel = FilesViewModel()
+    @StateObject var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
+    @StateObject var workspaceOutput = WorkspaceOutputState()
+    
+    var body: some View {
+        HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
+            .environmentObject(AppState.billingState)
+            .environmentObject(filesModel)
+            .environmentObject(workspaceInput)
+            .environmentObject(workspaceOutput)
+    }
+}
+
+#Preview("Logged In") {
+    AppState.shared.isLoggedIn = true
+    
+    return ContentView()
+        .withCommonPreviewEnvironment()
+}
+
+#Preview("Onboarding") {
+    AppState.shared.isLoggedIn = false
+    
+    return ContentView()
+        .withCommonPreviewEnvironment()
+}

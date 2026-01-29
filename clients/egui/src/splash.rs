@@ -1,22 +1,23 @@
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc};
 
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
 use lb::model::errors::LbErrKind;
+use lb::model::file::File;
 
-use crate::model::AccountScreenInitData;
 use crate::settings::Settings;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub maybe_acct_data: Option<AccountScreenInitData>,
+    pub maybe_files: Option<Vec<File>>,
 }
 
+#[allow(clippy::large_enum_variant)]
 enum SplashUpdate {
     Status(String),
     Error(String),
-    Done((Lb, Option<AccountScreenInitData>)),
+    Done((Lb, Option<Vec<File>>)),
 }
 
 pub struct SplashScreen {
@@ -53,7 +54,7 @@ impl SplashScreen {
             let core = match Lb::init(cfg) {
                 Ok(core) => core,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
@@ -61,45 +62,26 @@ impl SplashScreen {
             let is_signed_in = match is_signed_in(&core) {
                 Ok(is_signed_in) => is_signed_in,
                 Err(err) => {
-                    tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                    tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                     ctx.request_repaint();
                     return;
                 }
             };
 
             if is_signed_in {
-                tx.send(SplashUpdate::Status("Loading sync status...".to_string()))
-                    .unwrap();
-
-                let sync_status = core.get_last_synced_human_string();
-
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
 
                 let files = match core.list_metadatas() {
                     Ok(files) => files,
                     Err(err) => {
-                        tx.send(SplashUpdate::Error(format!("{:?}", err))).unwrap();
+                        tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();
                         ctx.request_repaint();
                         return;
                     }
                 };
 
-                tx.send(SplashUpdate::Status("Loading usage data...".to_string()))
-                    .unwrap();
-
-                let usage = core
-                    .get_usage()
-                    .map(|metrics| metrics.into())
-                    .map_err(|err| format!("{:?}", err));
-
-                tx.send(SplashUpdate::Status("Loading suggested documents...".to_string()))
-                    .unwrap();
-
-                let acct_data = AccountScreenInitData { sync_status, files, usage };
-
-                tx.send(SplashUpdate::Done((core, Some(acct_data))))
-                    .unwrap();
+                tx.send(SplashUpdate::Done((core, Some(files)))).unwrap();
             } else {
                 tx.send(SplashUpdate::Done((core, None))).unwrap();
             }
@@ -121,7 +103,7 @@ impl SplashScreen {
                     resp = Some(SplashHandOff {
                         settings: self.settings.clone(),
                         core,
-                        maybe_acct_data,
+                        maybe_files: maybe_acct_data,
                     });
                 }
             }
@@ -148,7 +130,7 @@ fn is_signed_in(core: &Lb) -> Result<bool, String> {
         Ok(_acct) => Ok(true),
         Err(err) => match err.kind {
             LbErrKind::AccountNonexistent => Ok(false),
-            _ => Err(format!("{:?}", err)), // todo(steve): display
+            _ => Err(format!("{err:?}")), // todo(steve): display
         },
     }
 }

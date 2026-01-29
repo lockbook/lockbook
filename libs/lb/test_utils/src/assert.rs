@@ -1,11 +1,11 @@
 use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
-use lb_rs::model::api::GetUpdatesRequest;
+use lb_rs::Lb;
+use lb_rs::model::api::GetUpdatesRequestV2;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::path_ops::Filter::DocumentsOnly;
 use lb_rs::model::staged::StagedTreeLikeMut;
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::Lb;
 use uuid::Uuid;
 
 #[macro_export]
@@ -61,10 +61,7 @@ pub async fn all_ids(core: &Lb, expected_ids: &[Uuid]) {
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={:?}; actual={:?}",
-            expected_ids, actual_ids
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 
@@ -81,10 +78,7 @@ pub async fn all_children_ids(core: &Lb, id: &Uuid, expected_ids: &[Uuid]) {
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={:?}; actual={:?}",
-            expected_ids, actual_ids
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 
@@ -101,10 +95,7 @@ pub async fn all_recursive_children_ids(core: &Lb, id: Uuid, expected_ids: &[Uui
     actual_ids.sort();
     expected_ids.sort();
     if actual_ids != expected_ids {
-        panic!(
-            "ids did not match expectation. expected={:?}; actual={:?}",
-            expected_ids, actual_ids
-        );
+        panic!("ids did not match expectation. expected={expected_ids:?}; actual={actual_ids:?}");
     }
 }
 
@@ -119,8 +110,7 @@ pub async fn all_paths(core: &Lb, expected_paths: &[&str]) {
     expected_paths.sort();
     if actual_paths != expected_paths {
         panic!(
-            "paths did not match expectation. expected={:?}; actual={:?}",
-            expected_paths, actual_paths
+            "paths did not match expectation. expected={expected_paths:?}; actual={actual_paths:?}"
         );
     }
 }
@@ -157,8 +147,7 @@ pub async fn all_document_contents(db: &Lb, expected_contents_by_path: &[(&str, 
 pub async fn all_pending_shares(core: &Lb, expected_names: &[&str]) {
     if expected_names.iter().any(|&path| path.contains('/')) {
         panic!(
-            "improper call to assert_all_pending_shares; expected_names must not contain with '/'. expected_names={:?}",
-            expected_names
+            "improper call to assert_all_pending_shares; expected_names must not contain with '/'. expected_names={expected_names:?}"
         );
     }
     let mut expected_names: Vec<String> = expected_names
@@ -176,8 +165,7 @@ pub async fn all_pending_shares(core: &Lb, expected_names: &[&str]) {
     expected_names.sort();
     if actual_names != expected_names {
         panic!(
-            "pending share names did not match expectation. expected={:?}; actual={:?}",
-            expected_names, actual_names
+            "pending share names did not match expectation. expected={expected_names:?}; actual={actual_names:?}"
         );
     }
 }
@@ -205,8 +193,7 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
-            "local work paths did not match expectation. expected={:?}; actual={:?}",
-            expected_paths, actual_paths
+            "local work paths did not match expectation. expected={expected_paths:?}; actual={actual_paths:?}"
         );
     }
 }
@@ -222,7 +209,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .client
         .request(
             account,
-            GetUpdatesRequest {
+            GetUpdatesRequestV2 {
                 since_metadata_version: db.last_synced.get().copied().unwrap_or_default() as u64,
             },
         )
@@ -253,8 +240,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     expected_paths.sort_unstable();
     if actual_paths != expected_paths {
         panic!(
-            "server work paths did not match expectation. expected={:?}; actual={:?}",
-            expected_paths, actual_paths
+            "server work paths did not match expectation. expected={expected_paths:?}; actual={actual_paths:?}"
         );
     }
 }

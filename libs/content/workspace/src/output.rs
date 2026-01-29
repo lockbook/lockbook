@@ -1,4 +1,6 @@
-use lb_rs::{model::file::File, service::sync::SyncStatus, Uuid};
+use lb_rs::Uuid;
+use lb_rs::model::file::File;
+use lb_rs::service::sync::SyncStatus;
 
 // todo: dirty docs
 #[derive(Debug, Default, Clone)]
@@ -9,6 +11,8 @@ pub struct Response {
     pub file_created: Option<Result<File, String>>,
     pub file_renamed: Option<(Uuid, String)>,
     pub file_moved: Option<(Uuid, Uuid)>,
+
+    pub selected_folder_changed: bool,
 
     pub new_folder_clicked: bool,
     pub tab_title_clicked: bool,
@@ -28,6 +32,8 @@ pub struct Response {
     pub tabs_changed: bool,
 
     pub failure_messages: Vec<String>, // shown as toasts in egui client
+
+    pub open_camera: bool,
 }
 
 #[derive(Default, Clone)]

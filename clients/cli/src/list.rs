@@ -1,9 +1,12 @@
-use std::{cmp::Ordering, path::Path};
+use std::cmp::Ordering;
+use std::path::Path;
 
 use cli_rs::cli_error::CliResult;
-use lb_rs::{model::file::File, Lb, Uuid};
+use lb_rs::model::file::File;
+use lb_rs::{Lb, Uuid};
 
-use crate::{core, ensure_account_and_root, input::FileInput};
+use crate::input::FileInput;
+use crate::{core, ensure_account_and_root};
 
 const ID_PREFIX_LEN: usize = 8;
 
@@ -143,7 +146,7 @@ async fn get_children(
             };
             // Determine column widths.
             {
-                let n = if cfg.paths { format!("{}{}", dirname, name).len() } else { name.len() };
+                let n = if cfg.paths { format!("{dirname}{name}").len() } else { name.len() };
                 if n > cfg.w_name {
                     cfg.w_name = n;
                 }

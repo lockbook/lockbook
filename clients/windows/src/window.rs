@@ -1,14 +1,8 @@
-use crate::input;
-use crate::input::{
-    file_drop::FileDropHandler,
-    message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep},
-};
-use crate::output;
-use egui::{Context, PlatformOutput, ViewportCommand, Visuals};
-use egui_wgpu_backend::{
-    wgpu::{self, CompositeAlphaMode},
-    ScreenDescriptor,
-};
+use crate::input::file_drop::FileDropHandler;
+use crate::input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
+use crate::{input, output};
+use egui::{PlatformOutput, ViewportCommand, Visuals};
+use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
     DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawDisplayHandle,
@@ -16,12 +10,16 @@ use raw_window_handle::{
 };
 use std::num::NonZeroIsize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Instant;
-use windows::{
-    core::*, Win32::Foundation::*, Win32::Graphics::Direct3D12::*, Win32::Graphics::Dxgi::*,
-    Win32::Graphics::Gdi::*, Win32::System::LibraryLoader::*, Win32::System::Ole::*,
-    Win32::UI::HiDpi::*, Win32::UI::Input::KeyboardAndMouse::*, Win32::UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Direct3D12::*;
+use windows::Win32::Graphics::Dxgi::*;
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::System::LibraryLoader::*;
+use windows::Win32::System::Ole::*;
+use windows::Win32::UI::HiDpi::*;
+use windows::Win32::UI::Input::KeyboardAndMouse::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
+use windows::core::*;
 
 #[derive(Default)]
 struct Window<'window> {
@@ -137,7 +135,7 @@ pub fn main() -> Result<()> {
         )
     };
     if let Err(error) = unsafe { GetLastError() } {
-        print!("error: {}", error);
+        print!("error: {error}");
     }
 
     unsafe { dxgi_factory.MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER) }?;
@@ -148,21 +146,19 @@ pub fn main() -> Result<()> {
     maybe_window_handle = Some(AppWindowHandle::new(hwnd));
     window.maybe_app = {
         let scale_factor = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
-        let app = init(
-            maybe_window_handle.as_ref().unwrap(),
-            ScreenDescriptor { physical_width: 1300, physical_height: 800, scale_factor },
-            false,
-        );
-        app.context.set_pixels_per_point(scale_factor);
+        let app = init(maybe_window_handle.as_ref().unwrap(), false);
+        app.renderer.context.set_pixels_per_point(scale_factor);
         window.dpi_scale = scale_factor;
 
-        app.context.set_request_repaint_callback(move |rri| {
-            let got_events_clone = got_events_clone.clone();
-            let _ = std::thread::spawn(move || {
-                std::thread::sleep(rri.delay);
-                got_events_clone.store(true, Ordering::SeqCst);
+        app.renderer
+            .context
+            .set_request_repaint_callback(move |rri| {
+                let got_events_clone = got_events_clone.clone();
+                let _ = std::thread::spawn(move || {
+                    std::thread::sleep(rri.delay);
+                    got_events_clone.store(true, Ordering::SeqCst);
+                });
             });
-        });
 
         Some(app)
     };
@@ -242,11 +238,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
         // retrieve the pointer to our Window struct from the window's "user data"
         let user_data = unsafe { GetWindowLongPtrA(hwnd, GWLP_USERDATA) };
         let window = std::ptr::NonNull::<Window>::new(user_data as _);
-        if let Some(mut window) = window {
-            Some(unsafe { window.as_mut() })
-        } else {
-            None
-        }
+        if let Some(mut window) = window { Some(unsafe { window.as_mut() }) } else { None }
     };
 
     // window doesn't receive key up messages when out of focus so we use GetKeyState instead
@@ -305,11 +297,11 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
             if let Some(ref mut window) = maybe_window {
                 if let Some(ref mut app) = window.maybe_app {
                     // events sent to app every frame
-                    app.context.set_pixels_per_point(window.dpi_scale);
-                    app.screen.scale_factor = window.dpi_scale;
-                    app.screen.physical_width = window.width as _;
-                    app.screen.physical_height = window.height as _;
-                    app.raw_input.modifiers = modifiers;
+                    app.renderer.context.set_pixels_per_point(window.dpi_scale);
+                    app.renderer.screen.pixels_per_point = window.dpi_scale;
+                    app.renderer.screen.size_in_pixels[0] = window.width as _;
+                    app.renderer.screen.size_in_pixels[1] = window.height as _;
+                    app.renderer.raw_input.modifiers = modifiers;
 
                     match message {
                         MessageAppDep::KeyDown { key } | MessageAppDep::KeyUp { key } => {
@@ -371,7 +363,9 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                             if output::clipboard_copy::handle(copied_text.clone()).is_err() {
                                 // windows clipboard sometimes has transient errors
-                                app.context.output_mut(|o| o.copied_text = copied_text);
+                                app.renderer
+                                    .context
+                                    .output_mut(|o| o.copied_text = copied_text);
                             }
                             if request_paste {
                                 input::clipboard_paste::handle(app);
@@ -423,82 +417,25 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
 // Taken from other lockbook code
 pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
-    window: &W, screen: ScreenDescriptor, dark_mode: bool,
-) -> WgpuLockbook {
-    let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-    let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-    let instance = wgpu::Instance::new(instance_desc);
-    let surface = instance.create_surface(window).unwrap();
-    let (adapter, device, queue) = pollster::block_on(request_device(&instance, &surface));
-    let format = surface.get_capabilities(&adapter).formats[0];
-    let surface_config = wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format,
-        width: screen.physical_width, // TODO get from context or something
-        height: screen.physical_height,
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode: CompositeAlphaMode::Auto,
-        view_formats: vec![],
-        desired_maximum_frame_latency: 2,
-    };
-    surface.configure(&device, &surface_config);
-    let rpass = egui_wgpu_backend::RenderPass::new(&device, format, 4);
+    window: &W, dark_mode: bool,
+) -> WgpuLockbook<'_> {
+    let renderer = RendererState::init_window(window);
+    renderer
+        .context
+        .set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
 
-    let context = Context::default();
-    context.set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
+    let app = lbeguiapp::Lockbook::new(&renderer.context);
 
-    let (settings, maybe_settings_err) = match lbeguiapp::Settings::read_from_file() {
-        Ok(s) => (s, None),
-        Err(err) => (Default::default(), Some(err.to_string())),
-    };
-    let app = lbeguiapp::Lockbook::new(&context, settings, maybe_settings_err);
-
-    let start_time = Instant::now();
     let mut obj = WgpuLockbook {
-        start_time,
-        device,
-        queue,
-        surface,
-        adapter,
-        rpass,
-        screen,
-        context,
-        raw_input: Default::default(),
+        renderer,
         queued_events: Default::default(),
         double_queued_events: Default::default(),
         app,
-        surface_width: 0,
-        surface_height: 0,
     };
 
     obj.frame();
 
     obj
-}
-
-async fn request_device(
-    instance: &wgpu::Instance, surface: &wgpu::Surface<'_>,
-) -> (wgpu::Adapter, wgpu::Device, wgpu::Queue) {
-    let adapter = wgpu::util::initialize_adapter_from_env_or_default(instance, Some(surface))
-        .await
-        .expect("No suitable GPU adapters found on the system!");
-    let res = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: None,
-                required_features: adapter.features(),
-                required_limits: adapter.limits(),
-                memory_hints: Default::default(),
-            },
-            None,
-        )
-        .await;
-    match res {
-        Err(err) => {
-            panic!("request_device failed: {:?}", err);
-        }
-        Ok((device, queue)) => (adapter, device, queue),
-    }
 }
 
 // https://github.com/rust-windowing/winit/blob/789a4979801cffc20c9dfbc34e72c15ebf3c737c/src/platform_impl/windows/dpi.rs#L75C1-L78C2

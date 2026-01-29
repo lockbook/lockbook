@@ -1,13 +1,15 @@
-use super::data::{lockbook_data, Graph, LinkNode};
+use super::data::{
+    DONE, Graph, LinkNode, URL_NAME_STORE, lockbook_data, start_extraction_names, stop_extraction,
+};
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
-use lb_rs::blocking::Lb;
 use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
-use std::thread;
-use std::time::Duration;
-use std::{f32, time::Instant};
+use std::{f32, thread};
+use web_time::{Duration, Instant};
 
 struct Grid {
     cell_size: f32,
@@ -33,6 +35,11 @@ pub struct MindMap {
     last_fps_update: Instant,
     inside: Option<Uuid>,
     inside_found: bool,
+    urls_complete: bool,
+    names_uploaded: bool,
+    url_titles: Vec<String>,
+    touch_positions: HashMap<u64, Pos2>,
+    _last_tap_time: Option<f64>,
 }
 
 impl Grid {
@@ -93,6 +100,11 @@ impl MindMap {
             last_fps_update: Instant::now(),
             inside: None,
             inside_found: false,
+            urls_complete: false,
+            names_uploaded: false,
+            url_titles: vec!["".to_string(); graph.len()],
+            touch_positions: HashMap::new(),
+            _last_tap_time: None,
         }
     }
 
@@ -312,6 +324,8 @@ impl MindMap {
                 *stop2
             };
             if stop {
+                stop_extraction(true);
+                // println!("stoped and close");
                 break;
             }
 
@@ -320,8 +334,8 @@ impl MindMap {
     }
 
     fn draw_graph(&mut self, ui: &mut egui::Ui, screen_size: egui::Vec2) {
+        // println!("running");
         let screen = ui.available_rect_before_wrap();
-
         ui.painter()
             .rect_filled(screen, 0., ui.visuals().extreme_bg_color);
 
@@ -332,6 +346,15 @@ impl MindMap {
             let pos_lock = self.thread_positions.read().unwrap();
             pos_lock.clone()
         };
+        if DONE.load(Ordering::SeqCst) && !self.names_uploaded {
+            let info = &URL_NAME_STORE.lock().unwrap().clone();
+            let completed = info.iter().any(|item| item.found);
+            if completed {
+                // println!("done2");
+                self.urls_complete = true;
+                self.populate_url_titles();
+            }
+        }
         self.last_pan += self.pan / self.zoom_factor;
         self.pan = Vec2::ZERO;
         let is_dark_mode = ui.ctx().style().visuals.dark_mode;
@@ -402,12 +425,14 @@ impl MindMap {
             if node.title.ends_with(".md") {
                 outline_color = Color32::LIGHT_BLUE;
                 text = node.title.trim_end_matches(".md").to_string();
-            }
-            if text.ends_with(")") {
-                text = text.trim_end_matches(")").to_string();
+
+                if text.ends_with(")") {
+                    text = text.trim_end_matches(")").to_string();
+                }
+            } else if self.names_uploaded {
+                text = self.url_titles[i].clone();
             }
             text = truncate_after_second_punct(&text);
-
             if node.cluster_id.is_some() {
                 let pos = transformed_positions[i];
                 ui.painter().circle(
@@ -465,6 +490,15 @@ impl MindMap {
         }
     }
 
+    fn populate_url_titles(&mut self) {
+        let info = URL_NAME_STORE.lock().unwrap();
+        for item in info.iter() {
+            self.url_titles[item.id] = item.name.clone();
+        }
+        self.names_uploaded = true;
+        // println!("{:?} this is some stuff", self.url_titles);
+    }
+
     pub fn label_subgraphs(&mut self) {
         let mut bluecol = 1.0;
         let mut redcol = 0.1;
@@ -514,7 +548,7 @@ impl MindMap {
         }
     }
 
-    pub fn bidiretional(&mut self) {
+    pub fn bidirectional(&mut self) {
         let clonedgraph: &Graph = &self.graph.clone();
         for nodes in clonedgraph {
             let node: usize = nodes.id;
@@ -556,6 +590,7 @@ impl MindMap {
     }
 
     pub fn stop(&mut self) {
+        // println!("in stop in mindmap");
         self.graph_complete = true;
         {
             let mut stop_lock = self.stop.write().unwrap();
@@ -563,39 +598,116 @@ impl MindMap {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, stop: bool) -> Option<Uuid> {
-        let mut condintions = false;
-        ui.input(|i| {
-            if !self.graph_complete {
-                self.build_directional_links();
-                self.bidiretional();
-                self.label_clusters();
-                self.label_subgraphs();
-            }
-            let rect = ui.available_rect_before_wrap();
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Option<Uuid> {
+        let mut conditions = false;
+        // println!("new version");
 
-            if self.in_rect(rect) {
-                self.zoom_factor *= i.zoom_delta();
-                self.debug = (self.zoom_factor).to_string();
-                let scroll = i.raw_scroll_delta.to_pos2();
-                self.pan += (scroll).to_vec2();
-                self.debug = (self.zoom_factor).to_string();
+        // Do your graph-related building if necessary.
+        if !self.graph_complete {
+            self.build_directional_links();
+            self.bidirectional(); // corrected from "bidiretional"
+            self.label_clusters();
+            self.label_subgraphs();
+        }
+        // Get the available rect.
+        let rect = ui.available_rect_before_wrap();
+
+        // If the current context’s rect is within our target...
+        if self.in_rect(rect) {
+            // Clone the current input events so we can iterate over them.
+            let events = ui.input(|i| i.events.clone());
+            for event in events {
+                // println!("touch event");
+                if let egui::Event::Touch { id, pos, phase, .. } = event {
+                    // Process the touch event only if the touch is inside our rect.
+                    let key = id.0;
+                    if rect.contains(pos) {
+                        match phase {
+                            egui::TouchPhase::Start => {
+                                // Save the starting position for this touch.
+                                self.touch_positions.insert(key, pos);
+                            }
+                            egui::TouchPhase::Move => {
+                                if let Some(prev_pos) = self.touch_positions.get(&key) {
+                                    self.pan += pos - *prev_pos;
+
+                                    // println!("Touch {:?} moved by {:?}", id, self.pan);
+                                    // Update the stored position.
+                                    self.touch_positions.insert(key, pos);
+                                }
+                            }
+                            egui::TouchPhase::End | egui::TouchPhase::Cancel => {
+                                // Remove the touch tracking when it ends.
+                                self.touch_positions.remove(&key);
+                            }
+                        }
+                    }
+                }
             }
-            if i.pointer.any_click() && self.inside_found {
-                condintions = true;
-                self.inside_found = false;
+
+            // Handle zoom and panning events.
+            ui.input(|i| {
+                self.zoom_factor *= i.zoom_delta();
+                self.debug = self.zoom_factor.to_string();
+                let scroll = i.raw_scroll_delta.to_pos2();
+                self.pan += scroll.to_vec2();
+                // You could update debug with pan if you wish.
+            });
+        }
+        const _DOUBLE_TAP_THRESHOLD: f64 = 0.3;
+
+        ui.input(|i| {
+            // Touch platforms: require a double tap.
+            #[cfg(any(target_os = "ios", target_os = "android"))]
+            {
+                if i.pointer.any_click() && self.inside_found {
+                    // Use the current time from egui’s input state.
+                    let now = i.time;
+                    if let Some(_last_tap) = self._last_tap_time {
+                        // Check if the new tap is within the double-tap time window.
+                        if now - _last_tap < _DOUBLE_TAP_THRESHOLD {
+                            // Double tap detected! Trigger the action.
+                            conditions = true;
+                            self.inside_found = false;
+                            self._last_tap_time = None; // Reset for future detections.
+                        } else {
+                            // Too much time passed; treat this tap as the first tap.
+                            self._last_tap_time = Some(now);
+                        }
+                    } else {
+                        // First tap recorded; wait for the second tap.
+                        self._last_tap_time = Some(now);
+                    }
+                }
+            }
+
+            // Non-touch platforms: trigger on a single click.
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            {
+                if i.pointer.any_click() && self.inside_found {
+                    conditions = true;
+                    self.inside_found = false;
+                }
             }
         });
+        // Process a click event (if any) from pointer input.
+        // ui.input(|i| {
+        //     if i.pointer.any_click() && self.inside_found {
+        //         conditions = true;
+        //         self.inside_found = false;
+        //     }
+        // });
 
-        if condintions {
-            if let Some(_val) = self.inside {
-                return self.inside;
+        if conditions {
+            if let Some(val) = self.inside {
+                return Some(val);
             }
         }
-        {
-            let mut stop_write = self.stop.write().unwrap();
-            *stop_write = stop;
-        }
+
+        // {
+        //     let mut stop_write = self.stop.write().unwrap();
+        //     *stop_write = stop;
+        // }
 
         let screen = ui.available_rect_before_wrap();
         ui.set_clip_rect(screen);
@@ -605,13 +717,16 @@ impl MindMap {
             self.initialize_positions(ui);
             self.graph_complete = true;
             let linkess = self.linkless_nodes.clone();
-
-            let postioninfo = Arc::clone(&self.thread_positions);
+            let positioninfo = Arc::clone(&self.thread_positions);
             let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
-            thread::spawn(move || {
-                Self::apply_spring_layout(postioninfo, &graph, 2500000, screen, stop, linkess);
-            });
+            // thread::spawn(move || {
+            //     Self::apply_spring_layout(positioninfo, &graph, 2500000, screen, stop, linkess);
+            // });
+        }
+        if !self.urls_complete {
+            // thread::spawn(start_extraction_names);
+            self.urls_complete = true;
         }
 
         self.draw_graph(ui, screen_size);
@@ -620,7 +735,6 @@ impl MindMap {
         self.frame_count += 1;
         let now = Instant::now();
         let elapsed = now.duration_since(self.last_fps_update);
-
         if elapsed >= Duration::from_secs(1) {
             self.fps = self.frame_count as f32 / elapsed.as_secs_f32();
             self.frame_count = 0;
@@ -632,7 +746,6 @@ impl MindMap {
         None
     }
 }
-
 fn draw_arrow(
     painter: &Painter, from: Pos2, to: Pos2, color: Color32, zoom_factor: f32, size: f32,
     self_size: f32,
@@ -699,15 +812,76 @@ fn intersect_stuff(from: Pos2, to: Pos2, size: f32, zero: bool) -> Pos2 {
 
     intersect
 }
-fn truncate_after_second_punct(text: &str) -> String {
-    let mut punct_count = 0;
-    for (i, c) in text.char_indices() {
-        if c == '.' || c == '?' || c == '-' {
-            punct_count += 1;
-            if punct_count == 2 {
-                return text[..=i].to_string();
-            }
+
+fn remove_words_with_backslash(text: &str) -> String {
+    // If the entire text is just one word (no spaces), return it as-is.
+    if text.split_whitespace().count() == 1 {
+        return text.to_string();
+    }
+
+    // Otherwise, filter out any words that contain '\' or '/'.
+    text.split_whitespace()
+        .filter(|word| !word.contains('\\') && !word.contains('/'))
+        .collect::<Vec<&str>>()
+        .join(" ")
+}
+
+fn rearrange_last_word(text: &str) -> String {
+    // Helper closure to check if a candidate is exactly one word with no trailing spaces.
+    let is_exact_single_word = |s: &str| {
+        let trimmed = s.trim();
+        // Check that there's exactly one word...
+        trimmed.split_whitespace().count() == 1
+        // ...and that there are no trailing spaces after trimming.
+        && s == s.trim_end()
+    };
+
+    // Check for the " · " separator first.
+    if let Some(pos) = text.rfind(" · ") {
+        let separator = " · ";
+        let first_part = &text[..pos];
+        let last_part = &text[pos + separator.len()..];
+        if is_exact_single_word(last_part) {
+            return format!("{}{}{}", last_part.trim(), separator, first_part.trim());
         }
     }
+    // Otherwise, check for the " - " separator.
+    if let Some(pos) = text.rfind(" - ") {
+        let separator = " - ";
+        let first_part = &text[..pos];
+        let last_part = &text[pos + separator.len()..];
+        if is_exact_single_word(last_part) {
+            return format!("{}{}{}", last_part.trim(), separator, first_part.trim());
+        }
+    }
+
     text.to_string()
+}
+
+fn truncate_after_second_punct(text: &str) -> String {
+    let mut punct_count = 0;
+    let mut number_count = 0;
+    let mut number_space = 0;
+    let mut return_meet = false;
+    let text = rearrange_last_word(text);
+    let text = remove_words_with_backslash(&text);
+    for (i, c) in text.char_indices() {
+        if c.is_numeric() {
+            number_count += 1;
+        }
+        if c == ' ' {
+            number_space += 1;
+        }
+        if c == '?' || c == '/' || c == ',' {
+            punct_count += 1;
+        }
+        return_meet = return_meet || punct_count > 2 || number_count > 3 || number_space > 5;
+        if return_meet {
+            // When our condition is met, truncate the text up to and including this character
+            return text[..i].to_owned();
+            // Now, if the truncated text ends with a separator and a word, rearrange it
+        }
+    }
+    text
+    // If no truncation condition was met, still check the entire text
 }

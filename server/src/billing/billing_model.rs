@@ -1,9 +1,9 @@
-use crate::config::Config;
 use crate::ServerError;
+use crate::config::Config;
 use google_androidpublisher3::api::SubscriptionPurchase;
 use lb_rs::model::api::{
-    AppStoreAccountState, GooglePlayAccountState, StripeAccountState, UnixTimeMillis,
-    UpgradeAccountGooglePlayError, FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE,
+    AppStoreAccountState, FREE_TIER_USAGE_SIZE, GooglePlayAccountState, PREMIUM_TIER_USAGE_SIZE,
+    StripeAccountState, UnixTimeMillis, UpgradeAccountGooglePlayError,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -45,6 +45,16 @@ impl SubscriptionProfile {
             },
             None => FREE_TIER_USAGE_SIZE,
         }
+    }
+
+    // the rate was $0.12 / gb when this was written
+    pub fn bandwidth_cap(&self) -> usize {
+        let cap = match self.is_premium() {
+            true => self.data_cap(),      // $0.012
+            false => self.data_cap() * 4, // $3.60
+        };
+
+        cap as usize
     }
 
     pub fn is_premium(&self) -> bool {

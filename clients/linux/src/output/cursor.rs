@@ -1,10 +1,8 @@
 use egui::CursorIcon;
-use x11rb::{
-    connection::Connection as _,
-    protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt},
-    resource_manager::Database,
-    xcb_ffi::{ReplyOrIdError, XCBConnection},
-};
+use x11rb::connection::Connection as _;
+use x11rb::protocol::xproto::{ChangeWindowAttributesAux, ConnectionExt};
+use x11rb::resource_manager::Database;
+use x11rb::xcb_ffi::{ReplyOrIdError, XCBConnection};
 
 pub struct Manager {
     last_cursor_icon: CursorIcon,
@@ -39,7 +37,7 @@ impl Manager {
         match self.handle_impl(conn, db, screen_num, window, cursor_icon) {
             Ok(_) => {}
             Err(e) => {
-                println!("Failed to set cursor: {:?}", e);
+                println!("Failed to set cursor: {e:?}");
             }
         }
     }

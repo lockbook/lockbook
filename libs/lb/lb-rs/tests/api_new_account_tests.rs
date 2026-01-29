@@ -1,7 +1,7 @@
 use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::api::*;
-use lb_rs::model::file_metadata::FileMetadata;
+use lb_rs::model::meta::Meta;
 use lb_rs::model::pubkey;
 use test_utils::*;
 
@@ -10,12 +10,12 @@ async fn random_account() -> Account {
 }
 
 async fn test_account(account: &Account) -> Result<NewAccountResponse, ApiError<NewAccountError>> {
-    let root = FileMetadata::create_root(account)
+    let root = Meta::create_root(account)
         .unwrap()
         .sign_with(account)
         .unwrap();
     Network::default()
-        .request(account, NewAccountRequest::new(account, &root))
+        .request(account, NewAccountRequestV2::new(account, &root))
         .await
 }
 

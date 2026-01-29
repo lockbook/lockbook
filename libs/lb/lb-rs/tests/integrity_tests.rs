@@ -1,9 +1,10 @@
-use lb_rs::model::errors::{LbErrKind, Warning::*};
+use lb_rs::model::ValidationFailure;
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::errors::Warning::*;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileType::Document;
 use lb_rs::model::secret_filename::SecretFileName;
 use lb_rs::model::tree_like::TreeLike;
-use lb_rs::model::ValidationFailure;
 use rand::Rng;
 use test_utils::*;
 
@@ -69,7 +70,7 @@ async fn test_invalid_file_name_slash() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();
@@ -91,7 +92,7 @@ async fn empty_filename() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();
@@ -123,7 +124,7 @@ async fn test_cycle() {
         .unwrap()
         .clone();
     let child = core.get_by_path("folder1/folder2").await.unwrap();
-    parent.timestamped_value.value.parent = child.id;
+    parent.timestamped_value.value.set_parent(child.id);
     core.begin_tx()
         .await
         .db()
@@ -152,7 +153,7 @@ async fn test_documents_treated_as_folders() {
         .get(&parent.id)
         .unwrap()
         .clone();
-    parent.timestamped_value.value.file_type = Document;
+    parent.timestamped_value.value.set_type(Document);
     core.begin_tx()
         .await
         .db()
@@ -177,7 +178,7 @@ async fn test_name_conflict() {
     let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
-    doc.timestamped_value.value.name = new_name;
+    doc.timestamped_value.value.set_name(new_name);
     tree.stage(Some(doc)).promote().unwrap();
 
     tx.end();
@@ -202,7 +203,7 @@ async fn test_empty_file() {
 async fn test_invalid_utf8() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document.txt").await.unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+    core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
     let warnings = core.test_repo_integrity().await;
@@ -213,7 +214,7 @@ async fn test_invalid_utf8() {
 async fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document.png").await.unwrap();
-    core.write_document(doc.id, rand::thread_rng().gen::<[u8; 32]>().as_ref())
+    core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
     let warnings = core.test_repo_integrity().await;

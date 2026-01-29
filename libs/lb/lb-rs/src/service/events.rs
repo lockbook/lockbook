@@ -1,4 +1,4 @@
-use tokio::sync::broadcast::{self, Receiver, Sender};
+pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
@@ -20,13 +20,19 @@ pub enum Event {
 
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
-    DocumentWritten(Uuid),
+    DocumentWritten(Uuid, Option<Actor>),
 
     PendingSharesChanged,
 
     Sync(SyncIncrement),
 
     StatusUpdated,
+}
+
+#[derive(Debug, Clone)]
+pub enum Actor {
+    Workspace,
+    Sync,
 }
 
 impl Default for EventSubs {
@@ -37,19 +43,23 @@ impl Default for EventSubs {
 }
 
 impl EventSubs {
-    pub fn meta_changed(&self) {
+    pub(crate) fn pending_shares_changed(&self) {
+        self.queue(Event::PendingSharesChanged);
+    }
+
+    pub(crate) fn meta_changed(&self) {
         self.queue(Event::MetadataChanged);
     }
 
-    pub fn doc_written(&self, id: Uuid) {
-        self.queue(Event::DocumentWritten(id));
+    pub(crate) fn doc_written(&self, id: Uuid, actor: Option<Actor>) {
+        self.queue(Event::DocumentWritten(id, actor));
     }
 
-    pub fn sync(&self, s: SyncIncrement) {
+    pub(crate) fn sync(&self, s: SyncIncrement) {
         self.queue(Event::Sync(s));
     }
 
-    pub fn status_updated(&self) {
+    pub(crate) fn status_updated(&self) {
         self.queue(Event::StatusUpdated);
     }
 

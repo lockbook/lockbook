@@ -1,3 +1,4 @@
+.vscode/
 xcuserdata/
 
 *.xcscmblueprint
@@ -79,6 +80,7 @@ clients/apple/include/
 clients/apple/libs/
 
 **/target/
+book/
 
 lb-rs/lb_rs.h
 

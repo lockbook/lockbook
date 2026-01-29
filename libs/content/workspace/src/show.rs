@@ -3,9 +3,9 @@ use core::f32;
 use egui::os::OperatingSystem;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    include_image, Align, CursorIcon, EventFilter, FontSelection, Id, Image, Key, Label, Modifiers,
-    Rangef, Rect, RichText, ScrollArea, Sense, TextStyle, TextWrapMode, Vec2, ViewportCommand,
-    Widget as _, WidgetText,
+    Align, Align2, CursorIcon, DragAndDrop, EventFilter, FontSelection, Galley, Id, Image, Key,
+    Label, LayerId, Modifiers, Order, Rangef, Rect, RichText, ScrollArea, Sense, TextStyle,
+    TextWrapMode, Vec2, ViewportCommand, Widget as _, WidgetText, include_image, vec2,
 };
 use egui_extras::{Size, StripBuilder};
 use std::collections::HashMap;
@@ -14,9 +14,9 @@ use tracing::instrument;
 use web_time::{Duration, Instant};
 
 use crate::output::Response;
-use crate::tab::{image_viewer, ContentState, Tab, TabContent};
+use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::widgets::{Button, IconButton};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -28,12 +28,17 @@ impl Workspace {
 
         self.set_tooltip_visibility(ui);
 
-        self.process_updates();
+        self.process_lb_updates();
+        self.process_task_updates();
         self.process_keys();
         self.status.message = self.status_message();
 
         if self.is_empty() {
-            self.show_landing_page(ui);
+            if self.show_tabs {
+                self.show_landing_page(ui);
+            } else {
+                self.show_mobile_landing_page(ui);
+            }
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
         }
@@ -64,6 +69,58 @@ impl Workspace {
                     .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
             }
         }
+    }
+
+    fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
+        let punchout = if ui.visuals().dark_mode {
+            include_image!("../punchout-dark.png")
+        } else {
+            include_image!("../punchout-light.png")
+        };
+
+        ui.centered_and_justified(|ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(30.0);
+                let image_size = egui::vec2(200.0, 200.0);
+                ui.add(Image::new(punchout).fit_to_exact_size(image_size));
+                ui.add_space(120.0);
+
+                ui.label(
+                    RichText::new("TOOLS")
+                        .small()
+                        .weak()
+                        .text_style(egui::TextStyle::Button),
+                );
+                ui.add_space(24.0);
+
+                let is_beta = self
+                    .core
+                    .get_account()
+                    .map(|a| a.is_beta())
+                    .unwrap_or_default();
+                if is_beta
+                    && ui
+                        .add_sized(
+                            [200.0, 44.0],
+                            egui::Button::new(RichText::new("Mind Map").size(18.0)),
+                        )
+                        .clicked()
+                {
+                    self.upsert_mind_map(self.core.clone());
+                }
+                ui.add_space(12.0);
+
+                if ui
+                    .add_sized(
+                        [200.0, 44.0],
+                        egui::Button::new(RichText::new("Space Inspector").size(18.0)),
+                    )
+                    .clicked()
+                {
+                    self.start_space_inspector(self.core.clone(), None);
+                }
+            });
+        });
     }
 
     fn show_landing_page(&mut self, ui: &mut egui::Ui) {
@@ -133,7 +190,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(false);
+                                        self.create_doc(false);
                                     }
 
                                     ui.visuals_mut().widgets.inactive.bg_fill = weaker_blue;
@@ -153,7 +210,7 @@ impl Workspace {
                                         .show(ui)
                                         .clicked()
                                     {
-                                        self.create_file(true);
+                                        self.create_doc(true);
                                     }
                                 });
 
@@ -179,18 +236,27 @@ impl Workspace {
 
                                     ui.label(layout_job);
                                 }
-
-                                let is_beta = self
-                                    .core
-                                    .get_account()
-                                    .map(|a| a.is_beta())
-                                    .unwrap_or_default();
-                                if is_beta {
-                                    ui.add_space(50.);
+                                ui.add_space(50.);
 
                                     ui.label(WidgetText::from(
                                         RichText::from("TOOLS").weak().small(),
                                     ));
+
+                                ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
+                                    ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
+                                    ui.visuals_mut().widgets.active.fg_stroke.color = blue;
+
+                                    if Button::default()
+                                        .icon(&Icon::LANGUAGE)
+                                        .text("Space Inspector")
+                                        .frame(false)
+                                        .rounding(3.)
+                                        .show(ui)
+                                        .clicked()
+                                    {
+                                        self.start_space_inspector(self.core.clone(), None);
+                                    }
+
                                     ui.visuals_mut().widgets.inactive.fg_stroke.color = weak_blue;
                                     ui.visuals_mut().widgets.hovered.fg_stroke.color = blue;
                                     ui.visuals_mut().widgets.active.fg_stroke.color = blue;
@@ -205,7 +271,6 @@ impl Workspace {
                                     {
                                         self.upsert_mind_map(self.core.clone());
                                     }
-                                }
                             });
                             strip.cell(|_| {});
                             strip.cell(|ui| {
@@ -389,7 +454,7 @@ impl Workspace {
                                 }
 
                                 if let Some(open_file) = open_file {
-                                    self.open_file(open_file, false, true);
+                                    self.open_file(open_file, true, false);
                                 }
                             });
                             strip.cell(|_| {});
@@ -403,17 +468,15 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
-            if let Some(current_tab) = self.current_tab() {
-                if self.show_tabs {
-                    self.show_tab_strip(ui);
-                } else {
-                    self.out.tab_title_clicked = self.show_mobile_title(ui, current_tab);
-                }
+            if self.current_tab().is_some() && self.show_tabs {
+                self.show_tab_strip(ui);
             }
 
             ui.centered_and_justified(|ui| {
-                let mut rename_req = None;
+                let mut open_id = None;
+                let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
+                    let id = tab.id();
                     match &mut tab.content {
                         ContentState::Loading(_) => {
                             ui.spinner();
@@ -424,32 +487,33 @@ impl Workspace {
                         ContentState::Open(content) => {
                             match content {
                                 TabContent::Markdown(md) => {
+                                    let initialized = md.initialized;
                                     let resp = md.show(ui);
                                     // The editor signals a text change when the buffer is initially
                                     // loaded. Since we use that signal to trigger saves, we need to
                                     // check that this change was not from the initial frame.
-                                    if resp.text_updated && md.past_first_frame() {
+                                    if !tab.read_only && resp.text_updated && initialized {
                                         tab.last_changed = Instant::now();
                                     }
 
-                                    if let Some(new_name) = resp.suggest_rename {
-                                        rename_req = tab.id().map(|id| (id, new_name));
-                                    }
+                                    self.out.open_camera = resp.open_camera;
 
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
+                                        self.out.markdown_editor_selection_updated = true;
                                     }
-                                    if resp.cursor_screen_postition_updated {
-                                        // markdown_editor_selection_updated represents a change to the screen position of
-                                        // the cursor, which is also updated when scrolling
+                                    if resp.selection_updated {
                                         self.out.markdown_editor_selection_updated = true;
                                     }
                                     if resp.scroll_updated {
                                         self.out.markdown_editor_scroll_updated = true;
                                     }
                                 }
-                                TabContent::Image(img) => img.show(ui),
-                                #[cfg(not(target_family = "wasm"))]
+                                TabContent::Image(img) => {
+                                    if let Err(err) = img.show(ui) {
+                                        tab.content = ContentState::Failed(err.into());
+                                    }
+                                }
                                 TabContent::Pdf(pdf) => pdf.show(ui),
                                 TabContent::Svg(svg) => {
                                     let res = svg.show(ui);
@@ -457,53 +521,91 @@ impl Workspace {
                                         tab.last_changed = Instant::now();
                                     }
                                 }
+
+                                #[cfg(not(target_family = "wasm"))]
                                 TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui, false);
+                                    let response = mm.show(ui);
                                     if let Some(value) = response {
-                                        self.open_file(value, false, true);
+                                        self.open_file(value, true, false);
                                     }
+                                }
+                                TabContent::SpaceInspector(sv) => {
+                                    sv.show(ui);
                                 }
                             };
                         }
                     }
+
+                    ui.ctx().output_mut(|w| {
+                        if let Some(url) = &w.open_url {
+                            // only intercept open urls for tabs representing files
+                            let Some(id) = id else {
+                                return;
+                            };
+
+                            // lookup this file so we can get the parent
+                            let Ok(file) = self.core.get_file_by_id(id) else {
+                                return;
+                            };
+
+                            // evaluate relative path based on parent location
+                            let Ok(file) =
+                                core_get_by_relative_path(&self.core, file.parent, &url.url)
+                            else {
+                                return;
+                            };
+
+                            // if all that found something then open within lockbook
+                            open_id = Some(file.id);
+                            new_tab = url.new_tab;
+
+                            w.open_url = None;
+                        }
+                    });
                 }
-                if let Some(req) = rename_req {
-                    self.rename_file(req, false);
+                if let Some(id) = open_id {
+                    self.open_file(id, true, new_tab);
                 }
             });
         });
-    }
-
-    /// Shows the mobile title and returns true if clicked.
-    fn show_mobile_title(&self, ui: &mut egui::Ui, tab: &Tab) -> bool {
-        ui.horizontal(|ui| {
-            let selectable_label =
-                egui::widgets::Button::new(egui::RichText::new(self.tab_title(tab)))
-                    .frame(false)
-                    .wrap_mode(TextWrapMode::Truncate)
-                    .fill(if ui.visuals().dark_mode {
-                        egui::Color32::BLACK
-                    } else {
-                        egui::Color32::WHITE
-                    }); // matches iOS native toolbar
-
-            ui.allocate_ui(ui.available_size(), |ui| {
-                ui.with_layout(egui::Layout::top_down_justified(egui::Align::LEFT), |ui| {
-                    ui.add(selectable_label).clicked()
-                })
-                .inner
-            })
-            .inner
-        })
-        .inner
     }
 
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
         let active_tab_changed = self.current_tab_changed;
         self.current_tab_changed = false;
 
+        let mut back = false;
+        let mut forward = false;
+
         let cursor = ui
             .horizontal(|ui| {
+                if IconButton::new(Icon::ARROW_LEFT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.back.is_empty())
+                            .unwrap_or_default(),
+                    )
+                    .size(37.)
+                    .tooltip("Go Back")
+                    .show(ui)
+                    .clicked()
+                {
+                    back = true;
+                }
+                if IconButton::new(Icon::ARROW_RIGHT)
+                    .disabled(
+                        self.current_tab()
+                            .map(|tab| tab.forward.is_empty())
+                            .unwrap_or_default(),
+                    )
+                    .size(37.)
+                    .tooltip("Go Forward")
+                    .show(ui)
+                    .clicked()
+                {
+                    forward = true;
+                }
+
                 egui::ScrollArea::horizontal()
                     .max_width(ui.available_width())
                     .show(ui, |ui| {
@@ -546,12 +648,7 @@ impl Workspace {
                                         self.tabs[i].rename = Some(active_name);
                                     } else {
                                         self.tabs[i].rename = None;
-                                        self.current_tab = i;
-                                        self.current_tab_changed = true;
-                                        self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                                            self.tab_title(&self.tabs[i]),
-                                        ));
-                                        self.out.selected_file = self.tabs[i].id();
+                                        self.make_current(i);
                                     }
                                 }
                                 TabLabelResponse::Closed => {
@@ -559,11 +656,21 @@ impl Workspace {
                                 }
                                 TabLabelResponse::Renamed(name) => {
                                     self.tabs[i].rename = None;
-                                    if let Some(md) = self.current_tab_markdown_mut() {
-                                        md.needs_name = false;
-                                    }
                                     if let Some(id) = self.tabs[i].id() {
                                         self.rename_file((id, name.clone()), true);
+                                    }
+                                }
+                                TabLabelResponse::Reordered { src, mut dst } => {
+                                    let current = self.current_tab_id();
+
+                                    let tab = self.tabs.remove(src);
+                                    if src < dst {
+                                        dst -= 1;
+                                    }
+                                    self.tabs.insert(dst, tab);
+
+                                    if let Some(current) = current {
+                                        self.make_current_by_id(current);
                                     }
                                 }
                             }
@@ -583,13 +690,27 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+
+        let bg_color = get_apple_bg_color(ui);
+        ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
+
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn process_keys(&mut self) {
+        const APPLE: bool = cfg!(target_vendor = "apple");
         const COMMAND: Modifiers = Modifiers::COMMAND;
+        const CTRL: Modifiers = Modifiers::CTRL;
         const SHIFT: Modifiers = Modifiers::SHIFT;
+        const ALT: Modifiers = Modifiers::ALT;
         const NUM_KEYS: [Key; 10] = [
             Key::Num0,
             Key::Num1,
@@ -604,27 +725,35 @@ impl Workspace {
         ];
 
         // Ctrl-N pressed while new file modal is not open.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::N)) {
-            self.create_file(false);
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::N))
+        {
+            self.create_doc(false);
         }
 
         // Ctrl-S to save current tab.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::S)) {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::S))
+        {
             self.save_tab(self.current_tab);
         }
 
         // Ctrl-M to open mind map
-        let is_beta = self
-            .core
-            .get_account()
-            .map(|a| a.is_beta())
-            .unwrap_or_default();
-        if is_beta && self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::M)) {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::M))
+        {
             self.upsert_mind_map(self.core.clone());
         }
 
         // Ctrl-W to close current tab.
-        if self.ctx.input_mut(|i| i.consume_key(COMMAND, egui::Key::W)) && !self.is_empty() {
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
+            && !self.is_empty()
+        {
             self.close_tab(self.current_tab);
             self.ctx.send_viewport_cmd(ViewportCommand::Title(
                 self.current_tab_title().unwrap_or("Lockbook".to_owned()),
@@ -633,28 +762,82 @@ impl Workspace {
             self.out.selected_file = self.current_tab_id();
         }
 
+        // Ctrl-shift-W to close all tabs
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::W))
+            && !self.is_empty()
+        {
+            for i in 0..self.tabs.len() {
+                self.close_tab(i);
+            }
+
+            self.out.selected_file = None;
+            self.ctx
+                .send_viewport_cmd(ViewportCommand::Title("Lockbook".into()));
+        }
+
+        // reorder tabs
+        // non-apple: ctrl+shift+pg down / up
+        // apple: command+control+shift [ ]
+        let change: i32 = self.ctx.input_mut(|input| {
+            if APPLE {
+                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket) {
+                    -1
+                } else if input
+                    .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseBracket)
+                {
+                    1
+                } else {
+                    0
+                }
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageUp) {
+                -1
+            } else if input.consume_key_exact(CTRL | SHIFT, Key::PageDown) {
+                1
+            } else {
+                0
+            }
+        });
+        if change != 0 {
+            let old = self.current_tab as i32;
+            let new = old + change;
+            if new >= 0 && new < self.tabs.len() as i32 {
+                self.tabs.swap(old as usize, new as usize);
+                self.make_current(new as usize);
+            }
+        }
+
         // tab navigation
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if input.consume_key_exact(COMMAND, key) {
+                if input.consume_key_exact(COMMAND, key)
+                    || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
+                {
                     goto_tab = Some(i.min(self.tabs.len()) - 1);
                 }
             }
 
             // Cmd+9 to go to last tab
-            if input.consume_key_exact(COMMAND, Key::Num9) {
+            if input.consume_key_exact(COMMAND, Key::Num9)
+                || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
+            {
                 goto_tab = Some(self.tabs.len() - 1);
             }
 
-            // Cmd+Shift+[ to go to previous tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket) && self.current_tab != 0 {
+            // Cmd+Shift+[ or ctrl shift tab to go to previous tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
+                && self.current_tab != 0
+            {
                 goto_tab = Some(self.current_tab - 1);
             }
 
-            // Cmd+Shift+] to go to next tab
-            if input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
+            // Cmd+Shift+] or ctrl tab to go to next tab
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
                 && self.current_tab != self.tabs.len() - 1
             {
                 goto_tab = Some(self.current_tab + 1);
@@ -664,60 +847,267 @@ impl Workspace {
         if let Some(goto_tab) = goto_tab {
             self.make_current(goto_tab);
         }
+
+        // forward/back
+        // non-apple: alt + arrows
+        // apple: command + brackets
+        let mut back = false;
+        let mut forward = false;
+        self.ctx.input_mut(|input| {
+            if APPLE {
+                if input.consume_key_exact(COMMAND, Key::OpenBracket) {
+                    back = true;
+                }
+                if input.consume_key_exact(COMMAND, Key::CloseBracket) {
+                    forward = true;
+                }
+            } else {
+                if input.consume_key_exact(ALT, Key::ArrowLeft) {
+                    back = true;
+                }
+                if input.consume_key_exact(ALT, Key::ArrowRight) {
+                    forward = true;
+                }
+            }
+        });
+
+        if back {
+            self.back();
+        }
+        if forward {
+            self.forward();
+        }
     }
 
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
         let mut result = None;
-        let icon_size = 16.0;
+        let icon_size = 15.0;
         let x_icon = Icon::CLOSE.size(icon_size);
         let status = self.tab_status(t);
-        let status_icon = status.icon();
 
-        let padding_x = 10.;
-        let w = if self.tabs[t].is_closing { 40. } else { 160. };
-        let h = 40.;
+        ui.style_mut()
+            .text_styles
+            .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
 
-        let (tab_label_rect, tab_label_resp) = ui.allocate_exact_size(
-            (w, h).into(),
-            Sense { click: true, drag: false, focusable: false },
-        );
+        let tab_bg =
+            if is_active { ui.style().visuals.extreme_bg_color } else { get_apple_bg_color(ui) };
 
-        if is_active {
-            ui.painter().rect(
-                tab_label_rect,
-                0.,
-                ui.style().visuals.extreme_bg_color,
-                egui::Stroke::NONE,
-            );
-        };
+        let tab_padding = egui::Margin::symmetric(10.0, 10.0);
 
-        if is_active && active_tab_changed {
-            tab_label_resp.scroll_to_me(None);
-        }
+        let tab_label = egui::Frame::default()
+            .fill(tab_bg)
+            .inner_margin(tab_padding)
+            .show(ui, |ui| {
+                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                    let start = ui.available_rect_before_wrap().min;
 
-        // closing (just draw status icon)
-        if self.tabs[t].is_closing {
-            let icon_draw_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
+                    // create galleys - text layout
 
-            let icon: egui::WidgetText = (&status_icon).into();
-            let icon = icon.into_galley(
-                ui,
-                Some(TextWrapMode::Extend),
-                status_icon.size,
-                egui::TextStyle::Body,
-            );
-            ui.painter()
-                .galley(icon_draw_pos, icon, ui.visuals().text_color());
-        }
+                    // tab label - the actual file name
+                    let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
+                    let text = text.into_galley(
+                        ui,
+                        Some(TextWrapMode::Truncate),
+                        200.0,
+                        egui::TextStyle::Body,
+                    );
+
+                    // tab marker - tab status / tab number
+                    let tab_marker = if status == TabStatus::Clean {
+                        (t + 1).to_string()
+                    } else {
+                        "*".to_string()
+                    };
+                    let tab_marker: egui::WidgetText = egui::RichText::new(tab_marker)
+                        .font(egui::FontId::monospace(12.0))
+                        .color(if status == TabStatus::Clean {
+                            ui.style().visuals.weak_text_color()
+                        } else {
+                            ui.style().visuals.warn_fg_color
+                        })
+                        .into();
+                    let tab_marker = tab_marker.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+
+                    // close button - the x
+                    let close_button: egui::WidgetText = egui::RichText::new(x_icon.icon)
+                        .font(egui::FontId::monospace(10.))
+                        .into();
+                    let close_button = close_button.into_galley(
+                        ui,
+                        Some(TextWrapMode::Extend),
+                        f32::INFINITY,
+                        egui::TextStyle::Body,
+                    );
+
+                    // create rects - place these relative to one another
+                    let marker_rect = centered_galley_rect(&tab_marker);
+                    let marker_rect = Align2::LEFT_TOP.anchor_size(
+                        start
+                            + egui::vec2(
+                                0.0,
+                                text.rect.height() / 2.0 - marker_rect.height() / 2.0,
+                            ),
+                        marker_rect.size(),
+                    );
+
+                    let text_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
+                        text.size(),
+                    );
+
+                    let close_button_rect = centered_galley_rect(&close_button);
+                    let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
+                        text_rect.right_top()
+                            + vec2(5.0, (text.rect.height() - close_button_rect.height()) / 2.0),
+                        close_button_rect.size(),
+                    );
+
+                    // tab label rect represents the whole tab label
+                    let left_top = start - tab_padding.left_top();
+                    let right_bottom =
+                        close_button_rect.right_bottom() + tab_padding.right_bottom();
+                    let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
+
+                    // uncomment to see geometry debug views
+                    // let s = egui::Stroke::new(1., egui::Color32::RED);
+                    // ui.painter().rect_stroke(marker_rect, 1., s);
+                    // ui.painter().rect_stroke(text_rect, 1., s);
+                    // ui.painter().rect_stroke(close_button_rect, 1., s);
+                    // ui.painter().rect_stroke(tab_label_rect, 1., s);
+
+                    // render & process input
+                    let touch_mode =
+                        matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+
+                    ui.painter().galley(
+                        marker_rect.left_top(),
+                        tab_marker.clone(),
+                        ui.visuals().text_color(),
+                    );
+
+                    let mut tab_label_resp = ui.interact(
+                        tab_label_rect,
+                        Id::new("tab label").with(t),
+                        Sense { click: true, drag: true, focusable: false },
+                    );
+
+                    let pointer_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default());
+                    let close_button_interact_rect =
+                        close_button_rect.expand(if touch_mode { 4. } else { 2. });
+                    let close_button_pointed = close_button_interact_rect.contains(pointer_pos);
+                    let close_button_hovered = tab_label_resp.hovered() && close_button_pointed;
+                    let close_button_clicked = tab_label_resp.clicked() && close_button_pointed;
+
+                    tab_label_resp.clicked &= !close_button_clicked;
+
+                    let text_color = if is_active {
+                        ui.visuals().text_color()
+                    } else {
+                        ui.visuals()
+                            .widgets
+                            .noninteractive
+                            .fg_stroke
+                            .color
+                            .linear_multiply(0.8)
+                    };
+
+                    // draw the tab text
+                    ui.painter().galley(text_rect.min, text, text_color);
+
+                    if close_button_clicked || tab_label_resp.middle_clicked() {
+                        result = Some(TabLabelResponse::Closed);
+                    }
+                    if close_button_hovered {
+                        ui.painter().rect(
+                            close_button_interact_rect,
+                            2.0,
+                            ui.visuals().code_bg_color,
+                            egui::Stroke::NONE,
+                        );
+                    }
+
+                    let show_close_button = touch_mode || tab_label_resp.hovered() || is_active;
+                    if show_close_button {
+                        ui.painter().galley(
+                            close_button_rect.min,
+                            close_button,
+                            ui.visuals().text_color(),
+                        );
+                    }
+                    if tab_label_resp.clicked() {
+                        result = Some(TabLabelResponse::Clicked);
+                    }
+                    tab_label_resp.context_menu(|ui| {
+                        if ui.button("Close tab").clicked() {
+                            result = Some(TabLabelResponse::Closed);
+                            ui.close_menu();
+                        }
+                    });
+
+                    ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
+
+                    // drag 'n' drop
+                    {
+                        // when drag starts, dragged tab sets dnd payload
+                        if tab_label_resp.dragged() && !DragAndDrop::has_any_payload(ui.ctx()) {
+                            DragAndDrop::set_payload(ui.ctx(), t);
+                        }
+
+                        if let (Some(pointer), true) = (
+                            ui.input(|i| i.pointer.interact_pos()),
+                            DragAndDrop::has_any_payload(ui.ctx()),
+                        ) {
+                            let contains_pointer = tab_label_rect.contains(pointer);
+                            if contains_pointer {
+                                // during drag, drop target renders indicator
+                                let drop_left_side = pointer.x < tab_label_rect.center().x;
+                                let stroke = ui.style().visuals.widgets.active.fg_stroke;
+                                let x = if drop_left_side {
+                                    tab_label_rect.min.x
+                                } else {
+                                    tab_label_rect.max.x
+                                };
+                                let y_range = tab_label_rect.y_range();
+
+                                ui.with_layer_id(
+                                    LayerId::new(
+                                        Order::PanelResizeLine,
+                                        Id::from("tab_reorder_drop_indicator"),
+                                    ),
+                                    |ui| {
+                                        ui.painter().vline(x, y_range, stroke);
+                                    },
+                                );
+
+                                // when drag ends, dropped-on tab consumes dnd payload
+                                if let Some(drag_index) =
+                                    tab_label_resp.dnd_release_payload::<usize>()
+                                {
+                                    let drop_index = if drop_left_side { t } else { t + 1 };
+                                    result = Some(TabLabelResponse::Reordered {
+                                        src: *drag_index,
+                                        dst: drop_index,
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    tab_label_resp
+                })
+            });
+
         // renaming
-        else if let Some(ref mut str) = self.tabs[t].rename {
+        if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label_rect, |ui| {
+                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)
@@ -756,182 +1146,84 @@ impl Workspace {
             if res.lost_focus() {
                 self.tabs[t].rename = None;
             }
-        } else {
-            // interact with button rect whether it's shown or not
-            let close_button_pos = egui::pos2(
-                tab_label_rect.max.x - padding_x - x_icon.size,
-                tab_label_rect.center().y - x_icon.size / 2.0,
+        }
+
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
+        }
+
+        if !is_active && tab_label.response.hovered() {
+            ui.painter().rect_filled(
+                tab_label.response.rect,
+                0.0,
+                egui::Color32::WHITE.linear_multiply(0.002),
             );
-            let close_button_rect =
-                egui::Rect::from_min_size(close_button_pos, egui::vec2(x_icon.size, x_icon.size))
-                    .expand(2.0);
-            let close_button_resp = ui.interact(
-                close_button_rect,
-                Id::new("tab label close button").with(t),
-                Sense { click: true, drag: false, focusable: false },
-            );
+        }
 
-            let status_icon_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x,
-                tab_label_rect.center().y - status_icon.size / 2.0,
-            );
-            let status_icon_rect = egui::Rect::from_min_size(
-                status_icon_pos,
-                egui::vec2(status_icon.size, status_icon.size),
-            )
-            .expand(2.0);
-
-            // touch mode: always show close button
-            let touch_mode =
-                matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-            let show_close_button =
-                touch_mode || tab_label_resp.hovered() || close_button_resp.hovered();
-
-            // draw backgrounds and set cursor icon
-            if close_button_resp.hovered() {
-                ui.painter().rect(
-                    close_button_rect,
-                    2.0,
-                    ui.visuals().code_bg_color,
-                    egui::Stroke::NONE,
-                );
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            } else if tab_label_resp.hovered() {
-                ui.output_mut(|o: &mut egui::PlatformOutput| {
-                    o.cursor_icon = egui::CursorIcon::PointingHand
-                });
-            }
-
-            // draw status icon
-            {
-                let icon_draw_pos = egui::pos2(
-                    tab_label_rect.min.x + padding_x,
-                    tab_label_rect.center().y - status_icon.size / 2.0,
-                );
-
-                let icon: egui::WidgetText = (&status_icon).into();
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    status_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter()
-                    .galley(icon_draw_pos, icon, ui.visuals().text_color());
-            }
-
-            // status icon tooltip explains situation
-            ui.ctx()
-                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
-            ui.interact(
-                status_icon_rect,
-                Id::new("tab label status icon").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = self.tab_status(t).summary();
-                let text: egui::WidgetText = text.into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-                let text: egui::WidgetText = format!("last saved {last_saved}").into();
-                let text =
-                    text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Small);
-                ui.add(egui::Label::new(text));
-
-                ui.ctx().request_repaint_after_secs(1.0);
-            });
-
-            // draw text
-            let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-            let wrap_width = if show_close_button {
-                w - (padding_x + status_icon.size + padding_x + padding_x + x_icon.size + padding_x)
-            } else {
-                w - (padding_x + status_icon.size + padding_x + padding_x)
-            };
-
-            // tooltip contains unelided text
-            let mut text_rect = tab_label_resp.rect;
-            text_rect.min.x = status_icon_rect.max.x;
-            text_rect.max.x = close_button_rect.min.x;
-            ui.interact(
-                text_rect,
-                Id::new("tab label text").with(t),
-                Sense { click: false, drag: false, focusable: false },
-            )
-            .on_hover_ui(|ui| {
-                let text = text.clone().into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    wrap_width,
-                    egui::TextStyle::Small,
-                );
-                ui.add(egui::Label::new(text));
-            });
-
-            let text = text.into_galley(
-                ui,
-                Some(TextWrapMode::Truncate),
-                wrap_width,
-                egui::TextStyle::Small,
-            );
-            let text_color = ui.style().interact(&tab_label_resp).text_color();
-            let text_pos = egui::pos2(
-                tab_label_rect.min.x + padding_x + status_icon.size + padding_x,
-                tab_label_rect.center().y - 0.5 * text.size().y,
-            );
-            ui.painter().galley(text_pos, text, text_color);
-
-            // draw close button icon
-            if show_close_button {
-                let icon_draw_pos = egui::pos2(
-                    close_button_rect.center().x - x_icon.size / 2.,
-                    close_button_rect.center().y - x_icon.size / 2.2,
-                );
-                let icon: egui::WidgetText = (&x_icon).into();
-                let icon_color = if close_button_resp.is_pointer_button_down_on() {
-                    ui.visuals().widgets.active.bg_fill
-                } else {
-                    ui.visuals().text_color()
-                };
-                let icon = icon.into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    x_icon.size,
-                    egui::TextStyle::Body,
-                );
-                ui.painter().galley(icon_draw_pos, icon, icon_color);
-            }
-
-            // respond to input
-            if close_button_resp.clicked() || tab_label_resp.middle_clicked() {
-                result = Some(TabLabelResponse::Closed);
-            } else if tab_label_resp.clicked() {
-                result = Some(TabLabelResponse::Clicked);
-            }
+        if is_active && active_tab_changed {
+            tab_label.response.scroll_to_me(None);
         }
 
         // draw separators
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         if !is_active {
-            ui.painter()
-                .hline(tab_label_rect.x_range(), tab_label_rect.max.y, sep_stroke);
+            ui.painter().hline(
+                tab_label.response.rect.x_range(),
+                tab_label.response.rect.max.y,
+                sep_stroke,
+            );
         }
-        ui.painter()
-            .vline(tab_label_rect.max.x, tab_label_rect.y_range(), sep_stroke);
+        ui.painter().vline(
+            tab_label.response.rect.max.x,
+            tab_label.response.rect.y_range(),
+            sep_stroke,
+        );
+
+        tab_label.response.on_hover_ui(|ui| {
+            let text = self.tab_status(t).summary();
+            let text: egui::WidgetText = RichText::from(text).size(15.0).into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            let last_saved = self.tabs[t].last_saved.elapsed_human_string();
+            let text: egui::WidgetText = RichText::from(format!("last saved {last_saved}"))
+                .size(12.0)
+                .into();
+            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
+            ui.add(egui::Label::new(text));
+
+            ui.ctx().request_repaint_after_secs(1.0);
+        });
 
         result
     }
+}
+
+/// get the color for the native apple title bar
+fn get_apple_bg_color(ui: &mut egui::Ui) -> egui::Color32 {
+    if ui.visuals().dark_mode {
+        egui::Color32::from_rgb(57, 57, 56)
+    } else {
+        egui::Color32::from_rgb(240, 240, 239)
+    }
+}
+
+/// egui, when rendering a single monospace symbol character doesn't seem to be able to center a character vertically
+/// this fn takes into account where the text was positioned within the galley and computes a size using mesh_bounds
+/// and retruns a rect with uniform padding.
+fn centered_galley_rect(galley: &Galley) -> Rect {
+    let min = galley.rect.min;
+    let offset = galley.rect.min - galley.mesh_bounds.min;
+    let max = galley.mesh_bounds.max - offset;
+
+    Rect { min, max }
 }
 
 enum TabLabelResponse {
     Clicked,
     Closed,
     Renamed(String),
+    Reordered { src: usize, dst: usize },
 }
 
 // The only difference from count_and_consume_key is that here we use matches_exact instead of matches_logical,
@@ -985,11 +1277,7 @@ impl ElapsedHumanString for time::Duration {
         let minutes = self.whole_minutes();
         let seconds = self.whole_seconds();
         if seconds > 0 && minutes == 0 {
-            if seconds <= 1 {
-                "1 second ago".to_string()
-            } else {
-                format!("{seconds} seconds ago")
-            }
+            if seconds <= 1 { "1 second ago".to_string() } else { format!("{seconds} seconds ago") }
         } else {
             self.format_human().to_string()
         }
@@ -1018,33 +1306,51 @@ impl ElapsedHumanString for u64 {
 pub enum DocType {
     PlainText,
     Markdown,
-    Drawing,
+    SVG,
     Image,
     ImageUnsupported,
     Code,
+    PDF,
     Unknown,
 }
 
 impl DocType {
     pub fn from_name(name: &str) -> Self {
-        let ext = name.split('.').last().unwrap_or_default();
+        let ext = name.split('.').next_back().unwrap_or_default();
         match ext {
-            "draw" | "svg" => Self::Drawing,
+            "draw" | "svg" => Self::SVG,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "go" => Self::Code,
+            "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
     }
+
     pub fn to_icon(&self) -> Icon {
         match self {
-            DocType::Markdown | DocType::PlainText => Icon::DOC_TEXT,
-            DocType::Drawing => Icon::DRAW,
+            DocType::Markdown => Icon::DOC_MD,
+            DocType::PlainText => Icon::DOC_TEXT,
+            DocType::SVG => Icon::DRAW,
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
+            DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn hide_ext(&self) -> bool {
+        match self {
+            DocType::PlainText => false,
+            DocType::Markdown => true,
+            DocType::SVG => true,
+            DocType::Image => false,
+            DocType::ImageUnsupported => false,
+            DocType::Code => false,
+            DocType::PDF => true,
+            DocType::Unknown => false,
         }
     }
 }

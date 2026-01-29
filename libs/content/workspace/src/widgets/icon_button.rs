@@ -1,19 +1,21 @@
-use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, WidgetText};
+use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 
 use crate::theme::icons::Icon;
 
 /// A button with only an icon. Has a background when hovered. Colored when clicked.
 /// Supports an optional tooltip.
 pub struct IconButton {
-    icon: &'static Icon,
+    icon: Icon,
     tooltip: Option<String>,
     colored: bool,
+    disabled: bool,
+    size: Option<f32>,
 }
 
 impl IconButton {
     /// Create an icon button with the given icon.
-    pub fn new(icon: &'static Icon) -> Self {
-        Self { icon, tooltip: None, colored: false }
+    pub fn new(icon: Icon) -> Self {
+        Self { icon, tooltip: None, colored: false, size: None, disabled: false }
     }
 
     /// Add a tooltip for the button. Default: `None`.
@@ -26,16 +28,33 @@ impl IconButton {
         Self { colored, ..self }
     }
 
+    /// Make the button bigger (not the icon). Default: `None` (scale with icon)
+    pub fn size(self, size: f32) -> Self {
+        Self { size: Some(size), ..self }
+    }
+
+    /// Disable the button, making it visually dim, and physically unclickable
+    pub fn disabled(self, disabled: bool) -> Self {
+        Self { disabled, ..self }
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
-        let padding = ui.spacing().button_padding;
         let wrap_width = ui.available_width();
 
-        let icon_text: WidgetText = self.icon.into();
+        let icon_text: WidgetText = (&self.icon).into();
         let galley =
             icon_text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, TextStyle::Body);
 
-        let desired_size = egui::Vec2::splat(self.icon.size) + padding * 2.;
-        let (rect, mut resp) = ui.allocate_at_least(desired_size, Sense::click());
+        let desired_size = if let Some(size) = self.size {
+            let min_size = galley.mesh_bounds.size().max_elem();
+            Vec2::splat(size.max(min_size))
+        } else {
+            Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
+        };
+        let (rect, mut resp) = ui.allocate_exact_size(
+            desired_size,
+            if self.disabled { Sense::hover() } else { Sense::click() },
+        );
 
         if resp.hovered() {
             ui.painter()
@@ -45,13 +64,23 @@ impl IconButton {
             });
         }
 
-        let draw_pos = rect.center() - egui::Vec2::splat(self.icon.size) / 2. + egui::vec2(0., 1.5);
-        let icon_color = if self.colored || resp.is_pointer_button_down_on() {
+        let mut icon_color = if self.colored || resp.is_pointer_button_down_on() {
             ui.visuals().widgets.active.bg_fill
         } else {
             ui.visuals().text_color()
         };
-        ui.painter().galley(draw_pos, galley, icon_color);
+
+        if self.disabled {
+            icon_color = icon_color.gamma_multiply(0.5);
+        }
+
+        ui.painter().galley(
+            ((rect.min - galley.mesh_bounds.min)
+                + ((rect.size() - galley.mesh_bounds.size()) / 2.0))
+                .to_pos2(),
+            galley,
+            icon_color,
+        );
 
         if let Some(tooltip) = &self.tooltip {
             ui.ctx()

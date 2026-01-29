@@ -98,8 +98,7 @@ impl<'a> Context<'a> {
                     let expected_target =
                         String::from_utf8(expected_target).expect("get atom name as utf8");
                     println!(
-                        "handle selection: received data of wrong type: {} (expected {})",
-                        event_name, expected_target
+                        "handle selection: received data of wrong type: {event_name} (expected {expected_target})",
                     );
                     return Ok(());
                 }
@@ -158,7 +157,7 @@ impl<'a> Context<'a> {
     }
 }
 
-impl<'a> Ctx<'a> {
+impl Ctx<'_> {
     fn get_targets(&self) -> Result<Vec<Atom>, Box<dyn std::error::Error>> {
         let Ctx { conn, atoms, window } = *self;
         let formats = conn
@@ -220,18 +219,19 @@ impl<'a> Ctx<'a> {
 
         if format == atoms.UTF8_STRING {
             let text = String::from_utf8_lossy(&data);
-            app.raw_input
+            app.renderer
+                .raw_input
                 .events
                 .push(egui::Event::Paste(text.to_string()));
         } else if format == atoms.ImagePng {
-            app.context.push_event(workspace_rs::Event::Paste {
+            app.renderer.context.push_event(workspace_rs::Event::Paste {
                 content: vec![ClipContent::Image(data)],
                 position: egui::Pos2::ZERO,
             });
         } else {
             let name = conn.get_atom_name(format)?.reply()?.name;
             let name = String::from_utf8(name).expect("get atom name as utf8");
-            println!("handle selection: unsupported clipboard type: {}", name);
+            println!("handle selection: unsupported clipboard type: {name}");
         }
 
         Ok(())

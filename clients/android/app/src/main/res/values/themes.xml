@@ -30,9 +30,9 @@
         <item name="windowActionModeOverlay">true</item>
         <item name="android:statusBarColor">?attr/colorSurface</item>
         <item name="android:windowLightStatusBar">?isLightTheme</item>
-        <item name="android:windowTranslucentNavigation">true</item>
 
         <item name="materialAlertDialogTheme">@style/AppTheme.AlertDialog</item>
+        <item name="popupMenuStyle">@style/Widget.Material3.PopupMenu</item>
     </style>
 
     <style name="AppTheme.QRCapture" parent="AppTheme">
@@ -41,6 +41,29 @@
 
     <style name="AppTheme.AlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog" >
         <item name="android:windowTranslucentNavigation">false</item>
+    </style>
+
+
+    <style name="MyShapeAppearance">
+        <item name="cornerFamilyTopLeft">rounded</item>
+        <item name="cornerSizeTopLeft">20dp</item>
+        <item name="cornerFamilyTopRight">rounded</item>
+        <item name="cornerSizeTopRight">8dp</item>
+        <item name="cornerFamilyBottomLeft">rounded</item>
+        <item name="cornerSizeBottomLeft">20dp</item>
+        <item name="cornerFamilyBottomRight">rounded</item>
+        <item name="cornerSizeBottomRight">8dp</item>
+    </style>
+
+    <style name="MyQRShapeAppearance">
+        <item name="cornerFamilyTopLeft">rounded</item>
+        <item name="cornerSizeTopLeft">8dp</item>
+        <item name="cornerFamilyTopRight">rounded</item>
+        <item name="cornerSizeTopRight">20dp</item>
+        <item name="cornerFamilyBottomLeft">rounded</item>
+        <item name="cornerSizeBottomLeft">8dp</item>
+        <item name="cornerFamilyBottomRight">rounded</item>
+        <item name="cornerSizeBottomRight">20dp</item>
     </style>
 
 </resources>

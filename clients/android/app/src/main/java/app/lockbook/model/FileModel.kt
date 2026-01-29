@@ -2,6 +2,8 @@ package app.lockbook.model
 
 import net.lockbook.File
 import net.lockbook.Lb
+import net.lockbook.LbError
+import timber.log.Timber
 
 class FileModel(
     val root: File,
@@ -46,21 +48,33 @@ class FileModel(
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
     fun refreshFiles() {
-        idsAndFiles = Lb.listMetadatas().associateBy { it.id }
+        idsAndFiles = (Lb.listMetadatas() + Lb.getPendingShareFiles()).associateBy { it.id }
         suggestedDocs = Lb.suggestedDocs().mapNotNull { idsAndFiles[it] }
         refreshChildren()
     }
 
     fun intoFile(newParent: File) {
-        parent = newParent
         if (newParent.parent == root.id && fileDir.size > 1) {
             fileDir.clear()
             fileDir.add(root)
             fileDir.add(newParent)
         } else {
-            fileDir.add(newParent)
+            try {
+                var curr: File? = newParent
+                val temp: MutableList<File> = mutableListOf()
+
+                while (curr != null && curr.id != parent.id && !curr.isRoot) {
+                    temp.add(curr)
+                    curr = idsAndFiles[curr.parent]
+                }
+                temp.reverse()
+                fileDir.addAll(temp)
+            } catch (err: LbError) {
+                Timber.e(err)
+            }
         }
 
+        parent = newParent
         refreshChildren()
     }
 

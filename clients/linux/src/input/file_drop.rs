@@ -3,10 +3,8 @@ use egui::DroppedFile;
 use lbeguiapp::WgpuLockbook;
 use percent_encoding::percent_decode;
 use std::path::{Path, PathBuf};
-use x11rb::{
-    protocol::xproto::{self, Atom, ConnectionExt},
-    xcb_ffi::{ConnectionError, XCBConnection},
-};
+use x11rb::protocol::xproto::{self, Atom, ConnectionExt};
+use x11rb::xcb_ffi::{ConnectionError, XCBConnection};
 
 /// we're a drop target: let the drag source know if we support the file type
 pub fn handle_enter(
@@ -80,7 +78,8 @@ pub fn handle_selection_notify(
     let data = read_data(conn, atoms, event.requestor)?;
     let paths = parse_paths(&data)?;
     for path in paths {
-        app.raw_input
+        app.renderer
+            .raw_input
             .dropped_files
             .push(DroppedFile { path: Some(path), ..Default::default() });
     }

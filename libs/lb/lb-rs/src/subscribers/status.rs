@@ -1,15 +1,15 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
+use web_time::Duration;
 
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
-
 use web_time::Instant;
 
-use crate::{
-    model::errors::{LbErrKind, LbResult, Unexpected},
-    service::{events::Event, sync::SyncIncrement, usage::UsageMetrics},
-    Lb,
-};
+use crate::model::errors::{LbErrKind, LbResult, Unexpected};
+use crate::service::events::Event;
+use crate::service::sync::SyncIncrement;
+use crate::service::usage::UsageMetrics;
+use crate::{Lb, spawn};
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -17,7 +17,9 @@ pub struct StatusUpdater {
     space_updated: Arc<Mutex<SpaceUpdater>>,
 }
 
+/// rate limit get_usage calls to once every 60 seconds or so
 pub struct SpaceUpdater {
+    initialized: bool,
     spawned: bool,
     last_computed: Instant,
 }
@@ -31,7 +33,7 @@ pub struct SpaceUpdater {
 /// space to represent information (phones?) earlier fields are more
 /// important than later fields. Ideally anything with an ID is represented
 /// in the file tree itself.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,
@@ -66,6 +68,56 @@ pub struct Status {
     /// if there is no pending work this will have a human readable
     /// description of when we last synced successfully
     pub sync_status: Option<String>,
+
+    pub unexpected_sync_problem: Option<String>,
+}
+
+impl Status {
+    pub fn msg(&self) -> Option<String> {
+        if self.syncing {
+            return Some("Syncing...".to_string());
+        }
+
+        if self.offline {
+            if !self.dirty_locally.is_empty() {
+                let len = self.dirty_locally.len();
+                return Some(format!(
+                    "Offline, {} change{} unsynced.",
+                    len,
+                    if len > 1 { "s" } else { "" }
+                ));
+            }
+
+            if let Some(last_synced) = &self.sync_status {
+                return Some(format!("Offline, last synced: {last_synced}"));
+            }
+
+            return Some("Offline.".to_string());
+        }
+
+        if self.out_of_space {
+            return Some("You're out of space!".to_string());
+        }
+
+        if self.update_required {
+            return Some("An update is required to continue.".to_string());
+        }
+
+        if let Some(err) = &self.unexpected_sync_problem {
+            return Some(err.to_string());
+        }
+
+        if !self.dirty_locally.is_empty() {
+            let dirty_locally = self.dirty_locally.len();
+            return Some(format!("{dirty_locally} changes unsynced"));
+        }
+
+        if let Some(last_synced) = &self.sync_status {
+            return Some(format!("Last synced: {last_synced}"));
+        }
+
+        None
+    }
 }
 
 impl Lb {
@@ -75,6 +127,7 @@ impl Lb {
 
     pub async fn set_initial_state(&self) -> LbResult<()> {
         if self.keychain.get_account().is_ok() {
+            self.spawn_compute_usage().await;
             let mut current = self.status.current_status.write().await;
             current.dirty_locally = self.local_changes().await;
             if current.dirty_locally.is_empty() {
@@ -91,7 +144,7 @@ impl Lb {
         let mut rx = self.subscribe();
         let bg = self.clone();
 
-        tokio::spawn(async move {
+        spawn!(async move {
             loop {
                 let evt = match rx.recv().await {
                     Ok(evt) => evt,
@@ -108,47 +161,63 @@ impl Lb {
     }
 
     async fn process_event(&self, e: Event) -> LbResult<()> {
-        let mut current = self.status.current_status.read().await.clone();
+        let current = self.status.current_status.read().await.clone();
         match e {
-            Event::MetadataChanged | Event::DocumentWritten(_) => {
-                self.compute_dirty_locally(&mut current).await?;
+            Event::MetadataChanged | Event::DocumentWritten(_, _) => {
+                self.compute_dirty_locally(current).await?;
             }
-            Event::Sync(s) => self.update_sync(s, &mut current).await?,
+            Event::Sync(s) => self.update_sync(s, current).await?,
             _ => {}
         }
         Ok(())
     }
 
-    async fn compute_dirty_locally(&self, status: &mut Status) -> LbResult<()> {
+    async fn set_status(&self, status: Status) -> LbResult<()> {
+        *self.status.current_status.write().await = status;
+        self.events.status_updated();
+        Ok(())
+    }
+
+    async fn compute_dirty_locally(&self, mut status: Status) -> LbResult<()> {
         let new = self.local_changes().await;
         if new != status.dirty_locally {
             status.dirty_locally = self.local_changes().await;
-            self.events.status_updated();
+            self.set_status(status).await?;
         }
         Ok(())
     }
 
-    async fn compute_usage(&self) {
+    async fn spawn_compute_usage(&self) {
         let mut lock = self.status.space_updated.lock().await;
         if lock.spawned {
             return;
         }
+        let initialized = lock.initialized;
         lock.spawned = true;
+        lock.initialized = true;
         let computed = lock.last_computed;
         drop(lock);
 
         let bg = self.clone();
-        #[cfg(target_arch = "wasm32")]
-        wasm_bindgen_futures::spawn_local(throttle_computation(computed, bg));
+        spawn!(async move {
+            if initialized && computed.elapsed() < Duration::from_secs(60) {
+                tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
+            }
+            let usage = bg.get_usage().await.log_and_ignore();
+            let mut lock = bg.status.space_updated.lock().await;
+            lock.spawned = false;
+            lock.last_computed = Instant::now();
+            drop(lock);
 
-        #[cfg(not(target_arch = "wasm32"))]
-        tokio::spawn(throttle_computation(computed, bg));
+            bg.status.current_status.write().await.space_used = usage;
+            bg.events.status_updated();
+        });
     }
 
-    async fn update_sync(&self, s: SyncIncrement, status: &mut Status) -> LbResult<()> {
+    async fn update_sync(&self, s: SyncIncrement, mut status: Status) -> LbResult<()> {
         match s {
             SyncIncrement::SyncStarted => {
-                self.reset_sync(status);
+                self.reset_sync(&mut status);
                 status.syncing = true;
             }
             SyncIncrement::PullingDocument(id, in_progress) => {
@@ -166,8 +235,15 @@ impl Lb {
                 }
             }
             SyncIncrement::SyncFinished(maybe_problem) => {
-                self.reset_sync(status);
-                self.compute_usage().await;
+                self.reset_sync(&mut status);
+                self.spawn_compute_usage().await;
+                status.dirty_locally = self.local_changes().await;
+                if status.dirty_locally.is_empty() {
+                    status.sync_status = self.get_last_synced_human().await.ok();
+                }
+                // @smailbarkouch has requested that this be a Vec<Uuid> instead of a bool
+                // we also could consume the PendingSharesChanged event
+                status.pending_shares = !self.get_pending_shares().await?.is_empty();
                 match maybe_problem {
                     Some(LbErrKind::ClientUpdateRequired) => {
                         status.update_required = true;
@@ -178,21 +254,17 @@ impl Lb {
                     Some(LbErrKind::UsageIsOverDataCap) => {
                         status.out_of_space = true;
                     }
-                    None => {
-                        status.dirty_locally = self.local_changes().await;
-                        if status.dirty_locally.is_empty() {
-                            status.sync_status = self.get_last_synced_human().await.ok();
-                        }
-                        status.pending_shares = !self.get_pending_shares().await?.is_empty();
-                    }
-                    _ => {
-                        error!("unexpected sync problem found {maybe_problem:?}");
+                    None => {}
+                    Some(e) => {
+                        status.unexpected_sync_problem =
+                            Some(format!("unexpected error {e:?}: {e}"));
+                        error!("unexpected error {e:?}: {e}");
                     }
                 }
             }
         }
 
-        self.events.status_updated();
+        self.set_status(status).await?;
 
         Ok(())
     }
@@ -205,24 +277,12 @@ impl Lb {
         status.update_required = false;
         status.out_of_space = false;
         status.sync_status = None;
+        status.unexpected_sync_problem = None;
     }
-}
-
-async fn throttle_computation(computed: Instant, bg: Lb) {
-    if computed.elapsed() < Duration::from_secs(60) {
-        tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
-    }
-    let usage = bg.get_usage().await.log_and_ignore();
-    let mut lock = bg.status.space_updated.lock().await;
-    lock.spawned = false;
-    lock.last_computed = Instant::now();
-    drop(lock);
-    bg.status.current_status.write().await.space_used = usage;
-    bg.events.status_updated();
 }
 
 impl Default for SpaceUpdater {
     fn default() -> Self {
-        Self { spawned: false, last_computed: Instant::now() }
+        Self { spawned: false, last_computed: Instant::now(), initialized: false }
     }
 }

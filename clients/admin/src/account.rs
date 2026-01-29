@@ -1,15 +1,14 @@
 use std::str::FromStr;
 
-use lb::{
-    blocking::Lb,
-    model::api::{
-        AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
-        GooglePlayAccountState, StripeAccountState,
-    },
+use lb::blocking::Lb;
+use lb::model::api::{
+    AccountFilter, AccountIdentifier, AdminSetUserTierInfo, AppStoreAccountState,
+    GooglePlayAccountState, StripeAccountState,
 };
 use libsecp256k1::PublicKey;
 
-use crate::{error::Error, Res, SetUserTier};
+use crate::error::Error;
+use crate::{Res, SetUserTier};
 
 pub fn list(
     lb: &Lb, premium: bool, app_store_premium: bool, google_play_premium: bool,
@@ -38,10 +37,10 @@ pub fn list(
             Some(AccountFilter::StripePremium) => "There are no premium stripe users.",
         };
 
-        println!("{}", msg);
+        println!("{msg}");
     } else {
         for user in users {
-            println!("{}", user);
+            println!("{user}");
         }
     }
 
@@ -61,7 +60,7 @@ pub fn info(lb: &Lb, username: Option<String>, public_key: Option<String>) -> Re
     };
 
     let account_info = lb.admin_get_account_info(identifier)?;
-    println!("{:#?}", account_info);
+    println!("{account_info:#?}");
 
     Ok(())
 }

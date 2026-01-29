@@ -1,17 +1,17 @@
 [package]
 name = "lockbook-egui"
-version = "0.9.21"
+version = "26.1.29"
 edition = "2021"
 
 [dependencies]
-dark-light = "1.0.0"
+dark-light = "2.0.0"
 egui = "0.28.1"
+egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer", optional = true }
 eframe = { version = "0.28.1", default-features = false, features = [
     "wgpu",
 ], optional = true } # dependency for binary only
-egui_wgpu_backend = { version = "0.30", optional = true } # dependency for library only
 egui-notify = "0.15.0"
-egui-winit = "0.28.1"
+egui-winit = "0.28.1" # todo possibly removable
 egui_extras = { version = "0.28.1", features = ["image"] }
 env_logger = "0.10"
 image = { version = "0.24", default-features = false, features = [
@@ -24,24 +24,20 @@ image = { version = "0.24", default-features = false, features = [
 ] }
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
 lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
-lbeditor = { package = "egui_editor", path = "../../libs/content/editor/egui_editor" }
-minidom = { git = "https://github.com/lockbook/minidom" }
-pdfium-render = "0.8.5"
 rfd = "0.11.4"
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 workspace = { path = "../../libs/content/workspace" }
 
-# features: egui_wgpu_backend (library) or eframe (binary)
 [features]
 default = ["eframe"]
 eframe = ["dep:eframe"]
-egui_wgpu_backend = ["dep:egui_wgpu_backend"]
+egui_wgpu_renderer = ["dep:egui_wgpu_renderer"]
 
 [lib]
 name = "lockbook_egui"
 path = "src/lib.rs"
-required-features = ["egui_wgpu_backend"]
+required-features = ["egui_wgpu_renderer"]
 
 [[bin]]
 name = "lockbook-egui"

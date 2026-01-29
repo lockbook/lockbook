@@ -103,4 +103,14 @@ class SearchDocumentsFragment : Fragment() {
             else -> {}
         }
     }
+
+    override fun onResume() {
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+        super.onResume()
+    }
+
+    override fun onStop() {
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
+        super.onStop()
+    }
 }

@@ -1,6 +1,7 @@
 use crate::model::crypto::{AESEncrypted, AESKey};
 use crate::model::symkey::{convert_key, generate_nonce};
-use aead::{generic_array::GenericArray, Aead};
+use aead::Aead;
+use aead::generic_array::GenericArray;
 use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
@@ -79,7 +80,8 @@ impl Hash for SecretFileName {
 
 #[cfg(test)]
 mod unit_tests {
-    use crate::model::{secret_filename::SecretFileName, symkey::generate_key};
+    use crate::model::secret_filename::SecretFileName;
+    use crate::model::symkey::generate_key;
     use uuid::Uuid;
 
     #[test]

@@ -1,3 +1,4 @@
+use crate::model::ValidationFailure;
 use crate::model::access_info::UserAccessMode;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{Diff, FileDiff, FileType, Owner};
@@ -5,7 +6,6 @@ use crate::model::filename::MAX_ENCRYPTED_FILENAME_LENGTH;
 use crate::model::lazy::LazyTree;
 use crate::model::staged::StagedTreeLike;
 use crate::model::tree_like::TreeLike;
-use crate::model::ValidationFailure;
 use std::collections::{HashMap, HashSet};
 
 use super::errors::{LbErrKind, LbResult};
@@ -21,11 +21,7 @@ pub fn file_name(name: &str) -> LbResult<()> {
 }
 
 pub fn not_root<F: FileLike>(file: &F) -> LbResult<()> {
-    if file.is_root() {
-        Err(LbErrKind::RootModificationInvalid)?
-    } else {
-        Ok(())
-    }
+    if file.is_root() { Err(LbErrKind::RootModificationInvalid)? } else { Ok(()) }
 }
 
 pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
@@ -37,11 +33,7 @@ pub fn is_folder<F: FileLike>(file: &F) -> LbResult<()> {
 }
 
 pub fn is_document<F: FileLike>(file: &F) -> LbResult<()> {
-    if file.is_document() {
-        Ok(())
-    } else {
-        Err(LbErrKind::FileNotDocument)?
-    }
+    if file.is_document() { Ok(()) } else { Err(LbErrKind::FileNotDocument)? }
 }
 
 pub fn path(path: &str) -> LbResult<()> {
@@ -291,7 +283,7 @@ where
             // newly deleted files cannot have non-deletion updates
             if self.calculate_deleted(&id)? {
                 if let Some(base) = self.tree.base().maybe_find(&id) {
-                    if FileDiff::edit(&base, &self.find(&id)?)
+                    if FileDiff::edit(base.clone(), self.find(&id)?.clone())
                         .diff()
                         .iter()
                         .any(|d| d != &Diff::Deleted)
@@ -471,9 +463,9 @@ where
         for id in self.tree.staged().ids() {
             let staged = self.tree.staged().find(&id)?;
             if let Some(base) = self.tree.base().maybe_find(&id) {
-                result.push(FileDiff::edit(base, staged));
+                result.push(FileDiff::edit(base.clone(), staged.clone()));
             } else {
-                result.push(FileDiff::new(staged));
+                result.push(FileDiff::new(staged.clone()));
             }
         }
         Ok(result)

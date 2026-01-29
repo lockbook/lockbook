@@ -1,11 +1,15 @@
 use billing::app_store_client::AppStoreClient;
 use billing::google_play_client::GooglePlayClient;
 use billing::stripe_client::StripeClient;
+use defense::IpData;
 use document_service::DocumentService;
 use lb_rs::model::clock;
 use lb_rs::model::errors::LbResult;
+use schema::ServerDb;
+use std::collections::VecDeque;
 use std::env;
 use std::fmt::Debug;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -15,11 +19,10 @@ use libsecp256k1::PublicKey;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
+use crate::ServerError::ClientError;
 use crate::account_service::GetUsageHelperError;
 use crate::billing::billing_service::StripeWebhookError;
 use crate::billing::stripe_error::SimplifiedStripeError;
-use crate::schema::ServerV4;
-use crate::ServerError::ClientError;
 pub use stripe;
 use tracing::log::warn;
 
@@ -34,17 +37,20 @@ where
     D: DocumentService,
 {
     pub config: config::Config,
-    pub index_db: Arc<Mutex<ServerV4>>,
+    pub index_db: Arc<Mutex<ServerDb>>,
     pub stripe_client: S,
     pub google_play_client: G,
     pub app_store_client: A,
     pub document_service: D,
+    pub discord_client: reqwest::Client,
+    pub recent_new_account_ips: Arc<Mutex<VecDeque<IpData>>>,
 }
 
 #[derive(Clone)]
 pub struct RequestContext<TRequest> {
     pub request: TRequest,
     pub public_key: PublicKey,
+    pub ip: Option<SocketAddr>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -97,9 +103,12 @@ where
 pub mod account_service;
 pub mod billing;
 pub mod config;
+pub mod debug_info;
+pub mod defense;
 pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
+pub mod garbage_worker;
 pub mod loggers;
 pub mod metrics;
 pub mod router_service;

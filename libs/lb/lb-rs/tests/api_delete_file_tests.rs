@@ -21,9 +21,9 @@ async fn delete_document() {
         .unwrap()
         .clone();
     let mut doc2 = doc1.clone();
-    doc2.timestamped_value.value.is_deleted = true;
+    doc2.timestamped_value.value.set_deleted(true);
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::edit(&doc1, &doc2)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
         .await
         .unwrap();
 }
@@ -43,18 +43,18 @@ async fn delete_document_not_found() {
         .get(&doc)
         .unwrap()
         .clone();
-    doc1.timestamped_value.value.id = Uuid::new_v4();
+    doc1.timestamped_value.value.set_id(Uuid::new_v4());
 
     // delete document
     let mut doc2 = doc1.clone();
-    doc2.timestamped_value.value.is_deleted = true;
+    doc2.timestamped_value.value.set_deleted(true);
     let result = core
         .client
         .request(
             account,
-            UpsertRequest {
+            UpsertRequestV2 {
                 // create document as if deleting an existing document
-                updates: vec![FileDiff::edit(&doc1, &doc2)],
+                updates: vec![FileDiff::edit(doc1, doc2)],
             },
         )
         .await;
@@ -76,11 +76,11 @@ async fn delete_document_new_document() {
         .get(&doc)
         .unwrap()
         .clone();
-    doc.timestamped_value.value.is_deleted = true;
+    doc.timestamped_value.value.set_deleted(true);
 
     let result = core
         .client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
         .await;
     assert_matches!(result, Ok(_));
 }
@@ -104,9 +104,9 @@ async fn delete_document_deleted() {
 
     // delete document
     let mut doc2 = doc.clone();
-    doc2.timestamped_value.value.is_deleted = true;
+    doc2.timestamped_value.value.set_deleted(true);
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::edit(&doc, &doc2)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc, doc2)] })
         .await
         .unwrap();
 }
@@ -127,10 +127,10 @@ async fn delete_cannot_delete_root() {
         .clone();
 
     let mut root2 = root1.clone();
-    root2.timestamped_value.value.is_deleted = true;
+    root2.timestamped_value.value.set_deleted(true);
     let result = core
         .client
-        .request(account, UpsertRequest { updates: vec![FileDiff::edit(&root1, &root2)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(root1, root2)] })
         .await;
     assert_matches!(
         result,

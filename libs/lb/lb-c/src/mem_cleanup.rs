@@ -1,20 +1,23 @@
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 
 use lb_rs::Uuid;
 
+use crate::ffi_utils::rvec;
+use crate::lb_c_err::LbFfiErr;
+use crate::lb_file::LbFile;
+use crate::lb_work::LbSyncRes;
 use crate::{
-    ffi_utils::rvec, lb_c_err::LbFfiErr, lb_file::LbFile, lb_work::LbSyncRes, LbAccountRes,
-    LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes,
-    LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes, LbStatus,
-    LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes,
+    LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
+    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes,
+    LbStatus, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes,
 };
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_str(str: *mut c_char) {
     unsafe { drop(CString::from_raw(str)) };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_err(err: *mut LbFfiErr) {
     if err.is_null() {
         return;
@@ -33,7 +36,7 @@ pub extern "C" fn lb_free_err(err: *mut LbFfiErr) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_init(init: LbInitRes) {
     if !init.err.is_null() {
         lb_free_err(init.err);
@@ -44,7 +47,7 @@ pub extern "C" fn lb_free_init(init: LbInitRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_account(acc: LbAccountRes) {
     if !acc.err.is_null() {
         lb_free_err(acc.err);
@@ -59,7 +62,7 @@ pub extern "C" fn lb_free_account(acc: LbAccountRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_export_account(acc: LbExportAccountRes) {
     if !acc.err.is_null() {
         lb_free_err(acc.err);
@@ -70,7 +73,7 @@ pub extern "C" fn lb_free_export_account(acc: LbExportAccountRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
     if !acc.err.is_null() {
         lb_free_err(acc.err);
@@ -81,7 +84,7 @@ pub extern "C" fn lb_free_export_account_qr(acc: LbExportAccountQRRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_path_res(path: LbPathRes) {
     if !path.err.is_null() {
         lb_free_err(path.err);
@@ -92,7 +95,7 @@ pub extern "C" fn lb_free_path_res(path: LbPathRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_paths_res(paths: LbPathsRes) {
     if !paths.err.is_null() {
         lb_free_err(paths.err);
@@ -108,7 +111,7 @@ pub extern "C" fn lb_free_paths_res(paths: LbPathsRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_file(file: LbFile) {
     unsafe {
         drop(CString::from_raw(file.name));
@@ -121,7 +124,7 @@ pub extern "C" fn lb_free_file(file: LbFile) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_file_res(file_res: LbFileRes) {
     if !file_res.err.is_null() {
         lb_free_err(file_res.err);
@@ -132,7 +135,7 @@ pub extern "C" fn lb_free_file_res(file_res: LbFileRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_file_list_res(files: LbFileListRes) {
     if !files.err.is_null() {
         lb_free_err(files.err);
@@ -146,7 +149,7 @@ pub extern "C" fn lb_free_file_list_res(files: LbFileListRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_sync_res(sync_res: LbSyncRes) {
     if !sync_res.err.is_null() {
         lb_free_err(sync_res.err);
@@ -157,7 +160,7 @@ pub extern "C" fn lb_free_sync_res(sync_res: LbSyncRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_doc_res(doc: LbDocRes) {
     if !doc.err.is_null() {
         lb_free_err(doc.err);
@@ -168,14 +171,14 @@ pub extern "C" fn lb_free_doc_res(doc: LbDocRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_last_synced_i64(last: LbLastSyncedi64) {
     if !last.err.is_null() {
         lb_free_err(last.err);
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_last_synced_human(last: LbLastSyncedHuman) {
     if !last.err.is_null() {
         lb_free_err(last.err);
@@ -186,7 +189,7 @@ pub extern "C" fn lb_free_last_synced_human(last: LbLastSyncedHuman) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_id_list_res(ids: LbIdListRes) {
     if !ids.err.is_null() {
         lb_free_err(ids.err);
@@ -197,7 +200,7 @@ pub extern "C" fn lb_free_id_list_res(ids: LbIdListRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_usage_metrics(usage: LbUsageMetricsRes) {
     if !usage.err.is_null() {
         lb_free_err(usage.err);
@@ -212,7 +215,7 @@ pub extern "C" fn lb_free_usage_metrics(usage: LbUsageMetricsRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_uncompressed_usage(usage: LbUncompressedRes) {
     if !usage.err.is_null() {
         lb_free_err(usage.err);
@@ -223,7 +226,7 @@ pub extern "C" fn lb_free_uncompressed_usage(usage: LbUncompressedRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
     if !search_results.err.is_null() {
         lb_free_err(search_results.err);
@@ -256,7 +259,7 @@ pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_sub_info(sub_info: LbSubscriptionInfoRes) {
     if !sub_info.err.is_null() {
         lb_free_err(sub_info.err);
@@ -281,7 +284,7 @@ pub extern "C" fn lb_free_sub_info(sub_info: LbSubscriptionInfoRes) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_status(status: LbStatus) {
     if !status.pushing_files.ids.is_null() {
         drop(rvec(status.pushing_files.ids, status.pushing_files.len));
@@ -311,8 +314,8 @@ pub extern "C" fn lb_free_status(status: LbStatus) {
             drop(usage);
         }
 
-        if !status.sync_status.is_null() {
-            drop(CString::from_raw(status.sync_status));
+        if !status.msg.is_null() {
+            drop(CString::from_raw(status.msg));
         }
     }
 }

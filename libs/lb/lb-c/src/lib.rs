@@ -1,29 +1,31 @@
-use std::{
-    ffi::{c_char, c_uchar, c_void},
-    fs,
-    path::PathBuf,
-    process,
-    ptr::null_mut,
-};
+use std::ffi::{c_char, c_uchar, c_void};
+use std::path::PathBuf;
+use std::ptr::null_mut;
+use std::{fs, process};
 
 use ffi_utils::{
     carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec,
 };
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
+pub use lb_rs::blocking::Lb;
+pub use lb_rs::model::core_config::Config;
+use lb_rs::model::file::ShareMode;
+use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::debug::DebugInfoDisplay;
+use lb_rs::service::events::Event;
 pub use lb_rs::*;
-pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{model::file::ShareMode, service::activity::RankingWeights};
 use lb_work::LbSyncRes;
 use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
-use service::{import_export::ImportStatus, sync::SyncProgress};
+use service::import_export::ImportStatus;
+use service::sync::SyncProgress;
 use subscribers::search::{SearchConfig, SearchResult};
 
-use std::sync::atomic::AtomicPtr;
 use std::sync::Arc;
+use std::sync::atomic::AtomicPtr;
 
 #[repr(C)]
 pub struct LbInitRes {
@@ -31,7 +33,7 @@ pub struct LbInitRes {
     lb: *mut Lb,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRes {
     let config = Config {
         writeable_path: rstring(writeable_path),
@@ -60,7 +62,7 @@ pub struct LbAccountRes {
     api_url: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_create_account(
     lb: *mut Lb, username: *const c_char, api_url: *const c_char, welcome_doc: bool,
 ) -> LbAccountRes {
@@ -81,7 +83,7 @@ pub extern "C" fn lb_create_account(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_import_account(
     lb: *mut Lb, key: *const c_char, api_url: *const c_char,
 ) -> LbAccountRes {
@@ -102,7 +104,7 @@ pub extern "C" fn lb_import_account(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_account(lb: *mut Lb) -> LbAccountRes {
     let lb = rlb(lb);
 
@@ -119,7 +121,7 @@ pub extern "C" fn lb_get_account(lb: *mut Lb) -> LbAccountRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
@@ -129,7 +131,7 @@ pub extern "C" fn lb_delete_account(lb: *mut Lb) -> *mut LbFfiErr {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_logout_and_exit(lb: *mut Lb) {
     let lb = rlb(lb);
     fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
@@ -142,7 +144,7 @@ pub struct LbExportAccountRes {
     account_string: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_export_account_private_key(lb: *mut Lb) -> LbExportAccountRes {
     let lb = rlb(lb);
 
@@ -158,7 +160,7 @@ pub extern "C" fn lb_export_account_private_key(lb: *mut Lb) -> LbExportAccountR
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_export_account_phrase(lb: *mut Lb) -> LbExportAccountRes {
     let lb = rlb(lb);
 
@@ -181,7 +183,7 @@ pub struct LbExportAccountQRRes {
     qr_len: usize,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_export_account_qr(lb: *mut Lb) -> LbExportAccountQRRes {
     let lb = rlb(lb);
 
@@ -221,7 +223,7 @@ impl From<LbUuid> for Uuid {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_create_file(
     lb: *mut Lb, name: *const c_char, parent: LbUuid, file_type: LbFileType,
 ) -> LbFileRes {
@@ -238,7 +240,7 @@ pub extern "C" fn lb_create_file(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_write_document(
     lb: *mut Lb, id: LbUuid, ptr: *mut u8, len: usize,
 ) -> *mut LbFfiErr {
@@ -250,7 +252,7 @@ pub extern "C" fn lb_write_document(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_root(lb: *mut Lb) -> LbFileRes {
     let lb = rlb(lb);
 
@@ -269,7 +271,7 @@ pub struct LbFileListRes {
     list: LbFileList,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_children(lb: *mut Lb, id: LbUuid) -> LbFileListRes {
     let lb = rlb(lb);
     match lb.get_children(&id.into()) {
@@ -281,7 +283,7 @@ pub extern "C" fn lb_get_children(lb: *mut Lb, id: LbUuid) -> LbFileListRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: LbUuid) -> LbFileListRes {
     let lb = rlb(lb);
     match lb.get_and_get_children_recursively(&id.into()) {
@@ -293,7 +295,7 @@ pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: LbUuid) -
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
     let lb = rlb(lb);
 
@@ -306,7 +308,7 @@ pub extern "C" fn lb_get_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_delete_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
@@ -323,7 +325,7 @@ pub struct LbDocRes {
     len: usize,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_read_doc(lb: *mut Lb, id: LbUuid) -> LbDocRes {
     let lb = rlb(lb);
 
@@ -340,7 +342,7 @@ pub extern "C" fn lb_read_doc(lb: *mut Lb, id: LbUuid) -> LbDocRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_list_metadatas(lb: *mut Lb) -> LbFileListRes {
     let lb = rlb(lb);
 
@@ -353,7 +355,7 @@ pub extern "C" fn lb_list_metadatas(lb: *mut Lb) -> LbFileListRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_rename_file(
     lb: *mut Lb, id: LbUuid, new_name: *const c_char,
 ) -> *mut LbFfiErr {
@@ -366,7 +368,7 @@ pub extern "C" fn lb_rename_file(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_move_file(lb: *mut Lb, id: LbUuid, new_parent: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
@@ -376,7 +378,7 @@ pub extern "C" fn lb_move_file(lb: *mut Lb, id: LbUuid, new_parent: LbUuid) -> *
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_share_file(
     lb: *mut Lb, id: LbUuid, username: *const c_char, mode: ShareMode,
 ) -> *mut LbFfiErr {
@@ -389,7 +391,7 @@ pub extern "C" fn lb_share_file(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
     let lb = rlb(lb);
 
@@ -402,7 +404,20 @@ pub extern "C" fn lb_get_pending_shares(lb: *mut Lb) -> LbFileListRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_get_pending_share_files(lb: *mut Lb) -> LbFileListRes {
+    let lb = rlb(lb);
+
+    match lb.get_pending_share_files() {
+        Ok(shares) => LbFileListRes { err: null_mut(), list: shares.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileListRes { err, list: LbFileList::default() }
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
@@ -412,7 +427,7 @@ pub extern "C" fn lb_delete_pending_share(lb: *mut Lb, id: LbUuid) -> *mut LbFfi
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_create_link_at_path(
     lb: *mut Lb, path_and_name: *const c_char, target_id: LbUuid,
 ) -> LbFileRes {
@@ -425,7 +440,7 @@ pub extern "C" fn lb_create_link_at_path(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_create_at_path(lb: *mut Lb, path_and_name: *const c_char) -> LbFileRes {
     let lb = rlb(lb);
     let path_and_name = rstr(path_and_name);
@@ -436,7 +451,7 @@ pub extern "C" fn lb_create_at_path(lb: *mut Lb, path_and_name: *const c_char) -
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_by_path(lb: *mut Lb, path: *const c_char) -> LbFileRes {
     let lb = rlb(lb);
     let path = rstr(path);
@@ -453,7 +468,7 @@ pub struct LbPathRes {
     path: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_path_by_id(lb: *mut Lb, id: LbUuid) -> LbPathRes {
     let lb = rlb(lb);
 
@@ -470,7 +485,7 @@ pub struct LbPathsRes {
     len: usize,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
     let lb = rlb(lb);
 
@@ -484,7 +499,7 @@ pub extern "C" fn lb_list_folder_paths(lb: *mut Lb) -> LbPathsRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
     let lb = rlb(lb);
 
@@ -497,15 +512,15 @@ pub extern "C" fn lb_get_local_changes(lb: *mut Lb) -> LbIdListRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_char {
     let lb = rlb(lb);
     let os_info = rstring(os_info);
 
-    cstring(lb.debug_info(os_info))
+    cstring(lb.debug_info(os_info).to_string())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
     let lb = rlb(lb);
     lb.calculate_work().into()
@@ -513,39 +528,41 @@ pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
 
 pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
 pub unsafe extern "C" fn lb_sync(
     lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus,
 ) -> LbSyncRes {
-    let lb = rlb(lb);
+    unsafe {
+        let lb = rlb(lb);
 
-    let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
+        let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
 
-    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
-        let update_status = *update_status;
-        let update_status_obj = update_status_obj.clone();
+        let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
+            let update_status = *update_status;
+            let update_status_obj = update_status_obj.clone();
 
-        Some(Box::new(move |sync_progress: SyncProgress| {
-            let update_status_obj =
-                update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
+            Some(Box::new(move |sync_progress: SyncProgress| {
+                let update_status_obj =
+                    update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
 
-            update_status(
-                update_status_obj,
-                sync_progress.total,
-                sync_progress.progress,
-                sync_progress
-                    .file_being_processed
-                    .unwrap_or_else(Uuid::nil)
-                    .into(),
-                cstring(sync_progress.msg),
-            );
-        }))
-    } else {
-        None
-    };
+                update_status(
+                    update_status_obj,
+                    sync_progress.total,
+                    sync_progress.progress,
+                    sync_progress
+                        .file_being_processed
+                        .unwrap_or_else(Uuid::nil)
+                        .into(),
+                    cstring(sync_progress.msg),
+                );
+            }))
+        } else {
+            None
+        };
 
-    lb.sync(f).into()
+        lb.sync(f).into()
+    }
 }
 
 #[repr(C)]
@@ -560,7 +577,7 @@ pub struct LbLastSyncedHuman {
     last: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_last_synced(lb: *mut Lb) -> LbLastSyncedi64 {
     let lb = rlb(lb);
 
@@ -570,7 +587,7 @@ pub extern "C" fn lb_get_last_synced(lb: *mut Lb) -> LbLastSyncedi64 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_last_synced_human_string(lb: *mut Lb) -> LbLastSyncedHuman {
     let lb = rlb(lb);
 
@@ -583,7 +600,7 @@ pub extern "C" fn lb_get_last_synced_human_string(lb: *mut Lb) -> LbLastSyncedHu
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_timestamp_human_string(lb: *mut Lb, timestamp: i64) -> *mut c_char {
     let lb = rlb(lb);
 
@@ -597,7 +614,7 @@ pub struct LbIdListRes {
     len: usize,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
     let lb = rlb(lb);
 
@@ -607,6 +624,26 @@ pub extern "C" fn lb_suggested_docs(lb: *mut Lb) -> LbIdListRes {
             LbIdListRes { err: null_mut(), ids, len }
         }
         Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_clear_suggested(lb: *mut Lb) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested() {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.clear_suggested_id(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
     }
 }
 
@@ -625,7 +662,7 @@ pub struct LbUsageMetrics {
     server_cap_human: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
     let lb = rlb(lb);
 
@@ -658,7 +695,7 @@ pub struct LbUncompressedRes {
     uncompressed_human: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
     let lb = rlb(lb);
 
@@ -676,7 +713,7 @@ pub extern "C" fn lb_get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_import_files(
     lb: *mut Lb, sources: *const *const c_char, sources_len: usize, dest: LbUuid,
 ) -> *mut LbFfiErr {
@@ -692,7 +729,7 @@ pub extern "C" fn lb_import_files(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_export_file(
     lb: *mut Lb, source_id: LbUuid, dest: *const c_char, edit: bool,
 ) -> *mut LbFfiErr {
@@ -744,7 +781,7 @@ pub struct LbContentMatch {
     matched_indicies_len: usize,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_search(
     lb: *mut Lb, input: *const c_char, search_paths: bool, search_docs: bool,
 ) -> LbSearchRes {
@@ -818,7 +855,7 @@ pub extern "C" fn lb_search(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_upgrade_account_stripe(
     lb: *mut Lb, is_old_card: bool, number: *const c_char, exp_year: i32, exp_month: i32,
     cvc: *const c_char,
@@ -837,7 +874,7 @@ pub extern "C" fn lb_upgrade_account_stripe(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_upgrade_account_app_store(
     lb: *mut Lb, original_transaction_id: *const c_char, app_account_token: *const c_char,
 ) -> *mut LbFfiErr {
@@ -852,7 +889,7 @@ pub extern "C" fn lb_upgrade_account_app_store(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_cancel_subscription(lb: *mut Lb) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
@@ -897,7 +934,7 @@ pub struct LbAppStoreSubscriptionInfo {
     is_state_expired: bool,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_subscription_info(lb: *mut Lb) -> LbSubscriptionInfoRes {
     let lb = rlb(lb);
 
@@ -960,6 +997,7 @@ pub struct LbIds {
 
 #[repr(C)]
 pub struct LbStatus {
+    pub offline: bool,
     pub syncing: bool,
     pub out_of_space: bool,
     pub pending_shares: bool,
@@ -968,13 +1006,18 @@ pub struct LbStatus {
     pub dirty_locally: LbIds,
     pub pulling_files: LbIds,
     pub space_used: *mut LbUsageMetrics,
-    pub sync_status: *mut c_char,
+    pub msg: *mut c_char,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
     let lb = rlb(lb);
     let status = lb.status();
+
+    let msg = match status.msg() {
+        Some(msg) => cstring(msg),
+        None => null_mut(),
+    };
 
     let pushing_files = carray(status.pushing_files.into_iter().map(LbUuid::from).collect());
     let pushing_files = LbIds { ids: pushing_files.0, len: pushing_files.1 };
@@ -995,12 +1038,8 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         None => null_mut(),
     };
 
-    let sync_status = match status.sync_status {
-        Some(sync_status) => cstring(sync_status),
-        None => null_mut(),
-    };
-
     LbStatus {
+        offline: status.offline,
         syncing: status.syncing,
         out_of_space: status.out_of_space,
         pending_shares: status.pending_shares,
@@ -1009,8 +1048,49 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         dirty_locally,
         pulling_files,
         space_used,
-        sync_status,
+        msg,
     }
+}
+
+#[derive(Default)]
+#[repr(C)]
+pub struct LbEvent {
+    pub status_updated: bool,
+    pub metadata_updated: bool,
+    pub pending_shares_changed: bool,
+}
+
+pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
+
+#[unsafe(no_mangle)]
+#[allow(clippy::missing_safety_doc)]
+pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, notify: LbNotify) {
+    let lb = rlb(lb);
+
+    let mut rx = lb.subscribe();
+    let notify_obj = Arc::new(AtomicPtr::new(notify_obj as *mut c_void));
+
+    std::thread::spawn(move || {
+        loop {
+            if let Ok(event) = rx.blocking_recv() {
+                let event = match event {
+                    Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
+                    Event::MetadataChanged => {
+                        LbEvent { metadata_updated: true, ..Default::default() }
+                    }
+                    Event::PendingSharesChanged => {
+                        LbEvent { pending_shares_changed: true, ..Default::default() }
+                    }
+                    _ => continue,
+                };
+
+                notify(
+                    notify_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void,
+                    event,
+                );
+            }
+        }
+    });
 }
 
 mod ffi_utils;

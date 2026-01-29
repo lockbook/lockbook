@@ -4,13 +4,12 @@ use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
 use egui::{Id, Key, Modifiers};
+use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::subscribers::search::{ContentMatch, SearchConfig, SearchResult};
-use lb::Uuid;
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::widgets::Button;
 
 use workspace_rs::show::DocType;
 
@@ -28,15 +27,68 @@ pub struct Response {
 
     /// The user down-arrowed the focus out of the search widget. Advance the focus to the widget below.
     pub advance_focus: bool,
+
+    pub search_box_rect: Option<egui::Rect>,
 }
 
 impl FullDocSearch {
     const X_MARGIN: f32 = 15.0;
+    const ICON_WIDTH: f32 = 15.0;
 
+    fn set_style(&self, ui: &mut egui::Ui) {
+        ui.visuals_mut().extreme_bg_color = ui.visuals().code_bg_color;
+        let rounding = 5.0.into();
+        ui.visuals_mut().widgets.active.rounding = rounding;
+        ui.visuals_mut().widgets.hovered.rounding = rounding;
+        ui.visuals_mut().widgets.inactive.rounding = rounding;
+        ui.visuals_mut().widgets.noninteractive.rounding = rounding;
+        ui.visuals_mut().widgets.open.rounding = rounding;
+
+        ui.visuals_mut().widgets.hovered.bg_stroke =
+            egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
+
+        ui.visuals_mut().selection.stroke =
+            egui::Stroke { width: 0.7, color: ui.visuals().weak_text_color() };
+    }
+
+    fn show_search_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) {
+        let search_icon_width = Self::ICON_WIDTH + 7.0; // account for margin
+        let mut ui = ui.child_ui(
+            text_edit_rect.translate(egui::vec2(-(search_icon_width), 0.0)),
+            egui::Layout::default(),
+            None,
+        );
+        ui.visuals_mut().override_text_color = Some(ui.visuals().weak_text_color());
+        Icon::SEARCH.show(&mut ui);
+    }
+
+    fn show_x_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) -> egui::Response {
+        let x_margin = 7.0; // account for margin
+
+        let mut ui = ui.child_ui(
+            text_edit_rect.translate(egui::vec2(text_edit_rect.width() + x_margin, 0.0)),
+            egui::Layout {
+                main_dir: egui::Direction::LeftToRight,
+                main_wrap: false,
+                main_align: egui::Align::LEFT,
+                main_justify: false,
+                cross_align: egui::Align::Center,
+                cross_justify: true,
+            },
+            None,
+        );
+        ui.visuals_mut().override_text_color = Some(ui.visuals().widgets.active.bg_fill);
+        ui.visuals_mut().widgets.active.bg_fill = ui.visuals().widgets.hovered.bg_fill;
+        ui.spacing_mut().button_padding = egui::vec2(6.0, 2.0);
+
+        Icon::CLOSE.size(10.0).frame(true).show(&mut ui)
+    }
     pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Response {
         let mut resp = Response::default();
-        let results_resp = ui
-            .vertical_centered(|ui| {
+        let results_resp = egui::Frame::default()
+            .inner_margin(egui::Margin::symmetric(10.0, 10.0))
+            .show(ui, |ui| {
+                self.set_style(ui);
                 // draw the UI, get the query, possibly clear the query & search results
                 let Ok(mut query) = self.query.lock() else { return None };
 
@@ -51,37 +103,25 @@ impl FullDocSearch {
                     resp.advance_focus = true;
                 }
 
+                let x_margin_with_icon = Self::X_MARGIN + Self::ICON_WIDTH;
+                let icon_shelf_width = 155.0;
                 let output = egui::TextEdit::singleline(query.deref_mut())
                     .id(id)
-                    .desired_width(ui.available_size_before_wrap().x - 5.0)
+                    .desired_width(ui.available_size_before_wrap().x - icon_shelf_width)
                     .hint_text("Search")
-                    .margin(egui::vec2(Self::X_MARGIN, 9.0))
+                    .margin(egui::Margin::symmetric(x_margin_with_icon, 6.0))
                     .show(ui);
 
-                let search_icon_width = 15.0; // approximation
-                let is_text_clipped =
-                    output.galley.rect.width() + Self::X_MARGIN * 2.0 + search_icon_width
-                        > output.response.rect.width();
+                resp.search_box_rect = Some(output.response.interact_rect);
 
-                if !is_text_clipped {
-                    ui.allocate_ui_at_rect(output.response.rect, |ui| {
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            ui.add_space(10.0);
+                self.show_search_icon(ui, output.response.rect);
 
-                            if query.is_empty() {
-                                Icon::SEARCH.color(egui::Color32::GRAY).show(ui);
-                            } else {
-                                ui.spacing_mut().button_padding = egui::vec2(0.0, 0.0);
-                                if Button::default().icon(&Icon::CLOSE).show(ui).clicked() {
-                                    if let Ok(mut results) = self.results.lock() {
-                                        // note: at this point both locks held simultaneously with order query -> results
-                                        query.clear();
-                                        results.clear();
-                                    }
-                                }
-                            }
-                        });
-                    });
+                if !query.is_empty() && self.show_x_icon(ui, output.response.rect).clicked() {
+                    if let Ok(mut results) = self.results.lock() {
+                        // note: at this point both locks held simultaneously with order query -> results
+                        query.clear();
+                        results.clear();
+                    }
                 };
 
                 mem::drop(query);
@@ -123,6 +163,7 @@ impl FullDocSearch {
                             }
                         });
                     }
+                    ui.add_space(5.0);
                     egui::ScrollArea::vertical()
                         .show(ui, |ui| self.show_results(ui, core))
                         .inner
@@ -131,13 +172,12 @@ impl FullDocSearch {
                 }
             })
             .inner;
-
         resp.file_to_open = results_resp;
         resp
     }
 
     pub fn show_results(&mut self, ui: &mut egui::Ui, core: &Lb) -> Option<Uuid> {
-        ui.add_space(20.0);
+        ui.add_space(10.0);
 
         let Ok(results) = self.results.lock() else { return None };
 
@@ -222,7 +262,7 @@ impl FullDocSearch {
     fn show_content_match(&self, ui: &mut egui::Ui, content_match: &ContentMatch, font_size: f32) {
         let matched_indices = &content_match.matched_indices;
         let str = content_match.paragraph.clone();
-        let highlight_color = ui.visuals().widgets.active.bg_fill.linear_multiply(0.5);
+        let highlight_color = ui.visuals().widgets.active.bg_fill.gamma_multiply(0.5);
 
         let mut curr = 0;
         let mut next;

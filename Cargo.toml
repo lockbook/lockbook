@@ -1,25 +1,25 @@
 [workspace]
 
-resolver="2"
+resolver = "2"
 
 members = [
-	"libs/lb/lb-rs",
-	"libs/lb/test_utils",
-	"libs/content/editor/egui_editor",
-	"libs/content/workspace",
-	"libs/content/workspace-ffi",
-	"libs/lb-fs",
-	"server",
-	"clients/cli",
-	"clients/egui",
-	"clients/linux",
-	"clients/windows",
-	"clients/admin",
-	"utils/dev-tool",
-	"utils/releaser",
-	"utils/winstaller",
-	"public-site/trunk",
-    "libs/lb/lb-c", "libs/lb/lb-java",
+    "libs/lb/lb-rs",
+    "libs/lb/test_utils",
+    "libs/content/workspace",
+    "libs/content/workspace-ffi",
+    "libs/lb-fs",
+    "server",
+    "clients/cli",
+    "clients/egui",
+    "clients/linux",
+    "clients/windows",
+    "clients/admin",
+    "utils/lbdev",
+    "utils/winstaller",
+    "public-site/trunk",
+    "libs/lb/lb-c",
+    "libs/lb/lb-java",
+    "libs/content/egui_wgpu_renderer",
 ]
 
 # restore for big binaries but good backtraces

@@ -2,7 +2,8 @@ use super::coordinator::{Coordinator, CoordinatorState};
 use basic_human_duration::ChronoHumanDuration;
 use itertools::Itertools;
 use std::sync::atomic::Ordering;
-use std::{thread, time::Duration};
+use std::thread;
+use web_time::Duration;
 
 impl Coordinator {
     pub fn print_stats_until_done(&self) {

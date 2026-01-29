@@ -1,21 +1,20 @@
 use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
-use jni::objects::{JClass, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
-use lb_c::model::text::offset_types::DocCharOffset;
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
+use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::svg_editor::Tool;
-use workspace_rs::tab::TabContent;
-use workspace_rs::tab::{ContentState, ExtendedInput};
+use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     env: JNIEnv, _: JClass, obj: jlong,
 ) -> jstring {
@@ -63,21 +62,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
-    obj.raw_input.modifiers = modifiers;
+    obj.renderer.raw_input.modifiers = modifiers;
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 
     if pressed == 1 && (modifiers.shift_only() || modifiers.is_none()) && key.valid_text() {
         let text: String = match env.get_string(&content) {
             Ok(cont) => cont.into(),
-            Err(err) => format!("# The error is: {:?}", err),
+            Err(err) => format!("# The error is: {err:?}"),
         };
 
-        obj.raw_input.events.push(egui::Event::Text(text));
+        obj.renderer.raw_input.events.push(egui::Event::Text(text));
     }
 
     if let Some(key) = key.egui_key() {
-        obj.raw_input.events.push(egui::Event::Key {
+        obj.renderer.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
             pressed: pressed == 1,
@@ -94,7 +93,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     if let Ok(text) = env.get_string(&content) {
-        obj.raw_input.events.push(egui::Event::Text(text.into()));
+        obj.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Text(text.into()));
     }
 }
 
@@ -104,7 +106,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
 ) {
     let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
@@ -112,12 +114,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers: Default::default(),
+        });
 }
 
 #[no_mangle]
@@ -126,7 +131,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
@@ -134,7 +139,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
         force: Some(pressure),
     });
 
-    obj.raw_input
+    obj.renderer
+        .raw_input
         .events
         .push(egui::Event::PointerMoved(Pos2 { x, y }));
 }
@@ -145,7 +151,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::End,
@@ -153,14 +159,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerButton {
-        pos: Pos2 { x, y },
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Default::default(),
-    });
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos: Pos2 { x, y },
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[no_mangle]
@@ -169,7 +178,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.raw_input.events.push(egui::Event::Touch {
+    obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
@@ -177,7 +186,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         force: Some(pressure),
     });
 
-    obj.raw_input.events.push(egui::Event::PointerGone);
+    obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
 #[derive(Debug, Serialize)]
@@ -192,27 +201,26 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let status = WsStatus {
-        syncing: obj.workspace.visibly_syncing(),
-        msg: obj.workspace.status.message.clone(),
-    };
+    let lb_status = obj.workspace.core.status();
 
-    return env
-        .new_string(serde_json::to_string(&status).unwrap())
+    let status = WsStatus { syncing: lb_status.syncing, msg: lb_status.msg().unwrap_or_default() };
+
+    env.new_string(serde_json::to_string(&status).unwrap())
         .expect("Couldn't create JString from rust string!")
-        .into_raw();
+        .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
-    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
-) {
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    obj.workspace.open_file(id, new_file == 1, true);
+    obj.workspace.open_file(id, true, true);
+    get_current_tab(obj)
 }
 
 // todo: can't close non-file tabs (mind map)
@@ -232,6 +240,21 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         .position(|tab| tab.id() == Some(id))
     {
         obj.workspace.close_tab(tab_id);
+    } else {
+        for i in 0..obj.workspace.tabs.len() {
+            obj.workspace.close_tab(i);
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
+    mut _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    for i in 0..obj.workspace.tabs.len() {
+        obj.workspace.close_tab(i);
     }
 }
 
@@ -242,6 +265,29 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     obj.workspace.show_tabs = show == 1;
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobjectArray {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let ids = obj.workspace.tabs.iter().filter_map(|t| t.id());
+
+    let string_class = env.find_class("java/lang/String").unwrap();
+
+    let arr = env
+        .new_object_array(ids.clone().count() as i32, string_class, JObject::null())
+        .unwrap();
+
+    for (i, id) in ids.enumerate() {
+        let id = env.new_string(id.to_string()).unwrap();
+        env.set_object_array_element(&arr, i as i32, JObject::from(id))
+            .unwrap();
+    }
+
+    arr.into_raw()
 }
 
 #[no_mangle]
@@ -258,6 +304,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    get_current_tab(obj)
+}
+
+fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
     match obj.workspace.current_tab() {
         Some(tab) => match &tab.content {
             ContentState::Open(tab) => match tab {
@@ -267,6 +317,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
                 TabContent::Pdf(_) => 5,
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
+                TabContent::SpaceInspector(_) => 8,
             },
             _ => 1,
         },
@@ -310,7 +361,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 
@@ -344,7 +395,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
@@ -377,12 +428,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         None => return,
     };
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position()),
         },
         text: "".to_string(),
+        advance_cursor: false,
     })
 }
 
@@ -394,15 +446,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(start as usize)),
             end: Location::DocCharOffset(DocCharOffset(end as usize)),
         },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -414,14 +467,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(DocCharOffset(index as usize));
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -438,14 +492,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("error: {:?}", err),
+        Err(err) => format!("error: {err:?}"),
     };
 
     let loc = Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position());
 
-    obj.context.push_markdown_event(Event::Replace {
+    obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
         text,
+        advance_cursor: true,
     })
 }
 
@@ -461,7 +516,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
             return env
                 .new_string("")
                 .expect("Couldn't create JString from rust string!")
-                .into_raw()
+                .into_raw();
         }
     };
 
@@ -484,7 +539,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 
     let segs = &markdown.buffer.current.segs;
 
-    obj.context.push_markdown_event(Event::Select {
+    obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(segs.last_cursor_position()),
@@ -497,7 +552,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCut(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Event::Cut);
+    obj.renderer.context.push_markdown_event(Event::Cut);
 }
 
 #[no_mangle]
@@ -505,7 +560,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.context.push_markdown_event(Event::Copy);
+    obj.renderer.context.push_markdown_event(Event::Copy);
 }
 
 #[no_mangle]
@@ -516,10 +571,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
 
     let content: String = match env.get_string(&content) {
         Ok(cont) => cont.into(),
-        Err(err) => format!("# The error is: {:?}", err),
+        Err(err) => format!("# The error is: {err:?}"),
     };
 
-    obj.raw_input.events.push(egui::Event::Paste(content));
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::Paste(content));
 }
 
 #[no_mangle]
@@ -530,10 +588,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
 
     if let Some(svg) = obj.workspace.current_tab_svg_mut() {
         if select == 1 {
-            svg.toolbar.set_tool(Tool::Eraser);
-        } else if svg.toolbar.active_tool == Tool::Eraser {
             svg.toolbar
-                .set_tool(svg.toolbar.previous_tool.unwrap_or(Tool::Pen));
+                .set_tool(Tool::Eraser, &mut svg.settings, &mut svg.cfg);
+        } else if svg.toolbar.active_tool == Tool::Eraser {
+            svg.toolbar.set_tool(
+                svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
+                &mut svg.settings,
+                &mut svg.cfg,
+            );
         }
     }
 }

@@ -7,5 +7,10 @@
         android:icon="@drawable/ic_round_search_24"
         android:title="@string/search"
         app:showAsAction="always"/>
+    <item
+        android:id="@+id/menu_files_list_open_ws"
+        android:icon="@drawable/ic_baseline_right_panel_open_24"
+        android:title="@string/open_ws"
+        app:showAsAction="always"/>
 
 </menu>

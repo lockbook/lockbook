@@ -17,7 +17,7 @@ extension Array<LbSearchResult> {
     }
 }
 
-public enum SearchResult: Identifiable {
+public enum SearchResult: Identifiable, Comparable {
     public var id: AnyHashable {
         switch self {
         case .path(let result):
@@ -52,23 +52,18 @@ extension Array<LbPathSearchResult> {
     }
 }
 
-public struct PathSearchResult: Hashable {
+public struct PathSearchResult: Hashable, Comparable {
     public let id: UUID
     public let path: String
     public let score: Int64
     public let matchedIndicies: [UInt]
     
-    public lazy var nameAndPath: (String, String) = {
-        let components = path.split(separator: "/")
-        
-        let name = String(components.last ?? "ERROR")
-        let path = components.dropLast().joined(separator: "/")
-                
-        return (name, path)
-    }()
-        
-    public func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
+    // For previews
+    public init(id: UUID, path: String, score: Int64, matchedIndicies: [UInt]) {
+        self.id = id
+        self.path = path
+        self.score = score
+        self.matchedIndicies = matchedIndicies
     }
     
     init(_ res: LbPathSearchResult) {
@@ -76,6 +71,19 @@ public struct PathSearchResult: Hashable {
         self.path = String(cString: res.path)
         self.score = res.score
         self.matchedIndicies = Array(UnsafeBufferPointer(start: res.matched_indicies, count: Int(res.matched_indicies_len)))
+    }
+        
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+        hasher.combine(matchedIndicies)
+    }
+    
+    public static func <(lhs: PathSearchResult, rhs: PathSearchResult) -> Bool {
+        if lhs.score == rhs.score {
+            return lhs.path < rhs.path
+        }
+        
+        return lhs.score > rhs.score
     }
 }
 
@@ -91,29 +99,31 @@ extension Array<LbDocumentSearchResult> {
     }
 }
 
-public struct DocumentSearchResult: Hashable {
+public struct DocumentSearchResult: Hashable, Comparable {
     public let id: UUID
     public let path: String
     public let contentMatches: [ContentMatch]
     
-    public lazy var nameAndPath: (String, String) = {
-        let components = path.split(separator: "/")
-        
-        let name = String(components.last ?? "ERROR")
-        let path = components.dropLast().joined(separator: "/")
-                
-        return (name, path)
-    }()
+    init(_ res: LbDocumentSearchResult) {
+        self.id = res.id.toUUID()
+        self.path = String(cString: res.path)
+        self.contentMatches = Array(UnsafeBufferPointer(start: res.content_matches, count: Int(res.content_matches_len))).toContentMatches()
+    }
     
     public func hash(into hasher: inout Hasher) {
         hasher.combine(id)
         hasher.combine(contentMatches)
     }
     
-    init(_ res: LbDocumentSearchResult) {
-        self.id = res.id.toUUID()
-        self.path = String(cString: res.path)
-        self.contentMatches = Array(UnsafeBufferPointer(start: res.content_matches, count: Int(res.content_matches_len))).toContentMatches()
+    public static func <(lhs: DocumentSearchResult, rhs: DocumentSearchResult) -> Bool {
+        let lhsScore = Int(lhs.contentMatches.map({ $0.score }).reduce(0, +)) / lhs.contentMatches.count
+        let rhsScore = Int(rhs.contentMatches.map({ $0.score }).reduce(0, +)) / rhs.contentMatches.count
+        
+        if lhsScore == rhsScore {
+            return lhs.path < rhs.path
+        }
+        
+        return lhsScore < rhsScore
     }
 }
 

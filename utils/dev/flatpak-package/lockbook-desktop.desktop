@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Comment=The private, polished note-taking platform.
+Terminal=false
+Exec=lockbook-linux
+Name=Lockbook
+Icon=net.lockbook.Lockbook

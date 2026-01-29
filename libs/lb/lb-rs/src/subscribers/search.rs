@@ -1,41 +1,29 @@
-use crate::model::errors::{LbErr, LbErrKind, LbResult, UnexpectedError};
-use crate::model::filename::DocumentType;
+use crate::model::errors::{LbResult, Unexpected};
+use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::Lb;
-use futures::stream::{self, FuturesUnordered, StreamExt, TryStreamExt};
+use crate::{Lb, spawn};
 use serde::Serialize;
-use std::collections::HashMap;
-use std::num::NonZeroUsize;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::ops::Range;
 use std::sync::Arc;
-use std::thread;
-use sublime_fuzzy::{FuzzySearch, Scoring};
+use std::sync::atomic::AtomicBool;
+use tantivy::collector::TopDocs;
+use tantivy::query::QueryParser;
+use tantivy::schema::{INDEXED, STORED, Schema, TEXT, Value};
+use tantivy::snippet::SnippetGenerator;
+use tantivy::{Index, IndexReader, IndexWriter, ReloadPolicy, TantivyDocument, Term, doc};
 use tokio::sync::RwLock;
 use uuid::Uuid;
-use web_time::Duration;
 
-const CONTENT_SCORE_THRESHOLD: i64 = 170;
-const PATH_SCORE_THRESHOLD: i64 = 10;
 const CONTENT_MAX_LEN_BYTES: usize = 128 * 1024; // 128kb
 
-const MAX_CONTENT_MATCH_LENGTH: usize = 400;
-const IDEAL_CONTENT_MATCH_LENGTH: usize = 150;
-const CONTENT_MATCH_PADDING: usize = 8;
-
-const FUZZY_WEIGHT: f32 = 0.8;
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SearchIndex {
-    pub building_index: Arc<AtomicBool>,
-    pub index: Arc<RwLock<Vec<SearchIndexEntry>>>,
-}
+    pub ready: Arc<AtomicBool>,
 
-#[derive(Debug)]
-pub struct SearchIndexEntry {
-    pub id: Uuid,
-    pub path: String,
-    pub content: Option<String>,
+    pub metadata_index: Arc<RwLock<SearchMetadata>>,
+    pub tantivy_index: Index,
+    pub tantivy_reader: IndexReader,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -49,6 +37,264 @@ pub enum SearchConfig {
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
+}
+
+impl Lb {
+    /// Lockbook's search implementation.
+    ///
+    /// Takes an input and a configuration. The configuration describes whether we are searching
+    /// paths, documents or both.
+    ///
+    /// Document searches are handled by [tantivy](https://github.com/quickwit-oss/tantivy), and as
+    /// such support [tantivy's advanced query
+    /// syntax](https://docs.rs/tantivy/latest/tantivy/query/struct.QueryParser.html).
+    /// In the future we plan to ingest a bunch of metadata and expose a full advanced search mode.
+    ///
+    /// Path searches are implemented as a subsequence filter with a number of hueristics to sort
+    /// the results. Preference is given to shorter paths, filename matches, suggested docs, and
+    /// documents that are editable in platform.
+    ///
+    /// Additionally if a path search contains a string, greater than 8 characters long that is
+    /// contained within any of the paths in the search index, that result is returned with the
+    /// highest score. lb:// style ids are also supported.
+    #[instrument(level = "debug", skip(self, input), err(Debug))]
+    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
+        // show suggested docs if the input string is empty
+        if input.is_empty() {
+            return self.search.metadata_index.read().await.empty_search();
+        }
+
+        match cfg {
+            SearchConfig::Paths => {
+                let mut results = self.search.metadata_index.read().await.path_search(input)?;
+                results.truncate(5);
+                Ok(results)
+            }
+            SearchConfig::Documents => {
+                let mut results = self.search_content(input).await?;
+                results.truncate(10);
+                Ok(results)
+            }
+            SearchConfig::PathsAndDocuments => {
+                let mut results = self.search.metadata_index.read().await.path_search(input)?;
+                results.truncate(4);
+                results.append(&mut self.search_content(input).await?);
+                Ok(results)
+            }
+        }
+    }
+
+    async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
+        let searcher = self.search.tantivy_reader.searcher();
+        let schema = self.search.tantivy_index.schema();
+        let id_field = schema.get_field("id").unwrap();
+        let content = schema.get_field("content").unwrap();
+
+        let query_parser = QueryParser::for_index(&self.search.tantivy_index, vec![content]);
+        let mut results = vec![];
+
+        if let Ok(query) = query_parser.parse_query(input) {
+            let mut snippet_generator =
+                SnippetGenerator::create(&searcher, &query, content).map_unexpected()?;
+            snippet_generator.set_max_num_chars(100);
+
+            let top_docs = searcher
+                .search(&query, &TopDocs::with_limit(10))
+                .map_unexpected()?;
+
+            for (_score, doc_address) in top_docs {
+                let retrieved_doc: TantivyDocument = searcher.doc(doc_address).map_unexpected()?;
+                let id = Uuid::from_slice(
+                    retrieved_doc
+                        .get_first(id_field)
+                        .map(|val| val.as_bytes().unwrap_or_default())
+                        .unwrap_or_default(),
+                )
+                .map_unexpected()?;
+
+                let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
+                let path = self
+                    .search
+                    .metadata_index
+                    .read()
+                    .await
+                    .paths
+                    .iter()
+                    .find(|(path_id, _)| *path_id == id)
+                    .map(|(_, path)| path.to_string())
+                    .unwrap_or_default();
+
+                results.push(SearchResult::DocumentMatch {
+                    id,
+                    path,
+                    content_matches: vec![ContentMatch {
+                        paragraph: snippet.fragment().to_string(),
+                        matched_indices: Self::highlight_to_matches(snippet.highlighted()),
+                        score: 0,
+                    }],
+                });
+            }
+        }
+        Ok(results)
+    }
+
+    fn highlight_to_matches(ranges: &[Range<usize>]) -> Vec<usize> {
+        let mut matches = vec![];
+        for range in ranges {
+            for i in range.clone() {
+                matches.push(i);
+            }
+        }
+
+        matches
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn build_index(&self) -> LbResult<()> {
+        // if we haven't signed in yet, we'll leave our index entry and our event subscriber will
+        // handle the state change
+        if self.keychain.get_account().is_err() {
+            return Ok(());
+        }
+
+        let new_metadata = SearchMetadata::populate(self).await?;
+
+        let (deleted_ids, all_current_ids) = {
+            let mut current_metadata = self.search.metadata_index.write().await;
+            let deleted = new_metadata.compute_deleted(&current_metadata);
+            let current = new_metadata.files.iter().map(|f| f.id).collect::<Vec<_>>();
+            *current_metadata = new_metadata;
+            (deleted, current)
+        };
+
+        self.update_tantivy(deleted_ids, all_current_ids).await;
+
+        Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self))]
+    pub fn setup_search(&self) {
+        if self.config.background_work {
+            let lb = self.clone();
+            let mut rx = self.subscribe();
+            spawn!(async move {
+                lb.build_index().await.unwrap();
+                loop {
+                    let evt = match rx.recv().await {
+                        Ok(evt) => evt,
+                        Err(err) => {
+                            error!("failed to receive from a channel {err}");
+                            return;
+                        }
+                    };
+
+                    match evt {
+                        Event::MetadataChanged => {
+                            if let Some(replacement_index) =
+                                SearchMetadata::populate(&lb).await.log_and_ignore()
+                            {
+                                let current_index = lb.search.metadata_index.read().await.clone();
+                                let deleted_ids = replacement_index.compute_deleted(&current_index);
+                                *lb.search.metadata_index.write().await = replacement_index;
+                                lb.update_tantivy(deleted_ids, vec![]).await;
+                            }
+                        }
+                        Event::DocumentWritten(id, _) => {
+                            lb.update_tantivy(vec![id], vec![id]).await;
+                        }
+                        _ => {}
+                    };
+                }
+            });
+        }
+    }
+
+    async fn update_tantivy(&self, delete: Vec<Uuid>, add: Vec<Uuid>) {
+        let mut index_writer: IndexWriter = self.search.tantivy_index.writer(50_000_000).unwrap();
+        let schema = self.search.tantivy_index.schema();
+        let id_field = schema.get_field("id").unwrap();
+        let id_str = schema.get_field("id_str").unwrap();
+        let content = schema.get_field("content").unwrap();
+
+        for id in delete {
+            let term = Term::from_field_bytes(id_field, id.as_bytes());
+            index_writer.delete_term(term);
+        }
+
+        for id in add {
+            let id_bytes = id.as_bytes().as_slice();
+            let id_string = id.to_string();
+            let Some(file) = self
+                .search
+                .metadata_index
+                .read()
+                .await
+                .files
+                .iter()
+                .find(|f| f.id == id)
+                .cloned()
+            else {
+                continue;
+            };
+
+            if !file.name.ends_with(".md") || file.is_folder() {
+                continue;
+            };
+
+            let Ok(doc) = String::from_utf8(self.read_document(file.id, false).await.unwrap())
+            else {
+                continue;
+            };
+
+            if doc.len() > CONTENT_MAX_LEN_BYTES {
+                continue;
+            };
+
+            index_writer
+                .add_document(doc!(
+                    id_field => id_bytes,
+                    id_str => id_string,
+                    content => doc,
+                ))
+                .unwrap();
+        }
+
+        index_writer.commit().unwrap();
+    }
+}
+
+impl Default for SearchIndex {
+    fn default() -> Self {
+        let mut schema_builder = Schema::builder();
+        schema_builder.add_bytes_field("id", INDEXED | STORED);
+        schema_builder.add_text_field("id_str", TEXT | STORED);
+        schema_builder.add_text_field("content", TEXT | STORED);
+
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema.clone());
+
+        // doing this here would be a bad idea if not for in-ram empty index
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommitWithDelay)
+            .try_into()
+            .unwrap();
+
+        Self {
+            ready: Default::default(),
+            tantivy_index: index,
+            tantivy_reader: reader,
+            metadata_index: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ContentMatch {
+    pub paragraph: String,
+    pub matched_indices: Vec<usize>,
+    pub score: i64,
 }
 
 impl SearchResult {
@@ -67,7 +313,7 @@ impl SearchResult {
     pub fn name(&self) -> &str {
         match self {
             SearchResult::DocumentMatch { path, .. } | SearchResult::PathMatch { path, .. } => {
-                path.split('/').last().unwrap_or_default()
+                path.split('/').next_back().unwrap_or_default()
             }
         }
     }
@@ -84,390 +330,182 @@ impl SearchResult {
     }
 }
 
-impl Lb {
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        // for cli style invocations nothing will have built the search index yet
-        if !self.config.background_work {
-            self.build_index().await?;
-        }
+#[derive(Default, Clone)]
+pub struct SearchMetadata {
+    files: Vec<File>,
+    paths: Vec<(Uuid, String)>,
+    suggested_docs: Vec<Uuid>,
+}
 
-        // show suggested docs if the input string is empty
-        if input.is_empty() {
-            match cfg {
-                SearchConfig::Paths | SearchConfig::PathsAndDocuments => {
-                    return stream::iter(self.suggested_docs(RankingWeights::default()).await?)
-                        .then(|id| async move {
-                            Ok(SearchResult::PathMatch {
-                                id,
-                                path: self.get_path_by_id(id).await?,
-                                matched_indices: vec![],
-                                score: 0,
-                            })
-                        })
-                        .try_collect()
-                        .await;
-                }
-                SearchConfig::Documents => return Ok(vec![]),
+impl SearchMetadata {
+    async fn populate(lb: &Lb) -> LbResult<Self> {
+        let files = lb.list_metadatas().await?;
+        let paths = lb.list_paths_with_ids(None).await?;
+        let suggested_docs = lb.suggested_docs(RankingWeights::default()).await?;
+
+        Ok(SearchMetadata { files, paths, suggested_docs })
+    }
+
+    fn compute_deleted(&self, old: &SearchMetadata) -> Vec<Uuid> {
+        let mut deleted_ids = vec![];
+
+        for old_file in &old.files {
+            if !self.files.iter().any(|new_f| new_f.id == old_file.id) {
+                deleted_ids.push(old_file.id);
             }
         }
 
-        // if the index is empty wait patiently for it become available
-        let mut retries = 0;
-        loop {
-            if self.search.index.read().await.is_empty() {
-                warn!("search index was empty, waiting 50ms");
-                tokio::time::sleep(Duration::from_millis(50)).await;
-                retries += 1;
+        deleted_ids
+    }
 
-                if retries == 20 {
-                    error!("could not aquire search index after 20x(50ms) retries.");
-                    return Err(LbErr::from(LbErrKind::Unexpected(
-                        "failed to search, index not available".to_string(),
-                    )));
-                }
-            } else {
-                break;
-            }
+    fn empty_search(&self) -> LbResult<Vec<SearchResult>> {
+        let mut results = vec![];
+
+        for id in &self.suggested_docs {
+            let path = self
+                .paths
+                .iter()
+                .find(|(path_id, _)| id == path_id)
+                .map(|(_, path)| path.clone())
+                .unwrap_or_default();
+
+            results.push(SearchResult::PathMatch {
+                id: *id,
+                path,
+                matched_indices: vec![],
+                score: 0,
+            });
         }
 
-        let mut results = match cfg {
-            SearchConfig::Paths => self.search.search_paths(input).await?,
-            SearchConfig::Documents => self.search.search_content(input).await?,
-            SearchConfig::PathsAndDocuments => {
-                let (paths, docs) = tokio::join!(
-                    self.search.search_paths(input),
-                    self.search.search_content(input)
-                );
-                paths?.into_iter().chain(docs?.into_iter()).collect()
-            }
+        Ok(results)
+    }
+
+    fn path_search(&self, query: &str) -> LbResult<Vec<SearchResult>> {
+        let mut results = self.path_candidates(query)?;
+        self.score_paths(&mut results);
+
+        results.sort_by_key(|r| -r.score());
+
+        if let Some(result) = self.id_match(query) {
+            results.insert(0, result);
+        }
+
+        Ok(results)
+    }
+
+    fn id_match(&self, query: &str) -> Option<SearchResult> {
+        if query.len() < 8 {
+            return None;
+        }
+
+        let query = if query.starts_with("lb://") {
+            query.replacen("lb://", "", 1)
+        } else {
+            query.to_string()
         };
 
-        results.sort_unstable_by_key(|r| -r.score());
-        results.truncate(10);
+        for (id, path) in &self.paths {
+            if id.to_string().contains(&query) {
+                return Some(SearchResult::PathMatch {
+                    id: *id,
+                    path: path.clone(),
+                    matched_indices: vec![],
+                    score: 100,
+                });
+            }
+        }
 
-        Ok(results)
+        None
     }
 
-    #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn build_index(&self) -> LbResult<()> {
-        // if we haven't signed in yet, we'll leave our index entry and our event subscriber will
-        // handle the state change
-        if self.keychain.get_account().is_err() {
-            return Ok(());
-        }
+    fn path_candidates(&self, query: &str) -> LbResult<Vec<SearchResult>> {
+        let mut search_results = vec![];
 
-        // some other caller has already built this index, subscriber will keep it up to date
-        if self.search.building_index.swap(true, Ordering::AcqRel) {
-            return Ok(());
-        }
+        for (id, path) in &self.paths {
+            let mut matched_indices = vec![];
 
-        let mut tasks = vec![];
-        for file in self.list_metadatas().await? {
-            let id = file.id;
-            let is_doc_searchable =
-                DocumentType::from_file_name_using_extension(&file.name) == DocumentType::Text;
+            let mut query_iter = query.chars().rev();
+            let mut current_query_char = query_iter.next();
 
-            tasks.push(async move {
-                let (path, content) = if is_doc_searchable {
-                    let (path, doc) =
-                        tokio::join!(self.get_path_by_id(id), self.read_document(id, false));
-
-                    let path = path?;
-
-                    let doc = doc?;
-                    let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES {
-                        None
-                    } else {
-                        Some(String::from_utf8_lossy(&doc).to_string())
-                    };
-
-                    (path, doc)
+            for (path_ind, path_char) in path.char_indices().rev() {
+                if let Some(qc) = current_query_char {
+                    if qc.eq_ignore_ascii_case(&path_char) {
+                        matched_indices.push(path_ind);
+                        current_query_char = query_iter.next();
+                    }
                 } else {
-                    (self.get_path_by_id(id).await?, None)
-                };
-
-                Ok::<SearchIndexEntry, LbErr>(SearchIndexEntry { id, path, content })
-            });
-        }
-
-        let mut results = stream::iter(tasks).buffer_unordered(
-            thread::available_parallelism()
-                .unwrap_or(NonZeroUsize::new(4).unwrap())
-                .into(),
-        );
-        let mut replacement_index = vec![];
-        while let Some(res) = results.next().await {
-            replacement_index.push(res?);
-        }
-
-        // swap in replacement index (index lock)
-        *self.search.index.write().await = replacement_index;
-
-        Ok(())
-    }
-
-    #[instrument(level = "debug", skip(self))]
-    pub fn setup_search(&self) {
-        if self.config.background_work {
-            let lb = self.clone();
-            let mut rx = self.subscribe();
-            tokio::spawn(async move {
-                lb.build_index().await.unwrap();
-                loop {
-                    let evt = match rx.recv().await {
-                        Ok(evt) => evt,
-                        Err(err) => {
-                            error!("failed to receive from a channel {err}");
-                            return;
-                        }
-                    };
-
-                    match evt {
-                        Event::MetadataChanged => {
-                            let mut id = lb.root().await.unwrap().id;
-
-                            // if this file is deleted recompute all our metadata
-                            if lb.get_file_by_id(id).await.is_err() {
-                                id = lb.root().await.unwrap().id;
-                            }
-
-                            // compute info for this update up-front
-                            let files = lb.list_metadatas().await.unwrap();
-                            let all_file_ids: Vec<Uuid> = files.into_iter().map(|f| f.id).collect();
-                            let children = lb.get_and_get_children_recursively(&id).await.unwrap();
-                            let mut paths = HashMap::new();
-                            for child in children {
-                                // todo: ideally this would be a single efficient core call
-                                paths.insert(child.id, lb.get_path_by_id(child.id).await.unwrap());
-                            }
-
-                            // aquire the lock
-                            let mut index = lb.search.index.write().await;
-
-                            // handle deletions
-                            index.retain(|entry| all_file_ids.contains(&entry.id));
-
-                            // update any of the paths of this file and the children
-                            for entry in index.iter_mut() {
-                                if paths.contains_key(&entry.id) {
-                                    entry.path = paths.remove(&entry.id).unwrap();
-                                }
-                            }
-
-                            // handle any remaining, new metadata
-                            for (id, path) in paths {
-                                // any content should come in as a result of DocumentWritten
-                                index.push(SearchIndexEntry { id, path, content: None });
-                            }
-                        }
-
-                        Event::DocumentWritten(id) => {
-                            let file = lb.get_file_by_id(id).await.unwrap();
-                            let is_searchable =
-                                DocumentType::from_file_name_using_extension(&file.name)
-                                    == DocumentType::Text;
-
-                            let doc = lb.read_document(id, false).await.unwrap();
-                            let doc = if doc.len() >= CONTENT_MAX_LEN_BYTES || !is_searchable {
-                                None
-                            } else {
-                                Some(String::from_utf8_lossy(&doc).to_string())
-                            };
-
-                            let mut index = lb.search.index.write().await;
-                            let mut found = false;
-                            // todo: consider warn! when doc not found
-                            for entries in index.iter_mut() {
-                                if entries.id == id {
-                                    entries.content = doc;
-                                    found = true;
-                                    break;
-                                }
-                            }
-
-                            if !found {
-                                warn!("could {file:?} not insert doc into index");
-                            }
-                        }
-
-                        _ => {}
-                    };
+                    break;
                 }
-            });
+            }
+
+            if current_query_char.is_none() {
+                search_results.push(SearchResult::PathMatch {
+                    id: *id,
+                    path: path.clone(),
+                    matched_indices,
+                    score: 0,
+                });
+            }
         }
+        Ok(search_results)
     }
-}
 
-impl SearchIndex {
-    async fn search_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        let docs_guard = self.index.read().await; // read lock held for the whole fn
+    fn score_paths(&self, candidates: &mut [SearchResult]) {
+        // tunable bonuses for path search
+        let smaller_paths = 10;
+        let suggested = 10;
+        let filename = 30;
+        let editable = 3;
 
-        let mut results = Vec::new();
-        for doc in docs_guard.iter() {
-            if let Some(p_match) = FuzzySearch::new(input, &doc.path)
-                .case_insensitive()
-                .score_with(&Scoring::emphasize_distance())
-                .best_match()
+        candidates.sort_by_key(|a| a.path().len());
+
+        // the 10 smallest paths start with a mild advantage
+        for i in 0..smaller_paths {
+            if let Some(SearchResult::PathMatch { id: _, path: _, matched_indices: _, score }) =
+                candidates.get_mut(i)
             {
-                let score = (p_match.score().min(600) as f32 * FUZZY_WEIGHT) as i64;
+                *score = (smaller_paths - i) as i64;
+            }
+        }
 
-                if score > PATH_SCORE_THRESHOLD {
-                    results.push(SearchResult::PathMatch {
-                        id: doc.id,
-                        path: doc.path.clone(),
-                        matched_indices: p_match.matched_indices().cloned().collect(),
-                        score,
-                    });
+        // items in suggested docs have their score boosted
+        for cand in candidates.iter_mut() {
+            if self.suggested_docs.contains(&cand.id()) {
+                if let SearchResult::PathMatch { id: _, path: _, matched_indices: _, score } = cand
+                {
+                    *score += suggested;
                 }
             }
         }
-        Ok(results)
-    }
 
-    async fn search_content(&self, input: &str) -> LbResult<Vec<SearchResult>> {
-        let search_futures = FuturesUnordered::new();
-        let docs = self.index.read().await;
+        // to what extent is the match in the name of the file
+        for cand in candidates.iter_mut() {
+            if let SearchResult::PathMatch { id: _, path, matched_indices, score } = cand {
+                let mut name_match = 0;
+                let mut name_size = 0;
 
-        for (idx, _) in docs.iter().enumerate() {
-            search_futures.push(async move {
-                let doc = &self.index.read().await[idx];
-                let id = doc.id;
-                let path = &doc.path;
-                let content = &doc.content;
-                if let Some(content) = content {
-                    let mut content_matches = Vec::new();
-
-                    for paragraph in content.split("\n\n") {
-                        if let Some(c_match) = FuzzySearch::new(input, paragraph)
-                            .case_insensitive()
-                            .score_with(&Scoring::emphasize_distance())
-                            .best_match()
-                        {
-                            let score = (c_match.score().min(600) as f32 * FUZZY_WEIGHT) as i64;
-                            let (paragraph, matched_indices) = match Self::optimize_searched_text(
-                                paragraph,
-                                c_match.matched_indices().cloned().collect(),
-                            ) {
-                                Ok((paragraph, matched_indices)) => (paragraph, matched_indices),
-                                Err(_) => continue,
-                            };
-
-                            if score > CONTENT_SCORE_THRESHOLD {
-                                content_matches.push(ContentMatch {
-                                    paragraph,
-                                    matched_indices,
-                                    score,
-                                });
-                            }
-                        }
+                for (i, c) in path.char_indices().rev() {
+                    if c == '/' {
+                        break;
                     }
-
-                    if !content_matches.is_empty() {
-                        return Some(SearchResult::DocumentMatch {
-                            id,
-                            path: path.clone(),
-                            content_matches,
-                        });
+                    name_size += 1;
+                    if matched_indices.contains(&i) {
+                        name_match += 1;
                     }
                 }
-                None
-            });
+
+                let match_portion = name_match as f32 / name_size.max(1) as f32;
+                *score += (match_portion * filename as f32) as i64;
+            }
         }
 
-        Ok(search_futures
-            .collect::<Vec<Option<SearchResult>>>()
-            .await
-            .into_iter()
-            .flatten()
-            .collect::<Vec<SearchResult>>())
+        // if this document is editable in platform
+        for cand in candidates.iter_mut() {
+            if let SearchResult::PathMatch { id: _, path, matched_indices: _, score } = cand {
+                if path.ends_with(".md") || path.ends_with(".svg") {
+                    *score += editable;
+                }
+            }
+        }
     }
-
-    fn optimize_searched_text(
-        paragraph: &str, matched_indices: Vec<usize>,
-    ) -> Result<(String, Vec<usize>), UnexpectedError> {
-        if paragraph.len() <= IDEAL_CONTENT_MATCH_LENGTH {
-            return Ok((paragraph.to_string(), matched_indices));
-        }
-
-        let mut index_offset: usize = 0;
-        let mut new_paragraph = paragraph.to_string();
-        let mut new_indices = matched_indices;
-
-        let first_match = new_indices.first().ok_or_else(|| {
-            warn!("A fuzzy match happened but there are no matched indices.");
-            UnexpectedError::new("No matched indices.".to_string())
-        })?;
-
-        let last_match = new_indices.last().ok_or_else(|| {
-            warn!("A fuzzy match happened but there are no matched indices.");
-            UnexpectedError::new("No matched indices.".to_string())
-        })?;
-
-        if *last_match < IDEAL_CONTENT_MATCH_LENGTH {
-            new_paragraph = new_paragraph
-                .chars()
-                .take(IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING)
-                .chain("...".chars())
-                .collect();
-        } else {
-            if *first_match > CONTENT_MATCH_PADDING {
-                let at_least_take = new_paragraph.len() - first_match + CONTENT_MATCH_PADDING;
-
-                let deleted_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
-                    first_match - CONTENT_MATCH_PADDING
-                } else {
-                    new_paragraph.len() - IDEAL_CONTENT_MATCH_LENGTH
-                };
-
-                index_offset = deleted_chars_len - 3;
-
-                new_paragraph = "..."
-                    .chars()
-                    .chain(new_paragraph.chars().skip(deleted_chars_len))
-                    .collect();
-            }
-
-            if new_paragraph.len() > IDEAL_CONTENT_MATCH_LENGTH + CONTENT_MATCH_PADDING + 3 {
-                let at_least_take = *last_match - index_offset + CONTENT_MATCH_PADDING;
-
-                let take_chars_len = if at_least_take > IDEAL_CONTENT_MATCH_LENGTH {
-                    at_least_take
-                } else {
-                    IDEAL_CONTENT_MATCH_LENGTH
-                };
-
-                new_paragraph = new_paragraph
-                    .chars()
-                    .take(take_chars_len)
-                    .chain("...".chars())
-                    .collect();
-            }
-
-            if new_paragraph.len() > MAX_CONTENT_MATCH_LENGTH {
-                new_paragraph = new_paragraph
-                    .chars()
-                    .take(MAX_CONTENT_MATCH_LENGTH)
-                    .chain("...".chars())
-                    .collect();
-
-                new_indices.retain(|index| (*index - index_offset) < MAX_CONTENT_MATCH_LENGTH)
-            }
-        }
-
-        Ok((
-            new_paragraph,
-            new_indices
-                .iter()
-                .map(|index| *index - index_offset)
-                .collect(),
-        ))
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct ContentMatch {
-    pub paragraph: String,
-    pub matched_indices: Vec<usize>,
-    pub score: i64,
 }

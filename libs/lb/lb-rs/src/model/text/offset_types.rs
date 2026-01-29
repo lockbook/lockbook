@@ -1,25 +1,27 @@
-use std::cmp::{max, min, Ordering};
+use std::cmp::{Ordering, max, min};
 use std::fmt::{Debug, Formatter};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
+use serde::{Deserialize, Serialize};
+
 /// A byte position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct DocByteOffset(pub usize);
 
 /// A byte offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct RelByteOffset(pub usize);
 
 /// A character position in a buffer
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct DocCharOffset(pub usize);
 
 /// A character offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
-#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash)]
+#[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
 pub struct RelCharOffset(pub usize);
 
 // rel +/- rel = rel, doc +/- rel = doc, doc - doc = rel
@@ -415,7 +417,7 @@ impl Debug for RelCharOffset {
 }
 
 pub trait RangeExt: Sized {
-    type Element: Copy + Sub<Self::Element>;
+    type Element: Copy + Sub<Self::Element> + Ord;
 
     fn contains(&self, value: Self::Element, start_inclusive: bool, end_inclusive: bool) -> bool;
     fn intersects(
@@ -437,6 +439,9 @@ pub trait RangeExt: Sized {
     }
     fn intersects_allow_empty(&self, other: &(Self::Element, Self::Element)) -> bool {
         self.intersects(other, true)
+    }
+    fn trim(&self, value: &(Self::Element, Self::Element)) -> (Self::Element, Self::Element) {
+        (self.start().max(value.0).min(value.1), self.end().max(value.0).min(value.1))
     }
 }
 
@@ -508,21 +513,21 @@ pub trait RangeIterExt {
     fn iter(self) -> Self::Iter;
 }
 
-impl RangeIterExt for (usize, usize) {
-    type Item = usize;
-    type Iter = RangeIter;
+impl<T: Copy + PartialOrd + AddAssign<usize> + SubAssign<usize>> RangeIterExt for (T, T) {
+    type Item = T;
+    type Iter = RangeIter<T>;
     fn iter(self) -> Self::Iter {
         RangeIter { start_inclusive: self.0, end_exclusive: self.1 }
     }
 }
 
-pub struct RangeIter {
-    start_inclusive: usize,
-    end_exclusive: usize,
+pub struct RangeIter<T> {
+    start_inclusive: T,
+    end_exclusive: T,
 }
 
-impl Iterator for RangeIter {
-    type Item = usize;
+impl<T: Copy + PartialOrd + AddAssign<usize>> Iterator for RangeIter<T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.start_inclusive < self.end_exclusive {
@@ -535,7 +540,9 @@ impl Iterator for RangeIter {
     }
 }
 
-impl DoubleEndedIterator for RangeIter {
+impl<T: Copy + PartialOrd + AddAssign<usize> + SubAssign<usize>> DoubleEndedIterator
+    for RangeIter<T>
+{
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.start_inclusive < self.end_exclusive {
             self.end_exclusive -= 1;
@@ -594,5 +601,10 @@ mod test {
         assert!(!(1, 1).contains(0, true, true));
         assert!((1, 1).contains(1, true, true));
         assert!(!(1, 1).contains(2, true, true));
+    }
+
+    #[test]
+    fn intersects_allow_empty_contained() {
+        assert!((1, 3).intersects(&(2, 2), false));
     }
 }

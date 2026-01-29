@@ -1,9 +1,12 @@
 use egui::DroppedFile;
 use lbeguiapp::WgpuLockbook;
-use windows::{
-    core::*, Win32::Foundation::*, Win32::System::Com::*, Win32::System::Memory::*,
-    Win32::System::Ole::*, Win32::System::SystemServices::*, Win32::UI::Shell::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::System::Com::*;
+use windows::Win32::System::Memory::*;
+use windows::Win32::System::Ole::*;
+use windows::Win32::System::SystemServices::*;
+use windows::Win32::UI::Shell::*;
+use windows::core::*;
 
 #[derive(Clone, Debug)]
 pub enum Message {
@@ -93,7 +96,10 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
 
                 // for unknown reasons, if I don't cast the HGLOBAL to an HDROP and query the file count, the next call to object.GetData fails
                 // (this applies even if the format isn't CF_HDROP)
-                let hdrop = HDROP(unsafe { std::mem::transmute(hglobal) });
+                let hdrop = HDROP(unsafe {
+                    std::mem::transmute::<windows::Win32::Foundation::HGLOBAL, isize>(hglobal)
+                });
+
                 let file_count = unsafe { DragQueryFileW(hdrop, 0xFFFFFFFF, None) };
                 if format == CF_HDROP {
                     for i in 0..file_count {
@@ -104,7 +110,8 @@ pub fn handle(app: &mut WgpuLockbook, object: Option<IDataObject>) -> bool {
                                 .trim_matches(char::from(0))
                                 .into(),
                         );
-                        app.raw_input
+                        app.renderer
+                            .raw_input
                             .dropped_files
                             .push(DroppedFile { path, ..Default::default() });
                     }

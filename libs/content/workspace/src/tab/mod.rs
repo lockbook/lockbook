@@ -1,9 +1,10 @@
-use crate::file_cache::FilesExt as _;
+#[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
+use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
-#[cfg(not(target_family = "wasm"))]
 use crate::tab::pdf_viewer::PdfViewer;
+
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
 use crate::theme::icons::Icon;
@@ -11,30 +12,33 @@ use crate::workspace::Workspace;
 
 use chrono::DateTime;
 use egui::Id;
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
-use lb_rs::Uuid;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
+use urlencoding::decode;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
-#[cfg(not(target_family = "wasm"))]
 pub mod pdf_viewer;
 pub mod svg_editor;
 
 pub struct Tab {
     pub content: ContentState,
+    pub back: Vec<Uuid>,
+    pub forward: Vec<Uuid>,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
 
     pub rename: Option<String>,
     pub is_closing: bool,
+    pub read_only: bool,
 }
 
 impl Tab {
@@ -89,6 +93,7 @@ impl Tab {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn mind_map(&self) -> Option<&MindMap> {
         match &self.content {
             ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
@@ -96,9 +101,24 @@ impl Tab {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn mind_map_mut(&mut self) -> Option<&mut MindMap> {
         match &mut self.content {
             ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
+            _ => None,
+        }
+    }
+
+    pub fn space_inspector(&self) -> Option<&SpaceInspector> {
+        match &self.content {
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
+            _ => None,
+        }
+    }
+
+    pub fn space_inspector_mut(&mut self) -> Option<&mut SpaceInspector> {
+        match &mut self.content {
+            ContentState::Open(TabContent::SpaceInspector(sv)) => Some(sv),
             _ => None,
         }
     }
@@ -143,19 +163,22 @@ impl TabsExt for Vec<Tab> {
     }
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum ContentState {
     Loading(Uuid),
     Open(TabContent),
     Failed(TabFailure),
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum TabContent {
     Image(ImageViewer),
     Markdown(Markdown),
-    #[cfg(not(target_family = "wasm"))]
     Pdf(PdfViewer),
     Svg(SVGEditor),
+    #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
+    SpaceInspector(SpaceInspector),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -163,10 +186,11 @@ impl std::fmt::Debug for TabContent {
         match self {
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
-            #[cfg(not(target_family = "wasm"))]
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
+            TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
         }
     }
 }
@@ -177,9 +201,10 @@ impl TabContent {
             TabContent::Markdown(md) => Some(md.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
-            #[cfg(not(target_family = "wasm"))]
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
+            TabContent::SpaceInspector(_) => None,
         }
     }
 
@@ -205,7 +230,7 @@ impl TabContent {
             TabContent::Markdown(md) => {
                 Some(TabSaveContent::String(md.buffer.current.text.clone()))
             }
-            TabContent::Svg(svg) => Some(TabSaveContent::Svg(svg.buffer.clone())),
+            TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             _ => None,
         }
     }
@@ -217,7 +242,7 @@ impl TabContent {
 pub enum TabSaveContent {
     Bytes(Vec<u8>),
     String(String),
-    Svg(svg::buffer::Buffer),
+    Svg(Box<svg::buffer::Buffer>),
 }
 
 impl TabSaveContent {
@@ -240,7 +265,7 @@ impl From<LbErr> for TabFailure {
     fn from(err: LbErr) -> Self {
         match err.kind {
             LbErrKind::Unexpected(msg) => Self::Unexpected(msg),
-            _ => Self::SimpleMisc(format!("{:?}", err)),
+            _ => Self::SimpleMisc(format!("{err:?}")),
         }
     }
 }
@@ -249,7 +274,7 @@ impl TabFailure {
     pub fn msg(&self) -> String {
         match self {
             TabFailure::SimpleMisc(msg) => msg.clone(),
-            TabFailure::Unexpected(msg) => format!("Unexpected error: {}", msg),
+            TabFailure::Unexpected(msg) => format!("Unexpected error: {msg}"),
         }
     }
 }
@@ -260,6 +285,9 @@ pub enum Event {
     Drop { content: Vec<ClipContent>, position: egui::Pos2 },
     Paste { content: Vec<ClipContent>, position: egui::Pos2 },
     PredictedTouch { id: egui::TouchId, force: Option<f32>, pos: egui::Pos2 },
+    KineticPan { x: f32, y: f32 },
+    Undo,
+    Redo,
 }
 
 #[derive(Debug, Clone)]
@@ -268,6 +296,7 @@ pub enum ClipContent {
     Image(Vec<u8>), // image format guessed by egui
 }
 
+#[derive(PartialEq)]
 pub enum TabStatus {
     Dirty,
     LoadQueued,
@@ -325,7 +354,7 @@ impl Workspace {
     pub fn tab_title(&self, tab: &Tab) -> String {
         match (tab.id(), &self.files) {
             (Some(id), Some(files)) => {
-                if let Some(file) = files.files.get_by_id(id) {
+                if let Some(file) = files.files.iter().chain(&files.shared).find(|f| f.id == id) {
                     file.name.clone()
                 } else if let Ok(file) = self.core.get_file_by_id(id) {
                     // read-through (can remove when we master cache refreshes)
@@ -335,7 +364,12 @@ impl Workspace {
                 }
             }
             (Some(_), None) => "Loading".into(),
-            (None, _) => "Mind Map".into(),
+            (None, _) => match tab.content {
+                #[cfg(not(target_family = "wasm"))]
+                ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
+                ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
+                _ => "Unknown".into(),
+            },
         }
     }
 }
@@ -375,6 +409,8 @@ pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
+    fn read_events(&self) -> Vec<Event>;
+    fn drain(&self);
 }
 
 impl ExtendedInput for egui::Context {
@@ -403,6 +439,23 @@ impl ExtendedInput for egui::Context {
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
             events
         })
+    }
+
+    fn read_events(&self) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let events: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            events
+        })
+    }
+
+    fn drain(&self) {
+        self.memory_mut(|m| {
+            m.data
+                .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
+        });
     }
 }
 
@@ -444,7 +497,7 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
 
     let file = core
         .create_file(
-            &format!("pasted_image_{}.{}", human_readable_time, file_extension),
+            &format!("pasted_image_{human_readable_time}.{file_extension}"),
             &imports_folder.id,
             FileType::Document,
         )
@@ -515,19 +568,26 @@ pub fn canonicalize_path(path: &str) -> String {
     result.to_string_lossy().to_string()
 }
 
-pub fn core_get_by_relative_path(core: &Lb, from: Uuid, path: &Path) -> Result<File, String> {
+pub fn core_get_by_relative_path<P: AsRef<Path>>(
+    core: &Lb, from: Uuid, path: P,
+) -> Result<File, String> {
+    let path = path.as_ref();
     let target_path = if path.is_relative() {
-        let mut open_file_path =
-            PathBuf::from(core.get_path_by_id(from).map_err(|e| e.to_string())?);
-        for component in path.components() {
-            open_file_path.push(component);
-        }
-        let target_file_path = open_file_path.to_string_lossy();
+        let open_file_path = core.get_path_by_id(from).map_err(|e| e.to_string())?;
+        let target_file_path = open_file_path + "/" + &path.to_string_lossy();
 
         canonicalize_path(&target_file_path)
     } else {
         path.to_string_lossy().to_string()
     };
+
+    #[cfg(windows)]
+    let target_path = target_path.replace('\\', "/");
+
+    let target_path = decode(&target_path)
+        .map(|cow| cow.to_string())
+        .unwrap_or(target_path);
+
     core.get_by_path(&target_path).map_err(|e| e.to_string())
 }
 

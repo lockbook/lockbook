@@ -1,4 +1,3 @@
-mod accept_share;
 mod confirm_delete;
 mod create_share;
 mod error;
@@ -8,22 +7,18 @@ mod new_file;
 mod search;
 mod settings;
 
-pub use accept_share::AcceptShareModal;
 pub use confirm_delete::ConfirmDeleteModal;
 pub use create_share::{CreateShareModal, CreateShareParams};
 pub use error::ErrorModal;
-pub use file_picker::FilePicker;
-pub use file_picker::FilePickerAction;
+pub use file_picker::{FilePicker, FilePickerAction};
 pub use help::HelpModal;
 pub use new_file::{NewFileParams, NewFolderModal};
 pub use search::SearchModal;
-pub use settings::{SettingsModal, SettingsResponse};
-
-use super::OpenModal;
+pub use settings::SettingsModal;
+use workspace_rs::file_cache::FilesExt;
 
 #[derive(Default)]
 pub struct Modals {
-    pub accept_share: Option<AcceptShareModal>,
     pub confirm_delete: Option<ConfirmDeleteModal>,
     pub create_share: Option<CreateShareModal>,
     pub error: Option<ErrorModal>,
@@ -40,37 +35,26 @@ impl super::AccountScreen {
 
         show(ctx, x_offset, &mut self.modals.help);
 
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.accept_share) {
-            if let Some(submission) = response.inner {
-                if submission.is_accept {
-                    self.update_tx
-                        .send(OpenModal::PickShareParent(submission.target).into())
-                        .unwrap();
-                    self.modals.accept_share = None;
-                } else {
-                    self.delete_share(submission.target);
-
-                    // close and reopen the modal to force a state reload and make the deleted share disappear
-                    self.modals.accept_share = None;
-                    self.update_tx.send(OpenModal::AcceptShare.into()).unwrap();
-                }
-            }
-        }
-
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
                 self.save_settings();
-            } else if let Some(inner) = response.inner {
-                use SettingsResponse::*;
-                match inner {
-                    SuccessfullyUpgraded => self.workspace.tasks.queue_sync_status_update(),
-                }
             }
         }
 
         if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
             if let Some(submission) = response.inner {
-                self.workspace.open_file(submission.id, false, true);
+                if let Some(file) = self.tree.files.get_by_id(submission.id) {
+                    if file.is_folder() {
+                        self.tree.cursor = Some(file.id);
+                        self.tree.selected.clear();
+                        self.tree.selected.insert(file.id);
+                        self.tree.reveal_selection();
+                        self.tree.scroll_to_cursor = true;
+                    } else {
+                        self.workspace.open_file(submission.id, true, true);
+                    }
+                }
+
                 if submission.close {
                     self.modals.search = None;
                 }
@@ -116,7 +100,6 @@ impl super::AccountScreen {
     pub fn is_any_modal_open(&self) -> bool {
         let m = &self.modals;
         m.settings.is_some()
-            || m.accept_share.is_some()
             || m.new_folder.is_some()
             || m.create_share.is_some()
             || m.file_picker.is_some()
@@ -149,10 +132,6 @@ impl super::AccountScreen {
             return true;
         }
         if m.confirm_delete.is_some() {
-            m.confirm_delete = None;
-            return true;
-        }
-        if m.accept_share.is_some() {
             m.confirm_delete = None;
             return true;
         }

@@ -6,7 +6,7 @@ use tokio::time::sleep;
 use crate::get_code_version;
 use crate::model::account::Account;
 use crate::model::api::*;
-use crate::model::clock::{get_time, Timestamp};
+use crate::model::clock::{Timestamp, get_time};
 use crate::model::errors::LbErr;
 use crate::model::pubkey;
 

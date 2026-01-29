@@ -2,21 +2,17 @@ package app.lockbook.screen
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.method.LinkMovementMethod
 import android.view.*
-import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
-import androidx.core.content.res.ResourcesCompat
-import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
-import androidx.fragment.app.viewModels
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -25,15 +21,17 @@ import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
+import app.lockbook.model.MoveFileViewModel.Companion.PARENT_ID
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -105,19 +103,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val activityModel: StateViewModel by activityViewModels()
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
-    private val model: FilesListViewModel by viewModels(
-        factoryProducer = {
-            object : ViewModelProvider.Factory {
-                override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(FilesListViewModel::class.java))
-                        return FilesListViewModel(
-                            requireActivity().application,
-                        ) as T
-                    throw IllegalArgumentException("Unknown ViewModel class")
-                }
-            }
-        }
-    )
+    private val model: FilesListViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -134,7 +120,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         savedInstanceState: Bundle?
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
-
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner
         ) { uiUpdates ->
@@ -170,23 +155,16 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
-            val extendedFileType = when (it.id) {
-                R.id.fab_create_drawing -> ExtendedFileType.Drawing
-                R.id.fab_create_document -> ExtendedFileType.Document
-                R.id.fab_create_folder -> ExtendedFileType.Folder
+            when (it.id) {
+                R.id.fab_create_drawing -> createFile("svg")
+                R.id.fab_create_document -> createFile("md")
+                R.id.fab_create_folder -> activityModel.launchTransientScreen(
+                    TransientScreen.Create(model.fileModel.parent.id)
+                )
                 else -> return@setOnActionSelectedListener false
             }
 
-            activityModel.launchTransientScreen(
-                TransientScreen.Create(model.fileModel.parent.id, extendedFileType)
-            )
-
             binding.fabSpeedDial.close()
-            true
-        }
-        binding.fabSpeedDial.mainFab.setOnLongClickListener { view ->
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-            model.generateQuickNote(workspaceModel)
             true
         }
 
@@ -209,16 +187,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             30000
         )
 
-        if (getApp().isNewAccount) {
-            updateUI(UpdateFilesUI.ShowBeforeWeStart)
-        }
-
         model.maybeLastSidebarInfo?.let { uiUpdate ->
             updateUI(uiUpdate)
-        }
-
-        workspaceModel.msg.observe(viewLifecycleOwner) { msg ->
-            binding.workspaceMsg.text = msg
         }
 
         workspaceModel.refreshFiles.observe(viewLifecycleOwner) {
@@ -229,8 +199,13 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.listFilesRefresh.isRefreshing = false
         }
 
-        workspaceModel.selectedFile.observe(viewLifecycleOwner) { id ->
-            model.fileOpened(id)
+        workspaceModel.currentTab.observe(viewLifecycleOwner) {
+            model.fileOpened(it.id)
+            model.fileModel.idsAndFiles[it.id]?.let { child ->
+                model.fileModel.idsAndFiles[child.parent]?.let { parent ->
+                    model.enterFolder(parent)
+                }
+            }
         }
 
         return binding.root
@@ -245,7 +220,47 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.suggestedDocsLayout.root.visibility = View.GONE
         }
 
+        (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
+            binding.fabSpeedDial.setPadding(
+                recyclerView.paddingLeft,
+                recyclerView.paddingTop,
+                recyclerView.paddingRight,
+                bottomNavHeight
+            )
+            recyclerView.setPadding(
+                recyclerView.paddingLeft,
+                recyclerView.paddingTop,
+                recyclerView.paddingRight,
+                bottomNavHeight
+            )
+        }
+
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
+    }
+
+    private fun createFile(ext: String) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            var attempt = 0
+            var created: File? = null
+
+            while (created == null) {
+                val name = "untitled${if (attempt != 0) "-$attempt" else ""}.$ext"
+
+                try {
+                    created = Lb.createFile(name, model.fileModel.parent.id, true)
+                    withContext(Dispatchers.Main) {
+                        workspaceModel._openFile.postValue(Pair(created.id, true))
+                    }
+                    refreshFiles()
+                } catch (err: LbError) {
+                    if (err.kind == LbError.LbEC.PathTaken) {
+                        attempt++
+                    } else {
+                        break
+                    }
+                }
+            }
+        }
     }
 
     private fun setUpToolbar() {
@@ -254,10 +269,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.navigationView.getHeaderView(0).let { header ->
-            header.findViewById<LinearLayout>(R.id.launch_pending_shares).setOnClickListener {
-                activityModel.launchActivityScreen(ActivityScreen.Shares)
-                binding.drawerLayout.close()
-            }
 
             header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
                 var selected = ThemeMode.getSavedThemeIndex(requireContext())
@@ -287,6 +298,9 @@ class FilesListFragment : Fragment(), FilesFragment {
                 R.id.menu_files_list_search -> {
                     activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
                 }
+                R.id.menu_files_list_open_ws -> {
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
+                }
             }
 
             toggleMenuBar()
@@ -308,7 +322,12 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                android.R.color.system_accent1_10
+                            } else {
+                                R.color.md_theme_inverseOnSurface
+                            }
+                            fileItemHolder.setBackgroundResource(background)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -346,7 +365,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
             withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
                 onBind(::DocumentViewHolder) { _, item ->
-                    name.text = item.fileMetadata.name
+                    name.text = item.fileMetadata.getPrettyName()
                     if (item.fileMetadata.lastModified != 0L) {
                         description.visibility = View.VISIBLE
                         description.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
@@ -354,20 +373,16 @@ class FilesListFragment : Fragment(), FilesFragment {
                         description.visibility = View.GONE
                     }
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
-
-                    val iconResource = when {
-                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
-                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
-                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
-                        else -> R.drawable.ic_outline_insert_drive_file_24
-                    }
-
-                    icon.setImageResource(iconResource)
+                    icon.setImageResource(item.fileMetadata.getIconResource())
 
                     when {
                         isSelected() -> {
-                            fileItemHolder.setBackgroundResource(R.color.md_theme_primaryContainer)
+                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                android.R.color.system_accent1_10
+                            } else {
+                                R.color.md_theme_inverseOnSurface
+                            }
+                            fileItemHolder.setBackgroundResource(background)
                             actionIcon.setImageResource(R.drawable.ic_baseline_check_circle_24)
                             actionIcon.visibility = View.VISIBLE
                         }
@@ -404,13 +419,21 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
         }
 
+        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener {
+            model.suggestedDocs.clear()
+            Lb.clearSuggested()
+            lifecycleScope.launch {
+                model.maybeToggleSuggestedDocs()
+            }
+        }
+
         binding.suggestedDocsLayout.suggestedDocsList.setup {
             withDataSource(model.suggestedDocs)
             this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
 
             withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
-                onBind(::SuggestedDocsItemViewHolder) { _, item ->
-                    name.text = item.fileMetadata.name
+                onBind(::SuggestedDocsItemViewHolder) { i, item ->
+                    name.text = item.fileMetadata.getPrettyName()
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
 
@@ -423,7 +446,23 @@ class FilesListFragment : Fragment(), FilesFragment {
                         else -> R.drawable.ic_outline_insert_drive_file_24
                     }
 
-                    icon.setImageResource(iconResource)
+                    icon.setImageResource(item.fileMetadata.getIconResource())
+
+                    itemView.setOnLongClickListener { view ->
+                        val popup = PopupMenu(view.context, view)
+
+                        popup.menu.add(0, 1, 0, "Remove")
+
+                        popup.setOnMenuItemClickListener { menuItem ->
+                            Lb.clearSuggestedId(item.fileMetadata.id)
+                            model.suggestedDocs.removeAt(i)
+                            model.reloadFiles()
+                            true
+                        }
+
+                        popup.show()
+                        true
+                    }
                 }
 
                 onClick {
@@ -468,20 +507,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 )
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
-            UpdateFilesUI.ShowBeforeWeStart -> {
-                val beforeYouStartDialog = BottomSheetDialog(requireContext())
-                beforeYouStartDialog.setContentView(R.layout.sheet_before_you_start)
-                beforeYouStartDialog.findViewById<MaterialButton>(R.id.backup_my_secret)!!.setOnClickListener {
-                    beforeYouStartDialog.dismiss()
-
-                    activityModel.launchActivityScreen(ActivityScreen.Settings(R.string.export_account_raw_key))
-                }
-
-                beforeYouStartDialog.findViewById<MaterialTextView>(R.id.before_you_start_description)!!.movementMethod = LinkMovementMethod.getInstance()
-
-                beforeYouStartDialog.show()
-                getApp().isNewAccount = false
-            }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
@@ -495,9 +520,15 @@ class FilesListFragment : Fragment(), FilesFragment {
                     val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
                     donut.cap = dataCap
 
+                    val accentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
+                    } else {
+                        ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+                    }
+
                     val usageSection = DonutSection(
                         name = "",
-                        color = ResourcesCompat.getColor(resources, R.color.md_theme_primary, null),
+                        color = accentColor,
                         amount = usage
                     )
 
@@ -517,16 +548,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                 uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
                     header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
                 }
-
-                uiUpdates.hasPendingShares?.let { hasPendingShares ->
-                    header.findViewById<ImageView>(R.id.pending_shares_icon).setImageResource(
-                        if (hasPendingShares) {
-                            R.drawable.ic_outline_folder_shared_notif_24
-                        } else {
-                            R.drawable.ic_outline_folder_shared_24
-                        }
-                    )
-                }
             }
             is UpdateFilesUI.ToggleSuggestedDocsVisibility -> {
                 binding.suggestedDocsLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
@@ -535,15 +556,9 @@ class FilesListFragment : Fragment(), FilesFragment {
                 val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
 
                 val (usageBarColor, msgId) = if (usageRatio >= 1.0) {
-                    listOf(R.color.md_theme_error, R.string.out_of_space)
+                    listOf(getUsageColor(usageRatio), R.string.out_of_space)
                 } else {
-                    val usageBarColor = if (usageRatio > 0.9) {
-                        R.color.md_theme_error
-                    } else {
-                        R.color.md_theme_progressWarning
-                    }
-
-                    listOf(usageBarColor, R.string.running_out_of_space)
+                    listOf(getUsageColor(usageRatio), R.string.running_out_of_space)
                 }
 
                 binding.outOfSpace.apply {
@@ -568,6 +583,32 @@ class FilesListFragment : Fragment(), FilesFragment {
                             pref.apply()
                         }
                     }
+                }
+            }
+        }
+    }
+
+    private fun getUsageColor(usageRatio: Float): Int {
+        return when {
+            usageRatio >= 1.0 -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    android.R.color.system_error_500
+                } else {
+                    R.color.md_theme_error
+                }
+            }
+            usageRatio > 0.9 -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                    android.R.color.system_error_200
+                } else {
+                    R.color.md_theme_error
+                }
+            }
+            else -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    android.R.color.system_accent1_100
+                } else {
+                    R.color.md_theme_primary
                 }
             }
         }
@@ -660,8 +701,16 @@ sealed class UpdateFilesUI {
     data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
-    object ShowBeforeWeStart : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
+}
+
+fun File.getPrettyName(): String {
+    return if (this.type == FileType.Document && this.id != PARENT_ID) {
+        // todo: consider removing the extension
+        this.name
+    } else {
+        this.name
+    }
 }

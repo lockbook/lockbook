@@ -1,7 +1,7 @@
 use lb_rs::io::network::ApiError;
+use lb_rs::model::ValidationFailure;
 use lb_rs::model::api::*;
 use lb_rs::model::file_metadata::FileDiff;
-use lb_rs::model::ValidationFailure;
 use test_utils::*;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ async fn create_document() {
         .clone();
 
     core.client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
         .await
         .unwrap();
 }
@@ -46,7 +46,7 @@ async fn create_document_duplicate_id() {
     // create document with same id and key
     let result = core
         .client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
         .await;
     assert_matches!(
         result,
@@ -73,10 +73,10 @@ async fn create_document_duplicate_path() {
     core.sync(None).await.unwrap();
 
     // create document with same path
-    doc.timestamped_value.value.id = Uuid::new_v4();
+    doc.timestamped_value.value.set_id(Uuid::new_v4());
     let result = core
         .client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
         .await;
     assert_matches!(
         result,
@@ -105,7 +105,7 @@ async fn create_document_parent_not_found() {
 
     let result = core
         .client
-        .request(account, UpsertRequest { updates: vec![FileDiff::new(&doc)] })
+        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc)] })
         .await;
     assert_matches!(
         result,

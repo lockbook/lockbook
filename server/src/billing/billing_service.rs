@@ -1,3 +1,4 @@
+use crate::ServerError::ClientError;
 use crate::billing::app_store_model::{NotificationChange, Subtype};
 use crate::billing::billing_model::{
     AppStoreUserInfo, BillingPlatform, GooglePlayUserInfo, StripeUserInfo,
@@ -8,19 +9,18 @@ use crate::billing::billing_service::LockBillingWorkflowError::{
 use crate::billing::google_play_model::NotificationType;
 use crate::document_service::DocumentService;
 use crate::schema::Account;
-use crate::ServerError::ClientError;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
 use db_rs::Db;
 use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
-    CancelSubscriptionResponse, GetSubscriptionInfoError, GetSubscriptionInfoRequest,
-    GetSubscriptionInfoResponse, GooglePlayAccountState, PaymentPlatform, StripeAccountState,
-    SubscriptionInfo, UpgradeAccountAppStoreError, UpgradeAccountAppStoreRequest,
-    UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
-    UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError, UpgradeAccountStripeRequest,
-    UpgradeAccountStripeResponse, FREE_TIER_USAGE_SIZE,
+    CancelSubscriptionResponse, FREE_TIER_USAGE_SIZE, GetSubscriptionInfoError,
+    GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState,
+    PaymentPlatform, StripeAccountState, SubscriptionInfo, UpgradeAccountAppStoreError,
+    UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError,
+    UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
+    UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_metadata::Owner;
@@ -63,7 +63,10 @@ where
         if current_time - account.billing_info.last_in_payment_flow
             < self.config.billing.millis_between_user_payment_flows
         {
-            warn!(?owner, "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt");
+            warn!(
+                ?owner,
+                "User/Webhook is already in payment flow, or not enough time that has elapsed since a failed attempt"
+            );
 
             return Err(ClientError(ExistingRequestPending));
         }
@@ -100,20 +103,13 @@ where
 
         {
             let db = self.index_db.lock().await;
-            if let Some(owner) = db.app_store_ids.get().get(&request.app_account_token) {
-                if let Some(other_account) = db.accounts.get().get(owner) {
-                    if let Some(BillingPlatform::AppStore(ref info)) =
-                        other_account.billing_info.billing_platform
-                    {
-                        if info.account_token == request.app_account_token
-                            && other_account.billing_info.is_premium()
-                        {
-                            return Err(ClientError(
-                                UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked,
-                            ));
-                        }
-                    }
-                }
+            if db
+                .app_store_ids
+                .get()
+                .get(&request.app_account_token)
+                .is_some()
+            {
+                return Err(ClientError(UpgradeAccountAppStoreError::AppStoreAccountAlreadyLinked));
             }
         }
 
@@ -290,7 +286,7 @@ where
             )?
             .to_lazy();
 
-            let usage: u64 = Self::get_usage_helper(&mut tree, db.sizes.get())?
+            let usage: u64 = Self::get_usage_helper(&mut tree)?
                 .iter()
                 .map(|a| a.size_bytes)
                 .sum();
@@ -302,39 +298,44 @@ where
         }
 
         match account.billing_info.billing_platform {
-        None => return Err(internal!("A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}", context.public_key)),
-        Some(BillingPlatform::GooglePlay(ref mut info)) => {
-            debug!("Canceling google play subscription of user");
-
-            if let GooglePlayAccountState::Canceled = &info.account_state {
-                return Err(ClientError(CancelSubscriptionError::AlreadyCanceled))
+            None => {
+                return Err(internal!(
+                    "A user somehow has premium tier usage, but no billing information on redis. public_key: {:?}",
+                    context.public_key
+                ));
             }
+            Some(BillingPlatform::GooglePlay(ref mut info)) => {
+                debug!("Canceling google play subscription of user");
 
-            self.google_play_client.cancel_subscription(
-                &self.config,
-                &info.purchase_token,
-            ).await?;
+                if let GooglePlayAccountState::Canceled = &info.account_state {
+                    return Err(ClientError(CancelSubscriptionError::AlreadyCanceled));
+                }
 
-            info.account_state = GooglePlayAccountState::Canceled;
-            debug!("Successfully canceled google play subscription of user");
+                self.google_play_client
+                    .cancel_subscription(&self.config, &info.purchase_token)
+                    .await?;
+
+                info.account_state = GooglePlayAccountState::Canceled;
+                debug!("Successfully canceled google play subscription of user");
+            }
+            Some(BillingPlatform::Stripe(ref mut info)) => {
+                debug!("Canceling stripe subscription of user");
+
+                self.stripe_client
+                    .cancel_subscription(&info.subscription_id.parse()?)
+                    .await
+                    .map_err::<ServerError<CancelSubscriptionError>, _>(|err| {
+                        internal!("{:?}", err)
+                    })?;
+
+                info.account_state = StripeAccountState::Canceled;
+
+                debug!("Successfully canceled stripe subscription");
+            }
+            Some(BillingPlatform::AppStore(_)) => {
+                return Err(ClientError(CancelSubscriptionError::CannotCancelForAppStore));
+            }
         }
-        Some(BillingPlatform::Stripe(ref mut info)) => {
-            debug!("Canceling stripe subscription of user");
-
-            self.stripe_client.cancel_subscription(
-                &info.subscription_id.parse()?,
-            )
-                .await
-                .map_err::<ServerError<CancelSubscriptionError>, _>(|err| internal!("{:?}", err))?;
-
-            info.account_state = StripeAccountState::Canceled;
-
-            debug!("Successfully canceled stripe subscription");
-        }
-        Some(BillingPlatform::AppStore(_)) => {
-            return Err(ClientError(CancelSubscriptionError::CannotCancelForAppStore));
-        }
-    }
 
         self.release_subscription_profile::<CancelSubscriptionError>(context.public_key, account)
             .await?;
@@ -449,7 +450,7 @@ where
                     continue;
                 }
                 Err(err) => {
-                    return Err(internal!("Cannot get billing lock in webhooks: {:#?}", err))
+                    return Err(internal!("Cannot get billing lock in webhooks: {:#?}", err));
                 }
             }
         }
@@ -668,7 +669,10 @@ where
         }
 
         if let Some(otp_notif) = notification.one_time_product_notification {
-            return Err(internal!("Received a one time product notification although there are no registered one time products. one_time_product_notification: {:?}", otp_notif));
+            return Err(internal!(
+                "Received a one time product notification although there are no registered one time products. one_time_product_notification: {:?}",
+                otp_notif
+            ));
         }
 
         Ok(())

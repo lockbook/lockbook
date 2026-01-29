@@ -1,9 +1,13 @@
-use std::{collections::HashMap, mem, ops::BitAnd, time::Instant};
+use std::collections::HashMap;
+use std::mem;
+use std::ops::BitAnd;
+use std::time::Instant;
 
 use lbeguiapp::WgpuLockbook;
-use windows::Win32::{
-    Foundation::*, Graphics::Gdi::*, UI::Input::Pointer::*, UI::WindowsAndMessaging::*,
-};
+use windows::Win32::Foundation::*;
+use windows::Win32::Graphics::Gdi::*;
+use windows::Win32::UI::Input::Pointer::*;
+use windows::Win32::UI::WindowsAndMessaging::*;
 
 #[derive(Default)]
 pub struct PointerManager {
@@ -148,8 +152,11 @@ impl PointerManager {
                     match (maybe_button, moved, long) {
                         (Some(_), _, _) => {
                             // pointer button already determined
-                            app.raw_input.events.push(egui::Event::PointerMoved(pos));
-                            app.raw_input.events.push(egui::Event::Touch {
+                            app.renderer
+                                .raw_input
+                                .events
+                                .push(egui::Event::PointerMoved(pos));
+                            app.renderer.raw_input.events.push(egui::Event::Touch {
                                 device_id: egui::TouchDeviceId(pointer_id as _),
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Move,
@@ -162,13 +169,16 @@ impl PointerManager {
                             let button = egui::PointerButton::Primary;
                             self.button_emitted_by_pointer.insert(pointer_id, button);
 
-                            app.raw_input.events.push(egui::Event::PointerButton {
-                                pos: start_pos,
-                                button,
-                                pressed: true,
-                                modifiers,
-                            });
-                            app.raw_input.events.push(egui::Event::Touch {
+                            app.renderer
+                                .raw_input
+                                .events
+                                .push(egui::Event::PointerButton {
+                                    pos: start_pos,
+                                    button,
+                                    pressed: true,
+                                    modifiers,
+                                });
+                            app.renderer.raw_input.events.push(egui::Event::Touch {
                                 device_id: egui::TouchDeviceId(pointer_id as _),
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Start,
@@ -192,13 +202,16 @@ impl PointerManager {
                             let button = egui::PointerButton::Secondary;
                             self.button_emitted_by_pointer.insert(pointer_id, button);
 
-                            app.raw_input.events.push(egui::Event::PointerButton {
-                                pos: start_pos,
-                                button,
-                                pressed: true,
-                                modifiers,
-                            });
-                            app.raw_input.events.push(egui::Event::Touch {
+                            app.renderer
+                                .raw_input
+                                .events
+                                .push(egui::Event::PointerButton {
+                                    pos: start_pos,
+                                    button,
+                                    pressed: true,
+                                    modifiers,
+                                });
+                            app.renderer.raw_input.events.push(egui::Event::Touch {
                                 device_id: egui::TouchDeviceId(pointer_id as _),
                                 id: pointer_id.into(),
                                 phase: egui::TouchPhase::Start,
@@ -244,13 +257,16 @@ impl PointerManager {
                         // pointer just left contact before a button was determined
                         // pointer events emitted in this way are always primary
                         let button = egui::PointerButton::Primary;
-                        app.raw_input.events.push(egui::Event::PointerButton {
-                            pos: start_pos,
-                            button,
-                            pressed: true,
-                            modifiers,
-                        });
-                        app.raw_input.events.push(egui::Event::Touch {
+                        app.renderer
+                            .raw_input
+                            .events
+                            .push(egui::Event::PointerButton {
+                                pos: start_pos,
+                                button,
+                                pressed: true,
+                                modifiers,
+                            });
+                        app.renderer.raw_input.events.push(egui::Event::Touch {
                             device_id: egui::TouchDeviceId(pointer_id as _),
                             id: pointer_id.into(),
                             phase: egui::TouchPhase::Start,

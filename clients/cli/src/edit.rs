@@ -1,19 +1,17 @@
-use std::{
-    convert::Infallible,
-    env, fs,
-    io::Write,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::convert::Infallible;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::{env, fs};
 
-use cli_rs::{
-    cli_error::{CliError, CliResult},
-    flag::Flag,
-};
+use cli_rs::cli_error::{CliError, CliResult};
+use cli_rs::flag::Flag;
 use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
+use tokio::runtime::Handle;
 
-use crate::{core, ensure_account_and_root, input::FileInput};
+use crate::input::FileInput;
+use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
 pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
@@ -28,7 +26,7 @@ pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
     temp_file_path.push(f.name);
 
     let mut file_handle = fs::File::create(&temp_file_path).map_err(|err| {
-        CliError::from(format!("couldn't open temporary file for writing: {:#?}", err))
+        CliError::from(format!("couldn't open temporary file for writing: {err:#?}"))
     })?;
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
@@ -39,13 +37,13 @@ pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
     if let Some(mut watcher) = maybe_watcher {
         watcher
             .unwatch(&temp_file_path)
-            .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {:#?}", err))
+            .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {err:#?}"))
     }
 
     if edit_was_successful {
         match save_temp_file_contents(lb.clone(), f.id, &temp_file_path).await {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
-            Err(err) => eprintln!("{:?}", err),
+            Err(err) => eprintln!("{err:?}"),
         }
     } else {
         eprintln!("Your editor indicated a problem, aborting and cleaning up");
@@ -59,20 +57,22 @@ fn create_tmp_dir() -> Result<PathBuf, CliError> {
     let mut dir = std::env::temp_dir();
     dir.push(Uuid::new_v4().to_string());
     fs::create_dir(&dir).map_err(|err| {
-        CliError::from(format!("couldn't open temporary file for writing: {:#?}", err))
+        CliError::from(format!("couldn't open temporary file for writing: {err:#?}"))
     })?;
     Ok(dir)
 }
 
 // In ascending order of superiority
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Editor {
     Vim,
     Nvim,
     Emacs,
+    Helix,
     Nano,
     Sublime,
     Code,
+    Custom(String),
 }
 
 impl Default for Editor {
@@ -80,10 +80,10 @@ impl Default for Editor {
         let default = if cfg!(target_os = "windows") { Editor::Code } else { Editor::Vim };
 
         env::var("LOCKBOOK_EDITOR")
-            .map(|s| s.parse().unwrap())
+            .map(Editor::Custom)
             .or(Self::from_sys_env_var())
             .unwrap_or_else(|_| {
-                eprintln!("LOCKBOOK_EDITOR, VISUAL or EDITOR not set, assuming {:?}", default);
+                eprintln!("LOCKBOOK_EDITOR, VISUAL or EDITOR not set, assuming {default:?}");
                 default
             })
     }
@@ -91,11 +91,11 @@ impl Default for Editor {
 
 impl Editor {
     fn from_sys_env_var() -> CliResult<Self> {
-        let editor = env::var("VISUAL")
-            .or(env::var("EDITOR"))
+        let editor = env::var("EDITOR")
+            .or(env::var("VISUAL"))
             .map_err(|_| "no EDITOR or VISUAL")?;
 
-        let editor = editor.split('/').last().unwrap();
+        let editor = editor.split('/').next_back().unwrap();
 
         Ok(editor.parse().map_err(|_| "no EDITOR or VISUAL")?)
     }
@@ -105,7 +105,7 @@ pub fn editor_flag() -> Flag<'static, Editor> {
     Flag::new("editor")
         .description("optional editor flag, if not present falls back to LOCKBOOK_EDITOR, if not present falls back to a platform default")
         .completor(|prompt| {
-            Ok(["vim", "nvim", "emacs", "nano", "sublime", "code"]
+            Ok(["vim", "nvim", "emacs", "helix", "nano", "sublime", "code"]
                 .into_iter()
                 .filter(|entry| entry.starts_with(prompt))
                 .map(|s| s.to_string())
@@ -121,14 +121,14 @@ impl FromStr for Editor {
             "vim" => Editor::Vim,
             "nvim" => Editor::Nvim,
             "emacs" => Editor::Emacs,
+            "hx" | "helix" => Editor::Helix,
             "nano" => Editor::Nano,
             "subl" | "sublime" => Editor::Sublime,
             "code" => Editor::Code,
             unsupported => {
                 let default = Editor::default();
                 eprintln!(
-                    "{} is not yet supported, make a github issue! Falling back to {:?}.",
-                    unsupported, default
+                    "{unsupported} is not yet supported, make a github issue! Falling back to {default:?}."
                 );
                 default
             }
@@ -143,12 +143,15 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match editor {
-        Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano => {
-            eprintln!("Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor.");
+        Editor::Vim | Editor::Nvim | Editor::Emacs | Editor::Nano | Editor::Helix => {
+            eprintln!(
+                "Terminal editors are not supported on windows! Set LOCKBOOK_EDITOR to a visual editor."
+            );
             return false;
         }
-        Editor::Sublime => format!("subl --wait {}", path_str),
-        Editor::Code => format!("code --wait {}", path_str),
+        Editor::Sublime => format!("subl --wait {path_str}"),
+        Editor::Code => format!("code --wait {path_str}"),
+        Editor::Custom(s) => format!("{s} {path_str}"),
     };
 
     std::process::Command::new("cmd")
@@ -166,12 +169,14 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
     let path_str = path.as_ref().display();
 
     let command = match editor {
-        Editor::Vim => format!("</dev/tty vim {}", path_str),
-        Editor::Nvim => format!("</dev/tty nvim {}", path_str),
-        Editor::Emacs => format!("</dev/tty emacs {}", path_str),
-        Editor::Nano => format!("</dev/tty nano {}", path_str),
-        Editor::Sublime => format!("subl --wait {}", path_str),
-        Editor::Code => format!("code --wait {}", path_str),
+        Editor::Vim => format!("</dev/tty vim '{path_str}'"),
+        Editor::Nvim => format!("</dev/tty nvim '{path_str}'"),
+        Editor::Emacs => format!("</dev/tty emacs '{path_str}'"),
+        Editor::Helix => format!("</dev/tty hx '{path_str}'"),
+        Editor::Nano => format!("</dev/tty nano '{path_str}'"),
+        Editor::Sublime => format!("subl --wait '{path_str}'"),
+        Editor::Code => format!("code --wait '{path_str}'"),
+        Editor::Custom(s) => format!("{s} '{path_str}'"),
     };
 
     std::process::Command::new("/bin/sh")
@@ -189,19 +194,20 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotw
         Ok(mut watcher) => {
             let core = core.clone();
             let path = PathBuf::from(path.as_ref());
+            let handle = Handle::current();
 
             watcher
                 .watch(path.clone(), move |event: Event| {
                     if let EventKind::Modify(_) = event.kind {
-                        tokio::spawn(save_temp_file_contents(core.clone(), id, path.clone()));
+                        handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
                     }
                 })
-                .unwrap_or_else(|err| println!("file watcher failed to watch: {:#?}", err));
+                .unwrap_or_else(|err| println!("file watcher failed to watch: {err:#?}"));
 
             Some(watcher)
         }
         Err(err) => {
-            println!("file watcher failed to initialize: {:#?}", err);
+            println!("file watcher failed to initialize: {err:#?}");
             None
         }
     }

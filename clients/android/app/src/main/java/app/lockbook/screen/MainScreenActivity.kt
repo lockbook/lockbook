@@ -2,14 +2,23 @@ package app.lockbook.screen
 
 import android.content.ClipData
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.WindowManager
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.view.doOnPreDraw
+import androidx.core.view.isVisible
 import androidx.fragment.app.*
+import androidx.fragment.app.viewModels
+import androidx.navigation.ui.setupWithNavController
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
@@ -22,7 +31,7 @@ import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
-class MainScreenActivity : AppCompatActivity() {
+class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
     private var _binding: ActivityMainScreenBinding? = null
     val binding get() = _binding!!
     private val slidingPaneLayout get() = binding.slidingPaneLayout
@@ -41,8 +50,8 @@ class MainScreenActivity : AppCompatActivity() {
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
                 is DeleteFilesDialogFragment -> {
-                    if (workspaceModel.selectedFile.value != null) {
-                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    if (workspaceModel.currentTab.value != null) {
+                        workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
                     }
 
                     filesFragment.refreshFiles()
@@ -67,8 +76,18 @@ class MainScreenActivity : AppCompatActivity() {
     val model: StateViewModel by viewModels()
     val workspaceModel: WorkspaceViewModel by viewModels()
 
+    private val filesListModel: FilesListViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                Color.TRANSPARENT,
+                Color.TRANSPARENT
+            )
+        )
+
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -86,8 +105,6 @@ class MainScreenActivity : AppCompatActivity() {
                 setReorderingAllowed(true)
                 add<WorkspaceFragment>(R.id.detail_container, "Workspace")
             }
-        } else {
-            println("not adding")
         }
 
         (application as App).billingClientLifecycle.apply {
@@ -122,9 +139,6 @@ class MainScreenActivity : AppCompatActivity() {
                     }
 
                     startActivity(intent)
-                }
-                ActivityScreen.Shares -> {
-                    onShare.launch(Intent(baseContext, SharesActivity::class.java))
                 }
                 null -> {}
             }
@@ -186,26 +200,80 @@ class MainScreenActivity : AppCompatActivity() {
         }
 
         workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id, ExtendedFileType.Folder))
+            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {
-            model.launchTransientScreen(TransientScreen.Rename(Lb.getFileById(workspaceModel.selectedFile.value!!)))
-        }
-
-        workspaceModel.currentTab.observe(this) { tab ->
-            if (tab == WorkspaceTab.Welcome) {
-                slidingPaneLayout.closePane()
-            } else {
-                slidingPaneLayout.openPane()
+            workspaceModel.currentTab.value?.let { tab ->
+                filesListModel.fileModel.idsAndFiles[tab.id]?.let { file ->
+                    model.launchTransientScreen(TransientScreen.Rename(file))
+                }
             }
         }
 
         workspaceModel.shouldShowTabs.observe(this) {
             workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
-            if (binding.slidingPaneLayout.isSlideable && !binding.slidingPaneLayout.isOpen && workspaceModel.currentTab.value != WorkspaceTab.Welcome) {
-                slidingPaneLayout.openPane()
+        }
+
+        onBackPressedDispatcher.addCallback(
+            this,
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                        model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
+                    } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+                        model.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+                    } else if (maybeGetSearchFilesFragment() != null) {
+                        updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+                    } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {
+                        isEnabled = false // Disable this callback to allow normal back behavior
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
             }
+        )
+
+        // let's set the default state of the bottom navigation. there are cases where the
+        // sliding pane will be open on startup for example if the activity was killed
+        // due to memory pressure. toggle "don't keep activities" to reproduce
+        slidingPaneLayout.post {
+            if (slidingPaneLayout.isOpen) {
+                binding.bottomNavigation.visibility = View.GONE
+            } else {
+                binding.bottomNavigation.visibility = View.VISIBLE
+            }
+        }
+
+        slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
+            override fun onPanelOpened(panel: View) {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+                binding.bottomNavigation.visibility = View.GONE
+            }
+            override fun onPanelClosed(panel: View) {
+                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+                binding.bottomNavigation.visibility = View.VISIBLE
+            }
+            override fun onPanelSlide(panel: View, slideOffset: Float) {
+                if (slideOffset > 0) {
+                    binding.bottomNavigation.visibility = View.VISIBLE
+                    val bottomNavHeight = binding.bottomNavigation.height.toFloat()
+
+                    binding.bottomNavigation.translationY = bottomNavHeight * (1 - slideOffset)
+                } else {
+                    binding.bottomNavigation.visibility = View.GONE
+                }
+            }
+        })
+
+        val navController = navHost().navController
+        binding.bottomNavigation.setupWithNavController(navController)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        intent.extras?.getString(ShareReceiverActivity.IMPORTED_FILE_KEY)?.let { dest ->
+            workspaceModel._openFile.postValue(Pair(dest, false))
+            intent.removeExtra(ShareReceiverActivity.IMPORTED_FILE_KEY)
         }
     }
 
@@ -215,10 +283,16 @@ class MainScreenActivity : AppCompatActivity() {
                 if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
                 } else {
-                    if (workspaceModel.selectedFile.value != null) {
-                        workspaceModel._closeDocument.value = workspaceModel.selectedFile.value
+                    if (workspaceModel.currentTab.value != null) {
+                        workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
                     }
                 }
+            }
+            is UpdateMainScreenUI.CloseWorkspacePane -> {
+                slidingPaneLayout.closePane()
+            }
+            is UpdateMainScreenUI.OpenWorkspacePane -> {
+                slidingPaneLayout.openPane()
             }
             is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
             is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
@@ -241,6 +315,19 @@ class MainScreenActivity : AppCompatActivity() {
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
+            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
+                binding.bottomNavigation.visibility = if (binding.bottomNavigation.isVisible) {
+                    View.GONE
+                } else {
+                    View.VISIBLE
+                }
+            }
+            is UpdateMainScreenUI.HideBottomViewNavigation -> {
+                binding.bottomNavigation.visibility = View.GONE
+            }
+            UpdateMainScreenUI.CloseSlidingPane -> {
+                slidingPaneLayout.closePane()
+            }
             UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
@@ -279,20 +366,28 @@ class MainScreenActivity : AppCompatActivity() {
         supportFragmentManager.unregisterFragmentLifecycleCallbacks(fragmentFinishedCallback)
     }
 
-    override fun onBackPressed() {
-        if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
-            model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-        } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
-            model.updateMainScreenUI(UpdateMainScreenUI.OpenFile(null))
-        } else if (maybeGetSearchFilesFragment() != null) {
-            updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
-        } else if (maybeGetFilesFragment()?.onBackPressed() == true) {
-            super.onBackPressed()
-        }
-    }
-
     fun syncImportAccount() {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
     }
+
+    override fun doWhenBottomNavMeasured(action: (height: Int) -> Unit) {
+        val bottomNav = binding.bottomNavigation
+        val height = if (bottomNav.isVisible) bottomNav.height else 0
+
+        if (height > 0) {
+            // If the view has already been measured, provide the height immediately.
+            action(height)
+        } else {
+            // Otherwise, wait for the next pre-draw pass to get the height.
+            bottomNav.doOnPreDraw { view ->
+                val measuredHeight = if (bottomNav.isVisible) view.height else 0
+                action(measuredHeight)
+            }
+        }
+    }
+}
+
+interface BottomNavProvider {
+    fun doWhenBottomNavMeasured(action: (height: Int) -> Unit)
 }

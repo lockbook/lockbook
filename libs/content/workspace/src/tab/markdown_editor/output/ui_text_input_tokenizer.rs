@@ -1,7 +1,6 @@
-use crate::tab::markdown_editor::{
-    bounds::{BoundCase, BoundExt as _, Bounds},
-    input::Bound,
-};
+use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
+use crate::tab::markdown_editor::input::Bound;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 /// Swift protocol for tokenizing text input:
@@ -28,7 +27,7 @@ pub trait UITextInputTokenizer {
     ) -> Option<(DocCharOffset, DocCharOffset)>;
 }
 
-impl UITextInputTokenizer for Bounds {
+impl UITextInputTokenizer for Editor {
     fn is_position_at_boundary(
         &self, text_position: DocCharOffset, at_boundary: Bound, in_backward_direction: bool,
     ) -> bool {
@@ -36,32 +35,39 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => &self.bounds.words,
+            Bound::Line => &self.bounds.wrap_lines,
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
-                    || text_position == self.text.last().copied().unwrap_or_default().end();
+                    || text_position
+                        == self
+                            .bounds
+                            .paragraphs
+                            .last()
+                            .copied()
+                            .unwrap_or_default()
+                            .end();
             }
         };
         match text_position.bound_case(ranges) {
             BoundCase::NoRanges => true,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == first_range.start()
                 } else {
                     text_position == first_range.end()
                 }
             }
             BoundCase::AtLastRangeEnd { last_range, .. } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == last_range.start()
                 } else {
                     text_position == last_range.end()
                 }
             }
             BoundCase::InsideRange { range } => {
-                if !in_backward_direction {
+                if in_backward_direction {
                     text_position == range.start()
                 } else {
                     text_position == range.end()
@@ -69,8 +75,8 @@ impl UITextInputTokenizer for Bounds {
             }
             BoundCase::AtEmptyRange { .. } => true,
             BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => true,
-            BoundCase::AtEndOfNonemptyRange { .. } => in_backward_direction,
-            BoundCase::AtStartOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtEndOfNonemptyRange { .. } => !in_backward_direction,
+            BoundCase::AtStartOfNonemptyRange { .. } => in_backward_direction,
             BoundCase::BetweenRanges { .. } => false,
         }
     }
@@ -82,9 +88,9 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 return true;
             }
-            Bound::Word => &self.words,
-            Bound::Line => &self.lines,
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Word => &self.bounds.words,
+            Bound::Line => &self.bounds.wrap_lines,
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 return true;
             }
@@ -117,7 +123,7 @@ impl UITextInputTokenizer for Bounds {
     fn position_from(
         &self, text_position: DocCharOffset, to_boundary: Bound, in_backward_direction: bool,
     ) -> Option<DocCharOffset> {
-        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, self))
+        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, &self.bounds))
     }
 
     fn range_enclosing_position(
@@ -127,7 +133,7 @@ impl UITextInputTokenizer for Bounds {
             Bound::Char => {
                 unimplemented!()
             }
-            Bound::Word => &self.words,
+            Bound::Word => &self.bounds.words,
             Bound::Line => {
                 // note: lines handled as words
                 //
@@ -139,14 +145,14 @@ impl UITextInputTokenizer for Bounds {
                 // the returned ranges until it receives a nil value, which is more consistent with a text granularity
                 // that is non-contiguous the way words are and lines are not. This seems to be what it takes to get
                 // the correct undeline behavior after autocorrecting a word.
-                &self.words
+                &self.bounds.words
             }
-            Bound::Paragraph => &self.paragraphs,
+            Bound::Paragraph => &self.bounds.paragraphs,
             Bound::Doc => {
                 unimplemented!()
             }
         };
-        match text_position.bound_case(ranges) {
+        let result = match text_position.bound_case(ranges) {
             BoundCase::NoRanges => None,
             BoundCase::AtFirstRangeStart { first_range, .. } => {
                 if in_backward_direction {
@@ -181,7 +187,22 @@ impl UITextInputTokenizer for Bounds {
                     Some(range_after)
                 }
             }
-            BoundCase::BetweenRanges { .. } => None,
+            BoundCase::BetweenRanges { range_before, range_after } => {
+                if with_granularity == Bound::Word {
+                    // hack: treat space between words as words
+                    Some((range_before.end(), range_after.start()))
+                } else {
+                    None
+                }
+            }
+        };
+        if let Some(result) = result {
+            // this can happen if we are beyond the last range e.g. asking about word at a position after a document's trailing space
+            if !result.contains(text_position, !in_backward_direction, in_backward_direction) {
+                return None;
+            }
         }
+
+        result
     }
 }

@@ -1,19 +1,20 @@
 use std::collections::HashSet;
 use std::sync::atomic::Ordering;
 
+use crate::Lb;
 use crate::model::clock::get_time;
 use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::lazy::LazyTree;
-use crate::model::signed_file::SignedFile;
+use crate::model::signed_meta::SignedMeta;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
-use crate::Lb;
 use uuid::Uuid;
 
 use super::activity;
+use super::events::Actor;
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -27,14 +28,11 @@ impl Lb {
 
         let doc = self.read_document_helper(id, &mut tree).await?;
 
-        let bg_lb = self.clone();
+        drop(tx);
+
         if user_activity {
-            tokio::spawn(async move {
-                bg_lb
-                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                    .await
-                    .unwrap();
-            });
+            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await?;
         }
 
         Ok(doc)
@@ -58,15 +56,9 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
-        self.events.doc_written(id);
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        self.events.doc_written(id, None);
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await?;
 
         Ok(())
     }
@@ -82,15 +74,11 @@ impl Lb {
 
         let doc = self.read_document_helper(id, &mut tree).await?;
         let hmac = tree.find(&id)?.document_hmac().copied();
+        drop(tx);
 
         if user_activity {
-            let bg_lb = self.clone();
-            tokio::spawn(async move {
-                bg_lb
-                    .add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                    .await
-                    .unwrap();
-            });
+            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
+                .await?;
         }
 
         Ok((hmac, doc))
@@ -119,22 +107,19 @@ impl Lb {
         let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
         let hmac = tree.find(&id)?.document_hmac();
         let hmac = *hmac.ok_or_else(|| {
-            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {}", id))
+            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {id}"))
         })?;
         self.docs
             .insert(id, Some(hmac), &encrypted_document)
             .await?;
         tx.end();
-        self.events.doc_written(id);
 
-        let bg_lb = self.clone();
-        tokio::spawn(async move {
-            bg_lb
-                .add_doc_event(activity::DocEvent::Write(id, get_time().0))
-                .await
-                .unwrap();
-            bg_lb.cleanup().await.unwrap();
-        });
+        // todo: when workspace isn't the only writer, this arg needs to be exposed
+        // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
+        // or it will happen when there are multiple co-operative core processes.
+        self.events.doc_written(id, Some(Actor::Workspace));
+        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+            .await?;
 
         Ok(hmac)
     }
@@ -159,9 +144,9 @@ impl Lb {
             .filter_map(|f| f.document_hmac().map(|hmac| (*f.id(), *hmac)))
             .collect::<HashSet<_>>();
 
-        drop(tx);
-
         self.docs.retain(file_hmacs).await?;
+
+        drop(tx);
 
         Ok(())
     }
@@ -171,7 +156,7 @@ impl Lb {
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>
     where
-        T: TreeLike<F = SignedFile>,
+        T: TreeLike<F = SignedMeta>,
     {
         let file = tree.find(&id)?;
         validate::is_document(file)?;

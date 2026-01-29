@@ -1,6 +1,9 @@
-use lb_rs::{blocking::Lb, model::core_config::Config, Uuid};
+use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
-    tab::{markdown_editor::Editor, svg_editor::SVGEditor},
+    tab::{
+        markdown_editor::{Editor, MdConfig},
+        svg_editor::SVGEditor,
+    },
     workspace::Workspace,
 };
 
@@ -40,7 +43,12 @@ impl LbWebApp {
 
         ctx.set_visuals(generate_visuals());
 
-        Self { workspace: Workspace::new(&lb, &ctx), editor: None, canvas: None, initial_screen }
+        Self {
+            workspace: Workspace::new(&lb, &ctx, false),
+            editor: None,
+            canvas: None,
+            initial_screen,
+        }
     }
 }
 
@@ -62,12 +70,13 @@ impl eframe::App for LbWebApp {
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
                     self.editor = Some(Editor::new(
+                        ctx.clone(),
                         self.workspace.core.clone(),
+                        self.workspace.cfg.clone(),
                         include_str!("../resources/editor-demo.md"),
                         Uuid::new_v4(),
                         None,
-                        false,
-                        false,
+                        MdConfig { plaintext_mode: false, readonly: false },
                     ));
                 }
 
@@ -79,7 +88,8 @@ impl eframe::App for LbWebApp {
                         self.workspace.core.clone(),
                         Uuid::new_v4(),
                         None,
-                        None,
+                        &self.workspace.cfg,
+                        false,
                     ))
                 }
                 if let Some(md) = &mut self.editor {

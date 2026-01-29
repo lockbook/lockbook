@@ -1,0 +1,216 @@
+use crate::tab;
+use crate::tab::markdown_editor::HttpClient;
+use comrak::nodes::{AstNode, NodeLink, NodeValue};
+use egui::{ColorImage, Context, TextureId, Ui};
+use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
+use resvg::tiny_skia::Pixmap;
+use resvg::usvg::{self, Transform};
+use std::collections::HashMap;
+use std::ops::Deref;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::thread;
+
+#[derive(Clone, Default)]
+pub struct ImageCache {
+    pub map: HashMap<String, Arc<Mutex<ImageState>>>,
+    pub updated: Arc<Mutex<bool>>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum ImageState {
+    #[default]
+    Loading,
+    Loaded(TextureId),
+    Failed(String),
+}
+
+pub fn calc<'ast>(
+    root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &HttpClient, core: &Lb,
+    file_id: Uuid, ui: &Ui,
+) -> ImageCache {
+    ImageCache::default()
+    // let mut result = ImageCache::default();
+    // let mut prior_cache = prior_cache.clone();
+    // result.updated = prior_cache.updated;
+    // for node in root.descendants() {
+    //     if let NodeValue::Image(node_link) = &node.data.borrow().value {
+    //         let NodeLink { url, .. } = &**node_link;
+
+    //         if result.map.contains_key(url) {
+    //             // the second removal of the same image from the prior cache is always a cache miss and causes performance issues
+    //             // we need to remove cache hits from the prior cache to avoid freeing them from the texture manager
+    //             continue;
+    //         }
+
+    //         if let Some(cached) = prior_cache.map.remove(url) {
+    //             // re-use image from previous cache (even it if failed to load)
+    //             result.map.insert(url.clone(), cached);
+    //         } else {
+    //             let url = url.clone();
+    //             let image_state: Arc<Mutex<ImageState>> = Default::default();
+    //             let client = client.clone();
+    //             let core = core.clone();
+    //             let ctx = ui.ctx().clone();
+    //             let updated = result.updated.clone();
+
+    //             result.map.insert(url.clone(), image_state.clone());
+
+    //             // fetch image
+    //             thread::spawn(move || {
+    //                 let texture_manager = ctx.tex_manager();
+
+    //                 let texture_result = (|| -> Result<TextureId, String> {
+    //                     // use core for lb:// urls and relative paths
+    //                     let maybe_lb_id = match url.strip_prefix("lb://") {
+    //                         Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
+    //                         None => {
+    //                             let parent_id = core
+    //                                 .get_file_by_id(file_id)
+    //                                 .map_err(|e| e.to_string())?
+    //                                 .parent;
+
+    //                             tab::core_get_by_relative_path(
+    //                                 &core,
+    //                                 parent_id,
+    //                                 PathBuf::from(&url),
+    //                             )
+    //                             .map(|f| f.id)
+    //                             .ok()
+    //                         }
+    //                     };
+
+    //                     let image_bytes = if let Some(id) = maybe_lb_id {
+    //                         core.read_document(id, false).map_err(|e| e.to_string())?
+    //                     } else {
+    //                         download_image(&client, &url).map_err(|e| e.to_string())?
+    //                     };
+
+    //                     // convert lockbook drawings to images
+    //                     let image_bytes = if let Some(id) = maybe_lb_id {
+    //                         let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
+    //                         if file.name.ends_with(".svg") {
+    //                             // todo: check errors
+    //                             let tree = usvg::Tree::from_data(
+    //                                 &image_bytes,
+    //                                 &Default::default(),
+    //                                 &Default::default(),
+    //                             )
+    //                             .map_err(|e| e.to_string())?;
+
+    //                             let bounding_box = tree.root().abs_bounding_box();
+
+    //                             // dimensions & transform chosen so that all svg content appears in the result
+    //                             let mut pix_map = Pixmap::new(
+    //                                 bounding_box.width() as _,
+    //                                 bounding_box.height() as _,
+    //                             )
+    //                             .ok_or("failed to create pixmap")
+    //                             .map_err(|e| e.to_string())?;
+    //                             let transform = Transform::identity()
+    //                                 .post_translate(-bounding_box.left(), -bounding_box.top());
+    //                             resvg::render(&tree, transform, &mut pix_map.as_mut());
+    //                             pix_map.encode_png().map_err(|e| e.to_string())?
+    //                         } else {
+    //                             // leave non-drawings alone
+    //                             image_bytes
+    //                         }
+    //                     } else {
+    //                         // leave non-lockbook images alone
+    //                         image_bytes
+    //                     };
+
+    //                     let image =
+    //                         decode_with_orientation(&image_bytes).map_err(|e| e.to_string())?;
+    //                     let size_pixels = [image.width() as usize, image.height() as usize];
+
+    //                     let egui_image = egui::ImageData::Color(
+    //                         ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8())
+    //                             .into(),
+    //                     );
+
+    //                     Ok(texture_manager
+    //                         .write()
+    //                         .alloc(url, egui_image, Default::default()))
+    //                 })();
+
+    //                 match texture_result {
+    //                     Ok(texture_id) => {
+    //                         *image_state.lock().unwrap() = ImageState::Loaded(texture_id);
+    //                     }
+    //                     Err(err) => {
+    //                         *image_state.lock().unwrap() = ImageState::Failed(err);
+    //                     }
+    //                 }
+
+    //                 *updated.lock().unwrap() = true;
+
+    //                 // request a frame when the image is done loading
+    //                 ctx.request_repaint();
+    //             });
+    //         }
+    //     }
+    // }
+
+    // let texture_manager = ui.ctx().tex_manager();
+    // for (_, eviction) in prior_cache.map.drain() {
+    //     if let ImageState::Loaded(eviction) = eviction.lock().unwrap().deref() {
+    //         texture_manager.write().free(*eviction);
+    //     }
+    // }
+
+    // result
+}
+
+use image::{DynamicImage, ImageDecoder};
+use std::io::Cursor;
+
+pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, String> {
+    // Create a reader so we can access the decoder (and its metadata)
+    let reader = image::ImageReader::new(Cursor::new(image_bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?;
+
+    let mut decoder = reader.into_decoder().map_err(|e| e.to_string())?;
+
+    // Read orientation (usually from Exif; if not present, this is NoTransforms)
+    let orientation = decoder.orientation().map_err(|e| e.to_string())?;
+
+    // Decode pixels
+    let mut img = DynamicImage::from_decoder(decoder).map_err(|e| e.to_string())?;
+
+    // Apply rotation/flip in-place
+    img.apply_orientation(orientation);
+
+    Ok(img)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    let response = client.get(url).send()?.bytes()?.to_vec();
+    Ok(response)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    let response = client.get(url).send().await?.bytes().await?.to_vec();
+    Ok(response)
+}
+
+impl ImageCache {
+    pub fn any_loading(&self) -> bool {
+        self.map
+            .values()
+            .any(|state| &ImageState::Loading == state.lock().unwrap().deref())
+    }
+
+    pub fn free(&mut self, ctx: &Context) {
+        let texture_manager = ctx.tex_manager();
+        for (_, eviction) in self.map.drain() {
+            if let ImageState::Loaded(eviction) = eviction.lock().unwrap().deref() {
+                texture_manager.write().free(*eviction);
+            }
+        }
+    }
+}

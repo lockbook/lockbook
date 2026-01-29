@@ -1,32 +1,29 @@
 mod java_utils;
 
-use std::{fs, str::FromStr};
+use std::fs;
+use std::str::FromStr;
 
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
-use jni::{
-    objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue},
-    sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring},
-    JNIEnv,
+use jni::JNIEnv;
+use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
+use jni::sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring};
+pub use lb_rs::blocking::Lb;
+use lb_rs::model::account::Account;
+use lb_rs::model::api::{
+    AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
+pub use lb_rs::model::core_config::Config;
+use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::work_unit::WorkUnit;
+use lb_rs::service::activity::RankingWeights;
+use lb_rs::service::debug::DebugInfoDisplay;
+use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
-pub use lb_rs::{blocking::Lb, model::core_config::Config};
-use lb_rs::{
-    model::{
-        account::Account,
-        api::{AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo},
-        file::{File, ShareMode},
-        file_metadata::FileType,
-        work_unit::WorkUnit,
-    },
-    service::{
-        activity::RankingWeights,
-        sync::{SyncProgress, SyncStatus},
-        usage::{UsageItemMetric, UsageMetrics},
-    },
-};
 use subscribers::search::{SearchConfig, SearchResult};
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, path: JString<'local>,
 ) {
@@ -52,17 +49,33 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getDebugInfo<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, os_info: JString<'local>,
 ) -> jstring {
     let lb = rlb(&mut env, &class);
 
     let os_info = rstring(&mut env, os_info);
-    jni_string(&mut env, lb.debug_info(os_info)).into_raw()
+    jni_string(&mut env, lb.debug_info(os_info).to_string()).into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_writePanicToFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, error_header: JString<'local>,
+    backtrace: JString<'local>,
+) -> jobject {
+    let lb = rlb(&mut env, &class);
+
+    let error_header = rstring(&mut env, error_header);
+    let backtrace = rstring(&mut env, backtrace);
+
+    match lb.write_panic_to_file(error_header, backtrace) {
+        Ok(file_name) => jni_string(&mut env, file_name).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, username: JString<'local>,
     api_url: JString<'local>, welcome_doc: jboolean,
@@ -84,7 +97,7 @@ pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_importAccount<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, key: JString<'local>,
 ) -> jobject {
@@ -115,7 +128,7 @@ fn j_account<'local>(env: &mut JNIEnv<'local>, account: Account) -> JObject<'loc
     obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getAccount<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobject {
@@ -128,7 +141,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getAccount<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportAccountPrivateKey<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jstring {
@@ -140,7 +153,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountPrivateKey<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportAccountPhrase<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jstring {
@@ -152,7 +165,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportAccountPhrase<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportAccountQR<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jbyteArray {
@@ -257,7 +270,7 @@ fn jfile<'local>(env: &mut JNIEnv<'local>, file: File) -> JObject<'local> {
     obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getRoot<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobject {
@@ -284,7 +297,7 @@ fn jfiles<'local>(env: &mut JNIEnv<'local>, files: Vec<File>) -> JObjectArray<'l
     obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getChildren<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, id: JString<'local>,
 ) -> jobjectArray {
@@ -297,7 +310,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getChildren<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jobject {
@@ -312,7 +325,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jname: JString<'local>,
 ) {
@@ -326,7 +339,7 @@ pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_createFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>,
     jparent_id: JString<'local>, jis_doc: jboolean,
@@ -344,7 +357,7 @@ pub extern "system" fn Java_net_lockbook_Lb_createFile<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jname: JString<'local>,
     jtarget_id: JString<'local>, jparent_id: JString<'local>,
@@ -363,7 +376,7 @@ pub extern "system" fn Java_net_lockbook_Lb_createLink<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getTimestampHumanString<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, timestamp: jlong,
 ) -> jstring {
@@ -413,7 +426,7 @@ fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObj
     obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobject {
@@ -426,7 +439,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jstring {
@@ -439,7 +452,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_deleteFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) {
@@ -452,7 +465,7 @@ pub extern "system" fn Java_net_lockbook_Lb_deleteFile<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jstring {
@@ -466,7 +479,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocument<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) -> jbyteArray {
@@ -481,7 +494,7 @@ pub extern "system" fn Java_net_lockbook_Lb_readDocumentBytes<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_writeDocument<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jcontent: JString<'local>,
 ) {
@@ -495,7 +508,7 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocument<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_writeDocumentBytes<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
     jcontent: JByteArray<'local>,
@@ -510,7 +523,7 @@ pub extern "system" fn Java_net_lockbook_Lb_writeDocumentBytes<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
     jparent_id: JString<'local>,
@@ -525,7 +538,7 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
 ) {
@@ -615,7 +628,7 @@ fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JO
     sync_status_obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_calculateWork<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobject {
@@ -628,7 +641,7 @@ pub extern "system" fn Java_net_lockbook_Lb_calculateWork<'local>(
     .into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jdest: JString<'local>,
     jedit: jboolean,
@@ -644,7 +657,7 @@ pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jpurchase_token: JString<'local>,
     jaccount_id: JString<'local>,
@@ -659,7 +672,7 @@ pub extern "system" fn Java_net_lockbook_Lb_upgradeAccountGooglePlay<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_cancelSubscription<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
@@ -795,7 +808,7 @@ fn jsubscription_info<'local>(
     obj
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getSubscriptionInfo<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobject {
@@ -824,7 +837,7 @@ fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local
     arr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {
@@ -836,7 +849,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_listMetadatas<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {
@@ -985,7 +998,7 @@ fn jsearch_results<'local>(
     arr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_search<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jinput: JString<'local>,
 ) -> jstring {
@@ -998,7 +1011,7 @@ pub extern "system" fn Java_net_lockbook_Lb_search<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_shareFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
     jusername: JString<'local>, jis_write_mode: jboolean,
@@ -1014,7 +1027,7 @@ pub extern "system" fn Java_net_lockbook_Lb_shareFile<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getPendingShares<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {
@@ -1026,7 +1039,19 @@ pub extern "system" fn Java_net_lockbook_Lb_getPendingShares<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_getPendingShareFiles<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jobjectArray {
+    let lb = rlb(&mut env, &class);
+
+    match lb.get_pending_share_files() {
+        Ok(files) => jfiles(&mut env, files).into_raw(),
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) {
@@ -1039,7 +1064,7 @@ pub extern "system" fn Java_net_lockbook_Lb_deletePendingShare<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) -> jobjectArray {
@@ -1051,7 +1076,31 @@ pub extern "system" fn Java_net_lockbook_Lb_suggestedDocs<'local>(
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_clearSuggested<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    if let Err(err) = lb.clear_suggested() {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_clearSuggestedId<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+) {
+    let lb = rlb(&mut env, &class);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    if let Err(err) = lb.clear_suggested_id(id) {
+        throw_err(&mut env, err);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
@@ -1059,7 +1108,7 @@ pub extern "system" fn Java_net_lockbook_Lb_logout<'local>(
     fs::remove_dir_all(lb.get_config().writeable_path).unwrap(); // todo: deduplicate
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_deleteAccount<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {

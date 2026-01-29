@@ -5,30 +5,29 @@ mod imex;
 mod input;
 mod lb_fs;
 mod list;
+mod migrate;
 mod share;
 mod stream;
 
+use std::env;
 use std::path::PathBuf;
-use std::{env, time::Instant};
+use std::time::Instant;
 
 use account::ApiUrl;
-use cli_rs::{
-    arg::Arg,
-    cli_error::{CliError, CliResult, Exit},
-    command::Command,
-    flag::Flag,
-    parser::Cmd,
-};
+use cli_rs::arg::Arg;
+use cli_rs::cli_error::{CliError, CliResult, Exit};
+use cli_rs::command::Command;
+use cli_rs::flag::Flag;
+use cli_rs::parser::Cmd;
 
 use colored::Colorize;
 use input::FileInput;
+use lb_rs::model::core_config::Config;
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::path_ops::Filter;
+use lb_rs::service::sync::SyncProgress;
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
-use lb_rs::{
-    model::path_ops::Filter,
-    model::{core_config::Config, errors::LbErrKind},
-    service::sync::SyncProgress,
-    Lb, Uuid,
-};
+use lb_rs::{Lb, Uuid};
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -182,7 +181,8 @@ fn run() -> CliResult<()> {
                     Command::name("new").description("share a file with someone")
                         .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                        .input(Arg::str("username"))
+                        .input(Arg::str("username")
+                            .completor(input::username_completor))
                         .input(Flag::bool("read-only"))
                         .handler(|target, username, ro| share::new(target.get(), username.get(), ro.get()))
                 )
@@ -206,18 +206,24 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("search")
+            Command::name("search").description("search document contents")
                 .input(Arg::str("query"))
                 .handler(|query| search(&query.get()))
+        )
+        .subcommand(
+            Command::name("migrate-from").description("transfer files from an existing platform")
+                .subcommand(
+                    Command::name("bear").description("migrate your files from https://bear.app/ Export as md and using the 'export attachments' option.")
+                        .input(Arg::<PathBuf>::name("disk-path").description("location of a bear export of files."))
+                        .handler(|path| migrate::bear(path.get()))
+                )
         )
         .subcommand(
             Command::name("sync").description("sync your local changes back to lockbook servers") // todo also back
                 .handler(sync)
         )
         .with_completions()
-        .parse();
-
-    Ok(())
+        .parse()
 }
 
 fn main() {
@@ -239,6 +245,8 @@ async fn search(query: &str) -> CliResult<()> {
     lb.build_index().await?;
     let build_time = time.elapsed();
 
+    lb.search.tantivy_reader.reload().unwrap();
+
     let time = Instant::now();
     let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
     let search_time = time.elapsed();
@@ -248,12 +256,28 @@ async fn search(query: &str) -> CliResult<()> {
             SearchResult::DocumentMatch { id: _, path, content_matches } => {
                 println!("{}", format!("DOC: {path}").bold().blue());
                 for content in content_matches {
-                    println!("{}", content.paragraph);
+                    let mut result = String::default();
+                    for (i, c) in content.paragraph.char_indices() {
+                        if content.matched_indices.contains(&i) {
+                            result = format!("{result}{}", c.to_string().underline());
+                        } else {
+                            result = format!("{result}{c}");
+                        }
+                    }
+                    println!("{result}");
                 }
                 println!();
             }
-            SearchResult::PathMatch { id: _, path, matched_indices: _, score: _ } => {
-                println!("{}", format!("PATH: {path}").bold().green());
+            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
+                let mut result = String::default();
+                for (i, c) in path.char_indices() {
+                    if matched_indices.contains(&i) {
+                        result = format!("{result}{}", c.to_string().underline());
+                    } else {
+                        result = format!("{result}{c}");
+                    }
+                }
+                println!("{}", format!("PATH: {result}").bold().green());
                 println!();
             }
         }

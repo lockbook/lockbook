@@ -1,5 +1,5 @@
-use crate::config::Config;
 use crate::ServerError;
+use crate::config::Config;
 use async_trait::async_trait;
 use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::model::file_metadata::DocumentHmac;
@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use tokio::fs::{remove_file, File};
+use tokio::fs::{File, remove_file};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use uuid::Uuid;
 
@@ -19,6 +19,9 @@ pub trait DocumentService: Send + Sync + Clone + 'static {
     async fn get<T: Debug>(
         &self, id: &Uuid, hmac: &DocumentHmac,
     ) -> Result<EncryptedDocument, ServerError<T>>;
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>>;
     async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>>;
 
     fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool;
@@ -62,6 +65,17 @@ impl DocumentService for OnDiskDocuments {
         Ok(content)
     }
 
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
+        let path = self.get_path(id, hmac);
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        Ok(Some(self.get(id, hmac).await?))
+    }
+
     async fn delete<T: Debug>(&self, id: &Uuid, hmac: &DocumentHmac) -> Result<(), ServerError<T>> {
         let path = self.get_path(id, hmac);
         // I'm not sure this check should exist, the two situations it gets utilized is when we re-delete
@@ -83,7 +97,7 @@ impl DocumentService for OnDiskDocuments {
         let mut path = self.config.files.path.clone();
         // we may need to truncate this
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
-        path.push(format!("{}-{}", id, hmac));
+        path.push(format!("{id}-{hmac}"));
         path
     }
 }
@@ -111,6 +125,14 @@ impl DocumentService for InMemDocuments {
         let hmac = base64::encode_config(hmac, base64::URL_SAFE);
         let key = format!("{id}-{hmac}");
         Ok(self.docs.lock().unwrap().get(&key).unwrap().clone())
+    }
+
+    async fn maybe_get<T: Debug>(
+        &self, id: &Uuid, hmac: &DocumentHmac,
+    ) -> Result<Option<EncryptedDocument>, ServerError<T>> {
+        let hmac = base64::encode_config(hmac, base64::URL_SAFE);
+        let key = format!("{id}-{hmac}");
+        Ok(self.docs.lock().unwrap().get(&key).cloned())
     }
 
     fn exists(&self, id: &Uuid, hmac: &DocumentHmac) -> bool {

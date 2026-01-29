@@ -78,7 +78,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
         self.selection = range;
-        Response { text_updated: false }
+        Response { text_updated: false, open_camera: false }
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> Response {
@@ -95,7 +95,7 @@ impl Snapshot {
             &mut self.selection,
         );
 
-        Response { text_updated: true }
+        Response { text_updated: true, open_camera: false }
     }
 
     fn invert(&self, op: &Operation) -> InverseOperation {
@@ -185,18 +185,14 @@ struct External {
 
 #[derive(Default)]
 pub struct Response {
-    text_updated: bool,
+    pub text_updated: bool,
+    pub open_camera: bool,
 }
 
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
-    }
-}
-
-impl From<Response> for bool {
-    fn from(value: Response) -> Self {
-        value.text_updated
+        self.open_camera |= other.open_camera;
     }
 }
 
@@ -215,14 +211,41 @@ struct OpMeta {
 impl Buffer {
     /// Push a series of operations onto the buffer's input queue; operations will be undone/redone atomically. Useful
     /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
-    pub fn queue(&mut self, ops: Vec<Operation>) {
+    pub fn queue(&mut self, mut ops: Vec<Operation>) {
         let timestamp = Instant::now();
         let base = self.current.seq;
 
+        // combine adjacent replacements
+        let mut combined_ops = Vec::new();
+        ops.sort_by_key(|op| match op {
+            Operation::Select(range) | Operation::Replace(Replace { range, .. }) => range.start(),
+        });
+        for op in ops.into_iter() {
+            match &op {
+                Operation::Replace(Replace { range: op_range, text: op_text }) => {
+                    if let Some(Operation::Replace(Replace {
+                        range: last_op_range,
+                        text: last_op_text,
+                    })) = combined_ops.last_mut()
+                    {
+                        if last_op_range.end() == op_range.start() {
+                            last_op_range.1 = op_range.1;
+                            last_op_text.push_str(op_text);
+                        } else {
+                            combined_ops.push(op);
+                        }
+                    } else {
+                        combined_ops.push(op);
+                    }
+                }
+                Operation::Select(_) => combined_ops.push(op),
+            }
+        }
+
         self.ops
             .meta
-            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops.all.extend(ops);
+            .extend(combined_ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops.all.extend(combined_ops);
     }
 
     /// Loads a new string into the buffer, merging out-of-editor changes made since last load with in-editor changes

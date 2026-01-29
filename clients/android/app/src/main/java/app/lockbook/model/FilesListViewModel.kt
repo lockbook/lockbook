@@ -1,6 +1,7 @@
 package app.lockbook.model
 
 import android.app.Application
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewModelScope
@@ -21,8 +22,7 @@ import net.lockbook.LbError.LbEC
 
 class FilesListViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
-
+    internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
 
@@ -74,15 +74,15 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 }
                 else -> {
                     if (!showOutOfSpace0_9) {
-                        pref.edit()
-                            .putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
-                            .apply()
+                        pref.edit {
+                            putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
+                        }
                     }
 
                     if (!showOutOfSpace0_8) {
-                        pref.edit()
-                            .putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
-                            .apply()
+                        pref.edit {
+                            putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
+                        }
                     }
 
                     return@launch
@@ -115,35 +115,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private suspend fun maybeToggleSuggestedDocs() {
+    suspend fun maybeToggleSuggestedDocs() {
         val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
+
         if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
             isSuggestedDocsVisible = newIsSuggestedDocsVisible
             withContext(Dispatchers.Main) {
                 _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleSuggestedDocsVisibility(isSuggestedDocsVisible)
-            }
-        }
-    }
-
-    fun generateQuickNote(workspaceModel: WorkspaceViewModel) {
-        viewModelScope.launch(Dispatchers.IO) {
-            var iter = 0
-            var fileName: String
-
-            do {
-                iter++
-                fileName = "${getString(R.string.note)}-$iter.md"
-            } while (fileModel.children.any { it.name == fileName })
-
-            try {
-                val newFile = Lb.createFile(fileName, fileModel.parent.id, true)
-                withContext(Dispatchers.Main) {
-                    workspaceModel._openFile.postValue(Pair(newFile.id, true))
-                }
-
-                refreshFiles()
-            } catch (err: LbError) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
             }
         }
     }

@@ -1,28 +1,22 @@
+use crate::model::clock;
 use crate::model::errors::LbResult;
-use crate::Lb;
-
-use serde::Serialize;
+use crate::service::lb_id::LbID;
+use crate::{Lb, get_code_version};
+use basic_human_duration::ChronoHumanDuration;
+use chrono::{Local, NaiveDateTime, TimeZone};
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
+use time::Duration;
 #[cfg(not(target_family = "wasm"))]
-use {
-    crate::model::clock,
-    crate::{get_code_version, service::logging::LOG_FILE},
-    basic_human_duration::ChronoHumanDuration,
-    chrono::NaiveDateTime,
-};
-
+use tokio::fs::{self, OpenOptions};
 #[cfg(not(target_family = "wasm"))]
-use {
-    std::env,
-    std::io::SeekFrom,
-    std::path::{Path, PathBuf},
-    tokio::{
-        fs::{self, File},
-        io::{AsyncReadExt, AsyncSeekExt},
-    },
-};
+use tokio::io::AsyncWriteExt;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct DebugInfo {
+    pub lb_id: LbID,
     pub time: String,
     pub name: String,
     pub last_synced: String,
@@ -32,41 +26,25 @@ pub struct DebugInfo {
     pub lb_dir: String,
     pub server_url: String,
     pub integrity: String,
-    pub log_tail: String,
-    pub last_panic: String,
+    pub is_syncing: bool,
+    pub status: String,
+    pub panics: Vec<String>,
 }
 
-#[cfg(target_family = "wasm")]
-impl Lb {
-    pub async fn debug_info(&self, _os_info: String) -> LbResult<String> {
-        Ok("Logs are not supported for wasm yet".to_string())
-    }
+pub trait DebugInfoDisplay {
+    fn to_string(&self) -> String;
 }
 
-#[cfg(not(target_family = "wasm"))]
-impl Lb {
-    async fn tail_log(&self) -> LbResult<String> {
-        let mut path = PathBuf::from(&self.config.writeable_path);
-        if path.exists() {
-            path.push(LOG_FILE);
-            let mut file = File::open(path).await?;
-            let size = file.metadata().await?.len();
-            let read_amount = 5 * 1024;
-            let pos = if read_amount > size { 0 } else { size - read_amount };
-
-            let mut buffer = Vec::with_capacity(read_amount as usize);
-            file.seek(SeekFrom::Start(pos)).await?;
-            file.read_to_end(&mut buffer).await?;
-            if self.config.colored_logs {
-                // strip colors
-                buffer = strip_ansi_escapes::strip(buffer);
-            }
-            Ok(String::from_utf8_lossy(&buffer).to_string())
-        } else {
-            Ok("NO LOGS FOUND".to_string())
+impl DebugInfoDisplay for LbResult<DebugInfo> {
+    fn to_string(&self) -> String {
+        match self {
+            Ok(debug_info) => serde_json::to_string_pretty(debug_info).unwrap_or_default(),
+            Err(err) => format!("Error retrieving debug info: {:?}", err),
         }
     }
+}
 
+impl Lb {
     async fn human_last_synced(&self) -> String {
         let tx = self.ro_tx().await;
         let db = tx.db();
@@ -74,7 +52,7 @@ impl Lb {
         let last_synced = *db.last_synced.get().unwrap_or(&0);
 
         if last_synced != 0 {
-            time::Duration::milliseconds(clock::get_time().0 - last_synced)
+            Duration::milliseconds(clock::get_time().0 - last_synced)
                 .format_human()
                 .to_string()
         } else {
@@ -82,21 +60,38 @@ impl Lb {
         }
     }
 
+    async fn lb_id(&self) -> LbResult<LbID> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let lb_id = if let Some(id) = db.id.get().copied() {
+            id
+        } else {
+            let new_id = LbID::generate();
+            db.id.insert(new_id)?;
+            new_id
+        };
+
+        tx.end();
+
+        Ok(lb_id)
+    }
+
     fn now(&self) -> String {
         let now = chrono::Local::now();
         now.format("%Y-%m-%d %H:%M:%S %Z").to_string()
     }
 
-    async fn find_most_recent_panic_log(&self) -> LbResult<String> {
+    #[cfg(not(target_family = "wasm"))]
+    async fn collect_panics(&self, populate_content: bool) -> LbResult<Vec<PanicInfo>> {
+        let mut panics = vec![];
+
         let dir_path = &self.config.writeable_path;
         let path = Path::new(dir_path);
 
         let prefix = "panic---";
         let suffix = ".log";
         let timestamp_format = "%Y-%m-%d---%H-%M-%S";
-
-        let mut most_recent_file: Option<String> = None;
-        let mut most_recent_time: Option<NaiveDateTime> = None;
 
         let mut entries = fs::read_dir(path).await?;
         while let Some(entry) = entries.next_entry().await? {
@@ -108,63 +103,115 @@ impl Lb {
                 let timestamp_str = &file_name[prefix.len()..file_name.len() - suffix.len()];
 
                 // Parse the timestamp
-                if let Ok(timestamp) =
-                    NaiveDateTime::parse_from_str(timestamp_str, timestamp_format)
-                {
-                    // Compare to find the most recent timestamp
-                    match most_recent_time {
-                        Some(ref current_most_recent) => {
-                            if timestamp > *current_most_recent {
-                                most_recent_time = Some(timestamp);
-                                most_recent_file = Some(file_name.clone());
-                            }
-                        }
-                        None => {
-                            most_recent_time = Some(timestamp);
-                            most_recent_file = Some(file_name.clone());
-                        }
-                    }
+                if let Ok(time) = NaiveDateTime::parse_from_str(timestamp_str, timestamp_format) {
+                    let file_path = path.join(file_name);
+                    let content = if populate_content {
+                        let contents = fs::read_to_string(&file_path).await?;
+                        let contents = format!("time: {time}: contents: {contents}");
+                        contents
+                    } else {
+                        Default::default()
+                    };
+
+                    panics.push(PanicInfo { time, file_path, content });
                 }
             }
         }
+        panics.sort_by(|a, b| b.time.cmp(&a.time));
 
-        // If we found the most recent file, read its contents
-        if let Some(file_name) = most_recent_file {
-            let file_path = path.join(file_name);
-            let contents = fs::read_to_string(file_path).await?;
-            Ok(contents)
-        } else {
-            Ok(String::default())
+        Ok(panics)
+    }
+
+    /// returns true if we have crashed within the last 5 seconds
+    #[cfg(not(target_family = "wasm"))]
+    pub async fn recent_panic(&self) -> LbResult<bool> {
+        let panics = self.collect_panics(false).await?;
+        for panic in panics {
+            let timestamp_local_time = Local
+                .from_local_datetime(&panic.time)
+                .single()
+                .unwrap_or_default();
+
+            let seconds_ago = (Local::now() - timestamp_local_time).abs().num_seconds();
+
+            if seconds_ago <= 5 {
+                return Ok(true);
+            }
         }
+
+        Ok(false)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn debug_info(&self, os_info: String) -> LbResult<String> {
+    #[cfg(not(target_family = "wasm"))]
+    pub async fn write_panic_to_file(&self, error_header: String, bt: String) -> LbResult<String> {
+        let file_name = generate_panic_filename(&self.config.writeable_path);
+        let content = generate_panic_content(&error_header, &bt);
+
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&file_name)
+            .await?;
+
+        file.write_all(content.as_bytes()).await?;
+
+        Ok(file_name)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    #[cfg(not(target_family = "wasm"))]
+    pub async fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
         let os = env::consts::OS;
         let family = env::consts::FAMILY;
 
-        let (integrity, log_tail, last_synced, last_panic) = tokio::join!(
+        let (integrity, last_synced, panics, lb_id) = tokio::join!(
             self.test_repo_integrity(),
-            self.tail_log(),
             self.human_last_synced(),
-            self.find_most_recent_panic_log()
+            self.collect_panics(true),
+            self.lb_id()
         );
 
-        Ok(serde_json::to_string_pretty(&DebugInfo {
+        let panics = panics?.into_iter().map(|panic| panic.content).collect();
+
+        let mut status = self.status().await;
+        status.space_used = None;
+        let status = format!("{status:?}");
+        let is_syncing = self.syncing.load(Ordering::Relaxed);
+
+        Ok(DebugInfo {
             time: self.now(),
             name: account.username.clone(),
             lb_version: get_code_version().into(),
+            lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
-            integrity: format!("{:?}", integrity),
-            log_tail: log_tail?,
+            integrity: format!("{integrity:?}"),
             lb_dir: self.config.writeable_path.clone(),
             last_synced,
             os_info,
-            last_panic: last_panic?,
-        })?)
+            status,
+            is_syncing,
+            panics,
+        })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PanicInfo {
+    pub time: NaiveDateTime,
+    pub file_path: PathBuf,
+    pub content: String,
+}
+
+pub fn generate_panic_filename(path: &str) -> String {
+    let timestamp = chrono::Local::now().format("%Y-%m-%d---%H-%M-%S");
+    format!("{path}/panic---{timestamp}.log")
+}
+
+pub fn generate_panic_content(panic_info: &str, bt: &str) -> String {
+    format!("INFO: {panic_info}\nBT: {bt}")
 }

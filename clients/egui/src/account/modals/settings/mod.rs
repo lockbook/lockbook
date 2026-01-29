@@ -4,12 +4,12 @@ mod debug_tab;
 mod general_tab;
 mod usage_tab;
 
-use std::sync::Mutex;
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
+use lb::service::debug::DebugInfoDisplay;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
 use workspace_rs::workspace::WsPersistentStore;
@@ -49,7 +49,7 @@ impl SettingsModal {
     ) -> Self {
         let export_result = core
             .export_account_phrase()
-            .map_err(|err| format!("{:?}", err)); // TODO
+            .map_err(|err| format!("{err:?}")); // TODO
 
         let (info_tx, info_rx) = mpsc::channel();
 
@@ -60,17 +60,18 @@ impl SettingsModal {
             move || {
                 let sub_info_result = core
                     .get_subscription_info()
-                    .map_err(|err| format!("{:?}", err)); // TODO
+                    .map_err(|err| format!("{err:?}")); // TODO
 
-                let metrics_result = core.get_usage().map_err(|err| format!("{:?}", err)); // TODO
+                let metrics_result = core.get_usage().map_err(|err| format!("{err:?}")); // TODO
                 let uncompressed_result = core
                     .get_uncompressed_usage()
-                    .map_err(|err| format!("{:?}", err)); // TODO
+                    .map_err(|err| format!("{err:?}")); // TODO
 
                 let usage_info =
                     UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
 
-                info_tx.send(usage_info).unwrap();
+                // error ignored, sometimes settings is closed before it's result is seen, it's fine
+                info_tx.send(usage_info).unwrap_or_default();
             }
         });
 
@@ -80,7 +81,7 @@ impl SettingsModal {
             let debug = debug.clone();
 
             move || {
-                let debug_str = core.debug_info("None provided".into());
+                let debug_str = core.debug_info("None provided".into()).to_string();
                 *debug.lock().unwrap() = debug_str;
             }
         });
@@ -165,7 +166,7 @@ impl SettingsModal {
 
         let response = ui.interact(
             response.rect,
-            egui::Id::from(format!("tab_label_{}", text)),
+            egui::Id::from(format!("tab_label_{text}")),
             egui::Sense::click(),
         );
 

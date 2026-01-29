@@ -7,8 +7,9 @@ use crate::model::{
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::{atomic::AtomicBool, Arc},
+    sync::{Arc, atomic::AtomicBool},
 };
+use uuid::Uuid;
 
 #[cfg(not(target_family = "wasm"))]
 use {
@@ -19,8 +20,6 @@ use {
         io::{AsyncReadExt, AsyncWriteExt},
     },
 };
-
-use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AsyncDocs {
@@ -148,6 +147,10 @@ impl AsyncDocs {
                 .file_name()
                 .and_then(|name| name.to_str())
                 .ok_or(LbErrKind::Unexpected("could not get filename from os".to_string()))?;
+
+            if file_name.contains("pending") {
+                continue;
+            }
 
             let (id_str, hmac_str) = file_name.split_at(36); // UUIDs are 36 characters long in string form
 
