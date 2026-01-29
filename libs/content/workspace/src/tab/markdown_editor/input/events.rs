@@ -245,8 +245,8 @@ impl<'ast> Editor {
         }
 
         // open the context menu in the center of the top of the rect containing the line
-        let start_line = self.cursor_line(line.0);
-        let end_line = self.cursor_line(line.1);
+        let start_line = self.cursor_line(line.0)?;
+        let end_line = self.cursor_line(line.1)?;
         Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: start_line[0].y })
     }
 }
