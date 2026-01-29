@@ -465,6 +465,18 @@ impl<'ast> Editor {
                                 ui.max_rect().min + (padding + MENU_MARGIN) * Vec2::X;
                             let md_width = self.width - 2. * MENU_MARGIN;
 
+                            // store values
+                            let source_lines = mem::take(&mut self.bounds.source_lines);
+                            let buffer = mem::take(&mut self.buffer);
+                            let paragraphs = mem::take(&mut self.bounds.paragraphs);
+                            let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
+
+                            let galleys = mem::take(&mut self.galleys.galleys);
+                            let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
+                            let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+
+                            self.layout_cache.clear();
+
                             // page title
                             ui.add_space(MENU_SPACE);
                             top_left.y += MENU_SPACE;
@@ -793,9 +805,19 @@ impl<'ast> Editor {
                             let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
 
                             ui.advance_cursor_after_rect(rect);
+
+                            // restore stored values
+                            self.buffer = buffer;
+                            self.bounds.source_lines = source_lines;
+                            self.bounds.paragraphs = paragraphs;
+                            self.bounds.inline_paragraphs = inline_paragraphs;
+                            self.calc_words();
+
+                            self.galleys.galleys = galleys;
+                            self.bounds.wrap_lines = wrap_lines;
+                            self.touch_consuming_rects = touch_consuming_rects;
                         });
                 });
-                self.galleys.galleys.sort_by_key(|g| g.range);
             });
     }
 
@@ -828,17 +850,7 @@ impl<'ast> Editor {
     }
 
     pub fn markdown_label_height(&mut self, md: &str) -> f32 {
-        // store values
-        let source_lines = mem::take(&mut self.bounds.source_lines);
-        let buffer = mem::replace(&mut self.buffer, md.into());
-        let paragraphs = mem::take(&mut self.bounds.paragraphs);
-        let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
-        self.calc_words();
-        self.layout_cache.clear(); // non-functional recompute
-
-        let galleys = mem::take(&mut self.galleys.galleys);
-        let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
-        let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+        self.buffer = md.into();
 
         // place cursor (affects capture)
         self.buffer.queue(vec![Operation::Select(
@@ -861,33 +873,13 @@ impl<'ast> Editor {
 
         let height = self.height(root);
 
-        // restore stored values
-        self.buffer = buffer;
-        self.bounds.source_lines = source_lines;
-        self.bounds.paragraphs = paragraphs;
-        self.bounds.inline_paragraphs = inline_paragraphs;
-        self.calc_words();
-        self.layout_cache.clear(); // non-functional recompute
-
-        self.galleys.galleys = galleys;
-        self.bounds.wrap_lines = wrap_lines;
-        self.touch_consuming_rects = touch_consuming_rects;
+        self.layout_cache.clear();
 
         height
     }
 
     pub fn markdown_label(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str) {
-        // store values
-        let buffer = mem::replace(&mut self.buffer, md.into());
-        let source_lines = mem::take(&mut self.bounds.source_lines);
-        let paragraphs = mem::take(&mut self.bounds.paragraphs);
-        let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
-        self.calc_words();
-        self.layout_cache.clear(); // non-functional recompute
-
-        let galleys = mem::take(&mut self.galleys.galleys);
-        let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
-        let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+        self.buffer = md.into();
 
         // place cursor (affects capture)
         self.buffer.queue(vec![Operation::Select(
@@ -913,17 +905,7 @@ impl<'ast> Editor {
 
         self.show_block(&mut ui.child_ui(rect, *ui.layout(), None), root, top_left);
 
-        // restore stored values
-        self.buffer = buffer;
-        self.bounds.source_lines = source_lines;
-        self.bounds.paragraphs = paragraphs;
-        self.bounds.inline_paragraphs = inline_paragraphs;
-        self.calc_words();
-        self.layout_cache.clear(); // non-functional recompute
-
-        self.galleys.galleys = galleys;
-        self.bounds.wrap_lines = wrap_lines;
-        self.touch_consuming_rects = touch_consuming_rects;
+        self.layout_cache.clear();
     }
 }
 
