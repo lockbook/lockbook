@@ -13,6 +13,7 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::MARGIN;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::theme::icons::Icon;
 
 use super::cache::ImageState;
 
@@ -63,7 +64,7 @@ impl<'ast> Editor {
             let image_state = image_state.lock().unwrap().deref().clone();
             match image_state {
                 ImageState::Loading => {
-                    let icon = "\u{e410}";
+                    let icon = Icon::IMAGE;
                     let caption = "Loading image...";
 
                     let size = self.image_size(Vec2::splat(200.), width);
@@ -74,7 +75,7 @@ impl<'ast> Editor {
                         ui.painter().text(
                             rect.center(),
                             Align2::CENTER_CENTER,
-                            icon,
+                            icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
                             self.theme.fg().neutral_tertiary,
                         );
@@ -125,7 +126,7 @@ impl<'ast> Editor {
                     });
                 }
                 ImageState::Failed(message) => {
-                    let icon = "\u{f116}";
+                    let icon = Icon::NO_IMAGE;
                     let caption = format!("Could not show image: {message}");
 
                     let size = self.image_size(Vec2::splat(200.), width);
@@ -136,7 +137,7 @@ impl<'ast> Editor {
                         ui.painter().text(
                             rect.center(),
                             Align2::CENTER_CENTER,
-                            icon,
+                            icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
                             self.theme.fg().neutral_tertiary,
                         );
