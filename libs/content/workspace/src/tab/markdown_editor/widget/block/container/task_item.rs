@@ -46,8 +46,9 @@ impl<'ast> Editor {
             self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
-            let height = self.block_children_height(node);
-            let children_space = Rect::from_min_size(top_left, Vec2::new(self.width(node), height));
+            let children_height = self.block_children_height(node);
+            let children_space =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), children_height));
             children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         } else {
             let line = self.node_first_line(node);
@@ -69,12 +70,14 @@ impl<'ast> Editor {
 
         // fold button
         // todo: proper hit-testing (this ignores anything covering the space)
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
             || hovered
-            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
-            || annotation_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+            || fold_button_space.contains(pointer)
+            || annotation_space.contains(pointer)
             || self.fold(node).is_some()
             || self.selected_block(node);
         if !show_fold_button {

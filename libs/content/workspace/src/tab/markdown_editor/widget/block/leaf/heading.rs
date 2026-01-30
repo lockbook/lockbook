@@ -156,6 +156,14 @@ impl<'ast> Editor {
             self.show_atx_heading(ui, node, top_left, level)
         };
 
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+        let hovered = {
+            let siblings_height = self.heading_contained_siblings_height(node);
+            let siblings_space =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
+            siblings_space.contains(pointer)
+        };
+
         // fold button
         // todo: proper hit-testing (this ignores anything covering the space)
         let first_line = self.node_first_line(node);
@@ -165,7 +173,8 @@ impl<'ast> Editor {
             Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
             || resp.hovered
-            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+            || hovered
+            || fold_button_space.contains(pointer)
             || self.fold(node).is_some()
             || self.selected_block(node);
         if !show_fold_button {
@@ -471,6 +480,46 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
+    }
+
+    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let siblings = self.heading_contained_siblings(node);
+        let mut height_sum = 0.0;
+        for sibling in &siblings {
+            height_sum += self.block_pre_spacing_height(sibling, &siblings);
+            height_sum += self.height(sibling);
+            height_sum += self.block_post_spacing_height(sibling, &siblings);
+        }
+        height_sum
+    }
+
+    fn heading_contained_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+        let NodeValue::Heading(heading) = &node.data.borrow().value else {
+            panic!("heading_contents() invoked for non-heading")
+        };
+
+        let mut contents = self.node_range(node).end().into_range();
+        let sorted_siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &sorted_siblings);
+
+        let mut result = Vec::new();
+
+        for sibling in sorted_siblings[sibling_index + 1..].iter() {
+            // an equal or more significant subsequent heading concludes this heading's contents
+            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
+                if sibling_heading.level <= heading.level {
+                    let sibling_first_line = self.node_first_line_idx(sibling);
+                    let last_line = sibling_first_line - 1;
+                    contents.1 = self.bounds.source_lines[last_line].end();
+
+                    break;
+                }
+            }
+
+            result.push(*sibling);
+        }
+
+        result
     }
 
     pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
