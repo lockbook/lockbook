@@ -47,10 +47,7 @@ impl<'ast> Editor {
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let height = self.block_children_height(node);
-            let children_space = Rect::from_min_size(
-                top_left + INDENT * Vec2::X,
-                Vec2::new(self.width(node) - INDENT, height),
-            );
+            let children_space = Rect::from_min_size(top_left, Vec2::new(self.width(node), height));
             children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         } else {
             let line = self.node_first_line(node);
