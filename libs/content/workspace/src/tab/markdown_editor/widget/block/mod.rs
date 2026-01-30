@@ -4,7 +4,7 @@ use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_editor::Editor;
@@ -492,38 +492,8 @@ impl<'ast> Editor {
                     most_significant_unfolded_heading = heading.level;
 
                     // this is a heading that contains us; does it contain the cursor?
-                    let mut heading_contents = self.node_range(sibling).end().into_range();
-                    let heading_sorted_siblings = self.sorted_siblings(sibling);
-                    let heading_sibling_index =
-                        self.sibling_index(sibling, &heading_sorted_siblings);
-                    let mut concluded_by_subsequent_heading = false;
-                    for heading_sibling in
-                        heading_sorted_siblings[heading_sibling_index + 1..].iter()
-                    {
-                        // an equal or more significant subsequent heading concludes this heading's contents
-                        if let NodeValue::Heading(heading_sibling_heading) =
-                            &heading_sibling.data.borrow().value
-                        {
-                            if heading_sibling_heading.level <= heading.level {
-                                let heading_sibling_first_line =
-                                    self.node_first_line_idx(heading_sibling);
-                                let heading_last_line = heading_sibling_first_line - 1;
-                                heading_contents.1 =
-                                    self.bounds.source_lines[heading_last_line].end();
-                                concluded_by_subsequent_heading = true;
-
-                                break;
-                            }
-                        }
-                    }
-                    if !concluded_by_subsequent_heading {
-                        // absent an equal or more significant subsequent
-                        // heading, we contain the remaining content of the
-                        // parent
-                        heading_contents.1 = self.node_range(node.parent().unwrap()).end();
-                    }
-
                     // headings intersecting the selection don't count (start exclusive / end inclusive)
+                    let heading_contents = self.heading_contents(sibling);
                     if heading_contents.start() < self.buffer.current.selection.end()
                         && self.buffer.current.selection.start() <= heading_contents.end()
                     {

@@ -1,4 +1,4 @@
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
@@ -207,6 +207,21 @@ impl<'ast> Editor {
                         text: FOLD_TAG.into(),
                         advance_cursor: false,
                     });
+
+                    // when folding a section that intersects the cursor, adjust the selection
+                    // this ensures the folded section appears folded / avoids immediate selection reveal
+                    let heading_contents = self.heading_contents(node);
+                    let selection = self.buffer.current.selection;
+
+                    if heading_contents.intersects(&selection, true) {
+                        self.event.internal_events.push(Event::Select {
+                            region: (
+                                selection.start().min(heading_contents.start()),
+                                selection.end().min(heading_contents.start()),
+                            )
+                                .into(),
+                        });
+                    }
                 }
             });
         }
@@ -502,5 +517,39 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
+    }
+
+    pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        let NodeValue::Heading(heading) = &node.data.borrow().value else {
+            panic!("heading_contents() invoked for non-heading")
+        };
+
+        let mut heading_contents = self.node_range(node).end().into_range();
+        let heading_sorted_siblings = self.sorted_siblings(node);
+        let heading_sibling_index = self.sibling_index(node, &heading_sorted_siblings);
+        let mut concluded_by_subsequent_heading = false;
+        for heading_sibling in heading_sorted_siblings[heading_sibling_index + 1..].iter() {
+            // an equal or more significant subsequent heading concludes this heading's contents
+            if let NodeValue::Heading(heading_sibling_heading) =
+                &heading_sibling.data.borrow().value
+            {
+                if heading_sibling_heading.level <= heading.level {
+                    let heading_sibling_first_line = self.node_first_line_idx(heading_sibling);
+                    let heading_last_line = heading_sibling_first_line - 1;
+                    heading_contents.1 = self.bounds.source_lines[heading_last_line].end();
+                    concluded_by_subsequent_heading = true;
+
+                    break;
+                }
+            }
+        }
+        if !concluded_by_subsequent_heading {
+            // absent an equal or more significant subsequent
+            // heading, we contain the remaining content of the
+            // parent
+            heading_contents.1 = self.node_range(node.parent().unwrap()).end();
+        }
+
+        heading_contents
     }
 }
