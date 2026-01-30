@@ -5,12 +5,9 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
-use crate::tab::markdown_editor::{Editor, Event};
-use crate::theme::icons::Icon;
-use crate::widgets::IconButton;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -95,10 +92,10 @@ impl<'ast> Editor {
             resp.hovered
         };
 
-        // show/hide button (fold)
-        // todo: factor (copied for headings)
+        // fold button
         // todo: proper hit-testing (this ignores anything covering the space)
-        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        let (fold_button_size, fold_button_icon_size, fold_button_space) =
+            Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
@@ -108,55 +105,13 @@ impl<'ast> Editor {
             return;
         }
 
-        let fold_button_size = INDENT * 0.8;
-        let fold_button_space = Rect::from_min_size(
-            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
-            Vec2::splat(fold_button_size),
+        self.show_fold_button(
+            ui,
+            node,
+            (fold_button_size, fold_button_icon_size, fold_button_space),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
         );
-        let fold_button_icon_size = fold_button_size * 0.6;
-        self.touch_consuming_rects.push(fold_button_space);
-
-        if let Some(fold) = self.fold(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_RIGHT.size(fold_button_icon_size).color(
-                    if self.item_fold_reveal(node) {
-                        self.theme.fg().neutral_quarternary
-                    } else {
-                        self.theme.fg().accent_secondary
-                    },
-                );
-                if IconButton::new(icon)
-                    .size(fold_button_size)
-                    .tooltip("Show Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(fold).into(),
-                        text: "".into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
-        } else if let Some(foldable) = self.foldable(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_DOWN
-                    .size(fold_button_icon_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .size(fold_button_size)
-                    .tooltip("Hide Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(foldable).end().into_range().into(),
-                        text: FOLD_TAG.into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
-        }
     }
 
     pub fn own_prefix_len_item(

@@ -156,19 +156,13 @@ impl<'ast> Editor {
             self.show_atx_heading(ui, node, top_left, level)
         };
 
-        // show/hide button (fold)
-        // todo: factor (copied for list items)
+        // fold button
+        // todo: proper hit-testing (this ignores anything covering the space)
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
-        let fold_button_size = INDENT * 0.8;
-        let fold_button_space = Rect::from_min_size(
-            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
-            Vec2::splat(fold_button_size),
-        );
-        let fold_button_icon_size = fold_button_size * 0.6;
-        self.touch_consuming_rects.push(fold_button_space);
 
-        // todo: proper hit-testing (this ignores anything covering the space)
+        let (fold_button_size, fold_button_icon_size, fold_button_space) =
+            Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
             || resp.hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
@@ -177,62 +171,13 @@ impl<'ast> Editor {
             return;
         }
 
-        if let Some(fold) = self.fold(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_RIGHT.size(fold_button_icon_size).color(
-                    if self.heading_fold_reveal(node) {
-                        self.theme.fg().neutral_quarternary
-                    } else {
-                        self.theme.fg().accent_secondary
-                    },
-                );
-                if IconButton::new(icon)
-                    .size(fold_button_size)
-                    .tooltip("Show Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(fold).into(),
-                        text: "".into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
-        } else if let Some(foldable) = self.foldable(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_DOWN
-                    .size(fold_button_icon_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .size(fold_button_size)
-                    .tooltip("Hide Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(foldable).end().into_range().into(),
-                        text: FOLD_TAG.into(),
-                        advance_cursor: false,
-                    });
-
-                    // when folding a section that intersects the cursor, adjust the selection
-                    // this ensures the folded section appears folded / avoids immediate selection reveal
-                    let heading_contents = self.heading_contents(node);
-                    let selection = self.buffer.current.selection;
-
-                    if heading_contents.intersects(&selection, true) {
-                        self.event.internal_events.push(Event::Select {
-                            region: (
-                                selection.start().min(heading_contents.start()),
-                                selection.end().min(heading_contents.start()),
-                            )
-                                .into(),
-                        });
-                    }
-                }
-            });
-        }
+        self.show_fold_button(
+            ui,
+            node,
+            (fold_button_size, fold_button_icon_size, fold_button_space),
+            self.heading_contents(node),
+            self.heading_fold_reveal(node),
+        );
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -557,6 +502,78 @@ impl<'ast> Editor {
         }
 
         contents
+    }
+
+    pub fn fold_button_size_icon_size_space(top_left: Pos2, row_height: f32) -> (f32, f32, Rect) {
+        let fold_button_size = INDENT * 0.8;
+        let fold_button_icon_size = fold_button_size * 0.6;
+        let fold_button_space = Rect::from_min_size(
+            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
+            Vec2::splat(fold_button_size),
+        );
+        (fold_button_size, fold_button_icon_size, fold_button_space)
+    }
+
+    pub fn show_fold_button(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, size_icon_size_space: (f32, f32, Rect),
+        contents: (DocCharOffset, DocCharOffset), fold_reveal: bool,
+    ) {
+        let (size, icon_size, space) = size_icon_size_space;
+        self.touch_consuming_rects.push(space);
+
+        if let Some(fold) = self.fold(node) {
+            ui.allocate_ui_at_rect(space, |ui| {
+                let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
+                    self.theme.fg().neutral_quarternary
+                } else {
+                    self.theme.fg().accent_secondary
+                });
+                if IconButton::new(icon)
+                    .size(size)
+                    .tooltip("Show Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(fold).into(),
+                        text: "".into(),
+                        advance_cursor: false,
+                    });
+                }
+            });
+        } else if let Some(foldable) = self.foldable(node) {
+            ui.allocate_ui_at_rect(space, |ui| {
+                let icon = Icon::CHEVRON_DOWN
+                    .size(icon_size)
+                    .color(self.theme.fg().neutral_quarternary);
+                if IconButton::new(icon)
+                    .size(size)
+                    .tooltip("Hide Contents")
+                    .show(ui)
+                    .clicked()
+                {
+                    self.event.internal_events.push(Event::Replace {
+                        region: self.node_range(foldable).end().into_range().into(),
+                        text: FOLD_TAG.into(),
+                        advance_cursor: false,
+                    });
+
+                    // when folding a section that intersects the cursor, adjust the selection
+                    // this ensures the folded section appears folded / avoids immediate selection reveal
+                    let selection = self.buffer.current.selection;
+
+                    if contents.intersects(&selection, true) {
+                        self.event.internal_events.push(Event::Select {
+                            region: (
+                                selection.start().min(contents.start()),
+                                selection.end().min(contents.start()),
+                            )
+                                .into(),
+                        });
+                    }
+                }
+            });
+        }
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
