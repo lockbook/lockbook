@@ -49,6 +49,7 @@ enum Sort {
     Type,
     #[default]
     Modified,
+    Collaborators,
     Size,
 }
 
@@ -588,6 +589,7 @@ impl Workspace {
             Sort::Modified => {
                 descendents.sort_by_key(|f| u64::MAX - files.last_modified_recursive(f.id))
             }
+            Sort::Collaborators => descendents.sort_by_key(|f| usize::MAX - f.shares.len()),
             Sort::Size => descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive[&f.id]),
         }
         if !self.landing_page.sort_asc {
@@ -693,7 +695,32 @@ impl Workspace {
                         });
 
                         // Header: Collaborators
-                        ui.label(RichText::new("Collaborators").font(header_font.clone()));
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add(
+                                    Button::new(
+                                        RichText::new("Collaborators").font(header_font.clone()),
+                                    )
+                                    .frame(false),
+                                )
+                                .clicked()
+                            {
+                                if self.landing_page.sort == Sort::Collaborators {
+                                    self.landing_page.sort_asc = !self.landing_page.sort_asc;
+                                } else {
+                                    self.landing_page.sort = Sort::Collaborators;
+                                    self.landing_page.sort_asc = true;
+                                }
+                            }
+                            if self.landing_page.sort == Sort::Collaborators {
+                                let chevron = if self.landing_page.sort_asc {
+                                    Icon::CHEVRON_DOWN
+                                } else {
+                                    Icon::CHEVRON_UP
+                                };
+                                ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
+                            }
+                        });
 
                         // Header: Usage
                         ui.horizontal(|ui| {
