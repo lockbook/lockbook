@@ -79,7 +79,7 @@ impl<'ast> Editor {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let children: Vec<_> = node.children().collect(); // note: does not need to be sorted for height
+        let children = self.sorted_children(node);
         let mut height_sum = 0.0;
         for child in &children {
             height_sum += self.block_pre_spacing_height(child, &children);
@@ -100,8 +100,7 @@ impl<'ast> Editor {
         // * scrolling to the cursor sometimes only works for one frame
         const OPTIMIZATION: bool = false;
 
-        let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
+        let children = self.sorted_children(node);
 
         for child in &children {
             let tolerance = self.height;

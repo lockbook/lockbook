@@ -106,6 +106,7 @@ pub struct Editor {
     scroll_to_cursor: bool,
 
     // layout
+    top_left: Pos2,
     /// width of the viewport, useful for doc render width and image size
     /// constraints, populated at frame start
     width: f32,
@@ -201,6 +202,7 @@ impl Editor {
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
 
+            top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
 
@@ -625,7 +627,7 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            let top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
+                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -638,7 +640,7 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(
-                                top_left,
+                                self.top_left,
                                 Vec2::new(self.width - 2. * MARGIN, height),
                             );
 
@@ -663,7 +665,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.allocate_ui_at_rect(rect, |ui| {
-                                self.show_block(ui, root, top_left);
+                                self.show_block(ui, root, self.top_left);
                             });
                         });
                 });

@@ -12,6 +12,7 @@ pub struct Galleys {
 
 #[derive(Debug)]
 pub struct GalleyInfo {
+    pub is_override: bool,
     pub range: (DocCharOffset, DocCharOffset),
     pub galley: Arc<Galley>,
     pub rect: Rect,
@@ -39,25 +40,25 @@ impl Galleys {
         self.galleys.push(galley);
     }
 
-    pub fn galley_at_offset(&self, offset: DocCharOffset) -> usize {
+    pub fn galley_at_offset(&self, offset: DocCharOffset) -> Option<usize> {
         for i in (0..self.galleys.len()).rev() {
             let galley = &self.galleys[i];
             if galley.range.contains_inclusive(offset) {
-                return i;
+                return Some(i);
             }
         }
-        self.galleys.len() - 1
+        None
     }
 
-    pub fn galley_and_cursor_by_offset(&self, offset: DocCharOffset) -> (usize, Cursor) {
-        let galley_index = self.galley_at_offset(offset);
+    pub fn galley_and_cursor_by_offset(&self, offset: DocCharOffset) -> Option<(usize, Cursor)> {
+        let galley_index = self.galley_at_offset(offset)?;
         let galley = &self.galleys[galley_index];
 
         let cursor = galley.galley.from_ccursor(CCursor {
             index: (offset - galley.range.start()).0,
             prefer_next_row: true,
         });
-        (galley_index, cursor)
+        Some((galley_index, cursor))
     }
 
     pub fn offset_by_galley_and_cursor(
