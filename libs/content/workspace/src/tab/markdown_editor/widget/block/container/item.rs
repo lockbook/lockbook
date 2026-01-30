@@ -101,7 +101,7 @@ impl<'ast> Editor {
             || fold_button_space.contains(pointer)
             || annotation_space.contains(pointer)
             || self.fold(node).is_some()
-            || self.selected_block(node);
+            || self.selected_fold_item(node);
         if !show_fold_button {
             return;
         }
@@ -231,5 +231,23 @@ impl<'ast> Editor {
     pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
         self.item_contents(node)
             .contains_range(&self.buffer.current.selection, false, true)
+    }
+
+    /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()
+    pub fn selected_fold_item(&self, node: &'ast AstNode<'ast>) -> bool {
+        // any items selected -> those items selected for fold
+        let root = node.ancestors().last().unwrap();
+        for descendent in root.descendants() {
+            if self.selected_block(descendent)
+                && matches!(descendent.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+            {
+                return self.selected_block(node);
+            }
+        }
+
+        // else -> parent item of any selected items selected for fold
+        node.first_child()
+            .map(|c| self.selected_block(c))
+            .unwrap_or_default()
     }
 }

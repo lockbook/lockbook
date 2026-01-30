@@ -108,6 +108,7 @@ pub enum Event {
     IncrementBaseFontSize,
     DecrementBaseFontSize,
     Camera, // launch camera on platform
+    ToggleFold,
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {

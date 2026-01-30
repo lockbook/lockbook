@@ -2,6 +2,7 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -400,6 +401,22 @@ impl<'ast> Editor {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
+            Event::ToggleFold => {
+                let unapply = self.unapply_fold(root);
+                for node in root.descendants() {
+                    if matches!(node.data().value, NodeValue::Heading(_))
+                        && self.selected_block(node)
+                    {
+                        self.apply_fold(node, self.heading_contents(node), unapply);
+                    }
+
+                    if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                        && self.selected_fold_item(node)
+                    {
+                        self.apply_fold(node, self.item_contents(node), unapply);
+                    }
+                }
+            }
         }
 
         response
@@ -687,11 +704,6 @@ impl<'ast> Editor {
         unapply
     }
 
-    /// Returns true if the provided node has style `style`
-    pub fn block_styled(&self, node: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
-        &node.node_type() == style
-    }
-
     /// Returns true if a block style would be unapplied instead of applied
     pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
         let mut unapply = false;
@@ -716,6 +728,70 @@ impl<'ast> Editor {
         }
 
         unapply
+    }
+
+    /// Returns true if a fold command should unfold instead of fold
+    pub fn unapply_fold(&self, root: &'ast AstNode<'ast>) -> bool {
+        let mut unapply = false;
+        for node in root.descendants() {
+            if matches!(node.data().value, NodeValue::Heading(_))
+                && self.selected_block(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+
+            if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                && self.selected_fold_item(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+        }
+
+        unapply
+    }
+
+    #[allow(clippy::collapsible_else_if)]
+    pub fn apply_fold(
+        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
+        unapply: bool,
+    ) {
+        if unapply {
+            println!("UNapply fold to selected heading");
+            if let Some(fold) = self.fold(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
+        } else {
+            println!("apply fold to selected heading");
+            if let Some(foldable) = self.foldable(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+
+                // when folding a section that intersects the cursor, adjust the selection
+                // this ensures the folded section appears folded / avoids immediate selection reveal
+                let selection = self.buffer.current.selection;
+
+                if contents.intersects(&selection, true)
+                    && !selection.contains_range(&contents, true, true)
+                {
+                    self.event.internal_events.push(Event::Select {
+                        region: (
+                            selection.start().min(contents.start()),
+                            selection.end().min(contents.start()),
+                        )
+                            .into(),
+                    });
+                }
+            }
+        }
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.

@@ -421,6 +421,15 @@ impl Editor {
                     }
                 })
             }
+            egui::Event::Key { key: Key::D, pressed: true, modifiers, .. }
+                if modifiers.command && modifiers.shift =>
+            {
+                if self.readonly {
+                    return None;
+                }
+                Some(Event::ToggleFold)
+            }
+
             egui::Event::Key { key: Key::F2, pressed: true, .. } => Some(Event::ToggleDebug),
             egui::Event::Key { key: Key::Equals, pressed: true, modifiers, .. }
                 if modifiers.command =>

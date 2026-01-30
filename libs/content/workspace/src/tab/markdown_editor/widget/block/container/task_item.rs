@@ -79,7 +79,7 @@ impl<'ast> Editor {
             || fold_button_space.contains(pointer)
             || annotation_space.contains(pointer)
             || self.fold(node).is_some()
-            || self.selected_block(node);
+            || self.selected_fold_item(node);
         if !show_fold_button {
             return;
         }

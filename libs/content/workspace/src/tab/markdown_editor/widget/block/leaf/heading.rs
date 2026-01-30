@@ -4,11 +4,10 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_SPACING};
-use crate::tab::markdown_editor::{Editor, Event};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 
@@ -150,17 +149,18 @@ impl<'ast> Editor {
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
     ) {
-        let resp = if setext {
-            self.show_setext_heading(ui, node, top_left, level)
+        if setext {
+            self.show_setext_heading(ui, node, top_left, level);
         } else {
-            self.show_atx_heading(ui, node, top_left, level)
-        };
+            self.show_atx_heading(ui, node, top_left, level);
+        }
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
-            let siblings_height = self.heading_contained_siblings_height(node);
+            let siblings_height = self.height(node) + self.heading_contained_siblings_height(node);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
+
             siblings_space.contains(pointer)
         };
 
@@ -172,7 +172,6 @@ impl<'ast> Editor {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
-            || resp.hovered
             || hovered
             || fold_button_space.contains(pointer)
             || self.fold(node).is_some()
@@ -483,12 +482,13 @@ impl<'ast> Editor {
     }
 
     fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let siblings = self.heading_contained_siblings(node);
+        let all_siblings = self.sorted_siblings(node);
+        let contained_siblings = self.heading_contained_siblings(node);
         let mut height_sum = 0.0;
-        for sibling in &siblings {
-            height_sum += self.block_pre_spacing_height(sibling, &siblings);
+        for sibling in &contained_siblings {
+            height_sum += self.block_pre_spacing_height(sibling, &all_siblings);
             height_sum += self.height(sibling);
-            height_sum += self.block_post_spacing_height(sibling, &siblings);
+            height_sum += self.block_post_spacing_height(sibling, &all_siblings);
         }
         height_sum
     }
@@ -571,7 +571,7 @@ impl<'ast> Editor {
         let (size, icon_size, space) = size_icon_size_space;
         self.touch_consuming_rects.push(space);
 
-        if let Some(fold) = self.fold(node) {
+        if self.fold(node).is_some() {
             ui.allocate_ui_at_rect(space, |ui| {
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
                     self.theme.fg().neutral_quarternary
@@ -584,14 +584,10 @@ impl<'ast> Editor {
                     .show(ui)
                     .clicked()
                 {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(fold).into(),
-                        text: "".into(),
-                        advance_cursor: false,
-                    });
+                    self.apply_fold(node, contents, true);
                 }
             });
-        } else if let Some(foldable) = self.foldable(node) {
+        } else if self.foldable(node).is_some() {
             ui.allocate_ui_at_rect(space, |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
@@ -602,25 +598,7 @@ impl<'ast> Editor {
                     .show(ui)
                     .clicked()
                 {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(foldable).end().into_range().into(),
-                        text: FOLD_TAG.into(),
-                        advance_cursor: false,
-                    });
-
-                    // when folding a section that intersects the cursor, adjust the selection
-                    // this ensures the folded section appears folded / avoids immediate selection reveal
-                    let selection = self.buffer.current.selection;
-
-                    if contents.intersects(&selection, true) {
-                        self.event.internal_events.push(Event::Select {
-                            region: (
-                                selection.start().min(contents.start()),
-                                selection.end().min(contents.start()),
-                            )
-                                .into(),
-                        });
-                    }
+                    self.apply_fold(node, contents, false);
                 }
             });
         }
