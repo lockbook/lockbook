@@ -30,7 +30,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
+    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
@@ -66,16 +66,16 @@ impl<'ast> Editor {
             }
         }
 
-        top_left.x += INDENT;
-
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left);
+            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let height = self.block_children_height(node);
-            let children_space =
-                Rect::from_min_size(top_left, Vec2::new(self.width(node) - INDENT, height));
+            let children_space = Rect::from_min_size(
+                top_left + INDENT * Vec2::X,
+                Vec2::new(self.width(node) - INDENT, height),
+            );
             children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         } else {
             let line = self.node_first_line(node);
@@ -84,7 +84,7 @@ impl<'ast> Editor {
             let mut wrap = Wrap::new(self.width(node) - INDENT);
             let resp = self.show_section(
                 ui,
-                top_left,
+                top_left + INDENT * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_syntax(node),
@@ -101,21 +101,27 @@ impl<'ast> Editor {
         let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
         let show_fold_button = self.touch_mode
             || hovered
-            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
+            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+            || self.fold(node).is_some();
         if !show_fold_button {
             return;
         }
 
-        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
-        let fold_button_size = self.row_height(node) * 0.6;
+        let fold_button_size = INDENT * 0.8;
+        let fold_button_space = Rect::from_min_size(
+            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
+            Vec2::splat(fold_button_size),
+        );
+        let fold_button_icon_size = fold_button_size * 0.6;
         self.touch_consuming_rects.push(fold_button_space);
 
         if let Some(fold) = self.fold(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
                 let icon = Icon::CHEVRON_RIGHT
-                    .size(fold_button_size)
+                    .size(fold_button_icon_size)
                     .color(self.theme.fg().accent_secondary);
                 if IconButton::new(icon)
+                    .size(fold_button_size)
                     .tooltip("Show Contents")
                     .show(ui)
                     .clicked()
@@ -130,9 +136,10 @@ impl<'ast> Editor {
         } else if let Some(foldable) = self.foldable(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
                 let icon = Icon::CHEVRON_DOWN
-                    .size(fold_button_size)
+                    .size(fold_button_icon_size)
                     .color(self.theme.fg().neutral_quarternary);
                 if IconButton::new(icon)
+                    .size(fold_button_size)
                     .tooltip("Hide Contents")
                     .show(ui)
                     .clicked()
