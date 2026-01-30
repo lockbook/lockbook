@@ -377,7 +377,9 @@ impl<'ast> Editor {
         if let Some(parent) = node.parent() {
             if matches!(parent.data.borrow().value, NodeValue::List(_)) {
                 if let Some(grandparent) = parent.parent() {
-                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_)) {
+                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_))
+                        && self.node_first_line_idx(node) == self.node_first_line_idx(grandparent)
+                    {
                         return None;
                     }
                     if matches!(grandparent.data.borrow().value, NodeValue::BlockQuote) {
@@ -385,7 +387,9 @@ impl<'ast> Editor {
                     }
                 }
             } else {
-                if matches!(parent.data.borrow().value, NodeValue::Item(_)) {
+                if matches!(parent.data.borrow().value, NodeValue::Item(_))
+                    && self.node_first_line_idx(node) == self.node_first_line_idx(parent)
+                {
                     return None;
                 }
                 if matches!(parent.data.borrow().value, NodeValue::BlockQuote) {
