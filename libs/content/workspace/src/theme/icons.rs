@@ -64,6 +64,7 @@ impl Icon {
     pub const TOGGLE_SIDEBAR: Self = ic("\u{ebf3}"); // 
     pub const HAND: Self = ic("\u{f01bf}"); // 
     pub const IMAGE: Self = ic("\u{f02e9}"); // 󰋩
+    pub const NO_IMAGE: Self = ic("\u{F11D1}"); // 󱇑
     pub const INFO: Self = ic("\u{f02fc}"); // 󰋼
     pub const ITALIC: Self = ic("\u{f0277}"); // 󰉷
     pub const KEYBOARD_HIDE: Self = ic("\u{f030f}"); // 󰌏
