@@ -399,7 +399,7 @@ impl<'ast> Editor {
         }
 
         // list items
-        if matches!(node.data.borrow().value, NodeValue::Item(_)) {
+        if matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
             // must have paragraph to add fold html tag + something to fold
             if node.children().count() < 2 {
                 return None;
@@ -467,8 +467,10 @@ impl<'ast> Editor {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
-                if matches!(&ancestor.data.borrow().value, NodeValue::Item(_))
-                    && !self.item_fold_reveal(ancestor)
+                if matches!(
+                    &ancestor.data.borrow().value,
+                    NodeValue::Item(_) | NodeValue::TaskItem(_)
+                ) && !self.item_fold_reveal(ancestor)
                     && self.fold(ancestor).is_some()
                 {
                     return true;
