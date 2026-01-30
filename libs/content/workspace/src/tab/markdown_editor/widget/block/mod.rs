@@ -464,15 +464,13 @@ impl<'ast> Editor {
     }
 
     pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
-        // show any block intersecting the selection (fold reveal)
-        if self.node_intersects_selection(node) {
-            return false;
-        }
-
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
-                if self.fold(ancestor).is_some() {
+                if matches!(&ancestor.data.borrow().value, NodeValue::Item(_))
+                    && !self.item_fold_reveal(ancestor)
+                    && self.fold(ancestor).is_some()
+                {
                     return true;
                 }
             }
@@ -494,18 +492,8 @@ impl<'ast> Editor {
             if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-
-                    // this is a heading that contains us; does it contain the cursor?
-                    // headings intersecting the selection don't count (start exclusive / end inclusive)
-                    let heading_contents = self.heading_contents(sibling);
-                    if heading_contents.start() < self.buffer.current.selection.end()
-                        && self.buffer.current.selection.start() <= heading_contents.end()
-                    {
-                        continue;
-                    }
-
-                    // our node is contained by a folded, unrevealed heading
-                    if self.fold(sibling).is_some() {
+                    if !self.heading_fold_reveal(sibling) && self.fold(sibling).is_some() {
+                        // our node is contained by a folded, unrevealed heading
                         return true;
                     }
                 }

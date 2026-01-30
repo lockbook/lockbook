@@ -102,6 +102,7 @@ impl<'ast> Editor {
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
+            || annotation_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
             || self.fold(node).is_some();
         if !show_fold_button {
             return;
@@ -117,9 +118,13 @@ impl<'ast> Editor {
 
         if let Some(fold) = self.fold(node) {
             ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_RIGHT
-                    .size(fold_button_icon_size)
-                    .color(self.theme.fg().accent_secondary);
+                let icon = Icon::CHEVRON_RIGHT.size(fold_button_icon_size).color(
+                    if self.item_fold_reveal(node) {
+                        self.theme.fg().neutral_quarternary
+                    } else {
+                        self.theme.fg().accent_secondary
+                    },
+                );
                 if IconButton::new(icon)
                     .size(fold_button_size)
                     .tooltip("Show Contents")
@@ -239,5 +244,37 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
+    }
+
+    pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        // contents start at the end of the first child, which acts as a sort of section title
+        // if no children, start at end of node first line
+        let mut contents = if let Some(first_child) = node.children().next() {
+            self.node_range(first_child).end().into_range()
+        } else {
+            self.node_first_line(node).end().into_range()
+        };
+
+        let sorted_siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &sorted_siblings);
+
+        if let Some(sibling) = sorted_siblings[sibling_index + 1..].first() {
+            let sibling_first_line = self.node_first_line_idx(sibling);
+            let last_line = sibling_first_line - 1;
+            contents.1 = self.bounds.source_lines[last_line].end();
+        } else {
+            // absent a next sibling, we contain the remaining content of the
+            // parent
+            contents.1 = self.node_range(node.parent().unwrap()).end();
+        }
+
+        contents
+    }
+
+    /// Returns true if the item contents should be revealed whether the heading is folded or not
+    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        let contents = self.item_contents(node);
+        contents.start() < self.buffer.current.selection.end()
+            && self.buffer.current.selection.start() <= contents.end()
     }
 }
