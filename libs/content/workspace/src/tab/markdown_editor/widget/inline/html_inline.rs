@@ -21,7 +21,10 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let node_range = self.node_range(node).trim(&range);
-        let reveal = self.node_intersects_selection(node) || self.foldee(node).is_none();
+        let selection = self.buffer.current.selection;
+        let reveal = node_range.contains_inclusive(selection.start())
+            || node_range.contains_inclusive(selection.end())
+            || self.foldee(node).is_none();
 
         let mut tmp_wrap = wrap.clone();
 
@@ -45,7 +48,10 @@ impl<'ast> Editor {
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
         let node_range = self.node_range(node).trim(&range);
-        let reveal = self.node_intersects_selection(node) || self.foldee(node).is_none();
+        let selection = self.buffer.current.selection;
+        let reveal = node_range.contains_inclusive(selection.start())
+            || node_range.contains_inclusive(selection.end())
+            || self.foldee(node).is_none();
 
         let mut response = Default::default();
 

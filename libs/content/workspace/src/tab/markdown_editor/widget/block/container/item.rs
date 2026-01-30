@@ -229,8 +229,7 @@ impl<'ast> Editor {
 
     /// Returns true if the item contents should be revealed whether the heading is folded or not
     pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        let contents = self.item_contents(node);
-        contents.start() < self.buffer.current.selection.end()
-            && self.buffer.current.selection.start() <= contents.end()
+        self.item_contents(node)
+            .contains_range(&self.buffer.current.selection, false, true)
     }
 }

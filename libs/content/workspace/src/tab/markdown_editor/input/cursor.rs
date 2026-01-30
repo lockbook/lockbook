@@ -43,10 +43,6 @@ impl Editor {
                 continue;
             }
 
-            if *padded {
-                rect = rect.expand2(INLINE_PADDING * Vec2::X);
-            }
-
             if galley_range.contains_inclusive(range.start()) {
                 let cursor = galley.from_ccursor(CCursor {
                     index: (range.start() - galley_range.start()).0,
@@ -60,6 +56,10 @@ impl Editor {
                     prefer_next_row: true,
                 });
                 rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
+            }
+
+            if rect.area() > 0.001 && *padded {
+                rect = rect.expand2(INLINE_PADDING * Vec2::X);
             }
 
             result.push(rect);
