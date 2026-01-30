@@ -656,9 +656,9 @@ impl Workspace {
                             }
                             if matches!(self.landing_page.sort, Sort::Name | Sort::Type) {
                                 let chevron = if self.landing_page.sort_asc {
-                                    Icon::CHEVRON_UP
-                                } else {
                                     Icon::CHEVRON_DOWN
+                                } else {
+                                    Icon::CHEVRON_UP
                                 };
                                 ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
                             }
@@ -684,9 +684,9 @@ impl Workspace {
                             }
                             if self.landing_page.sort == Sort::Modified {
                                 let chevron = if self.landing_page.sort_asc {
-                                    Icon::CHEVRON_UP
-                                } else {
                                     Icon::CHEVRON_DOWN
+                                } else {
+                                    Icon::CHEVRON_UP
                                 };
                                 ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
                             }
@@ -713,9 +713,9 @@ impl Workspace {
                             }
                             if self.landing_page.sort == Sort::Size {
                                 let chevron = if self.landing_page.sort_asc {
-                                    Icon::CHEVRON_UP
-                                } else {
                                     Icon::CHEVRON_DOWN
+                                } else {
+                                    Icon::CHEVRON_UP
                                 };
                                 ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
                             }
