@@ -2,9 +2,9 @@ use crate::tab::markdown_editor::{self, Editor};
 use comrak::nodes::{ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
-use markdown_editor::input::{Bound, Event, Increment, Offset, Region};
+use markdown_editor::input::{Advance, Bound, Event, Increment, Region};
 
-impl From<Modifiers> for Offset {
+impl From<Modifiers> for Advance {
     fn from(modifiers: Modifiers) -> Self {
         let should_jump_line = modifiers.mac_cmd;
 
@@ -14,11 +14,11 @@ impl From<Modifiers> for Offset {
         let should_jump_word = is_apple_alt || is_non_apple_ctrl;
 
         if should_jump_line {
-            Offset::To(Bound::Line)
+            Advance::To(Bound::Line)
         } else if should_jump_word {
-            Offset::Next(Bound::Word)
+            Advance::Next(Bound::Word)
         } else {
-            Offset::Next(Bound::Char)
+            Advance::Next(Bound::Char)
         }
     }
 }
@@ -33,11 +33,11 @@ impl Editor {
             {
                 let lines = if matches!(key, Key::PageUp | Key::PageDown) { PAGE_LINES } else { 1 };
                 Some(Event::Select {
-                    region: Region::ToOffset {
-                        offset: if modifiers.mac_cmd {
-                            Offset::To(Bound::Doc)
+                    region: Region::ToAdvance {
+                        advance: if modifiers.mac_cmd {
+                            Advance::To(Bound::Doc)
                         } else {
-                            Offset::By(Increment::Lines(lines))
+                            Advance::By(Increment::Lines(lines))
                         },
                         backwards: matches!(key, Key::ArrowUp | Key::PageUp),
                         extend_selection: modifiers.shift,
@@ -48,15 +48,15 @@ impl Editor {
                 if matches!(key, Key::ArrowRight | Key::ArrowLeft | Key::Home | Key::End) =>
             {
                 Some(Event::Select {
-                    region: Region::ToOffset {
-                        offset: if matches!(key, Key::Home | Key::End) {
+                    region: Region::ToAdvance {
+                        advance: if matches!(key, Key::Home | Key::End) {
                             if modifiers.command {
-                                Offset::To(Bound::Doc)
+                                Advance::To(Bound::Doc)
                             } else {
-                                Offset::To(Bound::Line)
+                                Advance::To(Bound::Line)
                             }
                         } else {
-                            Offset::from(modifiers)
+                            Advance::from(modifiers)
                         },
                         backwards: matches!(key, Key::ArrowLeft | Key::Home),
                         extend_selection: modifiers.shift,
@@ -120,8 +120,8 @@ impl Editor {
                     return None;
                 }
                 Some(Event::Delete {
-                    region: Region::SelectionOrOffset {
-                        offset: Offset::from(modifiers),
+                    region: Region::SelectionOrAdvance {
+                        advance: Advance::from(modifiers),
                         backwards: key == Key::Backspace,
                     },
                 })

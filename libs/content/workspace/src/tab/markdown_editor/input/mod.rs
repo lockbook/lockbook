@@ -42,7 +42,7 @@ pub enum Increment {
 
 /// text location relative to some absolute text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Offset {
+pub enum Advance {
     /// text location at a bound; if you're already there, this leaves you there
     /// (e.g. cmd+left/right)
     To(Bound),
@@ -74,13 +74,13 @@ pub enum Region {
     /// Currently selected text, or if the selection is empty, text from the
     /// primary cursor to one char/line before/after or to start/end of
     /// word/line/doc
-    SelectionOrOffset { offset: Offset, backwards: bool },
+    SelectionOrAdvance { advance: Advance, backwards: bool },
 
     /// Text from primary cursor to one char/line before/after or to start/end
     /// of word/line/paragraph/doc. In some situations this instead represents
     /// the start of selection (if `backwards`) or end of selection, based on
     /// what feels intuitive when using arrow keys to navigate a document.
-    ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
+    ToAdvance { advance: Advance, backwards: bool, extend_selection: bool },
 
     /// Current word/line/paragraph/doc, preferring previous word if `backwards`
     Bound { bound: Bound, backwards: bool },

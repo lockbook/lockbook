@@ -15,8 +15,7 @@ use lb_rs::model::text::offset_types::{
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
-use super::advance::AdvanceExt as _;
-use super::{Bound, Location, Offset, Region};
+use super::{Advance, Bound, Location, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -142,8 +141,8 @@ impl<'ast> Editor {
                     // must be mostly vanilla backspace
                     if !matches!(
                         region,
-                        Region::SelectionOrOffset {
-                            offset: Offset::Next(Bound::Char | Bound::Word),
+                        Region::SelectionOrAdvance {
+                            advance: Advance::Next(Bound::Char | Bound::Word),
                             backwards: true,
                         }
                     ) {
@@ -841,33 +840,19 @@ impl<'ast> Editor {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
             Region::Selection => current_selection,
-            Region::SelectionOrOffset { offset, backwards } => {
+            Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection.0 = current_selection.0.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    current_selection.0 = self.advance(current_selection.0, offset, backwards);
                 }
                 current_selection
             }
-            Region::ToOffset { offset, backwards, extend_selection } => {
+            Region::ToAdvance { advance: offset, backwards, extend_selection } => {
                 if extend_selection
                     || current_selection.is_empty()
-                    || matches!(offset, Offset::To(..))
+                    || matches!(offset, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = selection.1.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    selection.1 = self.advance(selection.1, offset, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
