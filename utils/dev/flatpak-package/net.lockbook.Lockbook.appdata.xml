@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>net.lockbook.lockbook</id>
+  <id>net.lockbook.Lockbook</id>
 
   <name>Lockbook</name>
   <summary>Lockbook is an open source note taking app.</summary>
@@ -21,7 +21,7 @@
     </p>
   </description>
 
-  <launchable type="desktop-id">lockbook-desktop.desktop</launchable>
+  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
   <screenshots>
     <screenshot type="default">
       <image>https://lockbook.net/linux-screenshot1.png</image>
