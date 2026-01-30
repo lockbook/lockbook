@@ -14,7 +14,7 @@ impl<'ast> Editor {
     }
 
     pub fn show_task_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_task_item: &NodeTaskItem,
     ) {
         let maybe_check = node_task_item.symbol;
