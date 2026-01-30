@@ -166,7 +166,8 @@ impl<'ast> Editor {
         let show_fold_button = self.touch_mode
             || resp.hovered
             || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
-            || self.fold(node).is_some();
+            || self.fold(node).is_some()
+            || self.selected_block(node);
         if !show_fold_button {
             return;
         }
