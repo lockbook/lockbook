@@ -83,6 +83,9 @@ struct PendingShareRowView: View {
                     filesModel.rejectShare(id: file.id)
                 }
             }
+            .contextMenu {
+                FileRowContextMenu(file: file)
+            }
             .id(file.id)
 
         if !isLeaf && isOpen {

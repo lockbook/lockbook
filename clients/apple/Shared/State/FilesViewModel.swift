@@ -8,8 +8,9 @@ class FilesViewModel: ObservableObject {
     @Published var files: [File] = []
     var idsToFiles: [UUID: File] = [:]
     var childrens: [UUID: [File]] = [:]
-
-    @Published var pendingShares: [String: [File]]? = nil
+    var pendingSharesAndChildren: [UUID] = []
+    
+    @Published var pendingSharesByUsername: [String: [File]]? = nil
 
     @Published var selectedFilesState: SelectedFilesState = .unselected
     @Published var deleteFileConfirmation: [File]? = nil
@@ -211,7 +212,8 @@ class FilesViewModel: ObservableObject {
                     for file in files {
                         self.insertIntoFiles(file: file)
                     }
-                                        
+                    
+                    self.pendingSharesAndChildren = files.map({ $0.id })
                 case .failure(let err):
                     self.error = err.msg
                 }
@@ -239,7 +241,7 @@ class FilesViewModel: ObservableObject {
                         pendingShares[sharedBy]!.append(file)
                     }
                     
-                    self.pendingShares = pendingShares
+                    self.pendingSharesByUsername = pendingShares
                 case .failure(let err):
                     self.error = err.msg
                 }

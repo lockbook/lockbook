@@ -2,6 +2,7 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -15,8 +16,7 @@ use lb_rs::model::text::offset_types::{
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
-use super::advance::AdvanceExt as _;
-use super::{Bound, Location, Offset, Region};
+use super::{Advance, Bound, Location, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -142,8 +142,8 @@ impl<'ast> Editor {
                     // must be mostly vanilla backspace
                     if !matches!(
                         region,
-                        Region::SelectionOrOffset {
-                            offset: Offset::Next(Bound::Char | Bound::Word),
+                        Region::SelectionOrAdvance {
+                            advance: Advance::Next(Bound::Char | Bound::Word),
                             backwards: true,
                         }
                     ) {
@@ -400,6 +400,22 @@ impl<'ast> Editor {
                 //     self.appearance.base_font_size =
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
+            }
+            Event::ToggleFold => {
+                let unapply = self.unapply_fold(root);
+                for node in root.descendants() {
+                    if matches!(node.data().value, NodeValue::Heading(_))
+                        && self.selected_block(node)
+                    {
+                        self.apply_fold(node, self.heading_contents(node), unapply);
+                    }
+
+                    if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                        && self.selected_fold_item(node)
+                    {
+                        self.apply_fold(node, self.item_contents(node), unapply);
+                    }
+                }
             }
         }
 
@@ -688,11 +704,6 @@ impl<'ast> Editor {
         unapply
     }
 
-    /// Returns true if the provided node has style `style`
-    pub fn block_styled(&self, node: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
-        &node.node_type() == style
-    }
-
     /// Returns true if a block style would be unapplied instead of applied
     pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
         let mut unapply = false;
@@ -717,6 +728,70 @@ impl<'ast> Editor {
         }
 
         unapply
+    }
+
+    /// Returns true if a fold command should unfold instead of fold
+    pub fn unapply_fold(&self, root: &'ast AstNode<'ast>) -> bool {
+        let mut unapply = false;
+        for node in root.descendants() {
+            if matches!(node.data().value, NodeValue::Heading(_))
+                && self.selected_block(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+
+            if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                && self.selected_fold_item(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+        }
+
+        unapply
+    }
+
+    #[allow(clippy::collapsible_else_if)]
+    pub fn apply_fold(
+        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
+        unapply: bool,
+    ) {
+        if unapply {
+            println!("UNapply fold to selected heading");
+            if let Some(fold) = self.fold(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
+        } else {
+            println!("apply fold to selected heading");
+            if let Some(foldable) = self.foldable(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+
+                // when folding a section that intersects the cursor, adjust the selection
+                // this ensures the folded section appears folded / avoids immediate selection reveal
+                let selection = self.buffer.current.selection;
+
+                if contents.intersects(&selection, true)
+                    && !selection.contains_range(&contents, true, true)
+                {
+                    self.event.internal_events.push(Event::Select {
+                        region: (
+                            selection.start().min(contents.start()),
+                            selection.end().min(contents.start()),
+                        )
+                            .into(),
+                    });
+                }
+            }
+        }
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
@@ -833,7 +908,7 @@ impl<'ast> Editor {
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
         let mut current_selection = self.buffer.current.selection;
         match region {
-            Region::Location(location) => self.location_to_char_offset(location).to_range(),
+            Region::Location(location) => self.location_to_range(location),
             Region::ToLocation(location) => {
                 (current_selection.0, self.location_to_char_offset(location))
             }
@@ -841,33 +916,19 @@ impl<'ast> Editor {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
             Region::Selection => current_selection,
-            Region::SelectionOrOffset { offset, backwards } => {
+            Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection.0 = current_selection.0.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    current_selection.0 = self.advance(current_selection.0, offset, backwards);
                 }
                 current_selection
             }
-            Region::ToOffset { offset, backwards, extend_selection } => {
+            Region::ToAdvance { advance: offset, backwards, extend_selection } => {
                 if extend_selection
                     || current_selection.is_empty()
-                    || matches!(offset, Offset::To(..))
+                    || matches!(offset, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = selection.1.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    selection.1 = self.advance(selection.1, offset, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
@@ -895,12 +956,16 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+    pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
         match location {
-            Location::CurrentCursor => self.buffer.current.selection.1,
-            Location::DocCharOffset(o) => o,
-            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys),
+            Location::CurrentCursor => self.buffer.current.selection,
+            Location::DocCharOffset(o) => o.into_range(),
+            Location::Pos(pos) => self.pos_to_range(pos),
         }
+    }
+
+    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+        self.location_to_range(location).0
     }
 
     fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
@@ -928,28 +993,40 @@ impl<'ast> Editor {
 
         result
     }
-}
 
-// todo: find a better home
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
-    let galley_idx = pos_to_galley(pos, galleys);
-    let galley = &galleys[galley_idx];
-    let relative_pos = pos - galley.rect.min;
+    // todo: find a better home
+    pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
+        let galleys = &self.galleys;
+        let galley_idx = pos_to_galley(pos, galleys);
+        let galley = &galleys[galley_idx];
+        let relative_pos = pos - galley.rect.min;
 
-    if galley.range.is_empty() {
-        // empty galley range means every position in the galley maps to
-        // that location
-        galley.range.start()
-    } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
-        // every position lower than the final galley's bottom maps to its end
-        galley.range.end()
-    } else {
-        // clamp y coordinate for forgiving cursor placement clicks
-        let relative_pos =
-            Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
+        if galley.range.is_empty() {
+            // empty galley range means every position in the galley maps to
+            // that location
+            let result = galley.range.start();
+            result.into_range()
+        } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
+            // every position lower than the final galley's bottom maps to the last cursor position
+            self.buffer.current.segs.last_cursor_position().into_range()
+        } else {
+            // clamp y coordinate for forgiving cursor placement clicks
+            let relative_pos =
+                Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
 
-        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        galleys.offset_by_galley_and_cursor(galley, new_cursor)
+            if galley.is_override {
+                // click an override galley to select the whole thing
+                galley.range
+            } else {
+                let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+                let result = galleys.offset_by_galley_and_cursor(galley, new_cursor);
+                result.into_range()
+            }
+        }
+    }
+
+    pub fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+        self.pos_to_range(pos).0
     }
 }
 

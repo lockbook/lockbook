@@ -348,6 +348,12 @@ impl<'ast> Editor {
                             add_seperator(ui);
                         }
 
+                        // fill remaining space
+                        const MENU_TOGGLE_SPACE: f32 = 40.;
+                        if ui.available_width() > MENU_TOGGLE_SPACE {
+                            ui.add_space(ui.available_width() - MENU_TOGGLE_SPACE);
+                        }
+
                         if IconButton::new(
                             if self.toolbar.menu_open {
                                 Icon::CHEVRON_DOWN

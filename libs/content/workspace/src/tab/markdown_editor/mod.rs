@@ -106,6 +106,7 @@ pub struct Editor {
     scroll_to_cursor: bool,
 
     // layout
+    top_left: Pos2,
     /// width of the viewport, useful for doc render width and image size
     /// constraints, populated at frame start
     width: f32,
@@ -201,6 +202,7 @@ impl Editor {
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
 
+            top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
 
@@ -334,6 +336,7 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
+        let prior_toolbar_settings = self.persisted.toolbar.clone();
         let images_updated = {
             let mut images_updated = self.images.updated.lock().unwrap();
             let result = *images_updated;
@@ -565,7 +568,9 @@ impl Editor {
         }
 
         // persistence: write
-        if resp.selection_updated || resp.scroll_updated {
+        let toolbar_settings = self.persisted.toolbar.clone();
+        let toolbar_settings_changed = toolbar_settings != prior_toolbar_settings;
+        if resp.selection_updated || resp.scroll_updated || toolbar_settings_changed {
             if let Some(scroll_area_id) = scroll_area_id {
                 let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                 let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
@@ -625,7 +630,7 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            let top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
+                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -638,7 +643,7 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(
-                                top_left,
+                                self.top_left,
                                 Vec2::new(self.width - 2. * MARGIN, height),
                             );
 
@@ -663,7 +668,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.allocate_ui_at_rect(rect, |ui| {
-                                self.show_block(ui, root, top_left);
+                                self.show_block(ui, root, self.top_left);
                             });
                         });
                 });
