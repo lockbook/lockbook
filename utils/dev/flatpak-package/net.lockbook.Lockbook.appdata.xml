@@ -40,6 +40,7 @@
 
   <developer id="net.lockbook">
       <name>Parth</name>
+      <name>Amumu</name>
   </developer>
 
   <content_rating type="oars-1.1" />
@@ -49,7 +50,7 @@
       <release version="26.2.2" date="2025-01-30">
           <description>
               <p>
-                  Initial release
+                  26.2.2 release
               </p>
           </description>
       </release>
