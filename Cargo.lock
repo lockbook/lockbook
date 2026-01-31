@@ -9406,7 +9406,6 @@ dependencies = [
  "comrak",
  "egui",
  "egui_animation",
- "egui_extras",
  "epaint",
  "glam",
  "hayro",

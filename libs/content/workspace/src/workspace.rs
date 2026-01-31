@@ -19,7 +19,8 @@ use std::{fs, thread};
 use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt as _};
+use crate::landing::LandingPage;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
@@ -37,6 +38,7 @@ pub struct Workspace {
     // User activity
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
+    pub landing_page: LandingPage,
     pub user_last_seen: Instant,
     pub account: Option<Account>,
 
@@ -70,9 +72,12 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files = FileCache::new(core).log_and_ignore();
 
+        let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
+            landing_page: cfg.get_landing_page(),
             user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
@@ -84,7 +89,7 @@ impl Workspace {
             status: Default::default(),
             out: Default::default(),
 
-            cfg: WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path),
+            cfg,
             ctx: ctx.clone(),
             core: core.clone(),
             show_tabs,
@@ -664,20 +669,55 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn create_doc(&mut self, is_drawing: bool) {
-        let focused_parent = self
-            .focused_parent
-            .or_else(|| self.current_tab_id())
-            .unwrap_or_else(|| self.core.get_root().unwrap().id);
+    pub fn create_folder_at(&mut self, parent: Uuid) {
+        let date = Local::now().format("%Y-%m-%d");
+        let mut new_file =
+            NameComponents { name: date.to_string(), variant: None, extension: None };
+        new_file.next_in_children(self.core.get_children(&parent).unwrap());
 
-        let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
-        let focused_parent = if focused_parent.file_type == FileType::Document {
+        let result = self
+            .core
+            .create_file(new_file.to_name().as_str(), &parent, FileType::Folder)
+            .map_err(|err| format!("{err:?}"));
+
+        self.out.file_created = Some(result);
+        self.ctx.request_repaint();
+    }
+
+    pub fn effective_focused_parent(&self) -> Uuid {
+        let get_by_id_cached_read_through = |id| {
+            if let Some(files) = &self.files {
+                files.files.get_by_id(id).unwrap().clone()
+            } else {
+                self.core.get_file_by_id(id).unwrap()
+            }
+        };
+
+        let focused_parent = if let Some(id) = self.focused_parent {
+            get_by_id_cached_read_through(id)
+        } else if let Some(id) = self.current_tab_id() {
+            get_by_id_cached_read_through(id)
+        } else if let Some(files) = &self.files {
+            files.root.clone()
+        } else {
+            self.core.get_root().unwrap()
+        };
+
+        if focused_parent.file_type == FileType::Document {
             focused_parent.parent
         } else {
             focused_parent.id
-        };
+        }
+    }
 
+    pub fn create_doc(&mut self, is_drawing: bool) {
+        let focused_parent = self.effective_focused_parent();
         self.create_doc_at(is_drawing, focused_parent);
+    }
+
+    pub fn create_folder(&mut self) {
+        let focused_parent = self.effective_focused_parent();
+        self.create_folder_at(focused_parent);
     }
 
     /// Opens or focuses the tab for the mind map
@@ -803,6 +843,7 @@ struct WsPresistentData {
     markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
+    landing_page: LandingPage,
 }
 
 impl Default for WsPresistentData {
@@ -814,6 +855,7 @@ impl Default for WsPresistentData {
             current_tab: None,
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
+            landing_page: LandingPage::default(),
         }
     }
 }
@@ -895,6 +937,16 @@ impl WsPersistentStore {
     pub fn set_auto_save(&mut self, auto_save: bool) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.auto_save = auto_save;
+        self.write_to_file();
+    }
+
+    pub fn get_landing_page(&self) -> LandingPage {
+        self.data.read().unwrap().landing_page.clone()
+    }
+
+    pub fn set_landing_page(&mut self, landing_page: LandingPage) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.landing_page = landing_page;
         self.write_to_file();
     }
 

@@ -83,6 +83,7 @@ impl Icon {
     pub const SAVE: Self = ic("\u{f0193}"); // 󰆓
     pub const SCHEDULE: Self = ic("\u{f0954}"); // 󰥔
     pub const SEARCH: Self = ic("\u{e644}"); // 
+    pub const FILTER: Self = ic("\u{f0232}"); // 
     pub const SYNC: Self = ic("\u{f006a}"); // 󰁪
     pub const SHARED_FOLDER: Self = ic("\u{f024c}"); // 󰉌
     pub const SHAPES: Self = ic("\u{f0832}"); // 󰠱
