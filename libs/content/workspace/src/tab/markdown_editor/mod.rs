@@ -336,6 +336,7 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
+        let prior_toolbar_settings = self.persisted.toolbar.clone();
         let images_updated = {
             let mut images_updated = self.images.updated.lock().unwrap();
             let result = *images_updated;
@@ -567,7 +568,9 @@ impl Editor {
         }
 
         // persistence: write
-        if resp.selection_updated || resp.scroll_updated {
+        let toolbar_settings = self.persisted.toolbar.clone();
+        let toolbar_settings_changed = toolbar_settings != prior_toolbar_settings;
+        if resp.selection_updated || resp.scroll_updated || toolbar_settings_changed {
             if let Some(scroll_area_id) = scroll_area_id {
                 let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                 let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
