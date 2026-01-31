@@ -24,7 +24,7 @@ struct MobileCustomTabView<TabContent: View>: View {
         case .home:
             0
         case .sharedWithMe:
-            filesModel.pendingShares?.values.reduce(0) { $0 + $1.count } ?? 0
+            filesModel.pendingSharesByUsername?.values.reduce(0) { $0 + $1.count } ?? 0
         }
     }
 }

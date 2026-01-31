@@ -26,7 +26,7 @@ struct SharedWithMeView: View {
 
     var body: some View {
         Group {
-            if let pendingShares = filesModel.pendingShares {
+            if let pendingShares = filesModel.pendingSharesByUsername {
                 if pendingShares.isEmpty {
                     noShares
                 } else {
