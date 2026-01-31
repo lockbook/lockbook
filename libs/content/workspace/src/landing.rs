@@ -37,7 +37,7 @@ impl Default for LandingPage {
             collaborators: Default::default(),
             only_me: Default::default(),
             sort: Default::default(),
-            sort_asc: Default::default(),
+            sort_asc: true,
             flatten_tree: true,
         }
     }
