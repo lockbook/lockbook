@@ -10,6 +10,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 
 pub struct FileCache {
+    pub root: File,
     pub files: Vec<File>,
     pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
@@ -18,6 +19,7 @@ pub struct FileCache {
 
 impl FileCache {
     pub fn new(lb: &Lb) -> LbResult<Self> {
+        let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
         let suggested = lb.suggested_docs(Default::default())?;
         let shared = lb.get_pending_share_files()?;
@@ -36,7 +38,7 @@ impl FileCache {
             );
         }
 
-        Ok(Self { files, suggested, shared, size_bytes_recursive: size_recursive })
+        Ok(Self { root, files, suggested, shared, size_bytes_recursive: size_recursive })
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {

@@ -19,7 +19,7 @@ use std::{fs, thread};
 use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
 
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt as _};
 use crate::landing::LandingPage;
 use crate::mind_map::show::MindMap;
 use crate::output::{Response, WsStatus};
@@ -685,12 +685,24 @@ impl Workspace {
     }
 
     pub fn effective_focused_parent(&self) -> Uuid {
-        let focused_parent = self
-            .focused_parent
-            .or_else(|| self.current_tab_id())
-            .unwrap_or_else(|| self.core.get_root().unwrap().id);
+        let get_by_id_cached_read_through = |id| {
+            if let Some(files) = &self.files {
+                files.files.get_by_id(id).unwrap().clone()
+            } else {
+                self.core.get_file_by_id(id).unwrap()
+            }
+        };
 
-        let focused_parent = self.core.get_file_by_id(focused_parent).unwrap();
+        let focused_parent = if let Some(id) = self.focused_parent {
+            get_by_id_cached_read_through(id)
+        } else if let Some(id) = self.current_tab_id() {
+            get_by_id_cached_read_through(id)
+        } else if let Some(files) = &self.files {
+            files.root.clone()
+        } else {
+            self.core.get_root().unwrap()
+        };
+
         if focused_parent.file_type == FileType::Document {
             focused_parent.parent
         } else {
