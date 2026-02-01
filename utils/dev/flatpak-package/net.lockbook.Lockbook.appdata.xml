@@ -3,7 +3,7 @@
   <id>net.lockbook.Lockbook</id>
 
   <name>Lockbook</name>
-  <summary>Lockbook is an open source note taking app.</summary>
+  <summary>Lockbook is an open source note taking app</summary>
 
   <metadata_license>MIT</metadata_license>
   <project_license>Unlicense</project_license>
@@ -22,16 +22,39 @@
   </description>
 
   <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
+
+  <url type="homepage">https://lockbook.net/</url>
+  <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
+
   <screenshots>
-    <screenshot type="default">
-      <image>https://lockbook.net/linux-screenshot1.png</image>
-    </screenshot>
-    <screenshot>
-      <image>https://lockbook.net/ios-screenshot.png</image>
-    </screenshot>
-    <screenshot>
-      <image>https://lockbook.net/android-screenshot.png</image>
-    </screenshot>
+      <screenshot type="default">
+          <image>https://lockbook.net/linux-screenshot1.png</image>
+      </screenshot>
+      <screenshot>
+          <image>https://lockbook.net/ios-screenshot.png</image>
+      </screenshot>
+      <screenshot>
+          <image>https://lockbook.net/android-screenshot.png</image>
+      </screenshot>
   </screenshots>
+
+  <developer id="net.lockbook">
+      <name>Parth</name>
+      <name>Amumu</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+
+  <releases>
+      <release version="26.2.2" date="2025-01-30">
+          <description>
+              <p>
+                  26.2.2 release
+              </p>
+          </description>
+      </release>
+  </releases>
+
 </component>
 
