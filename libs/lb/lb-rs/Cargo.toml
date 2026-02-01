@@ -70,6 +70,8 @@ tokio = { version = "1", features = [
     "time",
 ] }
 wasm-bindgen-futures = "0.4.50"
+tracing-wasm = "0.2.1"
+
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1", features = ["full"] }

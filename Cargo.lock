@@ -4375,6 +4375,7 @@ dependencies = [
  "tracing-appender",
  "tracing-logcat",
  "tracing-subscriber",
+ "tracing-wasm",
  "unicode-segmentation",
  "usvg",
  "uuid 1.8.0",
@@ -6279,6 +6280,8 @@ dependencies = [
  "lb-rs",
  "log",
  "serde",
+ "tracing",
+ "tracing-wasm",
  "wasm-bindgen-futures",
  "workspace",
 ]
@@ -8309,6 +8312,17 @@ checksum = "04659ddb06c87d233c566112c1c9c5b9e98256d9af50ec3bc9c8327f873a7568"
 dependencies = [
  "quote",
  "syn 2.0.104",
+]
+
+[[package]]
+name = "tracing-wasm"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4575c663a174420fa2d78f4108ff68f65bf2fbb7dd89f33749b6e826b3626e07"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wasm-bindgen",
 ]
 
 [[package]]

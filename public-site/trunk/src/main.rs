@@ -9,7 +9,13 @@ use public_site::LbWebApp;
 #[cfg(target_arch = "wasm32")]
 fn main() {
     // Redirect `log` message to `console.log` and friends:
+
     eframe::WebLogger::init(log::LevelFilter::Debug).ok();
+
+    let layer = tracing_wasm::WASMLayerConfigBuilder::new()
+        .set_console_config(tracing_wasm::ConsoleConfig::ReportWithConsoleColor)
+        .build();
+    tracing_wasm::set_as_global_default_with_config(layer);
 
     wasm_bindgen_futures::spawn_local(async {
         let start_result = eframe::WebRunner::new()

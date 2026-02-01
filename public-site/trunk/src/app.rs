@@ -26,11 +26,11 @@ impl LbWebApp {
         let ctx = cc.egui_ctx.clone();
 
         let lb = Lb::init(Config {
-            logs: false,
+            logs: true,
             colored_logs: false,
             writeable_path: "".into(),
             background_work: false,
-            stdout_logs: false,
+            stdout_logs: true,
         })
         .unwrap();
 

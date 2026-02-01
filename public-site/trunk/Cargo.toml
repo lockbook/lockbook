@@ -9,7 +9,6 @@ log = "0.4"
 epi = "0.17.0"
 
 
-
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
 eframe = { version = "0.28.1", default-features = false, features = [
@@ -19,18 +18,18 @@ eframe = { version = "0.28.1", default-features = false, features = [
 ] }
 
 workspace = { path = "../../libs/content/workspace" }
-lb-rs = {path = "../../libs/lb/lb-rs"}
+lb-rs = { path = "../../libs/lb/lb-rs" }
 futures = "0.3.30"
 
 wasm-bindgen-futures = "0.4"
-
+tracing = "0.1.5"
+tracing-wasm = "0.2.1"
 [profile.release]
 opt-level = 2 # fast and small wasm
 
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
 opt-level = 2
-
 
 
 [build]

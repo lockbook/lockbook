@@ -21,6 +21,7 @@ pub fn init(config: &Config) -> LbResult<()> {
 
         let mut layers = Vec::with_capacity(2);
 
+        #[cfg(not(target_arch = "wasm32"))]
         layers.push(
             fmt::Layer::new()
                 .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
@@ -75,7 +76,6 @@ pub fn init(config: &Config) -> LbResult<()> {
                 );
             }
         }
-
         tracing::subscriber::set_global_default(
             tracing_subscriber::Registry::default().with(layers),
         )

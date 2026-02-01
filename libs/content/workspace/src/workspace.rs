@@ -915,7 +915,7 @@ impl WsPersistentStore {
         spawn!({
             let data = data.read().unwrap();
             let content = serde_json::to_string(&*data).unwrap();
-            fs::write(path, content);
+            let _ = fs::write(path, content);
         });
     }
 }
