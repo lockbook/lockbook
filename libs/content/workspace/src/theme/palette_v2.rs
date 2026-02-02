@@ -1,11 +1,18 @@
-use egui::{Color32, Id, style::{self, WidgetVisuals, Widgets}};
+use egui::{
+    Color32, Id,
+    style::{self, WidgetVisuals, Widgets},
+};
 use epaint::hex_color;
 
 #[derive(Clone, Copy)]
 pub struct Theme {
     current: Mode,
+
     light: ThemeVariant,
+    light_prefs: Preferences,
+
     dark: ThemeVariant,
+    dark_prefs: Preferences,
 }
 
 #[derive(Clone, Copy)]
@@ -18,7 +25,10 @@ pub struct ThemeVariant {
     pub magenta: Color32,
     pub cyan: Color32,
     pub white: Color32,
+}
 
+#[derive(Clone, Copy)]
+pub struct Preferences {
     pub bg: Palette,
     pub fg: Palette,
     pub primary: Palette,
@@ -28,59 +38,41 @@ pub struct ThemeVariant {
 }
 
 impl Theme {
-    pub fn fg(&self) -> &ThemeVariant {
+    pub fn bg(&self) -> Color32 {
+        let bg = self.prefs().bg;
+        assert_ne!(bg, Palette::Background);
+        assert_ne!(bg, Palette::Foreground);
+
+        self.bg_theme().from_palette(bg)
+    }
+
+    pub fn fg(&self) -> Color32 {
+        let fg = self.prefs().fg;
+        assert_ne!(fg, Palette::Foreground);
+        assert_ne!(fg, Palette::Background);
+
+        self.fg_theme().from_palette(fg)
+    }
+
+    pub fn prefs(&self) -> Preferences {
         match self.current {
-            Mode::Light => &self.light,
-            Mode::Dark => &self.dark,
+            Mode::Light => self.light_prefs,
+            Mode::Dark => self.dark_prefs,
         }
     }
 
-    pub fn bg(&self) -> &ThemeVariant {
+    pub fn fg_theme(&self) -> ThemeVariant {
         match self.current {
-            Mode::Light => &self.light,
-            Mode::Dark => &self.dark,
-        }
-    }
-}
-
-impl ThemeVariant {
-    pub fn from_palette(&self, p: Palette) -> Color32 {
-        match p {
-            Palette::Foreground => self.from_palette(self.fg),
-            Palette::Background => self.from_palette(self.bg),
-            Palette::Black => self.black,
-            Palette::Red => self.red,
-            Palette::Green => self.green,
-            Palette::Yellow => self.yellow,
-            Palette::Blue => self.blue,
-            Palette::Magenta => self.magenta,
-            Palette::Cyan => self.cyan,
-            Palette::White => self.white,
+            Mode::Light => self.light,
+            Mode::Dark => self.dark,
         }
     }
 
-    pub fn fg_color(&self) -> Color32 {
-        self.from_palette(Palette::Foreground)
-    }
-
-    pub fn bg_color(&self) -> Color32 {
-        self.from_palette(Palette::Background)
-    }
-
-    pub fn primary(&self) -> Color32 {
-        self.from_palette(self.primary)
-    }
-
-    pub fn secondary(&self) -> Color32 {
-        self.from_palette(self.secondary)
-    }
-
-    pub fn tertiary(&self) -> Color32 {
-        self.from_palette(self.tertiary)
-    }
-
-    pub fn quaternary(&self) -> Color32 {
-        self.from_palette(self.quaternary)
+    pub fn bg_theme(&self) -> ThemeVariant {
+        match self.current {
+            Mode::Light => self.dark,
+            Mode::Dark => self.light,
+        }
     }
 }
 
@@ -90,7 +82,7 @@ pub enum Mode {
     Dark,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Palette {
     Foreground,
     Background,
@@ -102,6 +94,23 @@ pub enum Palette {
     Magenta,
     Cyan,
     White,
+}
+
+impl ThemeVariant {
+    pub fn from_palette(&self, p: Palette) -> Color32 {
+        match p {
+            Palette::Foreground => unreachable!(),
+            Palette::Background => unreachable!(),
+            Palette::Black => self.black,
+            Palette::Red => self.red,
+            Palette::Green => self.green,
+            Palette::Yellow => self.yellow,
+            Palette::Blue => self.blue,
+            Palette::Magenta => self.magenta,
+            Palette::Cyan => self.cyan,
+            Palette::White => self.white,
+        }
+    }
 }
 
 impl Theme {
@@ -117,7 +126,8 @@ impl Theme {
                 magenta: hex_color!("#7855AA"),
                 cyan: hex_color!("#13DAEC"),
                 white: hex_color!("#D0D0D0"),
-
+            },
+            light_prefs: Preferences {
                 bg: Palette::White,
                 fg: Palette::Black,
 
@@ -135,7 +145,8 @@ impl Theme {
                 magenta: hex_color!("#AC8CD9"),
                 cyan: hex_color!("#6EECF7"),
                 white: hex_color!("#F0F0F0"),
-
+            },
+            dark_prefs: Preferences {
                 bg: Palette::Black,
                 fg: Palette::White,
 
@@ -170,22 +181,22 @@ impl Theme {
         let mut base = egui::Visuals {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
-            window_fill: self.bg().black,
-            extreme_bg_color: self.bg().black,
-            selection: style::Selection { bg_fill: self.bg().primary(), ..Default::default() },
-            hyperlink_color: self.fg().secondary(),
-            faint_bg_color: self.bg().black.gamma_multiply(0.9),
-            code_bg_color: self.bg().black,
-            warn_fg_color: self.fg().yellow,
-            error_fg_color: self.fg().red,
-            panel_fill: self.bg().black,
+            window_fill: self.bg(),
+            extreme_bg_color: self.bg(),
+            selection: style::Selection { bg_fill: self.bg_theme().from_palette(self.prefs().primary), ..Default::default() },
+            hyperlink_color: self.fg_theme().from_palette(self.prefs().secondary),
+            faint_bg_color: self.bg().gamma_multiply(0.9),
+            code_bg_color: self.bg_theme().black,
+            warn_fg_color: self.fg_theme().yellow,
+            error_fg_color: self.fg_theme().red,
+            panel_fill: self.bg(),
             ..Default::default()
         };
 
-        base.widgets.noninteractive.bg_fill = self.bg().black.gamma_multiply(0.8);
-        base.widgets.noninteractive.weak_bg_fill = self.bg().black.gamma_multiply(0.6);
-        base.widgets.noninteractive.bg_stroke.color = self.fg().fg;
-        base.widgets.noninteractive.weak_bg_fill = self.bg().black.gamma_multiply(0.6);
+        base.widgets.noninteractive.bg_fill = self.bg().gamma_multiply(0.8);
+        // base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
+        base.widgets.noninteractive.bg_stroke.color = self.fg();
+        base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
 
         base
     }
