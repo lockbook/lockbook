@@ -38,13 +38,15 @@
       </screenshot>
   </screenshots>
 
+  <categories>
+      <category>Office</category>
+  </categories>
+
   <developer id="net.lockbook">
       <name>Parth</name>
-      <name>Amumu</name>
   </developer>
 
   <content_rating type="oars-1.1" />
-
 
   <releases>
       <release version="26.2.2" date="2025-01-30">
