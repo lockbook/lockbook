@@ -1,5 +1,4 @@
 use std::{
-    mem,
     path::PathBuf,
     sync::atomic::{AtomicU16, Ordering},
 };
@@ -45,12 +44,13 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
         }
         let contents = contents.into_owned();
 
-        let candidate_locations = path_from_tags(&contents);
+        let candidate_locations = candidate_locations_from_content(&contents);
         let selected_location = candidate_locations
             .iter()
             .max_by_key(|s| s.len())
             .cloned()
             .unwrap_or_else(|| "/".into());
+
         let image_path = PathBuf::from(
             entry
                 .path()
@@ -95,40 +95,104 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
     Ok(())
 }
 
-fn path_from_tags(contents: &str) -> Vec<String> {
-    let mut found_hash = false;
+fn candidate_locations_from_content(contents: &str) -> Vec<String> {
+    let mut prev_char: Option<char> = None;
+    let mut in_tag = false;
     let mut path = String::from("");
     let mut paths = vec![];
 
     for char in contents.chars() {
-        if !found_hash {
+        if !in_tag {
             if char == '#' {
-                found_hash = true;
-                continue;
-            } else {
-                continue;
-            }
-        }
+                let is_valid_start = match prev_char {
+                    None => true,
+                    Some(c) => c.is_whitespace(),
+                };
 
-        if found_hash {
-            if path.is_empty() && (char == ' ' || char == '#') {
-                found_hash = false;
-                continue;
+                if is_valid_start {
+                    in_tag = true;
+                    path.clear();
+                }
             }
-
-            if char.is_whitespace() || char == ',' || char == '.' {
-                paths.push(mem::take(&mut path));
-                found_hash = false;
-                continue;
+        } else if char == '/' {
+            // Nested tag: reset to keep only last segment (eg #work/project -> project)
+            path.clear();
+        } else if char.is_whitespace() || char == ',' || char == '.' {
+            if !path.is_empty() {
+                paths.push(path.clone());
             }
-
+            in_tag = false;
+        } else if char == '#' {
+            // consecutive hashtags #foo#bar -> keep only foo. This mimics Bear's behavior.
+            if !path.is_empty() {
+                paths.push(path.clone());
+            }
+            path.clear();
+            in_tag = false;
+        } else {
             path.push(char);
         }
+
+        prev_char = Some(char);
     }
 
-    if !path.is_empty() {
+    if in_tag && !path.is_empty() {
         paths.push(path);
     }
 
     paths
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_candidate_locations_from_empty_content() {
+        assert!(candidate_locations_from_content("").is_empty());
+    }
+
+    #[test]
+    fn get_single_candidate_from_content() {
+        let content = r#"# Meeting Notes
+
+#meeting-notes"#;
+        assert_eq!(candidate_locations_from_content(content), vec!["meeting-notes"]);
+    }
+
+    #[test]
+    fn get_multiple_candidates_from_content() {
+        let content = r#"# Meeting Notes
+
+#meeting
+#notes"#;
+        assert_eq!(candidate_locations_from_content(content), vec!["meeting", "notes"]);
+    }
+
+    #[test]
+    fn dont_get_candidate_locations_from_urls() {
+        let content = r#"# Meeting Notes
+
+http://url.com/#install
+`http://url.com/#test`
+[link](https://url.com/installing.html#mobile)
+http://url.com/#install 
+#notes"#;
+        assert_eq!(candidate_locations_from_content(content), vec!["notes"]);
+    }
+
+    #[test]
+    fn get_last_segment_as_candidate_in_nested_hashtags() {
+        let content = r#"# Meeting Notes
+        #meeting/notes
+        #work/team/project"#;
+        assert_eq!(candidate_locations_from_content(content), vec!["notes", "project"]);
+    }
+
+    #[test]
+    fn get_first_segment_as_candidate_from_consecutive_hashtags() {
+        let content = "#meeting#notes";
+
+        assert_eq!(candidate_locations_from_content(content), vec!["meeting"]);
+    }
 }
