@@ -5,7 +5,6 @@ use std::{
 };
 
 use cli_rs::cli_error::CliResult;
-use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::import_export::ImportStatus;
 use tokio::fs;
 
