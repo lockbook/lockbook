@@ -5,6 +5,7 @@ use std::{
 };
 
 use cli_rs::cli_error::CliResult;
+use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::import_export::ImportStatus;
 use tokio::fs;
 
@@ -18,7 +19,7 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
     ensure_account_and_root(&lb).await?;
 
     let mut entries = fs::read_dir(path).await?;
-    let count = AtomicU16::new(0);
+    let notes_count = AtomicU16::new(0);
 
     while let Some(entry) = entries.next_entry().await? {
         let path = entry.path();
@@ -73,8 +74,10 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
         };
 
         let f = |status: ImportStatus| {
-            if let ImportStatus::FinishedItem(_) = status {
-                count.fetch_add(1, Ordering::Relaxed);
+            if let ImportStatus::FinishedItem(file) = status {
+                if file.name.ends_with(".md") {
+                    notes_count.fetch_add(1, Ordering::Relaxed);
+                }
             }
         };
 
@@ -84,12 +87,12 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
             println!("Images from: {}", image_path.to_str().unwrap().green());
             lb.import_files(&[image_path], parent.id, &f).await?;
         } else {
-            println!("no images found");
+            println!("No images found");
         }
         println!();
     }
 
-    println!("{} files imported", count.load(Ordering::Relaxed).to_string().blue());
+    println!("{} notes imported", notes_count.load(Ordering::Relaxed).to_string().blue());
     Ok(())
 }
 
