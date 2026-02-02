@@ -31,10 +31,20 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
 
         if !file_name.ends_with(".md") {
             println!("Skipping {}, not a markdown file", file_name.yellow());
+            println!();
             continue;
         }
 
-        let contents = fs::read_to_string(entry.path()).await.unwrap();
+        println!("Importing {}", file_name.green());
+
+        let bytes = fs::read(entry.path()).await.unwrap();
+        let contents = String::from_utf8_lossy(&bytes);
+
+        if contents.contains('\u{FFFD}') {
+            println!("{} contained invalid characters that were replaced", file_name.yellow());
+        }
+        let contents = contents.into_owned();
+
         let candidate_locations = path_from_tags(&contents);
         let selected_location = candidate_locations
             .iter()
@@ -51,7 +61,6 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
                 .unwrap(),
         );
 
-        println!("Importing {}", file_name.green());
         println!(
             "Destination {}, candidates: {:?}",
             selected_location.green(),
