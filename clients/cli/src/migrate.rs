@@ -21,12 +21,19 @@ pub async fn bear(path: PathBuf) -> CliResult<()> {
     let count = AtomicU16::new(0);
 
     while let Some(entry) = entries.next_entry().await? {
-        if entry.path().is_dir() {
+        let path = entry.path();
+
+        if path.is_dir() {
             continue;
         };
 
-        let path = entry.path();
         let file_name = path.file_name().unwrap().to_str().unwrap();
+
+        if !file_name.ends_with(".md") {
+            println!("Skipping {}, not a markdown file", file_name.yellow());
+            continue;
+        }
+
         let contents = fs::read_to_string(entry.path()).await.unwrap();
         let candidate_locations = path_from_tags(&contents);
         let selected_location = candidate_locations
