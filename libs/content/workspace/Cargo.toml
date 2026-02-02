@@ -13,7 +13,7 @@ color-art = "0.3.9"
 colors-transform = "0.2.11"
 egui = "0.28.1"
 egui_animation = "0.5.0"
-epaint = "0.28.1"
+epaint = { version = "0.28.1", features = ["color-hex"] }
 glam = "0.22.0"
 # Annoyingly egui depends on a version match here for feature toggling reasons
 image = "0.25.9"
