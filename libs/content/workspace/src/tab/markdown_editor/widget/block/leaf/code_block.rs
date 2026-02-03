@@ -46,7 +46,7 @@ impl<'ast> Editor {
         if node_code_block.fenced {
             self.height_fenced_code_block(node, node_code_block)
         } else {
-            self.height_indented_code_block(node, node_code_block)
+            self.height_indented_code_block(node, node_code_block, false)
         }
     }
 
@@ -57,7 +57,7 @@ impl<'ast> Editor {
         if node_code_block.fenced {
             self.show_fenced_code_block(ui, node, top_left, node_code_block);
         } else {
-            self.show_indented_code_block(ui, node, top_left, node_code_block);
+            self.show_indented_code_block(ui, node, top_left, node_code_block, false);
         }
     }
 
@@ -92,7 +92,7 @@ impl<'ast> Editor {
                 }
             } else {
                 result += ROW_SPACING;
-                result += self.height_code_block_line(node, node_code_block, line);
+                result += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
 
@@ -144,8 +144,8 @@ impl<'ast> Editor {
                 }
             } else {
                 top_left.y += ROW_SPACING;
-                self.show_code_block_line(ui, node, top_left, node_code_block, line);
-                top_left.y += self.height_code_block_line(node, node_code_block, line);
+                self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
+                top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
     }
@@ -169,11 +169,11 @@ impl<'ast> Editor {
     }
 
     pub fn height_indented_code_block(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
     ) -> f32 {
         let mut result = 0.;
 
-        let reveal = self.reveal_indented_code_block(node);
+        let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -187,7 +187,7 @@ impl<'ast> Editor {
                     self.text_format_syntax(node),
                 );
             } else {
-                result += self.height_code_block_line(node, node_code_block, line);
+                result += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
             if line_idx != last_line_idx {
@@ -203,10 +203,10 @@ impl<'ast> Editor {
     // like html blocks as code
     pub fn show_indented_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        node_code_block: &NodeCodeBlock,
+        node_code_block: &NodeCodeBlock, synthetic: bool,
     ) {
         let width = self.width(node);
-        let height = self.height_indented_code_block(node, node_code_block);
+        let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         ui.painter()
@@ -215,7 +215,7 @@ impl<'ast> Editor {
         top_left.x += BLOCK_PADDING;
         top_left.y += BLOCK_PADDING;
 
-        let reveal = self.reveal_indented_code_block(node);
+        let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in first_line_idx..=last_line_idx {
@@ -235,15 +235,15 @@ impl<'ast> Editor {
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
-                self.show_code_block_line(ui, node, top_left, node_code_block, line);
-                top_left.y += self.height_code_block_line(node, node_code_block, line);
+                self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
+                top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
             top_left.y += ROW_SPACING;
         }
     }
 
-    fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>) -> bool {
+    fn reveal_indented_code_block(&self, node: &'ast AstNode<'ast>, synthetic: bool) -> bool {
         let mut reveal = false;
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
@@ -251,7 +251,12 @@ impl<'ast> Editor {
 
             // reveal if selection is inside the indentation, but not at the
             // indentation's end / content's start
-            let indentation = (node_line.start(), node_line.end().min(node_line.start() + 4));
+            let indentation = (
+                node_line.start(),
+                node_line
+                    .end()
+                    .min(node_line.start() + if synthetic { 0 } else { 4 }),
+            );
             if indentation.intersects(&self.buffer.current.selection, false)
                 || self
                     .buffer
@@ -268,7 +273,7 @@ impl<'ast> Editor {
 
     fn height_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset),
+        line: (DocCharOffset, DocCharOffset), synthetic: bool,
     ) -> f32 {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -295,7 +300,8 @@ impl<'ast> Editor {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start = (node_line.start() + 4).min(node_line.end());
+            let chunk_start =
+                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
@@ -348,7 +354,7 @@ impl<'ast> Editor {
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset),
+        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset), synthetic: bool,
     ) {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -375,7 +381,8 @@ impl<'ast> Editor {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start = (node_line.start() + 4).min(node_line.end());
+            let chunk_start =
+                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
@@ -546,7 +553,7 @@ impl<'ast> Editor {
         if node_code_block.fenced {
             self.compute_bounds_fenced_code_block(node, node_code_block)
         } else {
-            self.compute_bounds_indented_code_block(node)
+            self.compute_bounds_indented_code_block(node, false)
         }
     }
 
@@ -572,8 +579,10 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn compute_bounds_indented_code_block(&mut self, node: &'ast AstNode<'ast>) {
-        let reveal = self.reveal_indented_code_block(node);
+    pub fn compute_bounds_indented_code_block(
+        &mut self, node: &'ast AstNode<'ast>, synthetic: bool,
+    ) {
+        let reveal = self.reveal_indented_code_block(node, synthetic);
 
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];

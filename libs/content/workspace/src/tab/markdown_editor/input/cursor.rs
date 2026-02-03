@@ -36,15 +36,11 @@ impl Editor {
 
         // todo: binary search
         for galley_info in self.galleys.galleys.iter().rev() {
-            let GalleyInfo { range: galley_range, galley, mut rect, padded } = galley_info;
+            let GalleyInfo { range: galley_range, galley, mut rect, padded, .. } = galley_info;
             if galley_range.end() < range.start() {
                 break;
             } else if galley_range.start() > range.end() {
                 continue;
-            }
-
-            if *padded {
-                rect = rect.expand2(INLINE_PADDING * Vec2::X);
             }
 
             if galley_range.contains_inclusive(range.start()) {
@@ -62,6 +58,10 @@ impl Editor {
                 rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
             }
 
+            if rect.area() > 0.001 && *padded {
+                rect = rect.expand2(INLINE_PADDING * Vec2::X);
+            }
+
             result.push(rect);
         }
 
@@ -72,12 +72,13 @@ impl Editor {
     /// Draws a cursor at the provided offset with the provided accent color.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
     pub fn show_offset(&self, ui: &mut Ui, offset: DocCharOffset, accent: Color32) {
-        let [top, bot] = self.cursor_line(offset);
-        ui.painter().clone().vline(
-            top.x,
-            Rangef { min: top.y, max: bot.y },
-            Stroke::new(1., accent),
-        );
+        if let Some([top, bot]) = self.cursor_line(offset) {
+            ui.painter().clone().vline(
+                top.x,
+                Rangef { min: top.y, max: bot.y },
+                Stroke::new(1., accent),
+            );
+        }
     }
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
@@ -94,81 +95,106 @@ impl Editor {
         // handles invisible but still draggable when selection is empty
         // we must allocate handles to check if they were dragged last frame
         if !self.buffer.current.selection.is_empty() {
-            let selection_start_center = Pos2 {
-                x: selection_start_line[1].x - radius,
-                y: selection_start_line[1].y + radius,
-            };
-            ui.painter()
-                .circle_filled(selection_start_center, radius, color);
-            ui.painter().rect_filled(
-                Rect {
-                    min: Pos2 { x: selection_start_center.x, y: selection_start_center.y - radius },
-                    max: Pos2 { x: selection_start_center.x + radius, y: selection_start_center.y },
-                },
-                0.,
-                color,
-            );
-
-            let selection_end_center =
-                Pos2 { x: selection_end_line[1].x + radius, y: selection_end_line[1].y + radius };
-            ui.painter()
-                .circle_filled(selection_end_center, radius, color);
-            ui.painter().rect_filled(
-                Rect {
-                    min: Pos2 {
-                        x: selection_end_center.x - radius,
-                        y: selection_end_center.y - radius,
+            if let Some(selection_start_line) = selection_start_line {
+                let selection_start_center = Pos2 {
+                    x: selection_start_line[1].x - radius,
+                    y: selection_start_line[1].y + radius,
+                };
+                ui.painter()
+                    .circle_filled(selection_start_center, radius, color);
+                ui.painter().rect_filled(
+                    Rect {
+                        min: Pos2 {
+                            x: selection_start_center.x,
+                            y: selection_start_center.y - radius,
+                        },
+                        max: Pos2 {
+                            x: selection_start_center.x + radius,
+                            y: selection_start_center.y,
+                        },
                     },
-                    max: Pos2 { x: selection_end_center.x, y: selection_end_center.y },
+                    0.,
+                    color,
+                );
+            }
+
+            if let Some(selection_end_line) = selection_end_line {
+                let selection_end_center = Pos2 {
+                    x: selection_end_line[1].x + radius,
+                    y: selection_end_line[1].y + radius,
+                };
+                ui.painter()
+                    .circle_filled(selection_end_center, radius, color);
+                ui.painter().rect_filled(
+                    Rect {
+                        min: Pos2 {
+                            x: selection_end_center.x - radius,
+                            y: selection_end_center.y - radius,
+                        },
+                        max: Pos2 { x: selection_end_center.x, y: selection_end_center.y },
+                    },
+                    0.,
+                    color,
+                );
+            }
+        }
+
+        if let Some(selection_start_line) = selection_start_line {
+            // allocate rects to capture selection handle drag
+            let selection_start_handle_rect = Rect {
+                min: Pos2 {
+                    x: selection_start_line[1].x - 2. * radius,
+                    y: selection_start_line[1].y,
                 },
-                0.,
-                color,
-            );
-        }
-
-        // allocate rects to capture selection handle drag
-        let selection_start_handle_rect = Rect {
-            min: Pos2 { x: selection_start_line[1].x - 2. * radius, y: selection_start_line[1].y },
-            max: Pos2 { x: selection_start_line[1].x, y: selection_start_line[1].y + 2. * radius },
-        };
-        let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
-        let selection_end_handle_rect = Rect {
-            min: Pos2 { x: selection_end_line[1].x, y: selection_end_line[1].y },
-            max: Pos2 {
-                x: selection_end_line[1].x + 2. * radius,
-                y: selection_end_line[1].y + 2. * radius,
-            },
-        };
-        let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
-
-        // adjust cursor based on selection handle drag
-        if start_response.drag_stopped() {
-            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
-                let region = Region::from(in_progress_selection);
-                ui.ctx().push_markdown_event(Event::Select { region });
-            }
-        } else if start_response.dragged() {
-            let region = Region::BetweenLocations {
-                start: Location::Pos(
-                    ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
-                ),
-                end: Location::DocCharOffset(self.buffer.current.selection.1),
+                max: Pos2 {
+                    x: selection_start_line[1].x,
+                    y: selection_start_line[1].y + 2. * radius,
+                },
             };
-            self.in_progress_selection = Some(self.region_to_range(region));
-        }
-        if end_response.drag_stopped() {
-            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
-                let region = Region::from(in_progress_selection);
-                ui.ctx().push_markdown_event(Event::Select { region });
+            let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
+
+            // adjust cursor based on selection handle drag
+            if start_response.drag_stopped() {
+                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                    let region = Region::from(in_progress_selection);
+                    ui.ctx().push_markdown_event(Event::Select { region });
+                }
+            } else if start_response.dragged() {
+                let region = Region::BetweenLocations {
+                    start: Location::Pos(
+                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
+                    ),
+                    end: Location::DocCharOffset(self.buffer.current.selection.1),
+                };
+                self.in_progress_selection = Some(self.region_to_range(region));
             }
-        } else if end_response.dragged() {
-            let region = Region::BetweenLocations {
-                start: Location::DocCharOffset(self.buffer.current.selection.0),
-                end: Location::Pos(
-                    ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
-                ),
+        }
+        if let Some(selection_end_line) = selection_end_line {
+            // allocate rects to capture selection handle drag
+            let selection_end_handle_rect = Rect {
+                min: Pos2 { x: selection_end_line[1].x, y: selection_end_line[1].y },
+                max: Pos2 {
+                    x: selection_end_line[1].x + 2. * radius,
+                    y: selection_end_line[1].y + 2. * radius,
+                },
             };
-            self.in_progress_selection = Some(self.region_to_range(region));
+            let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
+
+            // adjust cursor based on selection handle drag
+            if end_response.drag_stopped() {
+                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                    let region = Region::from(in_progress_selection);
+                    ui.ctx().push_markdown_event(Event::Select { region });
+                }
+            } else if end_response.dragged() {
+                let region = Region::BetweenLocations {
+                    start: Location::DocCharOffset(self.buffer.current.selection.0),
+                    end: Location::Pos(
+                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
+                    ),
+                };
+                self.in_progress_selection = Some(self.region_to_range(region));
+            }
         }
     }
 
@@ -177,17 +203,18 @@ impl Editor {
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
 
-        let [top, bot] = self.cursor_line(selection.1);
-        let rect = Rect::from_min_max(top, bot);
-        ui.scroll_to_rect(rect.expand(rect.height()), None);
+        if let Some([top, bot]) = self.cursor_line(selection.1) {
+            let rect = Rect::from_min_max(top, bot);
+            ui.scroll_to_rect(rect.expand(rect.height()), None);
+        }
     }
 
-    pub fn cursor_line(&self, offset: DocCharOffset) -> [Pos2; 2] {
-        let (galley_idx, cursor) = self.galleys.galley_and_cursor_by_offset(offset);
+    pub fn cursor_line(&self, offset: DocCharOffset) -> Option<[Pos2; 2]> {
+        let (galley_idx, cursor) = self.galleys.galley_and_cursor_by_offset(offset)?;
         let galley = &self.galleys[galley_idx];
         let x = cursor_to_pos_abs(galley, cursor).x;
         let y_range = galley.rect.y_range();
-        [Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }]
+        Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }
 

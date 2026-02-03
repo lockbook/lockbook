@@ -236,7 +236,6 @@ private struct OnboardingThreeView: View {
                 .padding(.horizontal, 25)
                 .frame(minHeight: geometry.size.height)
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
         .navigationBarBackButtonHidden()
     }

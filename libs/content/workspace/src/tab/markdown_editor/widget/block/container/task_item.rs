@@ -14,7 +14,7 @@ impl<'ast> Editor {
     }
 
     pub fn show_task_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_task_item: &NodeTaskItem,
     ) {
         let maybe_check = node_task_item.symbol;
@@ -41,26 +41,56 @@ impl<'ast> Editor {
             }
         });
 
-        top_left.x += INDENT;
-
         let any_children = node.children().next().is_some();
-        if any_children {
-            self.show_block_children(ui, node, top_left);
+        let hovered = if any_children {
+            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+
+            // todo: proper hit-testing (this ignores anything covering the space)
+            let children_height = self.block_children_height(node);
+            let children_space =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), children_height));
+            children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
             let mut wrap = Wrap::new(self.width(node));
-            self.show_section(
+            let resp = self.show_section(
                 ui,
-                top_left,
+                top_left + INDENT * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_document(),
                 false,
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
+
+            resp.hovered
+        };
+
+        // fold button
+        // todo: proper hit-testing (this ignores anything covering the space)
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+
+        let (fold_button_size, fold_button_icon_size, fold_button_space) =
+            Self::fold_button_size_icon_size_space(top_left, row_height);
+        let show_fold_button = self.touch_mode
+            || hovered
+            || fold_button_space.contains(pointer)
+            || annotation_space.contains(pointer)
+            || self.fold(node).is_some()
+            || self.selected_fold_item(node);
+        if !show_fold_button {
+            return;
         }
+
+        self.show_fold_button(
+            ui,
+            node,
+            (fold_button_size, fold_button_icon_size, fold_button_space),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
+        );
     }
 
     pub fn own_prefix_len_task_item(

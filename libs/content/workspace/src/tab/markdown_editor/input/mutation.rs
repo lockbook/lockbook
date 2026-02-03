@@ -2,11 +2,12 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::Event;
-use crate::tab::markdown_editor::style::{
-    BlockNode, BlockNodeType, InlineNode, ListItem, MarkdownNode,
-};
+use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use comrak::nodes::{AstNode, NodeHeading, NodeValue};
+use comrak::nodes::{
+    AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
+    NodeTaskItem, NodeValue, Sourcepos,
+};
 use egui::{Pos2, Rangef, Vec2};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
@@ -14,10 +15,8 @@ use lb_rs::model::text::offset_types::{
     ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
-use pulldown_cmark::{HeadingLevel, LinkType};
 
-use super::advance::AdvanceExt as _;
-use super::{Bound, Location, Offset, Region};
+use super::{Advance, Bound, Location, Region};
 
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
@@ -47,15 +46,6 @@ impl<'ast> Editor {
             }
             Event::ToggleStyle { region, style } => {
                 self.toggle_style(root, region, style, current_selection, operations);
-            }
-            Event::Link { region, url } => {
-                self.toggle_style(
-                    root,
-                    region,
-                    MarkdownNode::Inline(InlineNode::Link(LinkType::Autolink, url, "".into())),
-                    current_selection,
-                    operations,
-                );
             }
             Event::Camera => {
                 response.open_camera = true;
@@ -152,8 +142,8 @@ impl<'ast> Editor {
                     // must be mostly vanilla backspace
                     if !matches!(
                         region,
-                        Region::SelectionOrOffset {
-                            offset: Offset::Next(Bound::Char | Bound::Word),
+                        Region::SelectionOrAdvance {
+                            advance: Advance::Next(Bound::Char | Bound::Word),
                             backwards: true,
                         }
                     ) {
@@ -411,21 +401,37 @@ impl<'ast> Editor {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
+            Event::ToggleFold => {
+                let unapply = self.unapply_fold(root);
+                for node in root.descendants() {
+                    if matches!(node.data().value, NodeValue::Heading(_))
+                        && self.selected_block(node)
+                    {
+                        self.apply_fold(node, self.heading_contents(node), unapply);
+                    }
+
+                    if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                        && self.selected_fold_item(node)
+                    {
+                        self.apply_fold(node, self.item_contents(node), unapply);
+                    }
+                }
+            }
         }
 
         response
     }
 
     fn toggle_style(
-        &mut self, root: &'ast AstNode<'ast>, region: Region, style: MarkdownNode,
+        &mut self, root: &'ast AstNode<'ast>, region: Region, style: NodeValue,
         current_selection: (DocCharOffset, DocCharOffset), operations: &mut Vec<Operation>,
     ) {
         let range = self.region_to_range(region);
 
         match style {
-            MarkdownNode::Document | MarkdownNode::Paragraph => {}
-            MarkdownNode::Inline(inline_style) => {
-                let unapply = self.unapply_inline(root, range, &inline_style);
+            NodeValue::Document | NodeValue::Paragraph => {}
+            _ if style.is_inline() => {
+                let unapply = self.unapply_inline(root, range, &style);
 
                 for inline_paragraph in &self.bounds.inline_paragraphs {
                     if inline_paragraph.intersects(&range, true) {
@@ -437,7 +443,7 @@ impl<'ast> Editor {
                         self.apply_inline_style(
                             root,
                             paragraph_range,
-                            inline_style.clone(),
+                            style.clone(),
                             unapply,
                             operations,
                         );
@@ -446,8 +452,8 @@ impl<'ast> Editor {
 
                 // todo: advance cursor
             }
-            MarkdownNode::Block(block_style) => {
-                let unapply = self.unapply_block(root, &block_style);
+            _ if style.is_leaf_block() || style.is_container_block() => {
+                let unapply = self.unapply_block(root, &style);
 
                 let mut handled = false;
                 for node in root.descendants() {
@@ -455,7 +461,7 @@ impl<'ast> Editor {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
-                        if let BlockNodeType::Heading(style_level) = block_style.node_type() {
+                        if let NodeValue::Heading(NodeHeading { level, .. }) = style.node_type() {
                             if let NodeValue::Heading(NodeHeading {
                                 level: node_level,
                                 setext: false,
@@ -466,21 +472,13 @@ impl<'ast> Editor {
                                     let line = self.bounds.source_lines[line_idx];
                                     let node_line = self.node_line(node, line);
 
-                                    let style_level = match style_level {
-                                        HeadingLevel::H1 => 1,
-                                        HeadingLevel::H2 => 2,
-                                        HeadingLevel::H3 => 3,
-                                        HeadingLevel::H4 => 4,
-                                        HeadingLevel::H5 => 5,
-                                        HeadingLevel::H6 => 6,
-                                    };
-                                    if style_level > node_level {
-                                        let add_levels = style_level - node_level;
+                                    if level > node_level {
+                                        let add_levels = level - node_level;
                                         operations.push(Operation::Replace(Replace {
                                             range: node_line.start().into_range(),
                                             text: "#".repeat(add_levels as _),
                                         }));
-                                    } else if style_level == node_level {
+                                    } else if level == node_level {
                                         // remove heading
                                         let mut range = (
                                             node_line.start(),
@@ -498,7 +496,7 @@ impl<'ast> Editor {
                                             text: "".into(),
                                         }));
                                     } else {
-                                        let remove_levels = node_level - style_level;
+                                        let remove_levels = node_level - level;
                                         operations.push(Operation::Replace(Replace {
                                             range: (
                                                 node_line.start(),
@@ -523,7 +521,7 @@ impl<'ast> Editor {
 
                                     operations.push(Operation::Replace(Replace {
                                         range: node_line.start().into_range(),
-                                        text: "#".repeat(style_level as _) + " ",
+                                        text: "#".repeat(level as _) + " ",
                                     }));
                                 }
                             }
@@ -560,35 +558,43 @@ impl<'ast> Editor {
 
                                     let range =
                                         self.line_ancestors_prefix(node, line).end().into_range();
-                                    let text = match block_style {
-                                        BlockNode::Heading(_) => unreachable!(),
-                                        BlockNode::Quote => "> ",
-                                        BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
-                                        BlockNode::ListItem(ListItem::Bulleted, _) => {
-                                            if first_line { "* " } else { "  " }
+                                    let text = match style {
+                                        NodeValue::Heading(_) => unreachable!(),
+                                        NodeValue::BlockQuote => "> ",
+                                        NodeValue::Code(_) => unimplemented!(), // todo: support inserting lines
+                                        NodeValue::List(NodeList {
+                                            list_type: ListType::Bullet,
+                                            is_task_list: false,
+                                            ..
+                                        }) => {
+                                            if first_line {
+                                                "* "
+                                            } else {
+                                                "  "
+                                            }
                                         }
-                                        BlockNode::ListItem(ListItem::Numbered(_), _) => {
+                                        NodeValue::List(NodeList {
+                                            list_type: ListType::Ordered,
+                                            ..
+                                        }) => {
                                             if first_line {
                                                 "1. "
                                             } else {
                                                 "   "
                                             }
                                         }
-                                        BlockNode::ListItem(ListItem::Todo(true), _) => {
-                                            if first_line {
-                                                "* [x] "
-                                            } else {
-                                                "  "
-                                            }
-                                        }
-                                        BlockNode::ListItem(ListItem::Todo(false), _) => {
+                                        NodeValue::List(NodeList {
+                                            list_type: ListType::Bullet,
+                                            is_task_list: true,
+                                            ..
+                                        }) => {
                                             if first_line {
                                                 "* [ ] "
                                             } else {
                                                 "  "
                                             }
                                         }
-                                        BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                                        _ => unimplemented!(), // many such cases!
                                     }
                                     .into();
 
@@ -609,25 +615,32 @@ impl<'ast> Editor {
                     // insert or remove matching prefix
                     if !unapply {
                         let range = current_selection.start().into_range();
-                        let text = match block_style {
-                            BlockNode::Heading(heading_level) => {
+                        let text = match style {
+                            NodeValue::Heading(NodeHeading { level, .. }) => {
                                 // todo: technically this makes a bunch of separate headings
-                                match heading_level {
-                                    HeadingLevel::H1 => "# ",
-                                    HeadingLevel::H2 => "## ",
-                                    HeadingLevel::H3 => "### ",
-                                    HeadingLevel::H4 => "#### ",
-                                    HeadingLevel::H5 => "##### ",
-                                    HeadingLevel::H6 => "###### ",
+                                match level {
+                                    1 => "# ",
+                                    2 => "## ",
+                                    3 => "### ",
+                                    4 => "#### ",
+                                    5 => "##### ",
+                                    _ => "###### ",
                                 }
                             }
-                            BlockNode::Quote => "> ",
-                            BlockNode::Code(_) => unimplemented!(), // todo: support inserting lines
-                            BlockNode::ListItem(ListItem::Bulleted, _) => "* ",
-                            BlockNode::ListItem(ListItem::Numbered(_), _) => "1. ",
-                            BlockNode::ListItem(ListItem::Todo(true), _) => "* [x] ",
-                            BlockNode::ListItem(ListItem::Todo(false), _) => "* [ ] ",
-                            BlockNode::Rule => unimplemented!(), // todo: kind of just not a priority rn
+                            NodeValue::BlockQuote => "> ",
+                            NodeValue::Code(_) => unimplemented!(), // todo: support inserting lines
+                            NodeValue::List(NodeList {
+                                list_type: ListType::Bullet,
+                                is_task_list: false,
+                                ..
+                            }) => "* ",
+                            NodeValue::List(NodeList { list_type: ListType::Ordered, .. }) => "1. ",
+                            NodeValue::List(NodeList {
+                                list_type: ListType::Bullet,
+                                is_task_list: true,
+                                ..
+                            }) => "* [ ] ",
+                            _ => unimplemented!(), // many such cases!
                         }
                         .into();
 
@@ -638,10 +651,7 @@ impl<'ast> Editor {
                             root,
                             self.buffer.current.selection.start(),
                         );
-                        if block_style
-                            .node_type()
-                            .matches(&target_node.data.borrow().value)
-                        {
+                        if style == target_node.node_type() {
                             let line_idx = self
                                 .range_lines(current_selection.start().into_range())
                                 .start();
@@ -657,15 +667,16 @@ impl<'ast> Editor {
                     }
                 }
             }
+            _ => {}
         }
     }
 
     /// Returns true if all text in the given range has style `style`
     pub fn inline_styled(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &InlineNode,
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
     ) -> bool {
         for node in root.descendants() {
-            if style.node_type().matches(&node.data.borrow().value)
+            if &node.node_type() == style
                 && self.node_range(node).contains_range(&range, true, true)
             {
                 return true;
@@ -677,7 +688,7 @@ impl<'ast> Editor {
 
     /// Returns true if an inline style would be unapplied instead of applied
     pub fn unapply_inline(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &InlineNode,
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
     ) -> bool {
         let mut unapply = false;
         for inline_paragraph in &self.bounds.inline_paragraphs {
@@ -693,13 +704,8 @@ impl<'ast> Editor {
         unapply
     }
 
-    /// Returns true if the provided node has style `style`
-    pub fn block_styled(&self, node: &'ast AstNode<'ast>, style: &BlockNode) -> bool {
-        style.node_type().matches(&node.data.borrow().value)
-    }
-
     /// Returns true if a block style would be unapplied instead of applied
-    pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &BlockNode) -> bool {
+    pub fn unapply_block(&self, root: &'ast AstNode<'ast>, style: &NodeValue) -> bool {
         let mut unapply = false;
         let mut any_selected_blocks = false;
         for node in root.descendants() {
@@ -708,28 +714,89 @@ impl<'ast> Editor {
 
                 let target_node =
                     if node.is_container_block() { node } else { node.parent().unwrap() };
-                unapply |= style.node_type().matches(&target_node.data.borrow().value);
+                unapply |= &target_node.node_type() == style
             }
         }
 
         if !any_selected_blocks {
             // selecting sequence of contiguous empty/whitespace-only lines:
             // check for matching container block
-            return style.node_type().matches(
-                &self
-                    .deepest_container_block_at_offset(root, self.buffer.current.selection.start())
-                    .data
-                    .borrow()
-                    .value,
-            );
+            return &self
+                .deepest_container_block_at_offset(root, self.buffer.current.selection.start())
+                .node_type()
+                == style;
         }
 
         unapply
     }
 
+    /// Returns true if a fold command should unfold instead of fold
+    pub fn unapply_fold(&self, root: &'ast AstNode<'ast>) -> bool {
+        let mut unapply = false;
+        for node in root.descendants() {
+            if matches!(node.data().value, NodeValue::Heading(_))
+                && self.selected_block(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+
+            if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                && self.selected_fold_item(node)
+                && self.fold(node).is_some()
+            {
+                unapply = true;
+            }
+        }
+
+        unapply
+    }
+
+    #[allow(clippy::collapsible_else_if)]
+    pub fn apply_fold(
+        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
+        unapply: bool,
+    ) {
+        if unapply {
+            println!("UNapply fold to selected heading");
+            if let Some(fold) = self.fold(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
+        } else {
+            println!("apply fold to selected heading");
+            if let Some(foldable) = self.foldable(node) {
+                self.event.internal_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+
+                // when folding a section that intersects the cursor, adjust the selection
+                // this ensures the folded section appears folded / avoids immediate selection reveal
+                let selection = self.buffer.current.selection;
+
+                if contents.intersects(&selection, true)
+                    && !selection.contains_range(&contents, true, true)
+                {
+                    self.event.internal_events.push(Event::Select {
+                        region: (
+                            selection.start().min(contents.start()),
+                            selection.end().min(contents.start()),
+                        )
+                            .into(),
+                    });
+                }
+            }
+        }
+    }
+
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_inline_style(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: InlineNode,
+        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: NodeValue,
         unapply: bool, operations: &mut Vec<Operation>,
     ) {
         let selection = self.buffer.current.selection;
@@ -743,7 +810,7 @@ impl<'ast> Editor {
         // find nodes applying given style containing range start and end
         let mut start_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
-            if style.node_type().matches(&node.data.borrow().value)
+            if node.node_type() == style
                 && self.node_range(node).contains(range.start(), true, true)
             {
                 start_node = Some(node);
@@ -751,8 +818,7 @@ impl<'ast> Editor {
         }
         let mut end_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
-            if style.node_type().matches(&node.data.borrow().value)
-                && self.node_range(node).contains(range.end(), true, true)
+            if node.node_type() == style && self.node_range(node).contains(range.end(), true, true)
             {
                 end_node = Some(node);
             }
@@ -830,7 +896,7 @@ impl<'ast> Editor {
                 }
             }
 
-            let style_matches = style.node_type().matches(&node.data.borrow().value);
+            let style_matches = node.node_type() == style;
             if style_matches && self.node_range(node).intersects(&range, true) {
                 self.dehead_ast_node(node, operations);
                 self.detail_ast_node(node, operations);
@@ -842,7 +908,7 @@ impl<'ast> Editor {
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
         let mut current_selection = self.buffer.current.selection;
         match region {
-            Region::Location(location) => self.location_to_char_offset(location).to_range(),
+            Region::Location(location) => self.location_to_range(location),
             Region::ToLocation(location) => {
                 (current_selection.0, self.location_to_char_offset(location))
             }
@@ -850,33 +916,19 @@ impl<'ast> Editor {
                 (self.location_to_char_offset(start), self.location_to_char_offset(end))
             }
             Region::Selection => current_selection,
-            Region::SelectionOrOffset { offset, backwards } => {
+            Region::SelectionOrAdvance { advance: offset, backwards } => {
                 if current_selection.is_empty() {
-                    current_selection.0 = current_selection.0.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    current_selection.0 = self.advance(current_selection.0, offset, backwards);
                 }
                 current_selection
             }
-            Region::ToOffset { offset, backwards, extend_selection } => {
+            Region::ToAdvance { advance: offset, backwards, extend_selection } => {
                 if extend_selection
                     || current_selection.is_empty()
-                    || matches!(offset, Offset::To(..))
+                    || matches!(offset, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = selection.1.advance(
-                        &mut self.cursor.x_target,
-                        offset,
-                        backwards,
-                        &self.buffer.current.segs,
-                        &self.galleys,
-                        &self.bounds,
-                    );
+                    selection.1 = self.advance(selection.1, offset, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
@@ -904,12 +956,16 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+    pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
         match location {
-            Location::CurrentCursor => self.buffer.current.selection.1,
-            Location::DocCharOffset(o) => o,
-            Location::Pos(pos) => pos_to_char_offset(pos, &self.galleys),
+            Location::CurrentCursor => self.buffer.current.selection,
+            Location::DocCharOffset(o) => o.into_range(),
+            Location::Pos(pos) => self.pos_to_range(pos),
         }
+    }
+
+    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+        self.location_to_range(location).0
     }
 
     fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
@@ -937,28 +993,40 @@ impl<'ast> Editor {
 
         result
     }
-}
 
-// todo: find a better home
-pub fn pos_to_char_offset(pos: Pos2, galleys: &Galleys) -> DocCharOffset {
-    let galley_idx = pos_to_galley(pos, galleys);
-    let galley = &galleys[galley_idx];
-    let relative_pos = pos - galley.rect.min;
+    // todo: find a better home
+    pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
+        let galleys = &self.galleys;
+        let galley_idx = pos_to_galley(pos, galleys);
+        let galley = &galleys[galley_idx];
+        let relative_pos = pos - galley.rect.min;
 
-    if galley.range.is_empty() {
-        // empty galley range means every position in the galley maps to
-        // that location
-        galley.range.start()
-    } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
-        // every position lower than the final galley's bottom maps to its end
-        galley.range.end()
-    } else {
-        // clamp y coordinate for forgiving cursor placement clicks
-        let relative_pos =
-            Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
+        if galley.range.is_empty() {
+            // empty galley range means every position in the galley maps to
+            // that location
+            let result = galley.range.start();
+            result.into_range()
+        } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
+            // every position lower than the final galley's bottom maps to the last cursor position
+            self.buffer.current.segs.last_cursor_position().into_range()
+        } else {
+            // clamp y coordinate for forgiving cursor placement clicks
+            let relative_pos =
+                Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
 
-        let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        galleys.offset_by_galley_and_cursor(galley, new_cursor)
+            if galley.is_override {
+                // click an override galley to select the whole thing
+                galley.range
+            } else {
+                let new_cursor = galley.galley.cursor_from_pos(relative_pos);
+                let result = galleys.offset_by_galley_and_cursor(galley, new_cursor);
+                result.into_range()
+            }
+        }
+    }
+
+    pub fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+        self.pos_to_range(pos).0
     }
 }
 
@@ -1034,17 +1102,19 @@ impl<'ast> Editor {
     }
 
     fn insert_head(
-        &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
+        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
     ) {
         let text = style.node_type().head().to_string();
         operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
     }
 
     fn insert_tail(
-        &self, offset: DocCharOffset, style: InlineNode, operations: &mut Vec<Operation>,
+        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
     ) {
         let text = style.node_type().tail().to_string();
-        if let InlineNode::Link(_, url, _) = style {
+        if let NodeValue::Link(link) = style {
+            let NodeLink { url, .. } = *link;
+
             operations.push(Operation::Replace(Replace {
                 range: offset.to_range(),
                 text: text[..2].into(),
@@ -1065,6 +1135,131 @@ impl<'ast> Editor {
             }
         } else {
             operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
+        }
+    }
+}
+
+trait NodeType {
+    fn node_type(&self) -> NodeValue;
+}
+
+impl NodeType for AstNode<'_> {
+    fn node_type(&self) -> NodeValue {
+        self.data.borrow().value.node_type()
+    }
+}
+
+impl NodeType for NodeValue {
+    fn node_type(&self) -> NodeValue {
+        match self {
+            NodeValue::Document => NodeValue::Document,
+            NodeValue::FrontMatter(_) => NodeValue::FrontMatter(Default::default()),
+            NodeValue::BlockQuote => NodeValue::BlockQuote,
+            NodeValue::List(_) => NodeValue::List(Default::default()),
+            NodeValue::Item(_) => NodeValue::Item(Default::default()),
+            NodeValue::DescriptionList => NodeValue::DescriptionList,
+            NodeValue::DescriptionItem(_) => NodeValue::DescriptionItem(Default::default()),
+            NodeValue::DescriptionTerm => NodeValue::DescriptionTerm,
+            NodeValue::DescriptionDetails => NodeValue::DescriptionDetails,
+            NodeValue::CodeBlock(_) => NodeValue::CodeBlock(Default::default()),
+            NodeValue::HtmlBlock(_) => NodeValue::HtmlBlock(Default::default()),
+            NodeValue::Paragraph => NodeValue::Paragraph,
+            // headings are the only thing with any data preserved
+            NodeValue::Heading(heading) => {
+                NodeValue::Heading(NodeHeading { level: heading.level, ..Default::default() })
+            }
+            NodeValue::ThematicBreak => NodeValue::ThematicBreak,
+            NodeValue::FootnoteDefinition(_) => NodeValue::FootnoteDefinition(Default::default()),
+            NodeValue::Table(_) => NodeValue::Table(Default::default()),
+            NodeValue::TableRow(_) => NodeValue::TableRow(Default::default()),
+            NodeValue::TableCell => NodeValue::TableCell,
+            NodeValue::Text(_) => NodeValue::Text(Default::default()),
+            // wish this had a Default impl
+            NodeValue::TaskItem(_) => NodeValue::TaskItem(NodeTaskItem {
+                symbol: Default::default(),
+                symbol_sourcepos: Sourcepos {
+                    start: LineColumn { line: Default::default(), column: Default::default() },
+                    end: LineColumn { line: Default::default(), column: Default::default() },
+                },
+            }),
+            NodeValue::SoftBreak => NodeValue::SoftBreak,
+            NodeValue::LineBreak => NodeValue::LineBreak,
+            NodeValue::Code(_) => NodeValue::Code(Default::default()),
+            NodeValue::HtmlInline(_) => NodeValue::HtmlInline(Default::default()),
+            NodeValue::Raw(_) => NodeValue::Raw(Default::default()),
+            NodeValue::Emph => NodeValue::Emph,
+            NodeValue::Strong => NodeValue::Strong,
+            NodeValue::Strikethrough => NodeValue::Strikethrough,
+            NodeValue::Highlight => NodeValue::Highlight,
+            NodeValue::Superscript => NodeValue::Superscript,
+            NodeValue::Link(_) => NodeValue::Link(Default::default()),
+            NodeValue::Image(_) => NodeValue::Image(Default::default()),
+            NodeValue::FootnoteReference(_) => NodeValue::FootnoteReference(Default::default()),
+            // wish this had a Default impl
+            NodeValue::ShortCode(_) => {
+                NodeValue::ShortCode(NodeShortCode { code: "".into(), emoji: "".into() }.into())
+            }
+            NodeValue::Math(_) => NodeValue::Math(Default::default()),
+            NodeValue::MultilineBlockQuote(_) => NodeValue::MultilineBlockQuote(Default::default()),
+            NodeValue::Escaped => NodeValue::Escaped,
+            NodeValue::WikiLink(_) => NodeValue::WikiLink(Default::default()),
+            NodeValue::Underline => NodeValue::Underline,
+            NodeValue::Subscript => NodeValue::Subscript,
+            NodeValue::SpoileredText => NodeValue::SpoileredText,
+            NodeValue::EscapedTag(_) => NodeValue::EscapedTag(Default::default()),
+            // wish this had a Default impl
+            NodeValue::Alert(_) => NodeValue::Alert(
+                NodeAlert {
+                    alert_type: Default::default(),
+                    title: Default::default(),
+                    multiline: Default::default(),
+                    fence_length: Default::default(),
+                    fence_offset: Default::default(),
+                }
+                .into(),
+            ),
+            NodeValue::Subtext => NodeValue::Subtext,
+        }
+    }
+}
+
+trait HeadTail {
+    fn head(&self) -> &'static str;
+    fn tail(&self) -> &'static str;
+}
+
+impl HeadTail for NodeValue {
+    fn head(&self) -> &'static str {
+        match self {
+            NodeValue::Code(_) => "`",
+            NodeValue::Emph => "*",
+            NodeValue::Strong => "**",
+            NodeValue::Strikethrough => "~~",
+            NodeValue::Link(_) => "[",
+            NodeValue::Image(_) => "![",
+            NodeValue::Highlight => "==",
+            NodeValue::Underline => "__",
+            NodeValue::SpoileredText => "||",
+            NodeValue::Subscript => "~",
+            NodeValue::Superscript => "^",
+            _ => unimplemented!(), // many such cases!
+        }
+    }
+
+    fn tail(&self) -> &'static str {
+        match self {
+            NodeValue::Code(_) => "`",
+            NodeValue::Emph => "*",
+            NodeValue::Strong => "**",
+            NodeValue::Strikethrough => "~~",
+            NodeValue::Link(_) => "]()",
+            NodeValue::Image(_) => "]()",
+            NodeValue::Highlight => "==",
+            NodeValue::Underline => "__",
+            NodeValue::SpoileredText => "||",
+            NodeValue::Subscript => "~",
+            NodeValue::Superscript => "^",
+            _ => unimplemented!(), // many such cases!
         }
     }
 }

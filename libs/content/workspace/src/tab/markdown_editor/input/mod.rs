@@ -4,11 +4,10 @@ pub mod cursor;
 pub mod events;
 pub mod mutation;
 
+use comrak::nodes::NodeValue;
 use egui::Pos2;
 
-use crate::tab::markdown_editor;
 use lb_rs::model::text::offset_types::DocCharOffset;
-use markdown_editor::style::MarkdownNode;
 
 /*
  * This module processes input events, with the following major concerns:
@@ -43,7 +42,7 @@ pub enum Increment {
 
 /// text location relative to some absolute text location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Offset {
+pub enum Advance {
     /// text location at a bound; if you're already there, this leaves you there
     /// (e.g. cmd+left/right)
     To(Bound),
@@ -75,13 +74,13 @@ pub enum Region {
     /// Currently selected text, or if the selection is empty, text from the
     /// primary cursor to one char/line before/after or to start/end of
     /// word/line/doc
-    SelectionOrOffset { offset: Offset, backwards: bool },
+    SelectionOrAdvance { advance: Advance, backwards: bool },
 
     /// Text from primary cursor to one char/line before/after or to start/end
     /// of word/line/paragraph/doc. In some situations this instead represents
     /// the start of selection (if `backwards`) or end of selection, based on
     /// what feels intuitive when using arrow keys to navigate a document.
-    ToOffset { offset: Offset, backwards: bool, extend_selection: bool },
+    ToAdvance { advance: Advance, backwards: bool, extend_selection: bool },
 
     /// Current word/line/paragraph/doc, preferring previous word if `backwards`
     Bound { bound: Bound, backwards: bool },
@@ -96,7 +95,7 @@ pub enum Region {
 pub enum Event {
     Select { region: Region },
     Replace { region: Region, text: String, advance_cursor: bool }, // replace region with text and optionally advance cursor to end of new text
-    ToggleStyle { region: Region, style: MarkdownNode }, // supports toolbar and inline tyle keyboard shortcuts
+    ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
@@ -108,8 +107,8 @@ pub enum Event {
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,
-    Link { region: Region, url: String }, // turn the region into a markdown link to the given url
-    Camera,                               // launch camera on platform
+    Camera, // launch camera on platform
+    ToggleFold,
 }
 
 impl From<(DocCharOffset, DocCharOffset)> for Region {

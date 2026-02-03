@@ -5,12 +5,9 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
+use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
-use crate::tab::markdown_editor::{Editor, Event};
-use crate::theme::icons::Icon;
-use crate::widgets::IconButton;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -30,7 +27,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
+    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
@@ -66,16 +63,14 @@ impl<'ast> Editor {
             }
         }
 
-        top_left.x += INDENT;
-
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left);
+            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
-            let height = self.block_children_height(node);
+            let children_height = self.block_children_height(node);
             let children_space =
-                Rect::from_min_size(top_left, Vec2::new(self.width(node) - INDENT, height));
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), children_height));
             children_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         } else {
             let line = self.node_first_line(node);
@@ -84,7 +79,7 @@ impl<'ast> Editor {
             let mut wrap = Wrap::new(self.width(node) - INDENT);
             let resp = self.show_section(
                 ui,
-                top_left,
+                top_left + INDENT * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_syntax(node),
@@ -95,56 +90,29 @@ impl<'ast> Editor {
             resp.hovered
         };
 
-        // show/hide button (fold)
-        // todo: factor (copied for headings)
+        // fold button
         // todo: proper hit-testing (this ignores anything covering the space)
-        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+
+        let (fold_button_size, fold_button_icon_size, fold_button_space) =
+            Self::fold_button_size_icon_size_space(top_left, row_height);
         let show_fold_button = self.touch_mode
             || hovered
-            || fold_button_space.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()));
+            || fold_button_space.contains(pointer)
+            || annotation_space.contains(pointer)
+            || self.fold(node).is_some()
+            || self.selected_fold_item(node);
         if !show_fold_button {
             return;
         }
 
-        let fold_button_space = annotation_space.translate(Vec2::X * -INDENT);
-        let fold_button_size = self.row_height(node) * 0.6;
-        self.touch_consuming_rects.push(fold_button_space);
-
-        if let Some(fold) = self.fold(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_RIGHT
-                    .size(fold_button_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .tooltip("Show Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(fold).into(),
-                        text: "".into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
-        } else if let Some(foldable) = self.foldable(node) {
-            ui.allocate_ui_at_rect(fold_button_space, |ui| {
-                let icon = Icon::CHEVRON_DOWN
-                    .size(fold_button_size)
-                    .color(self.theme.fg().neutral_quarternary);
-                if IconButton::new(icon)
-                    .tooltip("Hide Contents")
-                    .show(ui)
-                    .clicked()
-                {
-                    self.event.internal_events.push(Event::Replace {
-                        region: self.node_range(foldable).end().into_range().into(),
-                        text: FOLD_TAG.into(),
-                        advance_cursor: false,
-                    });
-                }
-            });
-        }
+        self.show_fold_button(
+            ui,
+            node,
+            (fold_button_size, fold_button_icon_size, fold_button_space),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
+        );
     }
 
     pub fn own_prefix_len_item(
@@ -232,5 +200,54 @@ impl<'ast> Editor {
             self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
+    }
+
+    pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+        // contents start at the end of the first child, which acts as a sort of section title
+        // if no children, start at end of node first line
+        let mut contents = if let Some(first_child) = node.children().next() {
+            self.node_range(first_child).end().into_range()
+        } else {
+            self.node_first_line(node).end().into_range()
+        };
+
+        let sorted_siblings = self.sorted_siblings(node);
+        let sibling_index = self.sibling_index(node, &sorted_siblings);
+
+        if let Some(sibling) = sorted_siblings[sibling_index + 1..].first() {
+            let sibling_first_line = self.node_first_line_idx(sibling);
+            let last_line = sibling_first_line - 1;
+            contents.1 = self.bounds.source_lines[last_line].end();
+        } else {
+            // absent a next sibling, we contain the remaining content of the
+            // parent
+            contents.1 = self.node_range(node.parent().unwrap()).end();
+        }
+
+        contents
+    }
+
+    /// Returns true if the item contents should be revealed whether the heading is folded or not
+    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.item_contents(node)
+            .contains_range(&self.buffer.current.selection, false, true)
+    }
+
+    /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()
+    pub fn selected_fold_item(&self, node: &'ast AstNode<'ast>) -> bool {
+        // any items selected -> those items selected for fold
+        let root = node.ancestors().last().unwrap();
+        for descendent in root.descendants() {
+            if self.selected_block(descendent)
+                && matches!(descendent.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+            {
+                return self.selected_block(node);
+            }
+        }
+
+        // else -> parent item of any selected items selected for fold
+        node.first_child()
+            .map(|c| self.selected_block(c))
+            .unwrap_or_default()
     }
 }

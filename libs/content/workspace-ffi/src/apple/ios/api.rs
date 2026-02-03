@@ -4,10 +4,7 @@ use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
 use tracing::instrument;
-use workspace_rs::tab::markdown_editor::input::advance::AdvanceExt as _;
-use workspace_rs::tab::markdown_editor::input::{
-    Bound, Event, Increment, Offset, Region, mutation,
-};
+use workspace_rs::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Region};
 use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
@@ -482,20 +479,17 @@ pub unsafe extern "C" fn position_offset_in_direction(
         None => return CTextPosition::default(),
     };
 
-    let segs = &markdown.buffer.current.segs;
-    let galleys = &markdown.galleys;
-
     let offset_type =
         if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
-            Offset::Next(Bound::Char)
+            Advance::Next(Bound::Char)
         } else {
-            Offset::By(Increment::Lines(1))
+            Advance::By(Increment::Lines(1))
         };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
     let mut result: DocCharOffset = start.pos.into();
     for _ in 0..offset {
-        result = result.advance(&mut None, offset_type, backwards, segs, galleys, &markdown.bounds);
+        result = markdown.advance(result, offset_type, backwards);
     }
 
     CTextPosition { none: start.none, pos: result.0 }
@@ -597,9 +591,6 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         None => return CRect::default(),
     };
 
-    let segs = &markdown.buffer.current.segs;
-    let galleys = &markdown.galleys;
-
     let selection_representing_rect = {
         let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
         let range = match range {
@@ -611,21 +602,18 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         };
         let mut selection_start = range.start();
         let selection_end = range.end();
-        selection_start = selection_start.advance(
-            &mut None,
-            Offset::To(Bound::Line),
-            false,
-            segs,
-            galleys,
-            &markdown.bounds,
-        );
+        selection_start = markdown.advance(selection_start, Advance::To(Bound::Line), false);
         let end_of_selection_start_line = selection_start;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect)
     };
 
-    let start_line = markdown.cursor_line(selection_representing_rect.start());
-    let end_line = markdown.cursor_line(selection_representing_rect.end());
+    let Some(start_line) = markdown.cursor_line(selection_representing_rect.start()) else {
+        return CRect::default();
+    };
+    let Some(end_line) = markdown.cursor_line(selection_representing_rect.end()) else {
+        return CRect::default();
+    };
 
     CRect {
         min_x: (start_line[1].x + 1.0) as f64,
@@ -661,10 +649,7 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let galleys = &markdown.galleys;
-
-    let offset =
-        mutation::pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 }, galleys);
+    let offset = markdown.pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 });
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -695,7 +680,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let line = markdown.cursor_line(pos.pos.into());
+    let Some(line) = markdown.cursor_line(pos.pos.into()) else { return CRect::default() };
 
     CRect {
         min_x: line[0].x as f64,

@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.lockbook.Lockbook</id>
+
+  <name>Lockbook</name>
+  <summary>Lockbook is an open source note taking app</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>Unlicense</project_license>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>tablet</control>
+  </supports>
+
+  <description>
+    <p>
+      Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can’t see them, but don’t take our word for it: Lockbook is 100% open-source.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
+
+  <url type="homepage">https://lockbook.net/</url>
+  <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
+
+  <screenshots>
+      <screenshot type="default">
+          <image>https://lockbook.net/linux-screenshot1.png</image>
+      </screenshot>
+      <screenshot>
+          <image>https://lockbook.net/ios-screenshot.png</image>
+      </screenshot>
+      <screenshot>
+          <image>https://lockbook.net/android-screenshot.png</image>
+      </screenshot>
+  </screenshots>
+
+  <categories>
+      <category>Office</category>
+  </categories>
+
+  <developer id="net.lockbook">
+      <name>Parth</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+      <release version="26.2.2" date="2025-01-30">
+          <description>
+              <p>
+                  26.2.2 release
+              </p>
+          </description>
+      </release>
+  </releases>
+
+</component>
+

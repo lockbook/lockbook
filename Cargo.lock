@@ -116,7 +116,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -4301,7 +4301,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "lb-rs",
 ]
@@ -4313,7 +4313,7 @@ source = "git+https://github.com/lockbook/lb-fonts#cac0e8530eae3e7fc3b406f646753
 
 [[package]]
 name = "lb-fs"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4325,7 +4325,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4333,7 +4333,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4467,7 +4467,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4685,7 +4685,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "cli-rs 0.2.0",
  "colored 3.0.0",
@@ -4699,7 +4699,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4720,7 +4720,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "egui 0.28.1",
  "egui_wgpu_renderer",
@@ -4738,7 +4738,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4777,7 +4777,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "clipboard-win 4.5.0",
  "egui 0.28.1",
@@ -6270,34 +6270,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
-name = "public-site"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui 0.28.1",
- "epi",
- "futures",
- "lb-rs",
- "log",
- "serde",
- "tracing",
- "tracing-wasm",
- "wasm-bindgen-futures",
- "workspace",
-]
-
-[[package]]
-name = "pulldown-cmark"
-version = "0.9.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57206b407293d2bcd3af849ce869d52068623f19e1b5ff8e8778e3309439682b"
-dependencies = [
- "bitflags 2.10.0",
- "memchr",
- "unicase",
-]
-
-[[package]]
 name = "pxfm"
 version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6313,6 +6285,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
 dependencies = [
  "bytemuck",
+]
+
+[[package]]
+name = "public-site"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui 0.28.1",
+ "epi",
+ "futures",
+ "lb-rs",
+ "log",
+ "serde",
+ "tracing",
+ "tracing-wasm",
+ "wasm-bindgen-futures",
+ "workspace",
 ]
 
 [[package]]
@@ -7854,7 +7843,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -9566,7 +9555,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9582,7 +9571,7 @@ checksum = "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5"
 
 [[package]]
 name = "workspace"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9593,8 +9582,7 @@ dependencies = [
  "comrak",
  "egui 0.28.1",
  "egui_animation",
- "egui_extras",
- "epaint 0.28.1",
+ "epaint",
  "futures",
  "glam",
  "hayro",
@@ -9609,7 +9597,6 @@ dependencies = [
  "ndk-sys 0.4.1+23.1.7779620",
  "num_cpus",
  "pollster 0.2.5",
- "pulldown-cmark",
  "rand 0.8.5",
  "raw-window-handle 0.6.2",
  "rayon",
@@ -9634,7 +9621,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.1.29"
+version = "26.1.31"
 dependencies = [
  "egui 0.28.1",
  "egui_extras",

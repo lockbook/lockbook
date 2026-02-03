@@ -37,12 +37,12 @@ pub mod bounds;
 mod galleys;
 pub mod input;
 pub mod output;
-mod style;
 mod theme;
 mod widget;
 
 pub use input::Event;
 
+use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::workspace::WsPersistentStore;
 
 #[derive(Debug, Default)]
@@ -93,16 +93,22 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
 
+    // persistence
+    pub persisted: MdPersistence,
+
     // selection state
     /// During drag operations, stores the selection that would be applied
     /// without actually updating the buffer selection (which would affect syntax reveal)
     pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
 
-    // ?
+    // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
 
-    /// width used to render the root node, populated at frame start
+    // layout
+    top_left: Pos2,
+    /// width of the viewport, useful for doc render width and image size
+    /// constraints, populated at frame start
     width: f32,
     /// height of the viewport, useful for image size constraints, populated at
     /// frame start
@@ -120,10 +126,11 @@ impl Drop for Editor {
 
 static PRINT: bool = false;
 
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdPersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
+    toolbar: ToolbarPersistence,
 }
 
 pub struct MdConfig {
@@ -175,6 +182,8 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
+            persisted: Default::default(), // initialized first frame
+
             readonly: cfg.readonly,
             file_id,
             hmac,
@@ -198,6 +207,8 @@ impl Editor {
 
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
+
+            top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
 
@@ -258,28 +269,7 @@ impl Editor {
             m.surrender_focus(self.id());
         });
     }
-
-    pub fn show(&mut self, ui: &mut Ui) -> Response {
-        let mut resp: Response = mem::take(&mut self.next_resp);
-
-        let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(MAX_WIDTH) - 2. * MARGIN;
-        let height_updated = self.height != height;
-        let width_updated = self.width != width;
-        self.height = height;
-        self.width = width;
-
-        let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.dark_mode {
-            self.syntax.clear();
-            self.dark_mode = dark_mode;
-        }
-
-        self.calc_source_lines();
-
-        let start = web_time::Instant::now();
-
-        let arena = Arena::new();
+    fn comrak_options() -> Options<'static> {
         let mut options = Options::default();
         options.parse.smart = true;
         options.parse.ignore_setext = true;
@@ -306,6 +296,31 @@ impl Editor {
         options.extension.wikilinks_title_after_pipe = true; // matches obsidian
         options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
         options.render.escaped_char_spans = true;
+        options
+    }
+
+    pub fn show(&mut self, ui: &mut Ui) -> Response {
+        let mut resp: Response = mem::take(&mut self.next_resp);
+
+        let height = ui.available_size().y;
+        let width = ui.max_rect().width().min(MAX_WIDTH);
+        let height_updated = self.height != height;
+        let width_updated = self.width != width;
+        self.height = height;
+        self.width = width;
+
+        let dark_mode = ui.style().visuals.dark_mode;
+        if dark_mode != self.dark_mode {
+            self.syntax.clear();
+            self.dark_mode = dark_mode;
+        }
+
+        self.calc_source_lines();
+
+        let start = web_time::Instant::now();
+
+        let arena = Arena::new();
+        let options = Self::comrak_options();
 
         let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
         let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
@@ -327,6 +342,7 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
+        let prior_toolbar_settings = self.persisted.toolbar.clone();
         let images_updated = {
             let mut images_updated = self.images.updated.lock().unwrap();
             let result = *images_updated;
@@ -373,11 +389,6 @@ impl Editor {
         self.theme.apply(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
-        // these are computed during render
-        self.galleys.galleys.clear();
-        self.bounds.wrap_lines.clear();
-        self.touch_consuming_rects.clear();
-
         let scroll_area_id = ui
             .vertical(|ui| {
                 let scroll_area_id = if self.touch_mode {
@@ -389,7 +400,7 @@ impl Editor {
                             .push(Event::Find { term, backwards: find_resp.backwards });
                     }
 
-                    // ...then show editor content...
+                    // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
                     let scroll_area_id = ui
                         .allocate_ui(
@@ -398,25 +409,38 @@ impl Editor {
                                 ui.available_height() - MOBILE_TOOL_BAR_SIZE,
                             ),
                             |ui| {
-                                let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                                let scroll_area_offset = ui.data_mut(|d| {
-                                    d.get_persisted(scroll_area_id)
-                                        .map(|s: scroll_area::State| s.offset)
-                                        .unwrap_or_default()
-                                        .y
-                                });
-
                                 ui.ctx().style_mut(|style| {
                                     style.spacing.scroll = egui::style::ScrollStyle::solid();
                                     style.spacing.scroll.bar_width = 10.;
                                 });
 
-                                let scroll_area_output = self.show_scrollable_editor(ui, root);
-                                self.next_resp.scroll_updated =
-                                    scroll_area_output.state.offset.y != scroll_area_offset;
-                                self.scroll_area_velocity = scroll_area_output.state.velocity();
+                                if !self.toolbar.menu_open {
+                                    // these are computed during render
+                                    self.galleys.galleys.clear();
+                                    self.bounds.wrap_lines.clear();
+                                    self.touch_consuming_rects.clear();
 
-                                scroll_area_id
+                                    // show editor
+                                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                                    let scroll_area_offset = ui.data_mut(|d| {
+                                        d.get_persisted(scroll_area_id)
+                                            .map(|s: scroll_area::State| s.offset)
+                                            .unwrap_or_default()
+                                            .y
+                                    });
+
+                                    let scroll_area_output = self.show_scrollable_editor(ui, root);
+                                    self.next_resp.scroll_updated =
+                                        scroll_area_output.state.offset.y != scroll_area_offset;
+                                    self.scroll_area_velocity = scroll_area_output.state.velocity();
+
+                                    Some(scroll_area_id)
+                                } else {
+                                    // show toolbar settings
+                                    self.show_toolbar_menu(ui);
+
+                                    None
+                                }
                             },
                         )
                         .inner;
@@ -453,30 +477,36 @@ impl Editor {
                             .push(Event::Find { term, backwards: find_resp.backwards });
                     }
 
+                    // these are computed during render
+                    self.galleys.galleys.clear();
+                    self.bounds.wrap_lines.clear();
+                    self.touch_consuming_rects.clear();
+
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
                         scroll_area_output.state.offset.y != scroll_area_offset;
                     self.scroll_area_velocity = scroll_area_output.state.velocity();
 
-                    scroll_area_id
+                    Some(scroll_area_id)
                 };
 
                 // persistence: read
                 if !self.initialized {
-                    let persisted = self.persistence.get_markdown();
-                    ui.data_mut(|d| {
-                        let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
-                        if let Some(mut state) = state {
-                            state.offset.y = persisted.scroll_offset;
-                            d.insert_temp(scroll_area_id, state);
-                        }
-                    });
-
+                    if let Some(scroll_area_id) = scroll_area_id {
+                        self.persisted = self.persistence.get_markdown();
+                        ui.data_mut(|d| {
+                            let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
+                            if let Some(mut state) = state {
+                                state.offset.y = self.persisted.scroll_offset;
+                                d.insert_temp(scroll_area_id, state);
+                            }
+                        });
+                    }
                     // set the selection using low-level API; using internal
                     // events causes touch devices to scroll to cursor on 2nd
                     // frame
-                    let (start, end) = persisted.selection;
+                    let (start, end) = self.persisted.selection;
                     let selection = (
                         start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
                         end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
@@ -544,12 +574,17 @@ impl Editor {
         }
 
         // persistence: write
-        if resp.selection_updated || resp.scroll_updated {
-            let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
-            let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+        let toolbar_settings = self.persisted.toolbar.clone();
+        let toolbar_settings_changed = toolbar_settings != prior_toolbar_settings;
+        if resp.selection_updated || resp.scroll_updated || toolbar_settings_changed {
+            if let Some(scroll_area_id) = scroll_area_id {
+                let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
+                let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+                self.persisted.scroll_offset = scroll_offset;
+            }
             let selection = self.buffer.current.selection;
-            self.persistence
-                .set_markdown(MdPersistence { scroll_offset, selection });
+            self.persisted.selection = selection;
+            self.persistence.set_markdown(self.persisted.clone());
         }
 
         // focus editor by default
@@ -570,13 +605,17 @@ impl Editor {
             .iter()
             .any(|rect| rect.contains(pos))
             || self.scroll_area_velocity.abs().max_elem() > 0.
+            || self.toolbar.menu_open
     }
 
     fn show_scrollable_editor<'a>(
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
-        let margin: Margin =
-            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { MARGIN.into() };
+        let margin: Margin = if cfg!(target_os = "android") {
+            Margin::symmetric(0.0, 60.0)
+        } else {
+            Margin::symmetric(0.0, 15.0)
+        };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
             .id_source(self.file_id)
@@ -597,7 +636,7 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
+                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -609,8 +648,10 @@ impl Editor {
 
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
-                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
-                            let rect = rect.expand2(Vec2::X * margin.left); // clickable margins (more forgivable to click beginning of line)
+                            let rect = Rect::from_min_size(
+                                self.top_left,
+                                Vec2::new(self.width - 2. * MARGIN, height),
+                            );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
                             let focused = self.focused(ui.ctx());
@@ -633,7 +674,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.allocate_ui_at_rect(rect, |ui| {
-                                self.show_block(ui, root, top_left);
+                                self.show_block(ui, root, self.top_left);
                             });
                         });
                 });

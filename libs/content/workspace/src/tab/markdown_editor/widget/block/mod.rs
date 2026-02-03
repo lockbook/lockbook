@@ -9,10 +9,10 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::{BLOCK_SPACING, MARGIN};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
@@ -36,7 +36,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width,
+            NodeValue::Document => self.width - 2. * MARGIN,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items
@@ -377,7 +377,9 @@ impl<'ast> Editor {
         if let Some(parent) = node.parent() {
             if matches!(parent.data.borrow().value, NodeValue::List(_)) {
                 if let Some(grandparent) = parent.parent() {
-                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_)) {
+                    if matches!(grandparent.data.borrow().value, NodeValue::Item(_))
+                        && self.node_first_line_idx(node) == self.node_first_line_idx(grandparent)
+                    {
                         return None;
                     }
                     if matches!(grandparent.data.borrow().value, NodeValue::BlockQuote) {
@@ -385,7 +387,9 @@ impl<'ast> Editor {
                     }
                 }
             } else {
-                if matches!(parent.data.borrow().value, NodeValue::Item(_)) {
+                if matches!(parent.data.borrow().value, NodeValue::Item(_))
+                    && self.node_first_line_idx(node) == self.node_first_line_idx(parent)
+                {
                     return None;
                 }
                 if matches!(parent.data.borrow().value, NodeValue::BlockQuote) {
@@ -395,7 +399,7 @@ impl<'ast> Editor {
         }
 
         // list items
-        if matches!(node.data.borrow().value, NodeValue::Item(_)) {
+        if matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
             // must have paragraph to add fold html tag + something to fold
             if node.children().count() < 2 {
                 return None;
@@ -463,7 +467,12 @@ impl<'ast> Editor {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
-                if self.fold(ancestor).is_some() {
+                if matches!(
+                    &ancestor.data.borrow().value,
+                    NodeValue::Item(_) | NodeValue::TaskItem(_)
+                ) && !self.item_fold_reveal(ancestor)
+                    && self.fold(ancestor).is_some()
+                {
                     return true;
                 }
             }
@@ -471,23 +480,24 @@ impl<'ast> Editor {
 
         // show only the blocks that have no folded heading; headings with
         // another equal or more significant heading between them and the target
-        // node don't count
+        // node don't count; headings intersecting the selection don't count
         let sorted_siblings = self.sorted_siblings(node);
         let sibling_index = self.sibling_index(node, &sorted_siblings);
+
         let mut most_significant_unfolded_heading =
             if let NodeValue::Heading(heading) = &node.data.borrow().value {
                 heading.level
             } else {
                 7 // max heading level + 1
             };
-
         for sibling in sorted_siblings[0..sibling_index].iter().rev() {
             if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
-                    if self.fold(sibling).is_some() {
+                    most_significant_unfolded_heading = heading.level;
+                    if !self.heading_fold_reveal(sibling) && self.fold(sibling).is_some() {
+                        // our node is contained by a folded, unrevealed heading
                         return true;
                     }
-                    most_significant_unfolded_heading = heading.level;
                 }
             }
         }
