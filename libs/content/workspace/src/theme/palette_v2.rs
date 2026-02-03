@@ -183,7 +183,10 @@ impl Theme {
             override_text_color: None,
             window_fill: self.bg(),
             extreme_bg_color: self.bg(),
-            selection: style::Selection { bg_fill: self.bg_theme().from_palette(self.prefs().primary), ..Default::default() },
+            selection: style::Selection {
+                bg_fill: self.bg_theme().from_palette(self.prefs().primary),
+                ..Default::default()
+            },
             hyperlink_color: self.fg_theme().from_palette(self.prefs().secondary),
             faint_bg_color: self.bg().gamma_multiply(0.9),
             code_bg_color: self.bg_theme().black,
@@ -193,10 +196,35 @@ impl Theme {
             ..Default::default()
         };
 
-        base.widgets.noninteractive.bg_fill = self.bg().gamma_multiply(0.8);
-        base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
-        base.widgets.noninteractive.bg_stroke.color = self.fg();
-        base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
+        base.widgets.noninteractive.bg_fill = self.bg();
+        base.widgets.noninteractive.weak_bg_fill = self.bg();
+        base.widgets.noninteractive.weak_bg_fill = self.bg();
+        base.widgets.noninteractive.fg_stroke.color = self.fg();
+        base.widgets.noninteractive.bg_stroke.color = self.bg();
+
+        base.widgets.inactive.bg_fill = self.bg();
+        base.widgets.inactive.weak_bg_fill = self.bg();
+        base.widgets.inactive.weak_bg_fill = self.bg();
+        base.widgets.inactive.fg_stroke.color = self.fg();
+        base.widgets.inactive.bg_stroke.color = self.bg();
+
+        base.widgets.hovered.bg_fill = self.bg();
+        base.widgets.hovered.weak_bg_fill = self.bg();
+        base.widgets.hovered.weak_bg_fill = self.bg();
+        base.widgets.hovered.fg_stroke.color = self.fg();
+        base.widgets.hovered.bg_stroke.color = self.bg();
+
+        base.widgets.active.bg_fill = self.bg();
+        base.widgets.active.weak_bg_fill = self.bg();
+        base.widgets.active.weak_bg_fill = self.bg();
+        base.widgets.active.fg_stroke.color = self.fg();
+        base.widgets.active.bg_stroke.color = self.bg();
+
+        base.widgets.open.bg_fill = self.bg();
+        base.widgets.open.weak_bg_fill = self.bg();
+        base.widgets.open.weak_bg_fill = self.bg();
+        base.widgets.open.fg_stroke.color = self.fg();
+        base.widgets.open.bg_stroke.color = self.bg();
 
         base
     }
