@@ -114,9 +114,6 @@ fn candidate_locations_from_content(contents: &str) -> Vec<String> {
                     path.clear();
                 }
             }
-        } else if char == '/' {
-            // Nested tag: reset to keep only last segment (eg #work/project -> project)
-            path.clear();
         } else if char.is_whitespace() || char == ',' || char == '.' {
             if !path.is_empty() {
                 paths.push(path.clone());
@@ -182,11 +179,14 @@ http://url.com/#install
     }
 
     #[test]
-    fn get_last_segment_as_candidate_in_nested_hashtags() {
+    fn get_full_path_as_candidate_in_nested_hashtags() {
         let content = r#"# Meeting Notes
         #meeting/notes
         #work/team/project"#;
-        assert_eq!(candidate_locations_from_content(content), vec!["notes", "project"]);
+        assert_eq!(
+            candidate_locations_from_content(content),
+            vec!["meeting/notes", "work/team/project"]
+        );
     }
 
     #[test]
