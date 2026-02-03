@@ -194,7 +194,7 @@ impl Theme {
         };
 
         base.widgets.noninteractive.bg_fill = self.bg().gamma_multiply(0.8);
-        // base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
+        base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
         base.widgets.noninteractive.bg_stroke.color = self.fg();
         base.widgets.noninteractive.weak_bg_fill = self.bg().gamma_multiply(0.6);
 
