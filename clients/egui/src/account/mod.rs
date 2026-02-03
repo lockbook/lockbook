@@ -141,7 +141,6 @@ impl AccountScreen {
         }
 
         egui::SidePanel::left("sidebar_panel")
-            .frame(egui::Frame::none())
             .min_width(300.0)
             .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
@@ -203,7 +202,6 @@ impl AccountScreen {
             });
 
         egui::CentralPanel::default()
-            .frame(egui::Frame::default())
             .show(ctx, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();

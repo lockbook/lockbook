@@ -1,10 +1,7 @@
-use dark_light::Mode::Dark;
-use egui::Visuals;
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use workspace_rs::theme::palette::ColorAlias;
 use workspace_rs::theme::visuals;
 
 use crate::settings::{Settings, ThemeMode};
@@ -16,9 +13,7 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
         ThemeMode::Light => dark_light::Mode::Light,
     };
 
-    let primary = ColorAlias::Magenta;
-
-    set_colors(ctx, initial_mode, primary);
+    set_colors(ctx, initial_mode);
     visuals::init(ctx);
 
     poll_system_theme(s, ctx, initial_mode);
@@ -31,7 +26,7 @@ pub fn apply_settings(s: &Settings, ctx: &egui::Context) {
         ThemeMode::Light => dark_light::Mode::Light,
     };
 
-    set_colors(ctx, mode, s.theme_color);
+    set_colors(ctx, mode);
 }
 
 fn poll_system_theme(
@@ -49,7 +44,7 @@ fn poll_system_theme(
                     Ok(m) => {
                         if mode != m {
                             mode = m;
-                            set_colors(&ctx, m, s.read().unwrap().theme_color);
+                            set_colors(&ctx, m);
                             ctx.request_repaint();
                         }
                     }
@@ -70,7 +65,7 @@ fn detect_theme_wrapper() -> dark_light::Mode {
     })
 }
 
-pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode, primary: ColorAlias) {
+pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode) {
     match m {
         // the default mode of operation is light because on gnome, by default, there is no
         // light mode, it is either "Default" (which is presented to us as Unspecified) or

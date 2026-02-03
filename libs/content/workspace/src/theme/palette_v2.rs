@@ -1,6 +1,6 @@
 use egui::{
     Color32, Id,
-    style::{self, WidgetVisuals, Widgets},
+    style::{self},
 };
 use epaint::hex_color;
 
@@ -118,7 +118,7 @@ impl Theme {
         Self {
             current,
             light: ThemeVariant {
-                black: hex_color!("#505050"),
+                black: hex_color!("#101010"),
                 red: hex_color!("#DF2040"),
                 green: hex_color!("#2DD296"),
                 yellow: hex_color!("#FFBF00"),
@@ -182,7 +182,8 @@ impl Theme {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
             window_fill: self.bg(),
-            extreme_bg_color: self.bg(),
+            // used by the sidebar, tab strip and a few other places
+            extreme_bg_color: self.bg().gamma_multiply(0.4),
             selection: style::Selection {
                 bg_fill: self.bg_theme().from_palette(self.prefs().primary),
                 ..Default::default()
