@@ -23,7 +23,10 @@ impl Theme {
     pub fn new(ctx: Context) -> Self {
         Self {
             dim: ColorSet {
+                #[cfg(not(target_arch = "wasm32"))]
                 neutral_primary: hex_color!("#101010"),
+                #[cfg(target_arch = "wasm32")]
+                neutral_primary: hex_color!("#1a1a1a"),
                 neutral_secondary: hex_color!("#222222"),
                 neutral_tertiary: hex_color!("#555555"),
                 neutral_quarternary: hex_color!("#777777"),

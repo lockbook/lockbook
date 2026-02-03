@@ -11,9 +11,8 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbErr;
 use lb_rs::model::file::File;
 use lb_rs::model::usage::bytes_to_human;
-use lb_rs::{LbErrKind, Uuid};
+use lb_rs::{LbErrKind, Uuid, spawn};
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 /// Responsible for tracking on screen locations for folders
 #[derive(Debug)]
@@ -51,7 +50,7 @@ impl SpaceInspector {
         let bg_lb = lb.clone();
         let state: Arc<Mutex<AppState>> = Default::default();
         let bg_state = state.clone();
-        thread::spawn(move || {
+        spawn!({
             let usage = bg_lb.get_usage();
             let meta_data = bg_lb.list_metadatas();
 
@@ -473,7 +472,7 @@ impl SpaceInspector {
                         let lb = self.lb.clone();
                         let id = item_filerow.file.id;
                         deleted_id = Some(id);
-                        thread::spawn(move || {
+                        spawn!({
                             lb.delete_file(&id).unwrap();
                         });
                     }

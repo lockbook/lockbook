@@ -1,15 +1,15 @@
 use std::sync::Arc;
-use std::time::Duration;
+use web_time::Duration;
 
 use tokio::sync::{Mutex, RwLock};
-use tokio::time::Instant;
 use uuid::Uuid;
+use web_time::Instant;
 
-use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult, Unexpected};
 use crate::service::events::Event;
 use crate::service::sync::SyncIncrement;
 use crate::service::usage::UsageMetrics;
+use crate::{Lb, tokio_spawn};
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -144,7 +144,7 @@ impl Lb {
         let mut rx = self.subscribe();
         let bg = self.clone();
 
-        tokio::spawn(async move {
+        tokio_spawn!(async move {
             loop {
                 let evt = match rx.recv().await {
                     Ok(evt) => evt,
@@ -199,7 +199,7 @@ impl Lb {
         drop(lock);
 
         let bg = self.clone();
-        tokio::spawn(async move {
+        tokio_spawn!(async move {
             if initialized && computed.elapsed() < Duration::from_secs(60) {
                 tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
             }

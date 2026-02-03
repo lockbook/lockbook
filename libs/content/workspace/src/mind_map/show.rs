@@ -4,12 +4,12 @@ use super::data::{
 use egui::ahash::{HashMap, HashMapExt};
 use egui::epaint::Shape;
 use egui::{Align2, Color32, FontId, Painter, Pos2, Rect, Stroke, Vec2};
-use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::{Uuid, spawn};
+use std::f32;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
-use std::{f32, thread};
+use web_time::{Duration, Instant};
 
 struct Grid {
     cell_size: f32,
@@ -720,12 +720,12 @@ impl MindMap {
             let positioninfo = Arc::clone(&self.thread_positions);
             let stop = Arc::clone(&self.stop);
             let graph = self.graph.clone();
-            thread::spawn(move || {
+            spawn!({
                 Self::apply_spring_layout(positioninfo, &graph, 2500000, screen, stop, linkess);
             });
         }
         if !self.urls_complete {
-            thread::spawn(start_extraction_names);
+            spawn!(start_extraction_names);
             self.urls_complete = true;
         }
 

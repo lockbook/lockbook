@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<!-- Disable zooming: -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<head>
+    <title>lockbook</title>
+
+    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
+    <link data-trunk rel="copy-file" href="../static/screenshot.png"/>
+    <link data-trunk rel="copy-file" href="../static/logo.svg"/>
+    <link data-trunk rel="copy-file" href="../static/banner-bg.svg"/>
+
+    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
+
+
+    <link data-trunk rel="tailwind-css" href="tailwind.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />
+    
+
+    <link rel="icon" type="image/png" href="/favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="shortcut icon" href="/favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <style>
+        html {
+            /* Remove touch delay: */
+            touch-action: manipulation;
+        }
+        
+        /* Allow canvas to fill entire web page: */
+        html,
+        body {
+            overflow: hidden;
+            margin: 0 !important;
+            padding: 0 !important;
+            height: 100%;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body class="overflow-x-hidden overflow-y-scroll bg-abyss-900">
+    <nav class="sticky top-0 z-40 px-10 py-4 overflow-hidden border-b-2 max-sm:pr-0 text-egshell bg-abyss-900/80 border-abyss-400 backdrop-blur-md">
+        <div class="flex justify-between w-full align-middle">
+            <div class="flex"><a class="flex" href="/"><img src="/logo.svg" alt="lockbook's logo" class=""/></a></div>
+            <div class="flex items-center">
+                <ul class="flex mr-10 max-sm:hidden">
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="https://discord.gg/lockbook" target="_blank">Discord</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/blog" >Blog</a>
+                    <a class="block mx-3 text-sm underline font-extralight" href="/docs" >Docs</a>
+                </ul>
+                <a class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline" id="nav-download" href="/#download">Download</a>
+                <button data-expanded="false" class="relative mx-6 text-4xl bottom-1 text-surfline sm:hidden" id="nav-hamburger-btn">≡</button>
+            </div>
+        </div>
+        <div>
+            <ul class="flex-col hidden mt-10 mr-16 " id="mobile-nav-links">
+                <a class="block mt-6 text-sm underline font-extralight" href="https://github.com/lockbook/lockbook" target="_blank">GitHub</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="https://discord.gg/lockbook" target="_blank">Discord</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/#pricing" >Pricing</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/blog" >Blog</a>
+                <a class="block mt-6 text-sm underline font-extralight" href="/docs" >Docs</a>
+            </ul>
+        </div>
+    </nav>
+    {% block content %} {% endblock %}
+</body>
+
+<script>
+    let navBurgerBtn = document.querySelector("#nav-hamburger-btn")
+    let nav = document.querySelector("nav");
+    let navLinks = document.querySelector("#mobile-nav-links");
+    
+    navBurgerBtn.addEventListener('click', e=>{
+        navNeedsExpansion = navBurgerBtn.dataset.expanded === "false" ? true : false
+        navBurgerBtn.dataset.expanded = navNeedsExpansion
+
+        let expandedNavStyles =["h-screen"] 
+
+        if (navNeedsExpansion) {
+            nav.classList.add(...expandedNavStyles)
+            navLinks.classList.remove("hidden");
+            navLinks.classList.add("flex");
+            navBurgerBtn.textContent = "x"
+            document.body.classList.remove("overflow-y-scroll")
+            document.body.classList.add("overflow-hidden")
+        } else {
+            nav.classList.remove(...expandedNavStyles)
+            navLinks.classList.add("hidden");
+            navLinks.classList.remove("flex");  
+            navBurgerBtn.textContent = "≡"
+            document.body.classList.add("overflow-y-scroll")
+            document.body.classList.remove("overflow-hidden")
+        }
+
+    })
+</script>
+
+<style>
+    #markdown{
+      padding: 0 1rem;
+      
+      h2, h3, h4 {
+          font-weight: 400;
+      }
+      h1, h2, h3, h4, h5, p {
+          margin-bottom: 24px;
+          padding: 0;
+      }
+      h1 {
+          font-size: 35px;
+          font-weight: bold;
+      }
+      h2 {
+          font-size: 30px;
+          margin: 24px 0 6px;
+      }
+      h3 {
+          font-size: 24px;
+      }
+      h4 {
+          font-size: 21px;
+      }
+      h5 {
+          font-size: 18px;
+      }
+      a {
+          color: #28CCDF; /* should be the same as surfline in tailwind.config.js */
+          margin: 0;
+          padding: 0;
+          text-decoration: none;
+          vertical-align: baseline;
+      }
+      a:hover {
+          text-decoration: underline;
+      }
+      a:visited {
+          opacity: 0.7
+      }
+      ul, ol {
+          padding: 0;
+          margin: 0;
+      }
+      li {
+          line-height: 24px;
+      }
+      li ul, li ul {
+          margin-left: 24px;
+      }
+      p, ul, ol {
+          font-size: 13px;
+          line-height: 24px;
+      }
+      pre {
+          padding: 0px 24px;
+          white-space: pre-wrap;
+      }
+      code {
+          font-family: Consolas, Monaco, Andale Mono, monospace;
+          line-height: 1.5;
+          font-size: 13px;
+      }
+      aside {
+          display: block;
+          float: right;
+          width: 390px;
+      }
+      blockquote {
+          border-left:.5em solid #eee;
+          padding: 0 2em;
+          margin-left:0;
+      }
+      blockquote  cite {
+          font-size:14px;
+          line-height:20px;
+          color:#bfbfbf;
+      }
+      blockquote cite:before {
+          content: '\2014 \00A0';
+      }
+  
+      blockquote p {  
+          color: #666;
+      }
+      hr {
+          width: 540px;
+          text-align: left;
+          margin: 0 auto 0 0;
+          color: #999;
+      }
+  }
+
+    .lds-ring {
+        /* change color here */
+        color: #f0ebe7
+    }
+    .lds-ring,
+    .lds-ring div {
+    box-sizing: border-box;
+    }
+    .lds-ring {
+    display: inline-block;
+    position: relative;
+    width: 60px;
+    height: 77px;
+    transform: scale(0.3);
+    }
+    .lds-ring div {
+    box-sizing: border-box;
+    display: block;
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    margin: 8px;
+    border: 8px solid currentColor;
+    border-radius: 50%;
+    animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    border-color: currentColor transparent transparent transparent;
+    }
+    .lds-ring div:nth-child(1) {
+    animation-delay: -0.45s;
+    }
+    .lds-ring div:nth-child(2) {
+    animation-delay: -0.3s;
+    }
+    .lds-ring div:nth-child(3) {
+    animation-delay: -0.15s;
+    }
+    @keyframes lds-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+    }
+
+  </style>
+  
+</html>

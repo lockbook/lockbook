@@ -1,8 +1,10 @@
+#[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
+
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
 use crate::theme::icons::Icon;
@@ -18,8 +20,8 @@ use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use std::ops::IndexMut;
 use std::path::{Component, Path, PathBuf};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use urlencoding::decode;
+use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
 pub mod markdown_editor;
@@ -91,6 +93,7 @@ impl Tab {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn mind_map(&self) -> Option<&MindMap> {
         match &self.content {
             ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
@@ -98,6 +101,7 @@ impl Tab {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn mind_map_mut(&mut self) -> Option<&mut MindMap> {
         match &mut self.content {
             ContentState::Open(TabContent::MindMap(mm)) => Some(mm),
@@ -172,6 +176,7 @@ pub enum TabContent {
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
+    #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
 }
@@ -183,6 +188,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
         }
@@ -196,6 +202,7 @@ impl TabContent {
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
         }
@@ -358,6 +365,7 @@ impl Workspace {
             }
             (Some(_), None) => "Loading".into(),
             (None, _) => match tab.content {
+                #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 _ => "Unknown".into(),
