@@ -1,7 +1,6 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
-use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -11,17 +10,17 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
+use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
-use std::{fs, thread};
-use tokio::sync::broadcast::error::TryRecvError;
 use tracing::{debug, error, info, instrument, trace, warn};
+use web_time::{Duration, Instant};
 
-use crate::file_cache::{FileCache, FilesExt as _};
+use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
-use crate::mind_map::show::MindMap;
+
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
@@ -33,6 +32,11 @@ use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
+
+#[cfg(not(target_family = "wasm"))]
+use crate::mind_map::show::MindMap;
+#[cfg(not(target_family = "wasm"))]
+use tokio::sync::broadcast::error::TryRecvError;
 
 pub struct Workspace {
     // User activity
@@ -55,6 +59,7 @@ pub struct Workspace {
     // Resources & configuration
     pub cfg: WsPersistentStore,
     pub ctx: Context,
+
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
     pub show_tabs: bool,              // set on mobile to hide the tab strip
@@ -296,6 +301,7 @@ impl Workspace {
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        #[cfg(not(target_family = "wasm"))]
         if let ContentState::Open(TabContent::MindMap(mm)) = &mut self.tabs[i].content {
             mm.stop();
         }
@@ -356,6 +362,7 @@ impl Workspace {
                 }
                 _ => {}
             },
+            #[cfg(not(target_family = "wasm"))]
             Err(TryRecvError::Empty) => {}
             Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
         }
@@ -721,12 +728,17 @@ impl Workspace {
     }
 
     /// Opens or focuses the tab for the mind map
+    #[cfg(not(target_family = "wasm"))]
     pub fn upsert_mind_map(&mut self, core: Lb) {
         if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
             self.make_current(i);
         } else {
             self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
         };
+    }
+    #[cfg(target_family = "wasm")]
+    pub fn upsert_mind_map(&mut self, core: Lb) {
+        warn!("Mind map is not supported on wasm targets");
     }
 
     /// Opens the tab for space inspector, closing any existing space inspectors (?)
@@ -953,10 +965,10 @@ impl WsPersistentStore {
     fn write_to_file(&self) {
         let data = self.data.clone();
         let path = self.path.clone();
-        thread::spawn(move || {
+        spawn!({
             let data = data.read().unwrap();
             let content = serde_json::to_string(&*data).unwrap();
-            fs::write(path, content)
+            let _ = fs::write(path, content);
         });
     }
 }

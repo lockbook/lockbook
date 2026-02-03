@@ -57,7 +57,7 @@ pub struct Response {
 pub struct Editor {
     // dependencies
     pub core: Lb,
-    pub client: reqwest::blocking::Client,
+    pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
 
@@ -137,6 +137,12 @@ pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
 }
+
+#[cfg(target_arch = "wasm32")]
+pub type HttpClient = reqwest::Client;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub type HttpClient = reqwest::blocking::Client;
 
 impl Editor {
     pub fn new(
@@ -311,7 +317,7 @@ impl Editor {
 
         self.calc_source_lines();
 
-        let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
 
         let arena = Arena::new();
         let options = Self::comrak_options();
@@ -320,7 +326,7 @@ impl Editor {
         let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
-        let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
 
         if PRINT {
             println!(
@@ -332,7 +338,7 @@ impl Editor {
         }
 
         let print_elapsed = start.elapsed();
-        let start = std::time::Instant::now();
+        let start = web_time::Instant::now();
 
         // process events
         let prior_selection = self.buffer.current.selection;

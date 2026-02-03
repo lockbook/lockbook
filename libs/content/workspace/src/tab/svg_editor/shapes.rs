@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use web_time::{Duration, Instant};
 
 use bezier_rs::Subpath;
 use lb_rs::model::svg::{
@@ -20,7 +20,7 @@ use crate::{
 pub struct ShapesTool {
     pub active_shape: ShapeType,
     build_touch_id: Option<egui::TouchId>,
-    first_build_frame: Option<std::time::Instant>,
+    first_build_frame: Option<Instant>,
     build_origin: Option<egui::Pos2>,
     current_id: Option<lb_rs::Uuid>,
     is_building: bool,

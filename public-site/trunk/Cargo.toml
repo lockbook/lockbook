@@ -1,0 +1,39 @@
+[package]
+name = "public-site"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+egui = "0.28.1"
+log = "0.4"
+
+
+# You only need serde if you want app persistence:
+serde = { version = "1", features = ["derive"] }
+eframe = { version = "0.28.1", default-features = false, features = [
+    "default_fonts", # Embed the default egui fonts.
+    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
+    "persistence",   # Enable restoring app state when restarting the app.
+] }
+
+workspace = { path = "../../libs/content/workspace" }
+lb-rs = { path = "../../libs/lb/lb-rs" }
+futures = "0.3.30"
+
+tracing = "0.1.5"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+tracing-wasm = "0.2.1"
+wasm-bindgen-futures = "0.4"
+
+
+[profile.release]
+opt-level = 2 # fast and small wasm
+
+# Optimize all dependencies even in debug builds:
+[profile.dev.package."*"]
+opt-level = 2
+
+
+[build]
+rustflags = ["--cfg", "web_sys_unstable_apis"]

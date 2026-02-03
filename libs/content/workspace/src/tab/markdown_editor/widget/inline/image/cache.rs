@@ -1,15 +1,16 @@
 use crate::tab;
+use crate::tab::markdown_editor::HttpClient;
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{ColorImage, Context, TextureId, Ui};
-use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::thread;
+use tracing::debug;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
@@ -25,13 +26,30 @@ pub enum ImageState {
     Failed(String),
 }
 
+#[cfg(target_arch = "wasm32")]
+#[macro_export]
+macro_rules! async_on_wasm {
+    ($block:expr) => {
+        (async || -> Result<TextureId, String> { $block })
+    };
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+#[macro_export]
+macro_rules! async_on_wasm {
+    ($block:expr) => {
+        (|| -> Result<TextureId, String> { $block })
+    };
+}
+
 pub fn calc<'ast>(
-    root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &reqwest::blocking::Client,
-    core: &Lb, file_id: Uuid, ui: &Ui,
+    root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &HttpClient, core: &Lb,
+    file_id: Uuid, ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
     let mut prior_cache = prior_cache.clone();
     result.updated = prior_cache.updated;
+
     for node in root.descendants() {
         if let NodeValue::Image(node_link) = &node.data.borrow().value {
             let NodeLink { url, .. } = &**node_link;
@@ -54,35 +72,54 @@ pub fn calc<'ast>(
                 let updated = result.updated.clone();
 
                 result.map.insert(url.clone(), image_state.clone());
-
                 // fetch image
-                thread::spawn(move || {
+                spawn!({
                     let texture_manager = ctx.tex_manager();
 
-                    let texture_result = (|| -> Result<TextureId, String> {
+                    let texture_closure = async_on_wasm!({
                         // use core for lb:// urls and relative paths
                         let maybe_lb_id = match url.strip_prefix("lb://") {
                             Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
                             None => {
-                                let parent_id = core
-                                    .get_file_by_id(file_id)
-                                    .map_err(|e| e.to_string())?
-                                    .parent;
+                                #[cfg(not(target_arch = "wasm32"))]
+                                {
+                                    let parent_id = core
+                                        .get_file_by_id(file_id)
+                                        .map_err(|e| e.to_string())?
+                                        .parent;
 
-                                tab::core_get_by_relative_path(
-                                    &core,
-                                    parent_id,
-                                    PathBuf::from(&url),
-                                )
-                                .map(|f| f.id)
-                                .ok()
+                                    tab::core_get_by_relative_path(
+                                        &core,
+                                        parent_id,
+                                        PathBuf::from(&url),
+                                    )
+                                    .map(|f| f.id)
+                                    .ok()
+                                }
+                                #[cfg(target_arch = "wasm32")]
+                                {
+                                    None
+                                }
                             }
                         };
 
                         let image_bytes = if let Some(id) = maybe_lb_id {
                             core.read_document(id, false).map_err(|e| e.to_string())?
                         } else {
-                            download_image(&client, &url).map_err(|e| e.to_string())?
+                            let bytes;
+                            #[cfg(target_arch = "wasm32")]
+                            {
+                                bytes = download_image(&client, &url)
+                                    .await
+                                    .map_err(|e| e.to_string())?;
+                            }
+                            #[cfg(not(target_arch = "wasm32"))]
+                            {
+                                bytes = download_image(&client, &url).map_err(|e| e.to_string())?
+                            }
+                            debug!("downloaded bytes of length {}", bytes.len());
+
+                            bytes
                         };
 
                         // convert lockbook drawings to images
@@ -131,7 +168,13 @@ pub fn calc<'ast>(
                         Ok(texture_manager
                             .write()
                             .alloc(url, egui_image, Default::default()))
-                    })();
+                    });
+
+                    #[cfg(target_arch = "wasm32")]
+                    let texture_result = texture_closure().await;
+
+                    #[cfg(not(target_arch = "wasm32"))]
+                    let texture_result = texture_closure();
 
                     match texture_result {
                         Ok(texture_id) => {
@@ -184,10 +227,15 @@ pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, Strin
     Ok(img)
 }
 
-fn download_image(
-    client: &reqwest::blocking::Client, url: &str,
-) -> Result<Vec<u8>, reqwest::Error> {
+#[cfg(not(target_arch = "wasm32"))]
+fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
     let response = client.get(url).send()?.bytes()?.to_vec();
+    Ok(response)
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
+    let response = client.get(url).send().await?.bytes().await?.to_vec();
     Ok(response)
 }
 
