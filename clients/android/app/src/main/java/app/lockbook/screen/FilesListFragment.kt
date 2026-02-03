@@ -45,6 +45,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val binding get() = _binding!!
     private val menu get() = binding.filesToolbar
     private var actionModeMenu: ActionMode? = null
+
+    private var currentTab : WorkspaceTab = WorkspaceTab.Welcome
     private val actionModeMenuCallback: ActionMode.Callback by lazy {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
@@ -128,13 +130,14 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         setUpFilesList()
 
-        if (model.breadcrumbItems.isNotEmpty()) {
-            updateUI(UpdateFilesUI.UpdateBreadcrumbBar(model.breadcrumbItems))
+
+        model.breadcrumbItems.observe(viewLifecycleOwner) {
+            binding.filesBreadcrumbBar.setBreadCrumbItems(it)
         }
 
         binding.filesBreadcrumbBar.setListener(object : BreadCrumbItemClickListener {
-            override fun onItemClick(breadCrumbItem: View, position: Int) {
-                model.intoAncestralFolder(position)
+            override fun onItemClick(breadCrumbItem: View, file: File) {
+                model.intoAncestralFolder(file)
                 unselectFiles()
             }
         })
@@ -200,12 +203,14 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
-            model.fileOpened(it.id)
-            model.fileModel.idsAndFiles[it.id]?.let { child ->
-                model.fileModel.idsAndFiles[child.parent]?.let { parent ->
-                    model.enterFolder(parent)
+            if (currentTab != it){
+                model.fileModel.idsAndFiles[it.id]?.let { child ->
+                    model.fileModel.idsAndFiles[child.parent]?.let { parent ->
+                        model.enterFolder(parent)
+                    }
                 }
             }
+            currentTab = it
         }
 
         return binding.root
@@ -502,9 +507,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 alertModel.notify(uiUpdates.msg)
             }
             is UpdateFilesUI.UpdateBreadcrumbBar -> {
-                binding.filesBreadcrumbBar.setBreadCrumbItems(
-                    uiUpdates.breadcrumbItems.toMutableList()
-                )
+                model._breadcrumbItems.value = getBreadcrumbItems()
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
             UpdateFilesUI.SyncImport -> {
@@ -614,6 +617,10 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
+    private fun getBreadcrumbItems() : MutableList<BreadCrumbItem>{
+        return model.fileModel.getFileDir().map { BreadCrumbItem(it) }.toMutableList()
+    }
+
     private fun toggleMenuBar() {
         when (val selectionCount = model.files.getSelectionCount()) {
             0 -> {
@@ -696,7 +703,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 }
 
 sealed class UpdateFilesUI {
-    data class UpdateBreadcrumbBar(val breadcrumbItems: List<BreadCrumbItem>) : UpdateFilesUI()
+    object UpdateBreadcrumbBar : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
     data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()

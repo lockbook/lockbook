@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.R
@@ -31,7 +32,9 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
     val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
-    var breadcrumbItems = listOf<BreadCrumbItem>()
+    val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
+    val breadcrumbItems: LiveData<MutableList<BreadCrumbItem>>
+        get() = _breadcrumbItems
 
     var localChanges: HashSet<String> = hashSetOf()
     var serverChanges: HashSet<String>? = null
@@ -98,9 +101,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             fileModel = FileModel.createAtRoot()
             suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
             files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
 
             viewModelScope.launch(Dispatchers.IO) {
                 maybeToggleSuggestedDocs()
@@ -128,7 +130,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun enterFolder(folder: File) {
         viewModelScope.launch(Dispatchers.IO) {
-            fileModel.intoFile(folder)
+            fileModel.enterFolder(folder)
 
             maybeToggleSuggestedDocs()
 
@@ -142,8 +144,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
         }
     }
 
@@ -156,21 +157,20 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
         }
     }
 
-    fun intoAncestralFolder(position: Int) {
+    fun intoAncestralFolder(newParent: File) {
         viewModelScope.launch(Dispatchers.IO) {
-            fileModel.refreshChildrenAtAncestor(position)
+            fileModel.refreshChildrenAtAncestor(newParent)
+
             maybeToggleSuggestedDocs()
-            breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
             viewModelScope.launch(Dispatchers.Main) {
                 files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
             }
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
+            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
         }
     }
 
@@ -183,21 +183,6 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
     fun reloadWorkInfo() {
         viewModelScope.launch(Dispatchers.IO) {
             refreshWorkInfo()
-        }
-    }
-
-    fun fileOpened(id: String) {
-        try {
-            if (fileModel.verifyOpenFile(id)) {
-                viewModelScope.launch(Dispatchers.Main) {
-                    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-                }
-
-                breadcrumbItems = fileModel.fileDir.map { BreadCrumbItem(it.name) }
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar(breadcrumbItems))
-            }
-        } catch (err: LbError) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
         }
     }
 
