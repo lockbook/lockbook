@@ -4,23 +4,23 @@
     android:orientation="horizontal"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:gravity="top"
-    tools:ignore="UseCompoundDrawables">
+    android:gravity="center_vertical"
+    >
 
     <!--    Usually an arrow of some sort -->
     <ImageView
         android:id="@+id/bread_crumb_separator"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingEnd="8dp"
-        tools:ignore="RtlSymmetry"
         android:contentDescription="@string/bread_crumb_folder" />
 
-    <com.google.android.material.textview.MaterialTextView
+    <com.google.android.material.button.MaterialButton
         android:id="@+id/bread_crumb_title"
+        style="@style/Widget.Material3.Button.TextButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:paddingEnd="8dp"
-        tools:ignore="RtlSymmetry" />
+        android:minWidth="0dp"
+        android:paddingHorizontal="12dp"
+        tools:text="Folder Name" />
 
 </LinearLayout>

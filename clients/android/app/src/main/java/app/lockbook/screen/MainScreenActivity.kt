@@ -311,7 +311,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
 
-                workspaceModel._currentTab.postValue(workspaceModel.currentTab.value)
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
