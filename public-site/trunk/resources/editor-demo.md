@@ -24,9 +24,9 @@ To make text into a link, wrap it with `[` `]`, add a link destination to the en
 ## Images
 To embed an image, add a `!` to the beginning of the link syntax.
 ```md
-![Lockbook's favicon](https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png)
+![create your luck](https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png)
 ```
-> ![Lockbook's favicon](https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png)
+> ![create your luck](https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png)
 
 ## Headings
 To create a heading, add up to six `#`'s plus a space before your text. More `#`'s create a smaller heading.

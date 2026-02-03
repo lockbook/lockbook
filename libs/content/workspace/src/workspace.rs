@@ -18,11 +18,8 @@ use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
-use crate::mind_map::show::MindMap;
-#[cfg(not(target_family = "wasm"))]
-use tokio::sync::broadcast::error::TryRecvError;
 
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
@@ -35,6 +32,11 @@ use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
+
+#[cfg(not(target_family = "wasm"))]
+use crate::mind_map::show::MindMap;
+#[cfg(not(target_family = "wasm"))]
+use tokio::sync::broadcast::error::TryRecvError;
 
 pub struct Workspace {
     // User activity

@@ -6270,6 +6270,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "106dd99e98437432fed6519dedecfade6a06a73bb7b2a1e019fdd2bee5778d94"
 
 [[package]]
+name = "public-site"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "egui 0.28.1",
+ "epi",
+ "futures",
+ "lb-rs",
+ "log",
+ "serde",
+ "tracing",
+ "tracing-wasm",
+ "wasm-bindgen-futures",
+ "workspace",
+]
+
+[[package]]
 name = "pxfm"
 version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6285,23 +6302,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f6d64c71eb498fe9eae14ce4ec935c555749aef511cca85b5568910d6e48001"
 dependencies = [
  "bytemuck",
-]
-
-[[package]]
-name = "public-site"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "egui 0.28.1",
- "epi",
- "futures",
- "lb-rs",
- "log",
- "serde",
- "tracing",
- "tracing-wasm",
- "wasm-bindgen-futures",
- "workspace",
 ]
 
 [[package]]
@@ -9582,7 +9582,7 @@ dependencies = [
  "comrak",
  "egui 0.28.1",
  "egui_animation",
- "epaint",
+ "epaint 0.28.1",
  "futures",
  "glam",
  "hayro",

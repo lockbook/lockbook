@@ -6,9 +6,9 @@ use egui::{
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::mem;
 use tracing::instrument;
-use web_time::{Duration, Instant};
 use web_time::{Duration, Instant};
 
 use crate::output::Response;
