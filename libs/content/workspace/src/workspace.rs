@@ -696,7 +696,7 @@ impl Workspace {
         };
     }
     #[cfg(target_family = "wasm")]
-    pub fn upsert_mind_map(&mut self) {
+    pub fn upsert_mind_map(&mut self, core: Lb) {
         warn!("Mind map is not supported on wasm targets");
     }
 

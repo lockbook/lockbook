@@ -275,8 +275,6 @@ impl SVGEditor {
         self.buffer.master_transform_changed = false;
         ui.ctx().pop_events();
 
-        debug!("{}", self.buffer.serialize());
-
         Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }
 

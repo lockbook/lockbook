@@ -166,10 +166,6 @@ impl Lb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 
-        // let guard = web_timetimeout(std::time::Duration::from_secs(1), self.db.read())
-        //     .await
-        //     .unwrap();
-
         let guard = self.db.read().await;
 
         if start.elapsed() > Duration::from_millis(100) {
@@ -181,10 +177,6 @@ impl Lb {
 
     pub async fn begin_tx(&self) -> LbTx<'_> {
         let start = Instant::now();
-
-        // let mut guard = web_timetimeout(std::time::Duration::from_secs(1), self.db.write())
-        //     .await
-        //     .unwrap();
 
         let mut guard = self.db.write().await;
 

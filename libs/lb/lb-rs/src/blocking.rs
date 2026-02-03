@@ -1,4 +1,3 @@
-use futures::executor::block_on;
 use std::{collections::HashMap, future::Future, path::PathBuf};
 
 use tokio::sync::broadcast::Receiver;
@@ -51,7 +50,7 @@ impl Lb {
     where
         F: Future,
     {
-        block_on(future)
+        futures::executor::block_on(future)
     }
 
     #[cfg(not(target_family = "wasm"))]
@@ -76,7 +75,7 @@ impl Lb {
     }
 
     pub fn import_account(&self, key: &str, api_url: Option<&str>) -> LbResult<Account> {
-        block_on(self.lb.import_account(key, api_url))
+        self.block_on(self.lb.import_account(key, api_url))
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {
@@ -118,7 +117,7 @@ impl Lb {
     }
 
     pub fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
-        block_on(self.lb.get_children(id))
+        self.block_on(self.lb.get_children(id))
     }
 
     pub fn get_and_get_children_recursively(&self, id: &Uuid) -> LbResult<Vec<File>> {
