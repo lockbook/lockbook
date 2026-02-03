@@ -4,12 +4,6 @@ use std::{collections::HashMap, future::Future, path::PathBuf};
 use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
 
-#[cfg(not(target_family = "wasm"))]
-use {std::sync::Arc, tokio::runtime::Runtime};
-
-#[cfg(not(target_family = "wasm"))]
-use crate::subscribers::search::{SearchConfig, SearchResult};
-
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse, AdminSetUserTierInfo,
@@ -22,12 +16,21 @@ use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
-use crate::service::debug::DebugInfo;
+
 use crate::service::events::Event;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
 use crate::service::sync::{SyncProgress, SyncStatus};
 use crate::service::usage::{UsageItemMetric, UsageMetrics};
 use crate::subscribers::status::Status;
+
+#[cfg(not(target_family = "wasm"))]
+use {std::sync::Arc, tokio::runtime::Runtime};
+
+#[cfg(not(target_family = "wasm"))]
+use crate::subscribers::search::{SearchConfig, SearchResult};
+
+#[cfg(not(target_family = "wasm"))]
+use crate::service::debug::DebugInfo;
 
 #[derive(Clone)]
 pub struct Lb {

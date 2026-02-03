@@ -3,8 +3,7 @@ use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest,
-    UpsertRequestV2,
+    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
@@ -34,6 +33,9 @@ use uuid::Uuid;
 use web_time::Instant;
 
 use super::events::Actor;
+
+#[cfg(not(target_family = "wasm"))]
+use crate::model::api::UpsertDebugInfoRequest;
 
 pub type SyncFlag = Arc<AtomicBool>;
 

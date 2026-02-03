@@ -1,16 +1,31 @@
+use crate::Lb;
 use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
-use crate::{Lb, get_code_version};
 use basic_human_duration::ChronoHumanDuration;
-use chrono::{Local, NaiveDateTime, TimeZone};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
-use std::env;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::path::PathBuf;
 use time::Duration;
+
+#[cfg(not(target_family = "wasm"))]
+use std::sync::atomic::Ordering;
+
+#[cfg(not(target_family = "wasm"))]
+use std::path::Path;
+
+#[cfg(not(target_family = "wasm"))]
+use std::env;
+
+#[cfg(not(target_family = "wasm"))]
+use chrono::{Local, TimeZone};
+
+#[cfg(not(target_family = "wasm"))]
+use crate::get_code_version;
+
 #[cfg(not(target_family = "wasm"))]
 use tokio::fs::{self, OpenOptions};
+
 #[cfg(not(target_family = "wasm"))]
 use tokio::io::AsyncWriteExt;
 

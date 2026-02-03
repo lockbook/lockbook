@@ -12,9 +12,9 @@ use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
 use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
-use std::{fs, thread};
 use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
@@ -696,7 +696,7 @@ impl Workspace {
         };
     }
     #[cfg(target_family = "wasm")]
-    pub fn upsert_mind_map(&mut self, core: Lb) {
+    pub fn upsert_mind_map(&mut self) {
         warn!("Mind map is not supported on wasm targets");
     }
 

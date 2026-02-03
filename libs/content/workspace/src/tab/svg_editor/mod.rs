@@ -38,7 +38,7 @@ use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
-use tracing::{Level, info, span};
+use tracing::{Level, debug, info, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -274,6 +274,9 @@ impl SVGEditor {
         self.has_islands_interaction = false;
         self.buffer.master_transform_changed = false;
         ui.ctx().pop_events();
+
+        debug!("{}", self.buffer.serialize());
+
         Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }
 
