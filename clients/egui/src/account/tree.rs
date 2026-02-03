@@ -1073,7 +1073,7 @@ impl FileTree {
         }
         let button = Button::default()
             .text(text)
-            // .default_fill(default_fill)
+            .default_fill(default_fill)
             .rounding(Self::BTN_ROUNDING)
             .margin(Self::BTN_MARGIN)
             .frame(true)
