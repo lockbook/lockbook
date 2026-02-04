@@ -150,8 +150,8 @@ impl Theme {
                 bg: Palette::Black,
                 fg: Palette::White,
 
-                primary: Palette::Magenta,
-                secondary: Palette::Blue,
+                primary: Palette::Blue,
+                secondary: Palette::Magenta,
                 tertiary: Palette::Green,
                 quaternary: Palette::Yellow,
             },
@@ -183,7 +183,7 @@ impl Theme {
             override_text_color: None,
             window_fill: self.bg(),
             // used by the sidebar, tab strip and a few other places
-            extreme_bg_color: self.bg().gamma_multiply(0.4),
+            extreme_bg_color: self.bg(),
             selection: style::Selection {
                 bg_fill: self.bg_theme().from_palette(self.prefs().primary),
                 ..Default::default()
@@ -215,7 +215,7 @@ impl Theme {
         base.widgets.hovered.fg_stroke.color = self.fg();
         base.widgets.hovered.bg_stroke.color = self.bg();
 
-        base.widgets.active.bg_fill = self.bg();
+        base.widgets.active.bg_fill = self.bg_theme().from_palette(self.prefs().primary);
         base.widgets.active.weak_bg_fill = self.bg();
         base.widgets.active.weak_bg_fill = self.bg();
         base.widgets.active.fg_stroke.color = self.fg();

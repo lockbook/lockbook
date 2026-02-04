@@ -19,6 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
+use workspace_rs::theme::palette_v2::ThemeExt;
 use workspace_rs::widgets::Button;
 
 #[derive(Debug, Default)]
@@ -1107,9 +1108,14 @@ impl FileTree {
             }
             .size(icon_size);
 
+            let theme = ui.ctx().get_theme();
             let file_resp = button
                 .icon(&icon)
-                .icon_color(ui.style().visuals.widgets.active.bg_fill)
+                .icon_color(if is_shared || file.id == self.pending_shares_id {
+                    theme.bg_theme().from_palette(theme.prefs().secondary)
+                } else {
+                    theme.bg_theme().from_palette(theme.prefs().primary)
+                })
                 .show(ui);
 
             file_resp
