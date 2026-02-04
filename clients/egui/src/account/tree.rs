@@ -1041,6 +1041,7 @@ impl FileTree {
     fn show_file_cell(
         &self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
     ) -> egui::Response {
+        let theme = ui.ctx().get_theme();
         let doc_type = DocType::from_name(&file.name);
         let mut text = if doc_type.hide_ext() {
             let wo = Path::new(&file.name)
@@ -1056,17 +1057,15 @@ impl FileTree {
             text = text.strikethrough();
         }
 
-        let mut default_fill = ui.style().visuals.extreme_bg_color;
+        let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = ui.visuals().code_bg_color;
-
-            ui.visuals_mut().widgets.hovered.bg_fill =
-                default_fill.lerp_to_gamma(ui.visuals().text_color(), 0.1);
+            default_fill = theme.bg_theme().get_color(theme.prefs().primary);
+            ui.visuals_mut().widgets.hovered.bg_fill = theme.bg_theme().get_color(theme.prefs().primary);
         } else {
-            ui.visuals_mut().widgets.hovered.bg_fill = ui
-                .visuals()
-                .code_bg_color
-                .linear_multiply(if ui.visuals().dark_mode { 0.1 } else { 0.9 });
+            ui.visuals_mut().widgets.hovered.bg_fill = theme
+                .bg_theme()
+                .get_color(theme.prefs().primary)
+                .gamma_multiply(if ui.visuals().dark_mode { 0.2 } else { 0.8 });
         }
 
         if self.cursor == Some(file.id) && focused {
@@ -1108,13 +1107,12 @@ impl FileTree {
             }
             .size(icon_size);
 
-            let theme = ui.ctx().get_theme();
             let file_resp = button
                 .icon(&icon)
                 .icon_color(if is_shared || file.id == self.pending_shares_id {
-                    theme.bg_theme().from_palette(theme.prefs().secondary)
+                    theme.bg_theme().get_color(theme.prefs().secondary)
                 } else {
-                    theme.bg_theme().from_palette(theme.prefs().primary)
+                    theme.bg_theme().get_color(theme.prefs().primary)
                 })
                 .show(ui);
 

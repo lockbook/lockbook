@@ -43,7 +43,7 @@ impl Theme {
         assert_ne!(bg, Palette::Background);
         assert_ne!(bg, Palette::Foreground);
 
-        self.bg_theme().from_palette(bg)
+        self.bg_theme().get_color(bg)
     }
 
     pub fn fg(&self) -> Color32 {
@@ -51,7 +51,7 @@ impl Theme {
         assert_ne!(fg, Palette::Foreground);
         assert_ne!(fg, Palette::Background);
 
-        self.fg_theme().from_palette(fg)
+        self.fg_theme().get_color(fg)
     }
 
     pub fn prefs(&self) -> Preferences {
@@ -97,7 +97,7 @@ pub enum Palette {
 }
 
 impl ThemeVariant {
-    pub fn from_palette(&self, p: Palette) -> Color32 {
+    pub fn get_color(&self, p: Palette) -> Color32 {
         match p {
             Palette::Foreground => unreachable!(),
             Palette::Background => unreachable!(),
@@ -182,15 +182,15 @@ impl Theme {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
             window_fill: self.bg(),
-            // used by the sidebar, tab strip and a few other places
-            extreme_bg_color: self.bg(),
+            extreme_bg_color: self.bg().lerp_to_gamma(Color32::BLACK, 0.5), // will need light mode
+                                                                            // switch
             selection: style::Selection {
-                bg_fill: self.bg_theme().from_palette(self.prefs().primary),
+                bg_fill: self.bg_theme().get_color(self.prefs().primary),
                 ..Default::default()
             },
-            hyperlink_color: self.fg_theme().from_palette(self.prefs().secondary),
+            hyperlink_color: self.fg_theme().get_color(self.prefs().secondary),
             faint_bg_color: self.bg().gamma_multiply(0.9),
-            code_bg_color: self.bg_theme().black,
+            code_bg_color: Color32::RED,
             warn_fg_color: self.fg_theme().yellow,
             error_fg_color: self.fg_theme().red,
             panel_fill: self.bg(),
@@ -199,30 +199,25 @@ impl Theme {
 
         base.widgets.noninteractive.bg_fill = self.bg();
         base.widgets.noninteractive.weak_bg_fill = self.bg();
-        base.widgets.noninteractive.weak_bg_fill = self.bg();
         base.widgets.noninteractive.fg_stroke.color = self.fg();
         base.widgets.noninteractive.bg_stroke.color = self.bg();
 
         base.widgets.inactive.bg_fill = self.bg();
-        base.widgets.inactive.weak_bg_fill = self.bg();
         base.widgets.inactive.weak_bg_fill = self.bg();
         base.widgets.inactive.fg_stroke.color = self.fg();
         base.widgets.inactive.bg_stroke.color = self.bg();
 
         base.widgets.hovered.bg_fill = self.bg();
         base.widgets.hovered.weak_bg_fill = self.bg();
-        base.widgets.hovered.weak_bg_fill = self.bg();
         base.widgets.hovered.fg_stroke.color = self.fg();
         base.widgets.hovered.bg_stroke.color = self.bg();
 
-        base.widgets.active.bg_fill = self.bg_theme().from_palette(self.prefs().primary);
-        base.widgets.active.weak_bg_fill = self.bg();
+        base.widgets.active.bg_fill = self.bg_theme().get_color(self.prefs().primary);
         base.widgets.active.weak_bg_fill = self.bg();
         base.widgets.active.fg_stroke.color = self.fg();
         base.widgets.active.bg_stroke.color = self.bg();
 
         base.widgets.open.bg_fill = self.bg();
-        base.widgets.open.weak_bg_fill = self.bg();
         base.widgets.open.weak_bg_fill = self.bg();
         base.widgets.open.fg_stroke.color = self.fg();
         base.widgets.open.bg_stroke.color = self.bg();

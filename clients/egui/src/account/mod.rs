@@ -22,7 +22,6 @@ use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::theme::palette_v2::ThemeExt;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
@@ -141,6 +140,8 @@ impl AccountScreen {
         }
 
         egui::SidePanel::left("sidebar_panel")
+            // get rid of the space, keep the colors normal
+            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
             .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
@@ -202,6 +203,7 @@ impl AccountScreen {
             });
 
         egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(ctx.style().visuals.extreme_bg_color))
             .show(ctx, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();
@@ -436,7 +438,7 @@ impl AccountScreen {
         let resp = ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    Frame::canvas(ui.style())
+                    Frame::none()
                         .inner_margin(0.)
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {

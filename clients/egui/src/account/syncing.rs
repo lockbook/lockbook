@@ -96,20 +96,20 @@ impl super::AccountScreen {
             ui.visuals_mut().widgets.active.bg_fill = ui.visuals().error_fg_color;
         };
 
-        let text_stroke =
-            egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
+        // let text_stroke =
+        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
 
-        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+        // ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+        // ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+        // ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
 
         ui.visuals_mut().widgets.inactive.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
-        ui.visuals_mut().widgets.hovered.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
+            ui.visuals().widgets.active.bg_fill;
+        // ui.visuals_mut().widgets.hovered.bg_fill =
+        //     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
 
-        ui.visuals_mut().widgets.active.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
+        // ui.visuals_mut().widgets.active.bg_fill =
+        //    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
 
         let icon = if self.lb_status.offline {
             Icon::OFFLINE
