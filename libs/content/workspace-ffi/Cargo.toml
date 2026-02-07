@@ -25,9 +25,6 @@ egui_extras = { version = "0.28.1", features = ["image"] }
 ndk-sys = "0.4"
 lb-java = { path = "../../lb/lb-java" }
 
-
-[target.'cfg(target_vendor = "apple")'.dependencies]
-egui_extras = { version = "0.28.1", features = ["image"] }
-
 [target.'cfg(any(target_os = "android", target_vendor = "apple"))'.dependencies]
 pollster = "0.2"
+egui_extras = { version = "0.28.1", features = ["image"] }
