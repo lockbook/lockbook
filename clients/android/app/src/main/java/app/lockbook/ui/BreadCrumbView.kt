@@ -10,9 +10,10 @@ import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.model.BreadCrumbAdapter
 import app.lockbook.model.BreadCrumbItemClickListener
+import net.lockbook.File
 
 data class BreadCrumbItem(
-    val title: String
+    val file: File
 )
 
 class BreadCrumbView : FrameLayout {
@@ -47,8 +48,6 @@ class BreadCrumbView : FrameLayout {
                 breadCrumbAdapter.setTextSize(textSize)
             }
         }
-
-        this.setPadding(40, 20, 40, 20)
     }
 
     private fun createAndAddRecyclerView(context: Context) {
@@ -61,7 +60,7 @@ class BreadCrumbView : FrameLayout {
         recyclerView.layoutManager =
             LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
         breadCrumbAdapter = BreadCrumbAdapter(object : BreadCrumbItemClickListener {
-            override fun onItemClick(breadCrumbItem: View, position: Int) {}
+            override fun onItemClick(breadCrumbItem: View, file: File) {}
         })
 
         recyclerView.adapter = breadCrumbAdapter
@@ -71,9 +70,8 @@ class BreadCrumbView : FrameLayout {
     fun setListener(listener: BreadCrumbItemClickListener) {
         breadCrumbAdapter.breadCrumbItemClickListener = listener
     }
-    fun setArrowDrawable(arrowDrawable: Int) = breadCrumbAdapter.setArrowDrawable(arrowDrawable)
+
     fun setBreadCrumbItems(items: MutableList<BreadCrumbItem>) {
         breadCrumbAdapter.setBreadCrumbItems(items)
-        recyclerView.smoothScrollToPosition(breadCrumbAdapter.getBreadCrumbItemsSize() - 1)
     }
 }
