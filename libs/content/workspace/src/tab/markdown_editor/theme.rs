@@ -1,6 +1,8 @@
 use egui::style::{WidgetVisuals, Widgets};
 use egui::{Color32, Context, Rounding, Stroke, Ui};
 
+use crate::theme::palette_v2::ThemeExt;
+
 macro_rules! hex_color {
     ($hex:expr) => {{
         let hex = $hex;
@@ -59,13 +61,16 @@ impl Theme {
     }
 
     /// Get the color set closest to the background color.
-    pub fn bg(&self) -> &ColorSet {
-        if self.ctx.style().visuals.dark_mode { &self.dim } else { &self.bright }
+    pub fn bg(&self) -> ColorSet {
+        let theme = self.ctx.get_theme();
+
+
+        if self.ctx.style().visuals.dark_mode { self.dim } else { self.bright }
     }
 
     /// Get the color set closest to the foreground color.
-    pub fn fg(&self) -> &ColorSet {
-        if self.ctx.style().visuals.dark_mode { &self.bright } else { &self.dim }
+    pub fn fg(&self) -> ColorSet {
+        if self.ctx.style().visuals.dark_mode { self.bright } else { self.dim }
     }
 
     pub fn apply(&self, ui: &mut Ui) {
@@ -118,7 +123,7 @@ impl Theme {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 #[expect(dead_code)]
 pub struct ColorSet {
     pub neutral_primary: Color32,

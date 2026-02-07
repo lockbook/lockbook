@@ -114,7 +114,58 @@ impl ThemeVariant {
 }
 
 impl Theme {
-    pub fn mnemonic(current: Mode) -> Self {
+
+    pub fn default(current: Mode) -> Self {
+        Self::everforest(current)
+    }
+
+    /// Optimizing for travis stim
+    pub fn travis_prophecy(current: Mode) -> Self {
+        Self {
+            current,
+            light: ThemeVariant {
+                black: hex_color!("#101010"),
+                red: hex_color!("#DF2040"),
+                green: hex_color!("#2DD296"),
+                yellow: hex_color!("#FFBF00"),
+                blue: hex_color!("#207FDF"),
+                magenta: hex_color!("#7855AA"),
+                cyan: hex_color!("#13DAEC"),
+                white: hex_color!("#D0D0D0"),
+            },
+            light_prefs: Preferences {
+                bg: Palette::White,
+                fg: Palette::Black,
+
+                primary: Palette::Magenta,
+                secondary: Palette::Blue,
+                tertiary: Palette::Red, 
+                quaternary: Palette::Yellow,
+            },
+            dark: ThemeVariant {
+                black: hex_color!("#808080"),
+                red: hex_color!("#FF6680"),
+                green: hex_color!("#67E4B6"),
+                yellow: hex_color!("#FFDB70"),
+                blue: hex_color!("#66B2FF"),
+                magenta: hex_color!("#AC8CD9"),
+                cyan: hex_color!("#6EECF7"),
+                white: hex_color!("#F0F0F0"),
+            },
+            dark_prefs: Preferences {
+                bg: Palette::Black,
+                fg: Palette::White,
+
+                primary: Palette::Green,
+                secondary: Palette::Blue,
+                tertiary: Palette::Yellow,
+                quaternary: Palette::Green,
+            },
+        }
+    }
+
+    /// Innovation is more consistent
+    pub fn travis_inovation(current: Mode) -> Self {
         Self {
             current,
             light: ThemeVariant {
@@ -133,8 +184,8 @@ impl Theme {
 
                 primary: Palette::Blue,
                 secondary: Palette::Green,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Magenta,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan, 
             },
             dark: ThemeVariant {
                 black: hex_color!("#808080"),
@@ -151,11 +202,55 @@ impl Theme {
                 fg: Palette::White,
 
                 primary: Palette::Blue,
-                secondary: Palette::Magenta,
-                tertiary: Palette::Green,
-                quaternary: Palette::Yellow,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
             },
         }
+    }
+
+    pub fn everforest(current: Mode) -> Self {
+        Self {
+            current,
+            light: ThemeVariant {
+                black: hex_color!("#5c6a72"),
+                red: hex_color!("#f85552"),
+                green: hex_color!("#8da101"),
+                yellow: hex_color!("#dfa000"),
+                blue: hex_color!("#3a94c5"),
+                magenta: hex_color!("#df69ba"),
+                cyan: hex_color!("#35a77c"),
+                white: hex_color!("#f4f0d9"),
+            },
+            light_prefs: Preferences {
+                bg: Palette::White,
+                fg: Palette::Black,
+
+                primary: Palette::Green,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Red,
+                quaternary: Palette::Yellow,
+            },
+            dark: ThemeVariant {
+                black: hex_color!("#fdf6e3"),
+                red: hex_color!("#f85552"),
+                green: hex_color!("#8da101"),
+                yellow: hex_color!("#dfa000"),
+                blue: hex_color!("#3a94c5"),
+                magenta: hex_color!("#df69ba"),
+                cyan: hex_color!("#35a77c"),
+                white: hex_color!("#939f91"),
+            },
+            dark_prefs: Preferences {
+                bg: Palette::Black,
+                fg: Palette::White,
+
+                primary: Palette::Green,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Red,
+                quaternary: Palette::Yellow,
+            },
+        }        
     }
 }
 
@@ -182,7 +277,7 @@ impl Theme {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
             window_fill: self.bg(),
-            extreme_bg_color: self.bg().lerp_to_gamma(Color32::BLACK, 0.5), // will need light mode
+            extreme_bg_color: self.bg().lerp_to_gamma(Color32::BLACK, 0.25), // will need light mode
                                                                             // switch
             selection: style::Selection {
                 bg_fill: self.bg_theme().get_color(self.prefs().primary),
