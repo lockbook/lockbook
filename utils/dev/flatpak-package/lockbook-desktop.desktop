@@ -2,6 +2,6 @@
 Type=Application
 Comment=The private, polished note-taking platform.
 Terminal=false
-Exec=lockbook-linux
+Exec=lockbook-desktop
 Name=Lockbook
 Icon=net.lockbook.Lockbook
