@@ -22,7 +22,7 @@ pub const BETA_USERS: &[&str] = &[
     "adam",
     "krish",
     "aravd",
-    "luca",
+    "lucaloncar",
     "krishma",
     "steve",
     "rahul",
