@@ -6,7 +6,7 @@ use epaint::hex_color;
 
 #[derive(Clone, Copy)]
 pub struct Theme {
-    current: Mode,
+    pub current: Mode,
 
     light: ThemeVariant,
     light_prefs: Preferences,
@@ -18,6 +18,7 @@ pub struct Theme {
 #[derive(Clone, Copy)]
 pub struct ThemeVariant {
     pub black: Color32,
+    pub grey: Color32,
     pub red: Color32,
     pub green: Color32,
     pub yellow: Color32,
@@ -29,8 +30,6 @@ pub struct ThemeVariant {
 
 #[derive(Clone, Copy)]
 pub struct Preferences {
-    pub bg: Palette,
-    pub fg: Palette,
     pub primary: Palette,
     pub secondary: Palette,
     pub tertiary: Palette,
@@ -38,22 +37,6 @@ pub struct Preferences {
 }
 
 impl Theme {
-    pub fn bg(&self) -> Color32 {
-        let bg = self.prefs().bg;
-        assert_ne!(bg, Palette::Background);
-        assert_ne!(bg, Palette::Foreground);
-
-        self.bg_theme().get_color(bg)
-    }
-
-    pub fn fg(&self) -> Color32 {
-        let fg = self.prefs().fg;
-        assert_ne!(fg, Palette::Foreground);
-        assert_ne!(fg, Palette::Background);
-
-        self.fg_theme().get_color(fg)
-    }
-
     pub fn prefs(&self) -> Preferences {
         match self.current {
             Mode::Light => self.light_prefs,
@@ -61,14 +44,14 @@ impl Theme {
         }
     }
 
-    pub fn fg_theme(&self) -> ThemeVariant {
+    pub fn fg(&self) -> ThemeVariant {
         match self.current {
             Mode::Light => self.light,
             Mode::Dark => self.dark,
         }
     }
 
-    pub fn bg_theme(&self) -> ThemeVariant {
+    pub fn bg(&self) -> ThemeVariant {
         match self.current {
             Mode::Light => self.dark,
             Mode::Dark => self.light,
@@ -116,7 +99,7 @@ impl ThemeVariant {
 impl Theme {
 
     pub fn default(current: Mode) -> Self {
-        Self::everforest(current)
+        Self::travis_prophecy(current)
     }
 
     /// Optimizing for travis stim
@@ -131,31 +114,27 @@ impl Theme {
                 blue: hex_color!("#207FDF"),
                 magenta: hex_color!("#7855AA"),
                 cyan: hex_color!("#13DAEC"),
-                white: hex_color!("#D0D0D0"),
+                white: hex_color!("#FFFFFF"),
+                grey: hex_color!("#1A1A1A"),
             },
             light_prefs: Preferences {
-                bg: Palette::White,
-                fg: Palette::Black,
-
                 primary: Palette::Magenta,
                 secondary: Palette::Blue,
                 tertiary: Palette::Red, 
                 quaternary: Palette::Yellow,
             },
             dark: ThemeVariant {
-                black: hex_color!("#808080"),
+                black: hex_color!("#101010"),
+                grey: hex_color!("#F0F0F0"),
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
                 yellow: hex_color!("#FFDB70"),
                 blue: hex_color!("#66B2FF"),
                 magenta: hex_color!("#AC8CD9"),
                 cyan: hex_color!("#6EECF7"),
-                white: hex_color!("#F0F0F0"),
+                white: hex_color!("#FFFFFF"),
             },
             dark_prefs: Preferences {
-                bg: Palette::Black,
-                fg: Palette::White,
-
                 primary: Palette::Green,
                 secondary: Palette::Blue,
                 tertiary: Palette::Yellow,
@@ -164,94 +143,82 @@ impl Theme {
         }
     }
 
-    /// Innovation is more consistent
-    pub fn travis_inovation(current: Mode) -> Self {
-        Self {
-            current,
-            light: ThemeVariant {
-                black: hex_color!("#101010"),
-                red: hex_color!("#DF2040"),
-                green: hex_color!("#2DD296"),
-                yellow: hex_color!("#FFBF00"),
-                blue: hex_color!("#207FDF"),
-                magenta: hex_color!("#7855AA"),
-                cyan: hex_color!("#13DAEC"),
-                white: hex_color!("#D0D0D0"),
-            },
-            light_prefs: Preferences {
-                bg: Palette::White,
-                fg: Palette::Black,
+    // Innovation is more consistent
+    // pub fn travis_inovation(current: Mode) -> Self {
+    //     Self {
+    //         current,
+    //         light: ThemeVariant {
+    //             black: hex_color!("#101010"),
+    //             red: hex_color!("#DF2040"),
+    //             green: hex_color!("#2DD296"),
+    //             yellow: hex_color!("#FFBF00"),
+    //             blue: hex_color!("#207FDF"),
+    //             magenta: hex_color!("#7855AA"),
+    //             cyan: hex_color!("#13DAEC"),
+    //             white: hex_color!("#D0D0D0"),
+    //         },
+    //         light_prefs: Preferences {
+    //             primary: Palette::Blue,
+    //             secondary: Palette::Green,
+    //             tertiary: Palette::Magenta,
+    //             quaternary: Palette::Cyan, 
+    //         },
+    //         dark: ThemeVariant {
+    //             black: hex_color!("#808080"),
+    //             red: hex_color!("#FF6680"),
+    //             green: hex_color!("#67E4B6"),
+    //             yellow: hex_color!("#FFDB70"),
+    //             blue: hex_color!("#66B2FF"),
+    //             magenta: hex_color!("#AC8CD9"),
+    //             cyan: hex_color!("#6EECF7"),
+    //             white: hex_color!("#F0F0F0"),
+    //         },
+    //         dark_prefs: Preferences {
+    //             primary: Palette::Blue,
+    //             secondary: Palette::Green,
+    //             tertiary: Palette::Magenta,
+    //             quaternary: Palette::Cyan,
+    //         },
+    //     }
+    // }
 
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan, 
-            },
-            dark: ThemeVariant {
-                black: hex_color!("#808080"),
-                red: hex_color!("#FF6680"),
-                green: hex_color!("#67E4B6"),
-                yellow: hex_color!("#FFDB70"),
-                blue: hex_color!("#66B2FF"),
-                magenta: hex_color!("#AC8CD9"),
-                cyan: hex_color!("#6EECF7"),
-                white: hex_color!("#F0F0F0"),
-            },
-            dark_prefs: Preferences {
-                bg: Palette::Black,
-                fg: Palette::White,
-
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
-        }
-    }
-
-    pub fn everforest(current: Mode) -> Self {
-        Self {
-            current,
-            light: ThemeVariant {
-                black: hex_color!("#5c6a72"),
-                red: hex_color!("#f85552"),
-                green: hex_color!("#8da101"),
-                yellow: hex_color!("#dfa000"),
-                blue: hex_color!("#3a94c5"),
-                magenta: hex_color!("#df69ba"),
-                cyan: hex_color!("#35a77c"),
-                white: hex_color!("#f4f0d9"),
-            },
-            light_prefs: Preferences {
-                bg: Palette::White,
-                fg: Palette::Black,
-
-                primary: Palette::Green,
-                secondary: Palette::Magenta,
-                tertiary: Palette::Red,
-                quaternary: Palette::Yellow,
-            },
-            dark: ThemeVariant {
-                black: hex_color!("#fdf6e3"),
-                red: hex_color!("#f85552"),
-                green: hex_color!("#8da101"),
-                yellow: hex_color!("#dfa000"),
-                blue: hex_color!("#3a94c5"),
-                magenta: hex_color!("#df69ba"),
-                cyan: hex_color!("#35a77c"),
-                white: hex_color!("#939f91"),
-            },
-            dark_prefs: Preferences {
-                bg: Palette::Black,
-                fg: Palette::White,
-
-                primary: Palette::Green,
-                secondary: Palette::Magenta,
-                tertiary: Palette::Red,
-                quaternary: Palette::Yellow,
-            },
-        }        
-    }
+    // pub fn everforest(current: Mode) -> Self {
+    //     Self {
+    //         current,
+    //         light: ThemeVariant {
+    //             black: hex_color!("#5c6a72"),
+    //             red: hex_color!("#f85552"),
+    //             green: hex_color!("#8da101"),
+    //             yellow: hex_color!("#dfa000"),
+    //             blue: hex_color!("#3a94c5"),
+    //             magenta: hex_color!("#df69ba"),
+    //             cyan: hex_color!("#35a77c"),
+    //             white: hex_color!("#f4f0d9"),
+    //         },
+    //         light_prefs: Preferences {
+    //             primary: Palette::Green,
+    //             secondary: Palette::Magenta,
+    //             tertiary: Palette::Red,
+    //             quaternary: Palette::Yellow,
+    //         },
+    //         dark: ThemeVariant {
+    //             black: hex_color!("#fdf6e3"),
+    //             red: hex_color!("#f85552"),
+    //             green: hex_color!("#8da101"),
+    //             yellow: hex_color!("#dfa000"),
+    //             blue: hex_color!("#3a94c5"),
+    //             magenta: hex_color!("#df69ba"),
+    //             cyan: hex_color!("#35a77c"),
+    //             white: hex_color!("#939f91"),
+    //         },
+    //         dark_prefs: Preferences {
+    //             primary: Palette::Green,
+    //             secondary: Palette::Magenta,
+    //             tertiary: Palette::Red,
+    //             quaternary: Palette::Yellow,
+    //         },
+    //     }        
+    // }
 }
 
 pub trait ThemeExt {
@@ -273,49 +240,55 @@ impl ThemeExt for egui::Context {
 
 impl Theme {
     fn base_visuals(&self) -> egui::Visuals {
+        let (fg, bg) = if self.current == Mode::Light {
+            (self.fg().black, self.bg().white)
+        } else {
+            (self.bg().white, self.bg().black)
+        };
+
         let mut base = egui::Visuals {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
-            window_fill: self.bg(),
-            extreme_bg_color: self.bg().lerp_to_gamma(Color32::BLACK, 0.25), // will need light mode
+            window_fill: self.bg().grey,
+            extreme_bg_color: bg, // will need light mode
                                                                             // switch
             selection: style::Selection {
-                bg_fill: self.bg_theme().get_color(self.prefs().primary),
+                bg_fill: self.bg().get_color(self.prefs().primary),
                 ..Default::default()
             },
-            hyperlink_color: self.fg_theme().get_color(self.prefs().secondary),
-            faint_bg_color: self.bg().gamma_multiply(0.9),
-            code_bg_color: Color32::RED,
-            warn_fg_color: self.fg_theme().yellow,
-            error_fg_color: self.fg_theme().red,
-            panel_fill: self.bg(),
+            hyperlink_color: self.fg().get_color(self.prefs().secondary),
+            faint_bg_color: bg.gamma_multiply(0.9),
+            code_bg_color: self.bg().grey,
+            warn_fg_color: self.fg().yellow,
+            error_fg_color: self.fg().red,
+            panel_fill: self.bg().grey,
             ..Default::default()
         };
 
-        base.widgets.noninteractive.bg_fill = self.bg();
-        base.widgets.noninteractive.weak_bg_fill = self.bg();
-        base.widgets.noninteractive.fg_stroke.color = self.fg();
-        base.widgets.noninteractive.bg_stroke.color = self.bg();
+        base.widgets.noninteractive.bg_fill = self.bg().grey;
+        base.widgets.noninteractive.weak_bg_fill = self.bg().grey;
+        base.widgets.noninteractive.fg_stroke.color = fg;
+        base.widgets.noninteractive.bg_stroke.color = self.bg().grey;
 
-        base.widgets.inactive.bg_fill = self.bg();
-        base.widgets.inactive.weak_bg_fill = self.bg();
-        base.widgets.inactive.fg_stroke.color = self.fg();
-        base.widgets.inactive.bg_stroke.color = self.bg();
+        base.widgets.inactive.bg_fill = self.bg().grey;
+        base.widgets.inactive.weak_bg_fill = self.bg().grey;
+        base.widgets.inactive.fg_stroke.color = fg;
+        base.widgets.inactive.bg_stroke.color = self.bg().grey;
 
-        base.widgets.hovered.bg_fill = self.bg();
-        base.widgets.hovered.weak_bg_fill = self.bg();
-        base.widgets.hovered.fg_stroke.color = self.fg();
-        base.widgets.hovered.bg_stroke.color = self.bg();
+        base.widgets.hovered.bg_fill = self.bg().grey.lerp_to_gamma(bg, 0.5);
+        base.widgets.hovered.weak_bg_fill = self.bg().grey.lerp_to_gamma(bg, 0.5);
+        base.widgets.hovered.fg_stroke.color = fg;
+        base.widgets.hovered.bg_stroke.color = self.bg().grey.lerp_to_gamma(bg, 0.5);
 
-        base.widgets.active.bg_fill = self.bg_theme().get_color(self.prefs().primary);
-        base.widgets.active.weak_bg_fill = self.bg();
-        base.widgets.active.fg_stroke.color = self.fg();
-        base.widgets.active.bg_stroke.color = self.bg();
+        base.widgets.active.bg_fill = self.bg().get_color(self.prefs().primary);
+        base.widgets.active.weak_bg_fill = self.bg().grey;
+        base.widgets.active.fg_stroke.color = fg;
+        base.widgets.active.bg_stroke.color = self.bg().grey;
 
-        base.widgets.open.bg_fill = self.bg();
-        base.widgets.open.weak_bg_fill = self.bg();
-        base.widgets.open.fg_stroke.color = self.fg();
-        base.widgets.open.bg_stroke.color = self.bg();
+        base.widgets.open.bg_fill = self.bg().grey;
+        base.widgets.open.weak_bg_fill = self.bg().grey;
+        base.widgets.open.fg_stroke.color = fg;
+        base.widgets.open.bg_stroke.color = self.bg().grey;
 
         base
     }

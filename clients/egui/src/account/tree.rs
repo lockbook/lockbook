@@ -1059,11 +1059,11 @@ impl FileTree {
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = theme.bg_theme().get_color(theme.prefs().primary);
-            ui.visuals_mut().widgets.hovered.bg_fill = theme.bg_theme().get_color(theme.prefs().primary);
+            default_fill = theme.bg().get_color(theme.prefs().primary);
+            ui.visuals_mut().widgets.hovered.bg_fill = theme.bg().get_color(theme.prefs().primary);
         } else {
             ui.visuals_mut().widgets.hovered.bg_fill = theme
-                .bg_theme()
+                .bg()
                 .get_color(theme.prefs().primary)
                 .gamma_multiply(if ui.visuals().dark_mode { 0.2 } else { 0.8 });
         }
@@ -1110,9 +1110,9 @@ impl FileTree {
             let file_resp = button
                 .icon(&icon)
                 .icon_color(if is_shared || file.id == self.pending_shares_id {
-                    theme.bg_theme().get_color(theme.prefs().secondary)
+                    theme.bg().get_color(theme.prefs().secondary)
                 } else {
-                    theme.bg_theme().get_color(theme.prefs().primary)
+                    theme.bg().get_color(theme.prefs().primary)
                 })
                 .show(ui);
 
