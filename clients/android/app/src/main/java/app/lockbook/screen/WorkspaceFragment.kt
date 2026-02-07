@@ -1,5 +1,6 @@
 package app.lockbook.screen
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
@@ -20,6 +21,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
+import android.view.animation.Interpolator
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
@@ -28,8 +30,11 @@ import android.widget.FrameLayout
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.interpolator.view.animation.FastOutLinearInInterpolator
+import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
@@ -65,6 +70,7 @@ class WorkspaceFragment : Fragment() {
     private val activityModel: StateViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
 
+    private var bottomSheetContractedHeight = 0
     companion object {
         val TAG = "WorkspaceFragment"
         val BACKSTACK_TAG = "WorkspaceBackstack"
@@ -242,24 +248,84 @@ class WorkspaceFragment : Fragment() {
             return
         }
 
-        val newOrientation = if (currOrientation == LinearLayoutManager.VERTICAL) {
-            binding.standardBottomSheet.layoutParams.height = ViewGroup.LayoutParams.WRAP_CONTENT
-            binding.expandList.visibility = View.VISIBLE
-            binding.closeAllTabs.visibility = View.GONE
-            LinearLayoutManager.HORIZONTAL
+        val (newOrientation, newHeight) = if (currOrientation == LinearLayoutManager.VERTICAL) {
+            LinearLayoutManager.HORIZONTAL to ViewGroup.LayoutParams.WRAP_CONTENT
         } else {
-            binding.standardBottomSheet.layoutParams.height = EXPANDED_BOTTOM_SHEET_HEIGHT
-            binding.expandList.visibility = View.GONE
-            binding.closeAllTabs.visibility = View.GONE
-            LinearLayoutManager.VERTICAL
+            LinearLayoutManager.VERTICAL to EXPANDED_BOTTOM_SHEET_HEIGHT
         }
 
-        binding.tabsList.layoutManager = LinearLayoutManager(
-            requireContext(),
-            newOrientation,
-            false
-        )
-        setupTabList()
+        animateBottomSheetHeight(newHeight) {
+            binding.expandList.visibility = if (binding.expandList.isVisible) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+
+            binding.closeAllTabs.visibility = if (binding.closeAllTabs.isVisible) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+
+            binding.tabsList.layoutManager = LinearLayoutManager(
+                requireContext(),
+                newOrientation,
+                false
+            )
+            setupTabList()
+        }
+    }
+
+    private fun animateBottomSheetHeight(targetHeight: Int, onMidpoint: () -> Unit) {
+        val bottomSheet = binding.standardBottomSheet
+        val startHeight = bottomSheet.height
+        val isExpanding = targetHeight != ViewGroup.LayoutParams.WRAP_CONTENT
+        val interpolator: Interpolator = if (isExpanding) LinearOutSlowInInterpolator() else FastOutLinearInInterpolator()
+        val animationDuration = if (isExpanding) { 300 } else { 200 }
+
+        // If target is WRAP_CONTENT, measure it first
+        val finalHeight = if (!isExpanding) {
+            bottomSheet.measure(
+                View.MeasureSpec.makeMeasureSpec(bottomSheet.width, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+            )
+            bottomSheetContractedHeight
+        } else {
+            bottomSheetContractedHeight = bottomSheet.measuredHeight
+            targetHeight
+        }
+
+        val animator = ValueAnimator.ofInt(startHeight, finalHeight)
+        animator.addUpdateListener { animation ->
+            val progress = animation.animatedFraction
+            val value = animation.animatedValue as Int
+
+            // Update height
+            bottomSheet.layoutParams.height = value
+            bottomSheet.requestLayout()
+
+            // Update opacity based on progress
+            // Fade out in first half (0.0 -> 0.5), fade in during second half (0.5 -> 1.0)
+            val alpha = if (progress < 0.5f) {
+                1f - (progress * 2f) // 1.0 -> 0.0
+            } else {
+                (progress - 0.5f) * 2f // 0.0 -> 1.0
+            }
+            binding.tabsList.alpha = alpha
+        }
+
+        animator.addUpdateListener(object : ValueAnimator.AnimatorUpdateListener {
+            override fun onAnimationUpdate(animation: ValueAnimator) {
+                if (animation.animatedFraction >= 0.5f) {
+                    onMidpoint()
+                    animation.removeUpdateListener(this)
+                }
+            }
+        })
+
+        animator.duration = animationDuration.toLong()
+        animator.interpolator = interpolator
+        animator.start()
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -536,7 +602,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
         if (model.bottomSheetExpanded.value ?: true) {
             model._bottomSheetExpanded.postValue(false)
-            return true
         }
         return false
     }

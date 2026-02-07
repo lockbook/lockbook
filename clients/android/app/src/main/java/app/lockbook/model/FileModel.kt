@@ -2,8 +2,6 @@ package app.lockbook.model
 
 import net.lockbook.File
 import net.lockbook.Lb
-import net.lockbook.LbError
-import timber.log.Timber
 
 class FileModel(
     val root: File,
@@ -11,7 +9,6 @@ class FileModel(
     var idsAndFiles: Map<String, File>,
     var children: List<File>,
     var suggestedDocs: List<File>,
-    val fileDir: MutableList<File>,
 ) {
 
     companion object {
@@ -25,7 +22,6 @@ class FileModel(
                 emptyMap(),
                 listOf(),
                 listOf(),
-                mutableListOf(root),
             )
             fileModel.refreshFiles()
 
@@ -35,13 +31,8 @@ class FileModel(
         fun sortFiles(files: List<File>): List<File> = files.sortedWith(compareBy<File> { it.type }.thenBy { it.name })
     }
 
-    fun refreshChildrenAtAncestor(position: Int) {
-        val firstChildPosition = position + 1
-        for (index in firstChildPosition until fileDir.size) {
-            fileDir.removeAt(firstChildPosition)
-        }
-
-        parent = fileDir.last()
+    fun refreshChildrenAtAncestor(newParent: File) {
+        parent = newParent
         refreshChildren()
     }
 
@@ -53,27 +44,22 @@ class FileModel(
         refreshChildren()
     }
 
-    fun intoFile(newParent: File) {
-        if (newParent.parent == root.id && fileDir.size > 1) {
-            fileDir.clear()
-            fileDir.add(root)
-            fileDir.add(newParent)
-        } else {
-            try {
-                var curr: File? = newParent
-                val temp: MutableList<File> = mutableListOf()
+    fun getFileDir(): MutableList<File> {
+        var curr: File = parent
+        val temp: MutableList<File> = mutableListOf()
+        while (true) {
+            temp.add(curr)
 
-                while (curr != null && curr.id != parent.id && !curr.isRoot) {
-                    temp.add(curr)
-                    curr = idsAndFiles[curr.parent]
-                }
-                temp.reverse()
-                fileDir.addAll(temp)
-            } catch (err: LbError) {
-                Timber.e(err)
+            if (curr.isRoot) {
+                break
             }
-        }
 
+            curr = idsAndFiles[curr.parent] ?: break
+        }
+        temp.reverse()
+        return temp
+    }
+    fun enterFolder(newParent: File) {
         parent = newParent
         refreshChildren()
     }
@@ -81,25 +67,6 @@ class FileModel(
     fun intoParent() {
         parent = idsAndFiles[parent.parent]!!
         refreshChildren()
-        fileDir.removeAt(fileDir.lastIndex)
-    }
-
-    fun verifyOpenFile(id: String): Boolean {
-        val file = idsAndFiles[id] ?: return false
-
-        if (file.parent == root.id && fileDir.size > 1) {
-            refreshFiles()
-
-            fileDir.clear()
-            fileDir.add(root)
-
-            parent = root
-            refreshChildren()
-
-            return true
-        } else {
-            return false
-        }
     }
 
     private fun refreshChildren() {
