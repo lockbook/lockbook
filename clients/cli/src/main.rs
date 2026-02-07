@@ -10,8 +10,7 @@ mod share;
 mod stream;
 
 use std::env;
-use std::path::PathBuf;
-use std::time::Instant;
+use std::path::{Path, PathBuf};
 
 use account::ApiUrl;
 use cli_rs::arg::Arg;
@@ -20,14 +19,16 @@ use cli_rs::command::Command;
 use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
 
-use colored::Colorize;
 use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::service::sync::SyncProgress;
-use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
+use ort::session::Session;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::value::Value;
+use tokenizers::Tokenizer;
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -240,54 +241,185 @@ pub async fn core() -> CliResult<Lb> {
 async fn search(query: &str) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
+    
+    // Setup paths
+    let model_dir = "models/all-MiniLM-L6-v2";
+    let model_path = format!("{}/model.onnx", model_dir);
+    let tokenizer_path = format!("{}/tokenizer.json", model_dir);
+    
+    // Check if model exists
+    if !Path::new(&model_path).exists() {
+        return Err(CliError::from(
+            "Model not found. Please download the model."
+        ));
+    }
+    
+    if !Path::new(&tokenizer_path).exists() {
+        return Err(CliError::from(
+            "Tokenizer not found. Please download the model."
+        ));
+    }
+    
+    println!("Loading model...");
+    
+    // Load ONNX model
+    let mut session = Session::builder()
+        .map_err(|e| CliError::from(format!("Failed to create session: {}", e)))?
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| CliError::from(format!("Failed to set optimization: {}", e)))?
+        .with_intra_threads(4)
+        .map_err(|e| CliError::from(format!("Failed to set threads: {}", e)))?
+        .commit_from_file(&model_path)
+        .map_err(|e| CliError::from(format!("Failed to load model: {}", e)))?;
+    
+    // Load tokenizer
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        .map_err(|e| CliError::from(format!("Failed to load tokenizer: {}", e)))?;
+    
+    // Function to create embeddings
+    let create_embedding = |session: &mut Session, text: &str| -> Result<Vec<f32>, CliError> {
+        // Tokenize
+        let encoding = tokenizer.encode(text, true)
+            .map_err(|e| CliError::from(format!("Tokenization failed: {}", e)))?;
+        
+        let input_ids = encoding.get_ids();
+        let attention_mask = encoding.get_attention_mask();
+        
+        const MAX_LENGTH: usize = 256;
+        
+        // Pad/truncate to MAX_LENGTH
+        let mut padded_ids = vec![0i64; MAX_LENGTH];
+        let mut padded_mask = vec![0i64; MAX_LENGTH];
+        let padded_token_type_ids = vec![0i64; MAX_LENGTH];
+        
+        let len = input_ids.len().min(MAX_LENGTH);
+        for i in 0..len {
+            padded_ids[i] = input_ids[i] as i64;
+            padded_mask[i] = attention_mask[i] as i64;
+        }
+        
+        // Create input tensors
+        let input_ids_tensor = Value::from_array(([1, MAX_LENGTH], padded_ids))
+            .map_err(|e| CliError::from(format!("Failed to create input tensor: {}", e)))?;
+        
+        let attention_mask_tensor = Value::from_array(([1, MAX_LENGTH], padded_mask))
+            .map_err(|e| CliError::from(format!("Failed to create mask tensor: {}", e)))?;
 
-    let time = Instant::now();
-    lb.build_index().await?;
-    let build_time = time.elapsed();
-
-    lb.search.tantivy_reader.reload().unwrap();
-
-    let time = Instant::now();
-    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
-    let search_time = time.elapsed();
-
-    for result in results {
-        match result {
-            SearchResult::DocumentMatch { id: _, path, content_matches } => {
-                println!("{}", format!("DOC: {path}").bold().blue());
-                for content in content_matches {
-                    let mut result = String::default();
-                    for (i, c) in content.paragraph.char_indices() {
-                        if content.matched_indices.contains(&i) {
-                            result = format!("{result}{}", c.to_string().underline());
-                        } else {
-                            result = format!("{result}{c}");
-                        }
-                    }
-                    println!("{result}");
-                }
-                println!();
+        let token_type_ids_tensor = Value::from_array(([1, MAX_LENGTH], padded_token_type_ids))
+            .map_err(|e| CliError::from(format!("Failed to create token type tensor: {}", e)))?;
+        
+        // Run inference
+        let outputs = session.run(ort::inputs![
+            "input_ids" => input_ids_tensor,
+            "attention_mask" => attention_mask_tensor,
+            "token_type_ids" => token_type_ids_tensor,
+        ]).map_err(|e| CliError::from(format!("Model inference failed: {}", e)))?;
+        
+        // Extract embeddings
+        let embeddings = outputs[0].try_extract_tensor::<f32>()
+            .map_err(|e| CliError::from(format!("Failed to extract embeddings: {}", e)))?;
+        
+        let embedding_data = embeddings.1;
+        
+        // Mean pooling over sequence dimension
+        const HIDDEN_SIZE: usize = 384;
+        let mut pooled = vec![0.0f32; HIDDEN_SIZE];
+        
+        for i in 0..len {
+            for j in 0..HIDDEN_SIZE {
+                pooled[j] += embedding_data[i * HIDDEN_SIZE + j];
             }
-            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
-                let mut result = String::default();
-                for (i, c) in path.char_indices() {
-                    if matched_indices.contains(&i) {
-                        result = format!("{result}{}", c.to_string().underline());
-                    } else {
-                        result = format!("{result}{c}");
-                    }
-                }
-                println!("{}", format!("PATH: {result}").bold().green());
-                println!();
+        }
+        
+        // Average
+        if len > 0 {
+            for val in &mut pooled {
+                *val /= len as f32;
+            }
+        }
+        
+        // L2 normalization
+        let norm: f32 = pooled.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for val in &mut pooled {
+                *val /= norm;
+            }
+        }
+        
+        Ok(pooled)
+    };
+    
+    // Encode query
+    println!("Encoding query: \"{}\"", query);
+    let query_embedding = create_embedding(&mut session, query)?;
+    
+    // Get all files
+    println!("Reading documents...");
+    let files = lb.get_and_get_children_recursively(&lb.root().await?.id).await?;
+    
+    let mut results: Vec<(String, f32)> = Vec::new();
+    let mut processed = 0;
+    
+    for file in files {
+        if file.is_folder() {
+            continue;
+        }
+        
+        // Read document
+        let content = match lb.read_document(file.id, false).await {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        
+        let text = String::from_utf8_lossy(&content);
+        
+        if text.trim().len() < 10 {
+            continue;
+        }
+        
+        // Create embedding for document
+        match create_embedding(&mut session, &text) {
+            Ok(doc_embedding) => {
+                // Calculate cosine similarity
+                let similarity: f32 = query_embedding.iter()
+                    .zip(doc_embedding.iter())
+                    .map(|(a, b)| a * b)
+                    .sum();
+                
+                let path = lb.get_path_by_id(file.id).await
+                    .unwrap_or_else(|_| format!("[id:{}]", file.id));
+                
+                results.push((path, similarity));
+                processed += 1;
+            }
+            Err(e) => {
+                eprintln!("Warning: Failed to encode '{}': {:?}", file.name, e);
             }
         }
     }
-
-    let build_time = format!("{build_time:?}").bold();
-    let search_time = format!("{search_time:?}").bold();
-    println!("Index built in {build_time}");
-    println!("Search took {search_time}");
-
+    
+    println!("Processed {} documents", processed);
+    
+    // Sort by similarity (highest first)
+    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Display top 10
+    println!("\nTop 10 Results:");
+    println!("================");
+    
+    if results.is_empty() {
+        println!("No documents found.");
+        return Ok(());
+    }
+    
+    for (i, (path, score)) in results.iter().take(10).enumerate() {
+        println!("{}. {} (similarity: {:.4})", i + 1, path, score);
+    }
+    
+    if results.len() > 10 {
+        println!("\n{} more results not shown", results.len() - 10);
+    }
+    
     Ok(())
 }
 
