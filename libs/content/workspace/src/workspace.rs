@@ -694,21 +694,30 @@ impl Workspace {
     pub fn effective_focused_parent(&self) -> Uuid {
         let get_by_id_cached_read_through = |id| {
             if let Some(files) = &self.files {
-                files.files.get_by_id(id).unwrap().clone()
+                files.files.get_by_id(id).cloned()
             } else {
-                self.core.get_file_by_id(id).unwrap()
+                self.core.get_file_by_id(id).ok()
             }
         };
 
-        let focused_parent = if let Some(id) = self.focused_parent {
-            get_by_id_cached_read_through(id)
-        } else if let Some(id) = self.current_tab_id() {
-            get_by_id_cached_read_through(id)
-        } else if let Some(files) = &self.files {
-            files.root.clone()
-        } else {
-            self.core.get_root().unwrap()
+        let focused_parent = || {
+            if let Some(focused_parent) = self.focused_parent {
+                if let Some(focused_parent) = get_by_id_cached_read_through(focused_parent) {
+                    return focused_parent;
+                }
+            }
+            if let Some(current_tab) = self.current_tab_id() {
+                if let Some(current_tab) = get_by_id_cached_read_through(current_tab) {
+                    return current_tab;
+                }
+            }
+            if let Some(files) = &self.files {
+                files.root.clone()
+            } else {
+                self.core.get_root().unwrap()
+            }
         };
+        let focused_parent = focused_parent();
 
         if focused_parent.file_type == FileType::Document {
             focused_parent.parent
