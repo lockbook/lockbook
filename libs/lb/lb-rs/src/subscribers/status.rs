@@ -237,6 +237,7 @@ impl Lb {
             SyncIncrement::SyncFinished(maybe_problem) => {
                 // Clear prior sync outcomes here (not at start) so errors persist until a new completed sync
                 self.reset_sync_outcome(&mut status);
+                self.reset_in_flight_sync(&mut status);
 
                 self.spawn_compute_usage().await;
                 status.dirty_locally = self.local_changes().await;
