@@ -17,7 +17,7 @@ struct SyncButton: View {
             if syncButtonStatus == .updateRequired {
                 AppState.shared.error = .custom(title: "Your Lockbook is out of date", msg: "Update to the latest version to sync")
             } else if syncButtonStatus == .outOfSpace {
-                homeState.showOutOfSpaceAlert = true
+                homeState.triggerOutOfSpaceAlert()
             }
             
             
