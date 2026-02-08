@@ -217,7 +217,7 @@ impl Lb {
     async fn update_sync(&self, s: SyncIncrement, mut status: Status) -> LbResult<()> {
         match s {
             SyncIncrement::SyncStarted => {
-                self.reset_sync(&mut status);
+                self.reset_in_flight_sync(&mut status);
                 status.syncing = true;
             }
             SyncIncrement::PullingDocument(id, in_progress) => {
@@ -235,7 +235,9 @@ impl Lb {
                 }
             }
             SyncIncrement::SyncFinished(maybe_problem) => {
-                self.reset_sync(&mut status);
+                // Clear prior sync outcomes here (not at start) so errors persist until a new completed sync
+                self.reset_sync_outcome(&mut status);
+
                 self.spawn_compute_usage().await;
                 status.dirty_locally = self.local_changes().await;
                 if status.dirty_locally.is_empty() {
@@ -269,15 +271,18 @@ impl Lb {
         Ok(())
     }
 
-    fn reset_sync(&self, status: &mut Status) {
+    fn reset_in_flight_sync(&self, status: &mut Status) {
         status.syncing = false;
         status.pulling_files.clear();
         status.pushing_files.clear();
+        status.sync_status = None;
+        status.unexpected_sync_problem = None;
+    }
+
+    fn reset_sync_outcome(&self, status: &mut Status) {
         status.offline = false;
         status.update_required = false;
         status.out_of_space = false;
-        status.sync_status = None;
-        status.unexpected_sync_problem = None;
     }
 }
 
