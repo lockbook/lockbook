@@ -702,13 +702,13 @@ impl Workspace {
 
         let focused_parent = || {
             if let Some(focused_parent) =
-                self.focused_parent.and_then(&get_by_id_cached_read_through)
+                self.focused_parent.and_then(get_by_id_cached_read_through)
             {
                 return focused_parent;
             }
             if let Some(current_tab) = self
                 .current_tab_id()
-                .and_then(&get_by_id_cached_read_through)
+                .and_then(get_by_id_cached_read_through)
             {
                 return current_tab;
             }
