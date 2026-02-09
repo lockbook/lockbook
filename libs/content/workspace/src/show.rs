@@ -14,6 +14,7 @@ use tracing::instrument;
 use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
 
@@ -345,8 +346,9 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
+        let theme = self.ctx.get_theme();
 
-        let bg_color = get_apple_bg_color(ui);
+        let bg_color = theme.bg().grey;
         ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
 
         ui.painter()
@@ -546,8 +548,11 @@ impl Workspace {
             .text_styles
             .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
 
-        let tab_bg =
-            if is_active { ui.style().visuals.extreme_bg_color } else { get_apple_bg_color(ui) };
+        let tab_bg = if is_active {
+            ui.style().visuals.extreme_bg_color
+        } else {
+            self.ctx.get_theme().bg().grey
+        };
 
         let tab_padding = egui::Margin::symmetric(10.0, 10.0);
 
@@ -808,6 +813,7 @@ impl Workspace {
         }
 
         if !is_active && tab_label.response.hovered() {
+            // this logic probably needs to be brought to the icon forwad and back buttons
             ui.painter().rect_filled(
                 tab_label.response.rect,
                 0.0,
@@ -851,15 +857,6 @@ impl Workspace {
         });
 
         result
-    }
-}
-
-/// get the color for the native apple title bar
-fn get_apple_bg_color(ui: &mut egui::Ui) -> egui::Color32 {
-    if ui.visuals().dark_mode {
-        egui::Color32::from_rgb(57, 57, 56)
-    } else {
-        egui::Color32::from_rgb(240, 240, 239)
     }
 }
 
