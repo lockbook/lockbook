@@ -102,8 +102,48 @@ impl Theme {
         Self::travis_prophecy(current)
     }
 
+        pub fn travis_prophecy(current: Mode) -> Self {
+        Self {
+            current,
+            light: ThemeVariant {
+                black: hex_color!("#101010"),
+                red: hex_color!("#DF2040"),
+                green: hex_color!("#2DD296"),
+                yellow: hex_color!("#FFBF00"),
+                blue: hex_color!("#207FDF"),
+                magenta: hex_color!("#7855AA"),
+                cyan: hex_color!("#13DAEC"),
+                white: hex_color!("#FFFFFF"),
+                grey: hex_color!("#1A1A1A"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Cyan, 
+                quaternary: Palette::Green,
+            },
+            dark: ThemeVariant {
+                black: hex_color!("#101010"),
+                grey: hex_color!("#F0F0F0"),
+                red: hex_color!("#FF6680"),
+                green: hex_color!("#67E4B6"),
+                yellow: hex_color!("#FFDB70"),
+                blue: hex_color!("#66B2FF"),
+                magenta: hex_color!("#AC8CD9"),
+                cyan: hex_color!("#6EECF7"),
+                white: hex_color!("#FFFFFF"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Cyan,
+                quaternary: Palette::Green,
+            },
+        }
+    }
+
     /// Optimizing for travis stim
-    pub fn travis_prophecy(current: Mode) -> Self {
+    pub fn darcula(current: Mode) -> Self {
         Self {
             current,
             dark: ThemeVariant {
@@ -119,9 +159,9 @@ impl Theme {
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
-                secondary: Palette::Magenta,
-                tertiary: Palette::Red, 
-                quaternary: Palette::Yellow,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta, 
+                quaternary: Palette::Cyan,
             },
             light: ThemeVariant {
                 black: hex_color!("#15131F"),
@@ -136,9 +176,9 @@ impl Theme {
             },
             dark_prefs: Preferences {
                 primary: Palette::Blue,
-                secondary: Palette::Magenta,
-                tertiary: Palette::Yellow,
-                quaternary: Palette::Green,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
             },
         }
     }
