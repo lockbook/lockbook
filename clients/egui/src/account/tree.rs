@@ -1059,13 +1059,13 @@ impl FileTree {
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = theme.bg().get_color(theme.prefs().primary);
-            ui.visuals_mut().widgets.hovered.bg_fill = theme.bg().get_color(theme.prefs().primary);
+            default_fill = theme.bg().get_color(theme.prefs().primary).gamma_multiply(0.4);
+            ui.visuals_mut().widgets.hovered.bg_fill = default_fill;
         } else {
             ui.visuals_mut().widgets.hovered.bg_fill = theme
                 .bg()
                 .get_color(theme.prefs().primary)
-                .gamma_multiply(if ui.visuals().dark_mode { 0.2 } else { 0.8 });
+                .gamma_multiply(0.1);
         }
 
         if self.cursor == Some(file.id) && focused {
