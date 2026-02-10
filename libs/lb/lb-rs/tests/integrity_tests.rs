@@ -11,21 +11,21 @@ use test_utils::*;
 #[tokio::test]
 async fn test_integrity_no_problems() {
     let core = test_core_with_account().await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
 async fn test_integrity_no_problems_but_more_complicated() {
     let core = test_core_with_account().await;
     core.create_at_path("test.md").await.unwrap();
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
 async fn test_no_account() {
     let core = test_core().await;
     assert_matches!(
-        core.test_repo_integrity().await.unwrap_err().kind,
+        core.test_repo_integrity(true).await.unwrap_err().kind,
         LbErrKind::AccountNonexistent
     );
 }
@@ -37,7 +37,7 @@ async fn test_no_root() {
     tx.db().base_metadata.clear().unwrap();
     tx.db().root.clear().unwrap();
     tx.end();
-    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::RootNonexistent);
+    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::RootNonexistent);
 }
 
 #[tokio::test]
@@ -47,7 +47,7 @@ async fn test_orphaned_children() {
     core.create_at_path("folder1/folder2/document1.md")
         .await
         .unwrap();
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 
     let parent = core.get_by_path("folder1").await.unwrap().id;
     core.begin_tx()
@@ -56,7 +56,7 @@ async fn test_orphaned_children() {
         .local_metadata
         .remove(&parent)
         .unwrap();
-    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::Validation(_));
+    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::Validation(_));
 }
 
 #[tokio::test]
@@ -76,7 +76,7 @@ async fn test_invalid_file_name_slash() {
     tx.end();
 
     assert_matches!(
-        core.test_repo_integrity().await.unwrap_err().kind,
+        core.test_repo_integrity(true).await.unwrap_err().kind,
         LbErrKind::FileNameContainsSlash
     );
 }
@@ -97,7 +97,7 @@ async fn empty_filename() {
 
     tx.end();
 
-    assert_matches!(core.test_repo_integrity().await.unwrap_err().kind, LbErrKind::FileNameEmpty);
+    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::FileNameEmpty);
 }
 
 #[tokio::test]
@@ -132,7 +132,7 @@ async fn test_cycle() {
         .insert(*parent.id(), parent)
         .unwrap();
     assert_matches!(
-        core.test_repo_integrity().await.unwrap_err().kind,
+        core.test_repo_integrity(true).await.unwrap_err().kind,
         LbErrKind::Validation(ValidationFailure::Cycle(_))
     );
 }
@@ -161,7 +161,7 @@ async fn test_documents_treated_as_folders() {
         .insert(*parent.id(), parent)
         .unwrap();
     assert_matches!(
-        core.test_repo_integrity().await.unwrap_err().kind,
+        core.test_repo_integrity(true).await.unwrap_err().kind,
         LbErrKind::Validation(ValidationFailure::NonFolderWithChildren(_))
     );
 }
@@ -184,7 +184,7 @@ async fn test_name_conflict() {
     tx.end();
 
     assert_matches!(
-        core.test_repo_integrity().await.unwrap_err().kind,
+        core.test_repo_integrity(true).await.unwrap_err().kind,
         LbErrKind::Validation(ValidationFailure::PathConflict(_))
     );
 }
@@ -194,7 +194,7 @@ async fn test_empty_file() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document.txt").await.unwrap();
     core.write_document(doc.id, &[]).await.unwrap();
-    let warnings = core.test_repo_integrity().await;
+    let warnings = core.test_repo_integrity(true).await;
 
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([EmptyFile(_)]));
 }
@@ -206,7 +206,7 @@ async fn test_invalid_utf8() {
     core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
-    let warnings = core.test_repo_integrity().await;
+    let warnings = core.test_repo_integrity(true).await;
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([InvalidUTF8(_)]));
 }
 
@@ -217,6 +217,6 @@ async fn test_invalid_utf8_ignores_non_utf_file_extensions() {
     core.write_document(doc.id, rand::thread_rng().r#gen::<[u8; 32]>().as_ref())
         .await
         .unwrap();
-    let warnings = core.test_repo_integrity().await;
+    let warnings = core.test_repo_integrity(true).await;
     assert_matches!(warnings.as_ref().map(|w| &w[..]), Ok([]));
 }

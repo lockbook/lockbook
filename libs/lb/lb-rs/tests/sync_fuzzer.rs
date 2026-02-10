@@ -76,7 +76,7 @@ impl Actions {
                     for col in clients {
                         assert::cores_equal(row, col).await;
                     }
-                    row.test_repo_integrity().await.unwrap();
+                    row.test_repo_integrity(true).await.unwrap();
                     assert!(row.calculate_work().await.unwrap().work_units.is_empty());
                 }
             }

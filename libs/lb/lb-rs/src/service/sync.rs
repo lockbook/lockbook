@@ -155,7 +155,7 @@ impl Lb {
         {
             let account = self.get_account()?;
             if account.is_beta() {
-                let debug_info = self.debug_info("".into()).await?;
+                let debug_info = self.debug_info("".into(), false).await?;
 
                 self.client
                     .request(account, UpsertDebugInfoRequest { debug_info })

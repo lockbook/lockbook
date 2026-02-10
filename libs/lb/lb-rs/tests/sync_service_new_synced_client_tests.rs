@@ -4,7 +4,7 @@ use test_utils::*;
 /// Tests that operate on one client, sync it, then create and sync a new client (work should be
 /// none, devices dbs should be equal, deleted files should be pruned).
 async fn assert_stuff(c1: &Lb, c2: &Lb) {
-    c1.test_repo_integrity().await.unwrap();
+    c1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(c1, c2).await;
     assert::local_work_paths(c1, &[]).await;
     assert::server_work_paths(c1, &[]).await;

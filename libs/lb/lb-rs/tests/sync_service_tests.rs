@@ -98,7 +98,7 @@ async fn fuzzer_stuck_test_2() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 }
 
@@ -119,7 +119,7 @@ async fn fuzzer_stuck_test_3() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 
     db1.create_at_path("/a/b.md").await.unwrap();
@@ -132,7 +132,7 @@ async fn fuzzer_stuck_test_3() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 }
 
@@ -161,7 +161,7 @@ async fn fuzzer_stuck_test_4() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 }
 
@@ -183,7 +183,7 @@ async fn fuzzer_stuck_test_5() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 
     db1.move_file(&b.id, &root.id).await.unwrap();
@@ -194,7 +194,7 @@ async fn fuzzer_stuck_test_5() {
     db2.sync(None).await.unwrap();
     db1.sync(None).await.unwrap();
     db2.sync(None).await.unwrap();
-    db1.test_repo_integrity().await.unwrap();
+    db1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&db1, &db2).await;
 }
 
@@ -214,7 +214,7 @@ async fn fuzzer_stuck_test_6() {
     core2.sync(None).await.unwrap();
     core1.sync(None).await.unwrap();
     core2.sync(None).await.unwrap();
-    core1.test_repo_integrity().await.unwrap();
+    core1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(&core1, &core2).await;
 }
 

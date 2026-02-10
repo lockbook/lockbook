@@ -123,7 +123,7 @@ async fn disappear_file_shared_with_disappeared_account() {
     );
 
     let cust1_new_device = test_core_from(&customer1).await;
-    cust1_new_device.test_repo_integrity().await.unwrap();
+    cust1_new_device.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -173,7 +173,7 @@ async fn admin_disappear_folder_shared_with_disappeared_account() {
     );
 
     let cust1_new_device = test_core_from(&customer1).await;
-    cust1_new_device.test_repo_integrity().await.unwrap();
+    cust1_new_device.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -234,7 +234,7 @@ async fn admin_rebuild_owned_files_index_test() {
     );
 
     let cust1_new_device = test_core_from(&customer1).await;
-    cust1_new_device.test_repo_integrity().await.unwrap();
+    cust1_new_device.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -295,5 +295,5 @@ async fn admin_rebuild_shared_files_index_test() {
     );
 
     let cust2_new_device = test_core_from(&customer2).await;
-    cust2_new_device.test_repo_integrity().await.unwrap();
+    cust2_new_device.test_repo_integrity(true).await.unwrap();
 }
