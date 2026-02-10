@@ -514,25 +514,6 @@ impl<'ast> Editor {
 
         false
     }
-
-    pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
-        let range = self.node_range(node);
-        self.layout_cache
-            .hidden_by_fold
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
-    }
-
-    pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
-        let range = self.node_range(node);
-        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = hidden,
-            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
-        }
-    }
 }
 
 #[derive(Default)]
@@ -689,6 +670,25 @@ impl<'ast> Editor {
             .node_range
             .borrow_mut()
             .insert(key_hash, range);
+    }
+
+    pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
+        let range = self.node_range(node);
+        self.layout_cache
+            .hidden_by_fold
+            .borrow()
+            .binary_search_by(|entry| entry.range.cmp(&range))
+            .ok()
+            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+    }
+
+    pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
+        let range = self.node_range(node);
+        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
+        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
+            Ok(i) => cache[i].value = hidden,
+            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
+        }
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key
