@@ -176,7 +176,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     #[cfg(not(target_family = "wasm"))]
-    pub async fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
+    pub async fn debug_info(&self, os_info: String, check_docs: bool) -> LbResult<DebugInfo> {
         let account = self.get_account()?;
 
         let arch = env::consts::ARCH;
@@ -184,7 +184,7 @@ impl Lb {
         let family = env::consts::FAMILY;
 
         let (integrity, last_synced, panics, lb_id) = tokio::join!(
-            self.test_repo_integrity(),
+            self.test_repo_integrity(check_docs),
             self.human_last_synced(),
             self.collect_panics(true),
             self.lb_id()
@@ -204,7 +204,10 @@ impl Lb {
             lb_id: lb_id?,
             rust_triple: format!("{arch}.{family}.{os}"),
             server_url: account.api_url.clone(),
-            integrity: format!("{integrity:?}"),
+            integrity: format!(
+                "{} {integrity:?}",
+                if check_docs { "" } else { "doc checks skipped" }
+            ),
             lb_dir: self.config.writeable_path.clone(),
             last_synced,
             os_info,

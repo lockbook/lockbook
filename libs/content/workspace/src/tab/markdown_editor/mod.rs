@@ -373,7 +373,10 @@ impl Editor {
 
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection != self.buffer.current.selection;
+        resp.selection_updated = prior_selection
+            != self
+                .in_progress_selection
+                .unwrap_or(self.buffer.current.selection);
 
         self.images = widget::inline::image::cache::calc(
             root,

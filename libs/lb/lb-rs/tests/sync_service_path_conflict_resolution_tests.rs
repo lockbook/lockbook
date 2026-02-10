@@ -10,7 +10,7 @@ async fn sync_and_assert_stuff(c1: &Lb, c2: &Lb) {
     c1.sync(None).await.unwrap();
     c2.sync(None).await.unwrap();
 
-    c1.test_repo_integrity().await.unwrap();
+    c1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(c1, c2).await;
     assert::local_work_paths(c1, &[]).await;
     assert::server_work_paths(c1, &[]).await;
