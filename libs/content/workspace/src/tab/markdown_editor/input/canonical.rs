@@ -88,19 +88,14 @@ impl Editor {
                         }
                     }
                 }
+                let text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
                 if link_paste {
                     Some(Event::ToggleStyle {
                         region: Region::Selection,
-                        style: NodeValue::Link(
-                            NodeLink { url: text.clone(), ..Default::default() }.into(),
-                        ),
+                        style: NodeValue::Link(NodeLink { url: text, ..Default::default() }.into()),
                     })
                 } else {
-                    Some(Event::Replace {
-                        region: Region::Selection,
-                        text: text.clone(),
-                        advance_cursor: true,
-                    })
+                    Some(Event::Replace { region: Region::Selection, text, advance_cursor: true })
                 }
             }
             egui::Event::Text(text) => {
