@@ -7,11 +7,11 @@ mod history;
 mod path_builder;
 mod pen;
 mod renderer;
+mod roger;
 mod selection;
 mod shapes;
 mod toolbar;
 mod util;
-
 use web_time::Instant;
 
 use self::history::History;
@@ -212,7 +212,7 @@ impl SVGEditor {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
-
+        ui.input(|r| println!("{:#?}", r.events));
         let frame = ui.ctx().frame_nr();
         let span = span!(Level::TRACE, "showing canvas widget", frame);
         let _ = span.enter();
