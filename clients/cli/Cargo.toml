@@ -22,3 +22,4 @@ tokio = { version = "1.35.1", features = ["full"] }
 colored = "3.0.0"
 ort = "2.0.0-rc.11"
 tokenizers = { version = "0.13", default-features = false, features = ["onig"] }
+text-splitter = "0.29.3"
