@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::Editor;
@@ -40,7 +40,7 @@ impl<'ast> Editor {
             wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
         }
 
-        images_height + wrap.height()
+        BLOCK_PADDING + images_height + wrap.height() + BLOCK_PADDING
     }
 
     pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -49,7 +49,7 @@ impl<'ast> Editor {
     }
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        top_left.x += BLOCK_PADDING;
+        top_left += Vec2::splat(BLOCK_PADDING);
         let width = self.width(node) - 2.0 * BLOCK_PADDING;
         let mut wrap = Wrap::new(width);
         let node_line = self.node_range(node); // table cells are always single-line
