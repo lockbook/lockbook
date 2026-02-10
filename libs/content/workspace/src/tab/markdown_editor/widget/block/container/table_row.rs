@@ -105,27 +105,41 @@ impl<'ast> Editor {
         let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
         let children = self.sorted_children(node); // todo: these will always already be sorted
+        let line = self.node_first_line(node);
+        let node_line = self.node_line(node, line);
 
+        // check for cursor between cells
         let mut range_start = row_range.start();
         for cell in &children {
-            let cell_range = self.node_range(cell);
+            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
+                self.split_range(cell, node_line)
+            {
+                cell_children_range
+            } else {
+                self.node_range(cell)
+            };
 
             let between_range = (range_start, cell_range.start());
-            if between_range.intersects(&selection, true)
-                || between_range.contains(selection.end(), true, true)
-            {
+
+            if between_range.contains_range(&selection, false, false) {
                 return true;
             }
 
             range_start = cell_range.end();
         }
+
+        // check for cursor after last cell
         if let Some(cell) = children.last() {
-            let cell_range = self.node_range(cell);
+            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
+                self.split_range(cell, node_line)
+            {
+                cell_children_range
+            } else {
+                self.node_range(cell)
+            };
 
             let between_range = (cell_range.end(), row_range.end());
-            if between_range.intersects(&selection, true)
-                || between_range.contains(selection.end(), true, true)
-            {
+            if between_range.contains_range(&selection, false, true) {
                 return true;
             }
         }

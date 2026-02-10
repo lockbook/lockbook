@@ -14,7 +14,7 @@ impl<'ast> Editor {
     /// Returns 5 ranges representing the pre-node range, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node range.
     #[allow(clippy::type_complexity)]
-    fn split_range(
+    pub fn split_range(
         &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
     ) -> Option<(
         (DocCharOffset, DocCharOffset),

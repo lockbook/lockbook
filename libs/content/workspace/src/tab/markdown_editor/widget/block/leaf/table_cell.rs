@@ -21,24 +21,7 @@ impl<'ast> Editor {
             }
         }
 
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            let reveal = node_line.intersects(&self.buffer.current.selection, true);
-            if reveal {
-                wrap.offset += self.span_section(&wrap, pre_node, self.text_format_syntax(node));
-                wrap.offset +=
-                    self.span_section(&wrap, pre_children, self.text_format_syntax(node));
-            }
-            wrap.offset += self.inline_children_span(node, &wrap, node_line);
-            if reveal {
-                wrap.offset +=
-                    self.span_section(&wrap, post_children, self.text_format_syntax(node));
-                wrap.offset += self.span_section(&wrap, post_node, self.text_format_syntax(node));
-            }
-        } else {
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
-        }
+        wrap.offset += self.inline_children_span(node, &wrap, node_line);
 
         BLOCK_PADDING + images_height + wrap.height() + BLOCK_PADDING
     }
@@ -63,50 +46,7 @@ impl<'ast> Editor {
             }
         }
 
-        let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            if reveal {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_node,
-                    self.text_format_syntax(node),
-                    false,
-                );
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_children,
-                    self.text_format_syntax(node),
-                    false,
-                );
-            }
-            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-            if reveal {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_children,
-                    self.text_format_syntax(node),
-                    false,
-                );
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_node,
-                    self.text_format_syntax(node),
-                    false,
-                );
-            }
-        } else {
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format(node), false);
-        }
+        self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
