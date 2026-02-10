@@ -209,10 +209,18 @@ impl<'ast> Editor {
                     Some(self.region_to_range(Region::ToLocation(location)));
                 return Vec::new();
             } else if response.dragged() {
-                let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
-                let region =
-                    Region::BetweenLocations { start: Location::Pos(drag_origin), end: location };
-                self.in_progress_selection = Some(self.region_to_range(region));
+                if response.drag_started() {
+                    // convert drag origin on first frame so it doesn't update as we auto-scroll
+                    let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
+                    self.in_progress_selection =
+                        Some(self.region_to_range(Region::Location(Location::Pos(drag_origin))));
+                }
+
+                let offset = self.location_to_char_offset(location);
+                if let Some(in_progress_selection) = &mut self.in_progress_selection {
+                    in_progress_selection.1 = offset;
+                }
+
                 return Vec::new();
             } else {
                 // can't yet tell if drag
