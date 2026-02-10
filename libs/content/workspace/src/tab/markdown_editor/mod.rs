@@ -10,7 +10,8 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
-    Color32, Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin, Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area
+    Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
+    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;

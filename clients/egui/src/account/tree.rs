@@ -1059,7 +1059,10 @@ impl FileTree {
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = theme.bg().get_color(theme.prefs().primary).gamma_multiply(0.4);
+            default_fill = theme
+                .bg()
+                .get_color(theme.prefs().primary)
+                .gamma_multiply(0.4);
             ui.visuals_mut().widgets.hovered.bg_fill = default_fill;
         } else {
             ui.visuals_mut().widgets.hovered.bg_fill = theme

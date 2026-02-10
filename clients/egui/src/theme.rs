@@ -1,7 +1,7 @@
-use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use workspace_rs::theme::visuals;
 
 use crate::settings::{Settings, ThemeMode};
@@ -72,9 +72,9 @@ pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode) {
         // dark. This "Default" mode is also illustrated as a mix of light and dark windows
         dark_light::Mode::Unspecified | dark_light::Mode::Light => {
             ctx.set_theme(Theme::default(Mode::Light));
-        },
+        }
         dark_light::Mode::Dark => {
             ctx.set_theme(Theme::default(Mode::Dark));
-        },
+        }
     };
 }

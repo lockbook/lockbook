@@ -25,4 +25,3 @@ pub fn init(ctx: &egui::Context) {
 
     ctx.set_style(style);
 }
-

@@ -97,12 +97,11 @@ impl ThemeVariant {
 }
 
 impl Theme {
-
     pub fn default(current: Mode) -> Self {
         Self::travis_prophecy(current)
     }
 
-        pub fn travis_prophecy(current: Mode) -> Self {
+    pub fn travis_prophecy(current: Mode) -> Self {
         Self {
             current,
             light: ThemeVariant {
@@ -119,7 +118,7 @@ impl Theme {
             light_prefs: Preferences {
                 primary: Palette::Blue,
                 secondary: Palette::Magenta,
-                tertiary: Palette::Cyan, 
+                tertiary: Palette::Cyan,
                 quaternary: Palette::Green,
             },
             dark: ThemeVariant {
@@ -142,7 +141,6 @@ impl Theme {
         }
     }
 
-    /// Optimizing for travis stim
     pub fn darcula(current: Mode) -> Self {
         Self {
             current,
@@ -160,7 +158,7 @@ impl Theme {
             light_prefs: Preferences {
                 primary: Palette::Blue,
                 secondary: Palette::Green,
-                tertiary: Palette::Magenta, 
+                tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
             light: ThemeVariant {
@@ -182,83 +180,6 @@ impl Theme {
             },
         }
     }
-
-    // Innovation is more consistent
-    // pub fn travis_inovation(current: Mode) -> Self {
-    //     Self {
-    //         current,
-    //         light: ThemeVariant {
-    //             black: hex_color!("#101010"),
-    //             red: hex_color!("#DF2040"),
-    //             green: hex_color!("#2DD296"),
-    //             yellow: hex_color!("#FFBF00"),
-    //             blue: hex_color!("#207FDF"),
-    //             magenta: hex_color!("#7855AA"),
-    //             cyan: hex_color!("#13DAEC"),
-    //             white: hex_color!("#D0D0D0"),
-    //         },
-    //         light_prefs: Preferences {
-    //             primary: Palette::Blue,
-    //             secondary: Palette::Green,
-    //             tertiary: Palette::Magenta,
-    //             quaternary: Palette::Cyan, 
-    //         },
-    //         dark: ThemeVariant {
-    //             black: hex_color!("#808080"),
-    //             red: hex_color!("#FF6680"),
-    //             green: hex_color!("#67E4B6"),
-    //             yellow: hex_color!("#FFDB70"),
-    //             blue: hex_color!("#66B2FF"),
-    //             magenta: hex_color!("#AC8CD9"),
-    //             cyan: hex_color!("#6EECF7"),
-    //             white: hex_color!("#F0F0F0"),
-    //         },
-    //         dark_prefs: Preferences {
-    //             primary: Palette::Blue,
-    //             secondary: Palette::Green,
-    //             tertiary: Palette::Magenta,
-    //             quaternary: Palette::Cyan,
-    //         },
-    //     }
-    // }
-
-    // pub fn everforest(current: Mode) -> Self {
-    //     Self {
-    //         current,
-    //         light: ThemeVariant {
-    //             black: hex_color!("#5c6a72"),
-    //             red: hex_color!("#f85552"),
-    //             green: hex_color!("#8da101"),
-    //             yellow: hex_color!("#dfa000"),
-    //             blue: hex_color!("#3a94c5"),
-    //             magenta: hex_color!("#df69ba"),
-    //             cyan: hex_color!("#35a77c"),
-    //             white: hex_color!("#f4f0d9"),
-    //         },
-    //         light_prefs: Preferences {
-    //             primary: Palette::Green,
-    //             secondary: Palette::Magenta,
-    //             tertiary: Palette::Red,
-    //             quaternary: Palette::Yellow,
-    //         },
-    //         dark: ThemeVariant {
-    //             black: hex_color!("#fdf6e3"),
-    //             red: hex_color!("#f85552"),
-    //             green: hex_color!("#8da101"),
-    //             yellow: hex_color!("#dfa000"),
-    //             blue: hex_color!("#3a94c5"),
-    //             magenta: hex_color!("#df69ba"),
-    //             cyan: hex_color!("#35a77c"),
-    //             white: hex_color!("#939f91"),
-    //         },
-    //         dark_prefs: Preferences {
-    //             primary: Palette::Green,
-    //             secondary: Palette::Magenta,
-    //             tertiary: Palette::Red,
-    //             quaternary: Palette::Yellow,
-    //         },
-    //     }        
-    // }
 }
 
 pub trait ThemeExt {
@@ -291,7 +212,7 @@ impl Theme {
             override_text_color: None,
             window_fill: self.bg().grey,
             extreme_bg_color: bg, // will need light mode
-                                                                            // switch
+            // switch
             selection: style::Selection {
                 bg_fill: self.bg().get_color(self.prefs().primary),
                 ..Default::default()

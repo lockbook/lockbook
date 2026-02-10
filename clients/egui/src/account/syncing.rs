@@ -103,8 +103,7 @@ impl super::AccountScreen {
         // ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
         // ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
 
-        ui.visuals_mut().widgets.inactive.bg_fill =
-            ui.visuals().widgets.active.bg_fill;
+        ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
         // ui.visuals_mut().widgets.hovered.bg_fill =
         //     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
 

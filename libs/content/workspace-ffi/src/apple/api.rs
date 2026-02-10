@@ -1,10 +1,10 @@
 use crate::WgpuWorkspace;
 use egui::{Event, MouseWheelUnit, Pos2, vec2};
 use lb_c::Uuid;
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
-use workspace_rs::theme::visuals;
 
 use super::response::*;
 
@@ -62,7 +62,14 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    visuals::init(&obj.renderer.context, dark);
+    let mut theme = obj.renderer.context.get_theme();
+    if dark {
+        theme.current = Mode::Dark;
+    } else {
+        theme.current = Mode::Light;
+    }
+
+    obj.renderer.context.set_theme(theme);
 }
 
 /// # Safety
