@@ -37,7 +37,10 @@ async fn test_no_root() {
     tx.db().base_metadata.clear().unwrap();
     tx.db().root.clear().unwrap();
     tx.end();
-    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::RootNonexistent);
+    assert_matches!(
+        core.test_repo_integrity(true).await.unwrap_err().kind,
+        LbErrKind::RootNonexistent
+    );
 }
 
 #[tokio::test]
@@ -56,7 +59,10 @@ async fn test_orphaned_children() {
         .local_metadata
         .remove(&parent)
         .unwrap();
-    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::Validation(_));
+    assert_matches!(
+        core.test_repo_integrity(true).await.unwrap_err().kind,
+        LbErrKind::Validation(_)
+    );
 }
 
 #[tokio::test]
@@ -97,7 +103,10 @@ async fn empty_filename() {
 
     tx.end();
 
-    assert_matches!(core.test_repo_integrity(true).await.unwrap_err().kind, LbErrKind::FileNameEmpty);
+    assert_matches!(
+        core.test_repo_integrity(true).await.unwrap_err().kind,
+        LbErrKind::FileNameEmpty
+    );
 }
 
 #[tokio::test]
