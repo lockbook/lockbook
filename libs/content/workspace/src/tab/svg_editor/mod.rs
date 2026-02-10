@@ -12,7 +12,7 @@ mod shapes;
 mod toolbar;
 mod util;
 
-use std::time::Instant;
+use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
@@ -274,6 +274,7 @@ impl SVGEditor {
         self.has_islands_interaction = false;
         self.buffer.master_transform_changed = false;
         ui.ctx().pop_events();
+
         Response { request_save: !self.read_only && needs_save_and_frame_is_cheap }
     }
 

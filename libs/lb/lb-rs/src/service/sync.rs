@@ -3,8 +3,7 @@ use crate::io::network::ApiError;
 use crate::model::access_info::UserAccessMode;
 use crate::model::api::{
     ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest,
-    UpsertRequestV2,
+    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
 };
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
@@ -28,12 +27,15 @@ use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Instant;
 use time::Duration;
 use usvg::Transform;
 use uuid::Uuid;
+use web_time::Instant;
 
 use super::events::Actor;
+
+#[cfg(not(target_family = "wasm"))]
+use crate::model::api::UpsertDebugInfoRequest;
 
 pub type SyncFlag = Arc<AtomicBool>;
 
@@ -149,13 +151,16 @@ impl Lb {
             }
         }
 
-        let account = self.get_account()?;
-        if account.is_beta() {
-            let debug_info = self.debug_info("".into()).await?;
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let account = self.get_account()?;
+            if account.is_beta() {
+                let debug_info = self.debug_info("".into(), false).await?;
 
-            self.client
-                .request(account, UpsertDebugInfoRequest { debug_info })
-                .await?;
+                self.client
+                    .request(account, UpsertDebugInfoRequest { debug_info })
+                    .await?;
+            }
         }
 
         Ok(ctx.summarize())
@@ -322,7 +327,7 @@ impl Lb {
         }
 
         drop(tx);
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync fetch_docs held lock for {:?}", start.elapsed());
         }
 
@@ -949,7 +954,7 @@ impl Lb {
         // self.cleanup_local_metadata()?;
         db.base_metadata.stage(&mut db.local_metadata).prune()?;
 
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync merge held lock for {:?}", start.elapsed());
         }
 
@@ -1044,7 +1049,7 @@ impl Lb {
         }
 
         drop(tx);
-        if start.elapsed() > std::time::Duration::from_millis(100) {
+        if start.elapsed() > web_time::Duration::from_millis(100) {
             warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 

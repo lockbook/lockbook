@@ -27,7 +27,7 @@ impl Worker {
             let trial = self.coord.grab_ready_trial_for_thread(self.id);
             match trial {
                 (Some(mut work), _) => {
-                    let now = time::Instant::now();
+                    let now = web_time::Instant::now();
                     let mut mutants = work.execute(self.id, &self.cache);
                     mutants.reverse();
                     let elapsed = now.elapsed().whole_milliseconds() as u64;

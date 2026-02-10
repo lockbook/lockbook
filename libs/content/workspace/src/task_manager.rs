@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, mpsc};
-use std::time::{Duration, Instant};
 use std::{mem, thread};
+use web_time::{Duration, Instant};
 
 use egui::Context;
-use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
 
 use crate::tab::{Tab, TabSaveContent, TabsExt as _};
@@ -424,7 +424,7 @@ impl TaskManager {
             tasks.in_progress_loads.push(in_progress_load);
 
             let self_clone = self.clone();
-            thread::spawn(move || self_clone.background_load(request));
+            spawn!(self_clone.background_load(request));
         }
 
         for queued_save in saves_to_launch.into_values() {
@@ -464,7 +464,7 @@ impl TaskManager {
             tasks.in_progress_saves.push(in_progress_save);
 
             let self_clone = self.clone();
-            thread::spawn(move || self_clone.background_save(request, old_hmac, seq, content));
+            spawn!(self_clone.background_save(request, old_hmac, seq, content));
         }
 
         if let Some(sync) = sync_to_launch {
@@ -483,7 +483,7 @@ impl TaskManager {
             tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
-            thread::spawn(move || self_clone.background_sync(sender));
+            spawn!(self_clone.background_sync(sender));
         }
 
         if any_to_launch {

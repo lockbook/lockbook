@@ -7,9 +7,9 @@ use egui::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::time::{Duration, Instant};
-use std::{f32, mem};
+use std::mem;
 use tracing::instrument;
+use web_time::{Duration, Instant};
 
 use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
@@ -179,6 +179,8 @@ impl Workspace {
                                         tab.last_changed = Instant::now();
                                     }
                                 }
+
+                                #[cfg(not(target_family = "wasm"))]
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
                                     if let Some(value) = response {

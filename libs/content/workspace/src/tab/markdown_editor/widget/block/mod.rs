@@ -464,6 +464,16 @@ impl<'ast> Editor {
     }
 
     pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+        if let Some(cached) = self.get_cached_hidden_by_fold(node) {
+            return cached;
+        }
+
+        let result = self.compute_hidden_by_fold(node);
+        self.set_cached_hidden_by_fold(node, result);
+        result
+    }
+
+    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
@@ -573,6 +583,7 @@ pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
+    pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
 }
 
 impl LayoutCache {
@@ -580,6 +591,7 @@ impl LayoutCache {
         self.height.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+        self.hidden_by_fold.borrow_mut().clear();
     }
 }
 
@@ -658,6 +670,25 @@ impl<'ast> Editor {
             .node_range
             .borrow_mut()
             .insert(key_hash, range);
+    }
+
+    pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
+        let range = self.node_range(node);
+        self.layout_cache
+            .hidden_by_fold
+            .borrow()
+            .binary_search_by(|entry| entry.range.cmp(&range))
+            .ok()
+            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+    }
+
+    pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
+        let range = self.node_range(node);
+        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
+        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
+            Ok(i) => cache[i].value = hidden,
+            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
+        }
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key

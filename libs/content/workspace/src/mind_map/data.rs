@@ -6,8 +6,8 @@ use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tokio::runtime::Runtime;
+use web_time::Duration;
 
 lazy_static::lazy_static! {
     pub static ref URL_NAME_STORE: Mutex<Vec<LinkInfo>> = Mutex::new(Vec::new());

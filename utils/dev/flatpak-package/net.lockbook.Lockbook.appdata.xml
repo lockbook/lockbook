@@ -25,16 +25,21 @@
 
   <url type="homepage">https://lockbook.net/</url>
   <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
+  <url type="vcs-browser">https://github.com/lockbook/lockbook</url>
+
 
   <screenshots>
       <screenshot type="default">
-          <image>https://lockbook.net/linux-screenshot1.png</image>
+          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/linux-screenshot1.png</image>
+          <caption>linux</caption>
       </screenshot>
       <screenshot>
-          <image>https://lockbook.net/ios-screenshot.png</image>
+          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/ios-screenshot.png</image>
+          <caption>ios</caption>
       </screenshot>
       <screenshot>
-          <image>https://lockbook.net/android-screenshot.png</image>
+          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/android-screenshot.png</image>
+          <caption>android</caption>
       </screenshot>
   </screenshots>
 
@@ -59,4 +64,3 @@
   </releases>
 
 </component>
-

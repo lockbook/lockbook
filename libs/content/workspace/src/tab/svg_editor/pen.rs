@@ -7,9 +7,9 @@ use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
 use tracing::{Level, event, trace};
 use tracing_test::traced_test;
+use web_time::{Duration, Instant};
 
 use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::util::is_scroll;

@@ -18,11 +18,11 @@ pub const MAX_USERNAME_LENGTH: usize = 32;
 pub const BETA_USERS: &[&str] = &[
     "parth",
     "travis",
-    "smail",
+    "smailbarkouch",
     "adam",
     "krish",
     "aravd",
-    "luca",
+    "lucaloncar",
     "krishma",
     "steve",
     "rahul",

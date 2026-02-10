@@ -1,8 +1,8 @@
-use crate::Lb;
 use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
+use crate::{Lb, tokio_spawn};
 use serde::Serialize;
 use std::ops::Range;
 use std::sync::Arc;
@@ -177,7 +177,7 @@ impl Lb {
         if self.config.background_work {
             let lb = self.clone();
             let mut rx = self.subscribe();
-            tokio::spawn(async move {
+            tokio_spawn!(async move {
                 lb.build_index().await.unwrap();
                 loop {
                     let evt = match rx.recv().await {

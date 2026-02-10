@@ -310,8 +310,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                 if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
-
-                workspaceModel._currentTab.postValue(workspaceModel.currentTab.value)
             }
             UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
             UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
@@ -323,7 +321,9 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
                 }
             }
             is UpdateMainScreenUI.HideBottomViewNavigation -> {
-                binding.bottomNavigation.visibility = View.GONE
+                if (!binding.slidingPaneLayout.isSlideable) {
+                    binding.bottomNavigation.visibility = View.GONE
+                }
             }
             UpdateMainScreenUI.CloseSlidingPane -> {
                 slidingPaneLayout.closePane()

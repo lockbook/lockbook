@@ -23,6 +23,11 @@ class HomeState: ObservableObject {
     @Published var isSidebarFloating: Bool = false
     #endif
     
+    @Published var showTabsSheet: Bool = false
+
+    @Published private(set) var showOutOfSpaceAlert: Bool = false
+    @AppStorage("hideOutOfSpaceSheet") private var hideOutOfSpaceSheet: Bool = false
+    
     var splitViewVisibility: Binding<NavigationSplitViewVisibility> {
         Binding(
             get: {
@@ -45,9 +50,6 @@ class HomeState: ObservableObject {
             }
         )
     }
-    
-    @Published var showTabsSheet: Bool = false
-    @Published var showOutOfSpaceAlert: Bool = false
     
     var cancellables: Set<AnyCancellable> = []
     
@@ -89,6 +91,22 @@ class HomeState: ObservableObject {
             }
         }
         .store(in: &cancellables)
+        
+        AppState.lb.events.$status.sink { [weak self] status in
+            if status.outOfSpace {
+                self?.triggerOutOfSpaceAlert()
+            }
+        }
+        .store(in: &cancellables)
+    }
+    
+    func triggerOutOfSpaceAlert() {
+        guard !hideOutOfSpaceSheet else { return }
+        showOutOfSpaceAlert = true
+    }
+
+    func dismissOutOfSpaceAlert() {
+        showOutOfSpaceAlert = false
     }
     
     func closeWorkspaceBlockingScreens() {

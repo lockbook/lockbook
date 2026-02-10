@@ -152,6 +152,9 @@ struct HomeView: View {
             .navigationDestination(isPresented: $homeState.showSettings) {
                 SettingsView(model: settingsModel)
             }
+            .navigationDestination(isPresented: $homeState.showUpgradeAccount) {
+                UpgradeAccountView(settingsModel: SettingsViewModel())
+            }
     }
 
     func syncFloatingState(splitView: UISplitViewController) {
@@ -222,7 +225,7 @@ struct FilesHomeView: View {
                 .refreshable {
                     if AppState.lb.events.status.outOfSpace {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                            homeState.showOutOfSpaceAlert = true
+                            homeState.triggerOutOfSpaceAlert()
                         }
                     }
                     
