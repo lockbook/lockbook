@@ -541,17 +541,6 @@ impl<'ast> Editor {
             if line_prefix.contains(selection.end(), true, false) {
                 return true;
             }
-
-            if self.buffer[self.node_line(node, line)]
-                .chars()
-                .all(|c| c.is_whitespace())
-                && selection.start() == line_prefix.end()
-            {
-                // line prefix and contents contain only whitespace: end of line
-                // prefix is inclusive
-                // this improves the editing experience for list items
-                return true;
-            }
         }
         false
     }
