@@ -856,15 +856,15 @@ impl Workspace {
 #[derive(Clone)]
 pub struct WsPersistentStore {
     pub path: PathBuf,
-    data: Arc<RwLock<WsPresistentData>>,
+    pub data: Arc<RwLock<WsPresistentData>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
-struct WsPresistentData {
+pub struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
     canvas: CanvasSettings,
-    markdown: MdPersistence,
+    pub markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
     landing_page: LandingPage,
@@ -974,12 +974,12 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    fn write_to_file(&self) {
+    pub fn write_to_file(&self) {
         let data = self.data.clone();
         let path = self.path.clone();
         spawn!({
-            let data = data.read().unwrap();
-            let content = serde_json::to_string(&*data).unwrap();
+            let data = data.read().unwrap().clone(); // clone to avoid holding lock during serialization or file write
+            let content = serde_json::to_string(&data).unwrap();
             let _ = fs::write(path, content);
         });
     }
