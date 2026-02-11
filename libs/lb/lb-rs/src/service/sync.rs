@@ -1112,7 +1112,25 @@ impl Lb {
             let mut remote_changes = updates.file_metadata;
             let update_as_of = updates.as_of_metadata_version;
 
-            remote_changes = self.prune_remote_orphans(remote_changes).await?;
+            remote_changes = {
+                let me = Owner(self.keychain.get_pk()?);
+                let remote = db.base_metadata.stage(remote_changes).to_lazy();
+                let mut result = Vec::new();
+
+                for id in remote.tree.staged.ids() {
+                    let meta = remote.find(&id)?;
+                    if remote.maybe_find_parent(meta).is_some()
+                        || meta
+                            .user_access_keys()
+                            .iter()
+                            .any(|k| k.encrypted_for == me.0)
+                    {
+                        result.push(remote.find(&id)?.clone()); // todo: don't clone
+                    }
+                }
+
+                result
+            };
 
             let remote = db.base_metadata.stage(remote_changes).pruned()?.to_lazy();
 
@@ -1131,30 +1149,6 @@ impl Lb {
         }
 
         Ok((remote_changes, update_as_of, root_id))
-    }
-
-    async fn prune_remote_orphans(
-        &self, remote_changes: Vec<SignedMeta>,
-    ) -> LbResult<Vec<SignedMeta>> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let me = Owner(self.keychain.get_pk()?);
-        let remote = db.base_metadata.stage(remote_changes).to_lazy();
-        let mut result = Vec::new();
-
-        for id in remote.tree.staged.ids() {
-            let meta = remote.find(&id)?;
-            if remote.maybe_find_parent(meta).is_some()
-                || meta
-                    .user_access_keys()
-                    .iter()
-                    .any(|k| k.encrypted_for == me.0)
-            {
-                result.push(remote.find(&id)?.clone()); // todo: don't clone
-            }
-        }
-        Ok(result)
     }
 
     async fn commit_last_synced(&self, ctx: &mut SyncContext) -> LbResult<()> {
