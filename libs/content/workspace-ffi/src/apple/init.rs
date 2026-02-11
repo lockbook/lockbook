@@ -19,11 +19,7 @@ pub unsafe extern "C" fn init_ws(
         RendererState::from_surface(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer));
 
     visuals::init(&renderer.context);
-    let mode = if dark_mode {
-        Mode::Dark
-    } else {
-         Mode::Light
-    };
+    let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_theme(Theme::default(mode));
 
     let workspace = Workspace::new(core, &renderer.context, show_tabs);
