@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::Arc;
@@ -127,9 +128,14 @@ static PRINT: bool = false;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdPersistence {
+    toolbar: ToolbarPersistence,
+    file: HashMap<Uuid, MdFilePersistence>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct MdFilePersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
-    toolbar: ToolbarPersistence,
 }
 
 pub struct MdConfig {
@@ -491,7 +497,13 @@ impl Editor {
 
                 // persistence: read
                 if !self.initialized {
-                    let persisted = self.persistence.get_markdown();
+                    let persisted = self
+                        .persistence
+                        .get_markdown()
+                        .file
+                        .get(&self.file_id)
+                        .cloned()
+                        .unwrap_or_default();
                     if let Some(scroll_area_id) = scroll_area_id {
                         ui.data_mut(|d| {
                             let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
@@ -575,7 +587,15 @@ impl Editor {
         let mut persistence_updated = false;
         if resp.selection_updated {
             let mut persistence = self.persistence.data.write().unwrap();
-            persistence.markdown.selection = self.buffer.current.selection;
+            persistence
+                .markdown
+                .file
+                .entry(self.file_id)
+                .and_modify(|f| f.selection = self.buffer.current.selection)
+                .or_insert(MdFilePersistence {
+                    scroll_offset: Default::default(),
+                    selection: self.buffer.current.selection,
+                });
             persistence_updated = true;
         }
 
@@ -587,7 +607,15 @@ impl Editor {
                     let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
 
                     let mut persistence = self.persistence.data.write().unwrap();
-                    persistence.markdown.scroll_offset = scroll_offset;
+                    persistence
+                        .markdown
+                        .file
+                        .entry(self.file_id)
+                        .and_modify(|f| f.scroll_offset = scroll_offset)
+                        .or_insert(MdFilePersistence {
+                            scroll_offset,
+                            selection: Default::default(),
+                        });
                     persistence_updated = true;
 
                     scroll_end_processed = true;
