@@ -1,10 +1,10 @@
 use crate::WgpuWorkspace;
 use egui::{Event, MouseWheelUnit, Pos2, vec2};
 use lb_c::Uuid;
-use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 
 use super::response::*;
 
