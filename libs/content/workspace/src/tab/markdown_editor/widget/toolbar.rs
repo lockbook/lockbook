@@ -62,10 +62,6 @@ pub struct ToolbarPersistence {
 }
 
 impl<'ast> Editor {
-    fn toolbar_is_default(&self) -> bool {
-        self.persisted.toolbar == Default::default()
-    }
-
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
@@ -87,6 +83,9 @@ impl<'ast> Editor {
 
                     ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
+                    let persistence = self.persistence.get_markdown().toolbar;
+                    let toolbar_is_default = persistence == Default::default();
+
                     let mut events = Vec::new();
 
                     if is_mobile && self.virtual_keyboard_shown {
@@ -100,7 +99,7 @@ impl<'ast> Editor {
                     }
 
                     let mut any_undo_redo = false;
-                    if self.persisted.toolbar.undo || self.toolbar_is_default() {
+                    if persistence.undo || toolbar_is_default {
                         if IconButton::new(Icon::UNDO.size(16.0))
                             .disabled(self.toolbar.menu_open)
                             .tooltip("Undo")
@@ -112,7 +111,7 @@ impl<'ast> Editor {
 
                         any_undo_redo = true;
                     }
-                    if self.persisted.toolbar.redo || self.toolbar_is_default() {
+                    if persistence.redo || toolbar_is_default {
                         if any_undo_redo {
                             ui.add_space(5.);
                         }
@@ -133,11 +132,11 @@ impl<'ast> Editor {
                     }
 
                     let mut any_style = false;
-                    if self.persisted.toolbar.heading || self.toolbar_is_default() {
+                    if persistence.heading || toolbar_is_default {
                         self.heading_button(root, ui).map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.bold || self.toolbar_is_default() {
+                    if persistence.bold || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -145,7 +144,7 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.emph || self.toolbar_is_default() {
+                    if persistence.emph || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -153,7 +152,7 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.code || self.toolbar_is_default() {
+                    if persistence.code || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -166,7 +165,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.strikethrough || self.toolbar_is_default() {
+                    if persistence.strikethrough || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -179,7 +178,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.highlight || self.toolbar_is_default() {
+                    if persistence.highlight || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -187,7 +186,7 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.underline || self.toolbar_is_default() {
+                    if persistence.underline || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -195,7 +194,7 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.spoiler || self.toolbar_is_default() {
+                    if persistence.spoiler || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -208,7 +207,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.subscript || self.toolbar_is_default() {
+                    if persistence.subscript || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -216,7 +215,7 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_style = true;
                     }
-                    if self.persisted.toolbar.superscript || self.toolbar_is_default() {
+                    if persistence.superscript || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
@@ -234,7 +233,7 @@ impl<'ast> Editor {
                     }
 
                     let mut any_list = false;
-                    if self.persisted.toolbar.ordered_list || self.toolbar_is_default() {
+                    if persistence.ordered_list || toolbar_is_default {
                         self.style(
                             Icon::NUMBER_LIST.size(ICON_SIZE),
                             NodeValue::List(NodeList {
@@ -247,7 +246,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_list = true;
                     }
-                    if self.persisted.toolbar.unordered_list || self.toolbar_is_default() {
+                    if persistence.unordered_list || toolbar_is_default {
                         if any_list {
                             ui.add_space(5.);
                         }
@@ -263,7 +262,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_list = true;
                     }
-                    if self.persisted.toolbar.task_list || self.toolbar_is_default() {
+                    if persistence.task_list || toolbar_is_default {
                         if any_list {
                             ui.add_space(5.);
                         }
@@ -285,7 +284,7 @@ impl<'ast> Editor {
                     }
 
                     let mut any_media = false;
-                    if self.persisted.toolbar.link || self.toolbar_is_default() {
+                    if persistence.link || toolbar_is_default {
                         self.style(
                             Icon::LINK.size(ICON_SIZE),
                             NodeValue::Link(Default::default()),
@@ -295,7 +294,7 @@ impl<'ast> Editor {
                         .map(|e| events.push(e));
                         any_media = true;
                     }
-                    if self.persisted.toolbar.image || self.toolbar_is_default() {
+                    if persistence.image || toolbar_is_default {
                         // only supported on iOS (for now)
                         if is_ios {
                             if any_media {
@@ -317,7 +316,7 @@ impl<'ast> Editor {
                     }
 
                     let mut any_indent = false;
-                    if self.persisted.toolbar.indent || self.toolbar_is_default() {
+                    if persistence.indent || toolbar_is_default {
                         if IconButton::new(Icon::INDENT.size(ICON_SIZE))
                             .tooltip("Indent")
                             .disabled(self.toolbar.menu_open)
@@ -328,7 +327,7 @@ impl<'ast> Editor {
                         }
                         any_indent = true;
                     }
-                    if self.persisted.toolbar.deindent || self.toolbar_is_default() {
+                    if persistence.deindent || toolbar_is_default {
                         if any_indent {
                             ui.add_space(5.);
                         }
@@ -467,6 +466,8 @@ impl<'ast> Editor {
 
                             let is_ios = cfg!(target_os = "ios");
 
+                            let persistence = self.persistence.get_markdown().toolbar;
+
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
                             let padding = (ui.available_width() - self.width) / 2.;
@@ -510,11 +511,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "Undo",
                                     IconButton::new(Icon::UNDO.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.undo),
+                                        .colored(persistence.undo),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.undo ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.undo ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("Undo");
 
@@ -525,11 +529,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "Redo",
                                     IconButton::new(Icon::REDO.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.redo),
+                                        .colored(persistence.redo),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.redo ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.redo ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("Redo");
 
@@ -544,11 +551,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "### Heading",
                                     IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.heading),
+                                        .colored(persistence.heading),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.heading ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.heading ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("### Heading");
 
@@ -559,11 +569,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "**Bold**",
                                     IconButton::new(Icon::BOLD.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.bold),
+                                        .colored(persistence.bold),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.bold ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.bold ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("**Bold**");
 
@@ -574,11 +587,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "*Italic*",
                                     IconButton::new(Icon::ITALIC.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.emph),
+                                        .colored(persistence.emph),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.emph ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.emph ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("*Italic*");
 
@@ -589,11 +605,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "`Code`",
                                     IconButton::new(Icon::CODE.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.code),
+                                        .colored(persistence.code),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.code ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.code ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("`Code`");
 
@@ -604,11 +623,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "~~Strikethrough~~",
                                     IconButton::new(Icon::STRIKETHROUGH.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.strikethrough),
+                                        .colored(persistence.strikethrough),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.strikethrough ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.strikethrough ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("~~Strikethrough~~");
 
@@ -619,11 +641,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "==Highlight==",
                                     IconButton::new(Icon::HIGHLIGHT.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.highlight),
+                                        .colored(persistence.highlight),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.highlight ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.highlight ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("==Highlight==");
 
@@ -634,11 +659,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "__Underline__",
                                     IconButton::new(Icon::UNDERLINE.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.underline),
+                                        .colored(persistence.underline),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.underline ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.underline ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("__Underline__");
 
@@ -649,11 +677,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "||Spoiler||",
                                     IconButton::new(Icon::SPOILER.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.spoiler),
+                                        .colored(persistence.spoiler),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.spoiler ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.spoiler ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("||Spoiler||");
 
@@ -664,11 +695,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "~Subscript~",
                                     IconButton::new(Icon::SUBSCRIPT.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.subscript),
+                                        .colored(persistence.subscript),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.subscript ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.subscript ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("~Subscript~");
 
@@ -679,11 +713,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "^Superscript^",
                                     IconButton::new(Icon::SUPERSCRIPT.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.superscript),
+                                        .colored(persistence.superscript),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.superscript ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.superscript ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("^Superscript^");
 
@@ -698,11 +735,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "1. Ordered List",
                                     IconButton::new(Icon::NUMBER_LIST.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.ordered_list),
+                                        .colored(persistence.ordered_list),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.ordered_list ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.ordered_list ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("1. Ordered List");
 
@@ -713,11 +753,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "- Unordered List",
                                     IconButton::new(Icon::BULLET_LIST.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.unordered_list),
+                                        .colored(persistence.unordered_list),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.unordered_list ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.unordered_list ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("- Unordered List");
 
@@ -728,11 +771,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "- [ ] Task List",
                                     IconButton::new(Icon::TODO_LIST.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.task_list),
+                                        .colored(persistence.task_list),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.task_list ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.task_list ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("- [ ] Task List");
 
@@ -747,11 +793,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "[Link](url)",
                                     IconButton::new(Icon::LINK.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.link),
+                                        .colored(persistence.link),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.link ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.link ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
 
@@ -763,11 +812,14 @@ impl<'ast> Editor {
                                         md_width,
                                         "![Image](url)",
                                         IconButton::new(Icon::CAMERA.size(ICON_SIZE))
-                                            .colored(self.persisted.toolbar.image),
+                                            .colored(persistence.image),
                                     )
                                     .clicked()
                                 {
-                                    self.persisted.toolbar.image ^= true;
+                                    let mut persistence = self.persistence.data.write().unwrap();
+                                    let persistence = &mut persistence.markdown.toolbar;
+                                    persistence.image ^= true;
+                                    self.persistence.write_to_file();
                                 }
                                 top_left.y += self.menu_toggle_height("![Image](url)");
                             }
@@ -783,11 +835,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "Indent",
                                     IconButton::new(Icon::INDENT.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.indent),
+                                        .colored(persistence.indent),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.indent ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.indent ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("Indent");
 
@@ -798,11 +853,14 @@ impl<'ast> Editor {
                                     md_width,
                                     "De-indent",
                                     IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
-                                        .colored(self.persisted.toolbar.deindent),
+                                        .colored(persistence.deindent),
                                 )
                                 .clicked()
                             {
-                                self.persisted.toolbar.deindent ^= true;
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.deindent ^= true;
+                                self.persistence.write_to_file();
                             }
                             top_left.y += self.menu_toggle_height("De-indent");
 

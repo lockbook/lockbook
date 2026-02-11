@@ -1,6 +1,8 @@
+use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::Arc;
+use std::time::Instant;
 
 use bounds::Bounds;
 use colored::Colorize as _;
@@ -93,9 +95,6 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
 
-    // persistence
-    pub persisted: MdPersistence,
-
     // selection state
     /// During drag operations, stores the selection that would be applied
     /// without actually updating the buffer selection (which would affect syntax reveal)
@@ -104,6 +103,7 @@ pub struct Editor {
     // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
+    pub unprocessed_scroll: Option<Instant>,
 
     // layout
     top_left: Pos2,
@@ -128,9 +128,14 @@ static PRINT: bool = false;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdPersistence {
+    toolbar: ToolbarPersistence,
+    file: HashMap<Uuid, MdFilePersistence>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct MdFilePersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
-    toolbar: ToolbarPersistence,
 }
 
 pub struct MdConfig {
@@ -182,8 +187,6 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
-            persisted: Default::default(), // initialized first frame
-
             readonly: cfg.readonly,
             file_id,
             hmac,
@@ -207,6 +210,7 @@ impl Editor {
 
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
+            unprocessed_scroll: Default::default(),
 
             top_left: Default::default(),
             width: Default::default(),
@@ -342,7 +346,6 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
-        let prior_toolbar_settings = self.persisted.toolbar.clone();
         let images_updated = {
             let mut images_updated = self.images.updated.lock().unwrap();
             let result = *images_updated;
@@ -494,12 +497,18 @@ impl Editor {
 
                 // persistence: read
                 if !self.initialized {
+                    let persisted = self
+                        .persistence
+                        .get_markdown()
+                        .file
+                        .get(&self.file_id)
+                        .cloned()
+                        .unwrap_or_default();
                     if let Some(scroll_area_id) = scroll_area_id {
-                        self.persisted = self.persistence.get_markdown();
                         ui.data_mut(|d| {
                             let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
                             if let Some(mut state) = state {
-                                state.offset.y = self.persisted.scroll_offset;
+                                state.offset.y = persisted.scroll_offset;
                                 d.insert_temp(scroll_area_id, state);
                             }
                         });
@@ -507,7 +516,7 @@ impl Editor {
                     // set the selection using low-level API; using internal
                     // events causes touch devices to scroll to cursor on 2nd
                     // frame
-                    let (start, end) = self.persisted.selection;
+                    let (start, end) = persisted.selection;
                     let selection = (
                         start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
                         end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
@@ -564,6 +573,7 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
+            self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
         if !self.event.internal_events.is_empty() {
@@ -574,17 +584,50 @@ impl Editor {
         }
 
         // persistence: write
-        let toolbar_settings = self.persisted.toolbar.clone();
-        let toolbar_settings_changed = toolbar_settings != prior_toolbar_settings;
-        if resp.selection_updated || resp.scroll_updated || toolbar_settings_changed {
-            if let Some(scroll_area_id) = scroll_area_id {
-                let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
-                let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
-                self.persisted.scroll_offset = scroll_offset;
+        let mut persistence_updated = false;
+        if resp.selection_updated {
+            let mut persistence = self.persistence.data.write().unwrap();
+            persistence
+                .markdown
+                .file
+                .entry(self.file_id)
+                .and_modify(|f| f.selection = self.buffer.current.selection)
+                .or_insert(MdFilePersistence {
+                    scroll_offset: Default::default(),
+                    selection: self.buffer.current.selection,
+                });
+            persistence_updated = true;
+        }
+
+        let mut scroll_end_processed = false;
+        if let Some(unprocessed_scroll) = self.unprocessed_scroll {
+            if unprocessed_scroll.elapsed() > Duration::from_millis(100) {
+                if let Some(scroll_area_id) = scroll_area_id {
+                    let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
+                    let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+
+                    let mut persistence = self.persistence.data.write().unwrap();
+                    persistence
+                        .markdown
+                        .file
+                        .entry(self.file_id)
+                        .and_modify(|f| f.scroll_offset = scroll_offset)
+                        .or_insert(MdFilePersistence {
+                            scroll_offset,
+                            selection: Default::default(),
+                        });
+                    persistence_updated = true;
+
+                    scroll_end_processed = true;
+                }
             }
-            let selection = self.buffer.current.selection;
-            self.persisted.selection = selection;
-            self.persistence.set_markdown(self.persisted.clone());
+        };
+
+        if scroll_end_processed {
+            self.unprocessed_scroll = None;
+        }
+        if persistence_updated {
+            self.persistence.write_to_file();
         }
 
         // focus editor by default
