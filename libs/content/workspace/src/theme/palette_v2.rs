@@ -67,8 +67,6 @@ pub enum Mode {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Palette {
-    Foreground,
-    Background,
     Black,
     Red,
     Green,
@@ -82,8 +80,6 @@ pub enum Palette {
 impl ThemeVariant {
     pub fn get_color(&self, p: Palette) -> Color32 {
         match p {
-            Palette::Foreground => unreachable!(),
-            Palette::Background => unreachable!(),
             Palette::Black => self.black,
             Palette::Red => self.red,
             Palette::Green => self.green,
@@ -113,7 +109,7 @@ impl Theme {
                 magenta: hex_color!("#7855AA"),
                 cyan: hex_color!("#13DAEC"),
                 white: hex_color!("#FFFFFF"),
-                grey: hex_color!("#1A1A1A"),
+                grey: hex_color!("#1B1B1B"),
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
