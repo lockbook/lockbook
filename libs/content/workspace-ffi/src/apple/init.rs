@@ -5,6 +5,7 @@ use lb_c::Lb;
 use std::ffi::c_void;
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::register_fonts;
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
@@ -17,7 +18,15 @@ pub unsafe extern "C" fn init_ws(
     let renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer));
 
-    visuals::init(&renderer.context, dark_mode);
+    visuals::init(&renderer.context);
+    let mut theme = renderer.context.get_theme();
+    if dark_mode {
+        theme.current = Mode::Dark;
+    } else {
+        theme.current = Mode::Light;
+    }
+    renderer.context.set_theme(theme);
+
     let workspace = Workspace::new(core, &renderer.context, show_tabs);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
