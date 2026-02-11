@@ -25,6 +25,4 @@ impl<'ast> Editor {
             true,
         );
     }
-
-
 }
