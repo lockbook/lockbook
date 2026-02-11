@@ -241,7 +241,6 @@ impl<'ast> Editor {
         for line_idx in spacing_first_line..node_first_line {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }
@@ -271,7 +270,6 @@ impl<'ast> Editor {
         for line_idx in (node_last_line + 1)..=parent_last_line {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }

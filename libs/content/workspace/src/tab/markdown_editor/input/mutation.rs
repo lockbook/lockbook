@@ -373,7 +373,7 @@ impl<'ast> Editor {
                 let range = if !current_selection.is_empty() {
                     current_selection
                 } else {
-                    self.clipboard_current_paragraph()
+                    self.clipboard_current_line()
                 };
 
                 ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
@@ -383,7 +383,7 @@ impl<'ast> Editor {
                 let range = if !current_selection.is_empty() {
                     current_selection
                 } else {
-                    self.clipboard_current_paragraph()
+                    self.clipboard_current_line()
                 };
 
                 ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
@@ -968,25 +968,25 @@ impl<'ast> Editor {
         self.location_to_range(location).0
     }
 
-    fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
+    fn clipboard_current_line(&self) -> (DocCharOffset, DocCharOffset) {
         let current_selection = self.buffer.current.selection;
         let paragraph_idx = self
             .bounds
-            .paragraphs
+            .source_lines
             .find_containing(current_selection.1, true, true)
             .0;
 
-        let mut result = self.bounds.paragraphs[paragraph_idx];
+        let mut result = self.bounds.source_lines[paragraph_idx];
 
         // capture leading newline, if any
         if paragraph_idx != 0 {
-            let paragraph = self.bounds.paragraphs[paragraph_idx];
-            let prev_paragraph = self.bounds.paragraphs[paragraph_idx - 1];
-            let range_between_paragraphs = (prev_paragraph.1, paragraph.0);
-            let rbp_text = &self.buffer[range_between_paragraphs];
-            if rbp_text.ends_with("\r\n") {
+            let line = self.bounds.source_lines[paragraph_idx];
+            let prev_line = self.bounds.source_lines[paragraph_idx - 1];
+            let range_between_lines = (prev_line.1, line.0);
+            let rbl_text = &self.buffer[range_between_lines];
+            if rbl_text.ends_with("\r\n") {
                 result.0 -= 2;
-            } else if rbp_text.ends_with('\n') || rbp_text.ends_with('\r') {
+            } else if rbl_text.ends_with('\n') || rbl_text.ends_with('\r') {
                 result.0 -= 1;
             }
         }

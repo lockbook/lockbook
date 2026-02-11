@@ -34,17 +34,10 @@ impl UITextInputTokenizer for Editor {
         let ranges = match at_boundary {
             Bound::Word => &self.bounds.words,
             Bound::Line => &self.bounds.wrap_lines,
-            Bound::Paragraph => &self.bounds.paragraphs,
+            Bound::Paragraph => &self.bounds.source_lines,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
-                    || text_position
-                        == self
-                            .bounds
-                            .paragraphs
-                            .last()
-                            .copied()
-                            .unwrap_or_default()
-                            .end();
+                    || text_position == self.buffer.current.segs.last_cursor_position();
             }
         };
         match text_position.bound_case(ranges) {
@@ -84,7 +77,7 @@ impl UITextInputTokenizer for Editor {
         let ranges = match within_text_unit {
             Bound::Word => &self.bounds.words,
             Bound::Line => &self.bounds.wrap_lines,
-            Bound::Paragraph => &self.bounds.paragraphs,
+            Bound::Paragraph => &self.bounds.source_lines,
             Bound::Doc => {
                 return true;
             }
@@ -138,7 +131,7 @@ impl UITextInputTokenizer for Editor {
                 // the correct undeline behavior after autocorrecting a word.
                 &self.bounds.words
             }
-            Bound::Paragraph => &self.bounds.paragraphs,
+            Bound::Paragraph => &self.bounds.source_lines,
             Bound::Doc => {
                 unimplemented!()
             }

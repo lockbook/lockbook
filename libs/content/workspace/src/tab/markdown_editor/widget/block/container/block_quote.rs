@@ -80,14 +80,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_block_quote(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix (vertical line annotation)
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
-        }
-
         // Handle children or remaining lines
         let any_children = node.children().next().is_some();
         if any_children {
@@ -96,7 +88,6 @@ impl<'ast> Editor {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let line_content = self.line_content(node, line);
-                self.bounds.paragraphs.push(line_content);
                 self.bounds.inline_paragraphs.push(line_content);
             }
         }

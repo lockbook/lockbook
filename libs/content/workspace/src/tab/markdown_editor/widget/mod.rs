@@ -287,18 +287,16 @@ impl<'ast> Editor {
             NodeValue::WikiLink(_) => {}
 
             // leaf_block
-            NodeValue::CodeBlock(node_code_block) => {
-                self.compute_bounds_code_block(node, node_code_block)
-            }
+            NodeValue::CodeBlock(_) => {}
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
                 self.compute_bounds_heading(node, *level, *setext)
             }
-            NodeValue::HtmlBlock(_) => self.compute_bounds_html_block(node),
+            NodeValue::HtmlBlock(_) => {}
             NodeValue::Paragraph => self.compute_bounds_paragraph(node),
             NodeValue::TableCell => self.compute_bounds_table_cell(node),
-            NodeValue::ThematicBreak => self.compute_bounds_thematic_break(node),
+            NodeValue::ThematicBreak => {}
         }
     }
 }

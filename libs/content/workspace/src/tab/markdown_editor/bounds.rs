@@ -39,15 +39,6 @@ pub struct Bounds {
     /// * Wrap lines cannot touch - they exclude the newline or last character (usually whitespace) that separates them.
     pub wrap_lines: Lines,
 
-    /// Paragraphs are separated by newline characters. All inlines are contained within a paragraph. This definition
-    /// includes table cells, code block info strings, and everywhere else that shows editable text. Paragraphs also
-    /// contain hidden characters like captured syntax and whitespace that should be copied with selected text.
-    /// * Documents have at least one paragraph.
-    /// * Paragraphs can be empty.
-    /// * Paragraphs cannot touch (todo: false in practice)
-    // todo: terrible name
-    pub paragraphs: Paragraphs,
-
     /// Inline paragraphs are the subset of paragraphs that can contain typical markdown inline
     /// formatting like emphasis, strong, links, code spans, etc. This includes content within
     /// paragraphs, headings, table cells, and spacing areas between nodes where inline formatting
@@ -273,16 +264,16 @@ impl BoundExt for DocCharOffset {
         let ranges = match bound {
             Bound::Word => &bounds.words,
             Bound::Line => &bounds.wrap_lines,
-            Bound::Paragraph => &bounds.paragraphs,
+            Bound::Paragraph => &bounds.source_lines,
             Bound::Doc => {
                 return Some((
                     bounds
-                        .paragraphs
+                        .source_lines
                         .first()
                         .map(|(start, _)| *start)
                         .unwrap_or(DocCharOffset(0)),
                     bounds
-                        .paragraphs
+                        .source_lines
                         .last()
                         .map(|(_, end)| *end)
                         .unwrap_or(DocCharOffset(0)),
@@ -610,7 +601,6 @@ impl Editor {
         self.print_words_bounds();
         self.print_wrap_lines_bounds();
         self.print_source_lines_bounds();
-        self.print_paragraphs_bounds();
         self.print_inline_paragraphs_bounds();
     }
 
@@ -627,11 +617,6 @@ impl Editor {
     pub fn print_source_lines_bounds(&self) {
         println!("source lines: {:?}", self.bounds.source_lines);
         println!("source lines: {:?}", self.ranges_text(&self.bounds.source_lines));
-    }
-
-    pub fn print_paragraphs_bounds(&self) {
-        println!("paragraphs: {:?}", self.bounds.paragraphs);
-        println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
     }
 
     pub fn print_inline_paragraphs_bounds(&self) {

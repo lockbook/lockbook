@@ -360,13 +360,11 @@ impl Editor {
             let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-            self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
             self.layout_cache.clear();
 
             self.calc_source_lines();
             self.compute_bounds(root);
-            self.bounds.paragraphs.sort();
             self.bounds.inline_paragraphs.sort();
 
             self.calc_words();
@@ -535,7 +533,6 @@ impl Editor {
                     .bright_black()
             );
             println!("document: {:?}", self.buffer.current.text);
-            self.print_paragraphs_bounds();
             println!(
                 "{}",
                 "--------------------------------------------------------------------------------"

@@ -1,8 +1,6 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
 use egui::{Checkbox, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
-};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::widget::INDENT;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
@@ -178,22 +176,12 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
-        }
-
-        // Handle children or line content
         let any_children = node.children().next().is_some();
         if any_children {
             self.compute_bounds_block_children(node);
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-            self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
     }

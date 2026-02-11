@@ -397,10 +397,6 @@ impl<'ast> Editor {
             if line_idx < last_line_idx {
                 // non-underline content
                 self.compute_bounds_setext_heading_line(node, line, reveal);
-            } else {
-                // underline
-                let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
             }
         }
     }
@@ -411,23 +407,13 @@ impl<'ast> Editor {
         let node_line = self.node_line(node, line);
 
         if reveal {
-            let Some((indentation, prefix, children, postfix_whitespace, _)) =
-                self.split_range(node, node_line)
+            let Some((_, _, children, postfix_whitespace, _)) = self.split_range(node, node_line)
             else {
-                self.bounds.paragraphs.push(node_line);
                 self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            if !prefix.is_empty() {
-                self.bounds.paragraphs.push(prefix);
-            }
-            self.bounds.paragraphs.push(children);
             if !postfix_whitespace.is_empty() {
-                self.bounds.paragraphs.push(postfix_whitespace);
                 self.bounds
                     .inline_paragraphs
                     .push((children.start(), postfix_whitespace.end()));
@@ -438,12 +424,10 @@ impl<'ast> Editor {
             let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
                 self.split_range(node, node_line)
             else {
-                self.bounds.paragraphs.push(node_line);
                 self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
-            self.bounds.paragraphs.push(children);
             self.bounds.inline_paragraphs.push(children);
         }
     }
@@ -452,19 +436,9 @@ impl<'ast> Editor {
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
-        if let Some((indentation, prefix_range, _infix_range, postfix_range, _)) =
-            self.split_range(node, node_line)
-        {
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            self.bounds.paragraphs.push(prefix_range);
-
+        if let Some((_, _, _infix_range, postfix_range, _)) = self.split_range(node, node_line) {
             if let Some(infix_range) = self.infix_range(node) {
-                self.bounds.paragraphs.push(infix_range);
-
                 if !postfix_range.is_empty() {
-                    self.bounds.paragraphs.push(postfix_range);
                     self.bounds
                         .inline_paragraphs
                         .push((infix_range.start(), postfix_range.end()));
@@ -472,12 +446,10 @@ impl<'ast> Editor {
                     self.bounds.inline_paragraphs.push(infix_range);
                 }
             } else if !postfix_range.is_empty() {
-                self.bounds.paragraphs.push(postfix_range);
                 self.bounds.inline_paragraphs.push(postfix_range);
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }
