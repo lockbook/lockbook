@@ -18,7 +18,7 @@ comrak = { version = "0.50", default-features = false, features = [
 ] }
 egui = "0.28.1"
 egui_animation = "0.5.0"
-epaint = "0.28.1"
+epaint = { version = "0.28.1", features = ["color-hex"] }
 futures = "0.3.30"
 glam = "0.22.0"
 hayro = "0.4.0"

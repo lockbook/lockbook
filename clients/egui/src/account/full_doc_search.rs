@@ -36,7 +36,6 @@ impl FullDocSearch {
     const ICON_WIDTH: f32 = 15.0;
 
     fn set_style(&self, ui: &mut egui::Ui) {
-        ui.visuals_mut().extreme_bg_color = ui.visuals().code_bg_color;
         let rounding = 5.0.into();
         ui.visuals_mut().widgets.active.rounding = rounding;
         ui.visuals_mut().widgets.hovered.rounding = rounding;

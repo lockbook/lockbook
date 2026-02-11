@@ -632,7 +632,6 @@ impl Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
                         .show(ui, |ui| {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });

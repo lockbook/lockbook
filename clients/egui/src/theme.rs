@@ -1,8 +1,7 @@
-use dark_light::Mode::Dark;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
-use workspace_rs::theme::palette::ColorAlias;
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use workspace_rs::theme::visuals;
 
 use crate::settings::{Settings, ThemeMode};
@@ -14,11 +13,8 @@ pub fn init(s: &Arc<RwLock<Settings>>, ctx: &egui::Context) {
         ThemeMode::Light => dark_light::Mode::Light,
     };
 
-    let primary = s.read().unwrap().theme_color;
-
-    ctx.set_visuals(egui_visuals(initial_mode, primary));
-
-    visuals::init(ctx, initial_mode == Dark);
+    set_colors(ctx, initial_mode);
+    visuals::init(ctx);
 
     poll_system_theme(s, ctx, initial_mode);
 }
@@ -30,7 +26,7 @@ pub fn apply_settings(s: &Settings, ctx: &egui::Context) {
         ThemeMode::Light => dark_light::Mode::Light,
     };
 
-    ctx.set_visuals(egui_visuals(mode, s.theme_color));
+    set_colors(ctx, mode);
 }
 
 fn poll_system_theme(
@@ -48,7 +44,7 @@ fn poll_system_theme(
                     Ok(m) => {
                         if mode != m {
                             mode = m;
-                            ctx.set_visuals(egui_visuals(m, s.read().unwrap().theme_color));
+                            set_colors(&ctx, m);
                             ctx.request_repaint();
                         }
                     }
@@ -69,12 +65,16 @@ fn detect_theme_wrapper() -> dark_light::Mode {
     })
 }
 
-pub fn egui_visuals(m: dark_light::Mode, primary: ColorAlias) -> egui::Visuals {
+pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode) {
     match m {
         // the default mode of operation is light because on gnome, by default, there is no
         // light mode, it is either "Default" (which is presented to us as Unspecified) or
         // dark. This "Default" mode is also illustrated as a mix of light and dark windows
-        dark_light::Mode::Unspecified | dark_light::Mode::Light => visuals::light(primary),
-        dark_light::Mode::Dark => visuals::dark(primary),
-    }
+        dark_light::Mode::Unspecified | dark_light::Mode::Light => {
+            ctx.set_theme(Theme::default(Mode::Light));
+        }
+        dark_light::Mode::Dark => {
+            ctx.set_theme(Theme::default(Mode::Dark));
+        }
+    };
 }
