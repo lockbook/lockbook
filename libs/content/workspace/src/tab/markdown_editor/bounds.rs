@@ -44,7 +44,7 @@ pub struct Bounds {
     /// contain hidden characters like captured syntax and whitespace that should be copied with selected text.
     /// * Documents have at least one paragraph.
     /// * Paragraphs can be empty.
-    /// * Paragraphs cannot touch.
+    /// * Paragraphs cannot touch (todo: false in practice)
     // todo: terrible name
     pub paragraphs: Paragraphs,
 
@@ -251,11 +251,6 @@ pub trait BoundExt {
     ) -> Option<(Self, Self)>
     where
         Self: Sized;
-    fn char_bound(
-        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
-    ) -> Option<(Self, Self)>
-    where
-        Self: Sized;
     fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self;
     fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
@@ -276,9 +271,6 @@ impl BoundExt for DocCharOffset {
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
-            Bound::Char => {
-                return self.char_bound(backwards, jump, &bounds.paragraphs);
-            }
             Bound::Word => &bounds.words,
             Bound::Line => &bounds.wrap_lines,
             Bound::Paragraph => &bounds.paragraphs,
@@ -342,101 +334,6 @@ impl BoundExt for DocCharOffset {
         }
     }
 
-    /// Returns the range in the direction of `backwards` from offset `self` representing a single character for the
-    /// purposes of cursor navigation. Spaces between ranges of rendered text, including markdown syntax sequences
-    /// replaced with bullets or hidden entirely, are considered single characters so that the cursor navigates over
-    /// them in one keystroke.
-    ///
-    /// If a range is returned, it's either a single unicode character or a nonempty range between rendered text. If
-    /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
-    /// return the first or last character in the doc.
-    fn char_bound(
-        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
-    ) -> Option<(Self, Self)> {
-        match self.bound_case(paragraphs) {
-            BoundCase::NoRanges => None, // never happens because we always have at least one text range
-            BoundCase::AtFirstRangeStart { first_range, range_after } => {
-                if backwards && jump {
-                    // jump backwards off the edge from the start of the first paragraph
-                    None
-                } else if first_range.is_empty() {
-                    // nonempty range between paragraphs
-                    // paragraph after is not first_paragraph because Bounds::range_after does not consider the range (offset, offset) to be after offset
-                    // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((first_range.end(), range_after.start()))
-                } else {
-                    // first character of the first paragraph
-                    Some((first_range.start(), first_range.start() + 1))
-                }
-            }
-            BoundCase::AtLastRangeEnd { last_range, range_before } => {
-                if !backwards && jump {
-                    // jump forwards off the edge from the end of the last paragraph
-                    None
-                } else if last_range.is_empty() {
-                    // nonempty range between paragraphs
-                    // paragraph before is not last_paragraph because Bounds::range_before does not consider the range (offset, offset) to be before offset
-                    // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((range_before.end(), last_range.start()))
-                } else {
-                    // last character of the last paragraph
-                    Some((last_range.end() - 1, last_range.end()))
-                }
-            }
-            BoundCase::InsideRange { .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
-                if backwards ^ !jump {
-                    if self == range_before.end() {
-                        // assumes we don't have multiple empty ranges on top of
-                        // each other, which falls under the broader assumption
-                        // that we have no duplicate ranges...
-                        Some((range_before.end() - 1, range_before.end()))
-                    } else {
-                        Some((range_before.end(), self))
-                    }
-                } else {
-                    #[allow(clippy::collapsible_else_if)]
-                    if self == range_after.start() {
-                        // ...same assumption here
-                        Some((range_after.start(), range_after.start() + 1))
-                    } else {
-                        Some((self, range_after.start()))
-                    }
-                }
-            }
-            BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::AtEndOfNonemptyRange { range_after, .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, range_after.start()))
-                }
-            }
-            BoundCase::AtStartOfNonemptyRange { range_before, .. } => {
-                if backwards ^ !jump {
-                    Some((range_before.end(), self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::BetweenRanges { range_before, range_after } => {
-                Some((range_before.end(), range_after.start()))
-            }
-        }
-    }
-
     // todo: broken when first/last range are empty (did those ranges need to be differentiated anyway?)
     fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
@@ -491,12 +388,6 @@ impl BoundExt for DocCharOffset {
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self {
         if let Some(range) = self.range_bound(bound, backwards, jump, bounds) {
             if backwards { range.start() } else { range.end() }
-        } else if !bounds.paragraphs.is_empty() {
-            if backwards {
-                bounds.paragraphs[0].start()
-            } else {
-                bounds.paragraphs[bounds.paragraphs.len() - 1].end()
-            }
         } else {
             self
         }

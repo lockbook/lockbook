@@ -1,7 +1,7 @@
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{
@@ -143,7 +143,7 @@ impl<'ast> Editor {
                     if !matches!(
                         region,
                         Region::SelectionOrAdvance {
-                            advance: Advance::Next(Bound::Char | Bound::Word),
+                            advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
                             backwards: true,
                         }
                     ) {

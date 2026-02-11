@@ -32,9 +32,6 @@ impl UITextInputTokenizer for Editor {
         &self, text_position: DocCharOffset, at_boundary: Bound, in_backward_direction: bool,
     ) -> bool {
         let ranges = match at_boundary {
-            Bound::Char => {
-                return true;
-            }
             Bound::Word => &self.bounds.words,
             Bound::Line => &self.bounds.wrap_lines,
             Bound::Paragraph => &self.bounds.paragraphs,
@@ -85,9 +82,6 @@ impl UITextInputTokenizer for Editor {
         &self, text_position: DocCharOffset, within_text_unit: Bound, in_backward_direction: bool,
     ) -> bool {
         let ranges = match within_text_unit {
-            Bound::Char => {
-                return true;
-            }
             Bound::Word => &self.bounds.words,
             Bound::Line => &self.bounds.wrap_lines,
             Bound::Paragraph => &self.bounds.paragraphs,
@@ -130,9 +124,6 @@ impl UITextInputTokenizer for Editor {
         &self, text_position: DocCharOffset, with_granularity: Bound, in_backward_direction: bool,
     ) -> Option<(DocCharOffset, DocCharOffset)> {
         let ranges = match with_granularity {
-            Bound::Char => {
-                unimplemented!()
-            }
             Bound::Word => &self.bounds.words,
             Bound::Line => {
                 // note: lines handled as words

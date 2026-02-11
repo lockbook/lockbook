@@ -10,14 +10,26 @@ use super::cursor;
 
 impl Editor {
     pub fn advance(
-        &mut self, offest: DocCharOffset, advance: Advance, backwards: bool,
+        &mut self, offset: DocCharOffset, advance: Advance, backwards: bool,
     ) -> DocCharOffset {
         let maybe_x_target_value = mem::take(&mut self.cursor.x_target);
         match advance {
-            Advance::To(bound) => offest.advance_to_bound(bound, backwards, &self.bounds),
-            Advance::Next(bound) => offest.advance_to_next_bound(bound, backwards, &self.bounds),
+            Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.bounds),
+            Advance::Next(bound) => offset.advance_to_next_bound(bound, backwards, &self.bounds),
+            Advance::By(Increment::Char) => {
+                let mut result = offset;
+                if backwards {
+                    if result.0 > 0 {
+                        result -= 1;
+                    }
+                } else {
+                    result += 1;
+                    result = result.min(self.buffer.current.segs.last_cursor_position());
+                }
+                result
+            }
             Advance::By(Increment::Lines(n)) => {
-                let mut result = offest;
+                let mut result = offset;
                 for _ in 0..n {
                     let Some(result_x) = self.x(result) else {
                         break;
