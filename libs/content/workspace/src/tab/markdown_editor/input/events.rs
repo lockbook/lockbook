@@ -23,7 +23,7 @@ impl<'ast> Editor {
         for event in self.get_workspace_events(ctx) {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
-        for event in self.get_key_events(ctx) {
+        for event in self.get_key_events(ctx, root) {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_pointer_events(ctx) {
@@ -76,7 +76,7 @@ impl<'ast> Editor {
         result
     }
 
-    fn get_key_events(&self, ctx: &Context) -> Vec<Event> {
+    fn get_key_events(&self, ctx: &Context, root: &'ast AstNode<'ast>) -> Vec<Event> {
         if self.focused(ctx) {
             ctx.input(|r| {
                 r.filtered_events(&EventFilter {
@@ -87,7 +87,7 @@ impl<'ast> Editor {
                 })
             })
             .into_iter()
-            .filter_map(|e| self.translate_egui_keyboard_event(e))
+            .filter_map(|e| self.translate_egui_keyboard_event(e, root))
             .collect::<Vec<_>>()
         } else {
             Vec::new()
