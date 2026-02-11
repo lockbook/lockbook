@@ -18,7 +18,7 @@ impl From<Modifiers> for Advance {
         } else if should_jump_word {
             Advance::Next(Bound::Word)
         } else {
-            Advance::Next(Bound::Char)
+            Advance::By(Increment::Char)
         }
     }
 }

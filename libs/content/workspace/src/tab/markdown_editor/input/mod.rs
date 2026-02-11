@@ -27,7 +27,6 @@ pub enum Location {
 /// text unit that has a start and end location
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Bound {
-    Char,
     Word,
     Line,
     Paragraph,
@@ -37,6 +36,7 @@ pub enum Bound {
 /// text unit you can increment or decrement a location by
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Increment {
+    Char,
     Lines(usize),
 }
 

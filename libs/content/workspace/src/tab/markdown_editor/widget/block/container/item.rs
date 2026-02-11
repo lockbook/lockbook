@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_editor::Editor;
@@ -181,15 +181,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_item(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix (bullet/number annotation)
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            let line_own_prefix = self.line_own_prefix(node, line);
-
-            self.bounds.paragraphs.push(line_own_prefix);
-        }
-
-        // Handle children or line content
         let any_children = node.children().next().is_some();
         if any_children {
             self.compute_bounds_block_children(node);
@@ -197,7 +188,6 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
     }

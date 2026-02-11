@@ -479,17 +479,16 @@ pub unsafe extern "C" fn position_offset_in_direction(
         None => return CTextPosition::default(),
     };
 
-    let offset_type =
-        if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
-            Advance::Next(Bound::Char)
-        } else {
-            Advance::By(Increment::Lines(1))
-        };
+    let advance = if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
+        Advance::By(Increment::Char)
+    } else {
+        Advance::By(Increment::Lines(1))
+    };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
     let mut result: DocCharOffset = start.pos.into();
     for _ in 0..offset {
-        result = markdown.advance(result, offset_type, backwards);
+        result = markdown.advance(result, advance, backwards);
     }
 
     CTextPosition { none: start.none, pos: result.0 }
@@ -503,6 +502,10 @@ pub unsafe extern "C" fn position_offset_in_direction(
 pub unsafe extern "C" fn is_position_at_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
+    if granularity == CTextGranularity::Character {
+        return true;
+    }
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -523,6 +526,10 @@ pub unsafe extern "C" fn is_position_at_bound(
 pub unsafe extern "C" fn is_position_within_bound(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> bool {
+    if granularity == CTextGranularity::Character {
+        return true;
+    }
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,
@@ -550,11 +557,13 @@ pub unsafe extern "C" fn bound_from_position(
     };
 
     let text_position = pos.pos.into();
-    let to_boundary = granularity.into();
+    let advance = if granularity == CTextGranularity::Character {
+        Advance::By(Increment::Char)
+    } else {
+        Advance::Next(granularity.into())
+    };
 
-    markdown
-        .position_from(text_position, to_boundary, backwards)
-        .into()
+    Some(markdown.advance(text_position, advance, backwards)).into()
 }
 
 /// # Safety
@@ -565,6 +574,10 @@ pub unsafe extern "C" fn bound_from_position(
 pub unsafe extern "C" fn bound_at_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextRange {
+    if granularity == CTextGranularity::Character {
+        unimplemented!();
+    }
+
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let markdown = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => markdown,

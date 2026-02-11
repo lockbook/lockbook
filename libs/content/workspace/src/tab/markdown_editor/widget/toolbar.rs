@@ -478,7 +478,6 @@ impl<'ast> Editor {
                             // store values
                             let source_lines = mem::take(&mut self.bounds.source_lines);
                             let buffer = mem::take(&mut self.buffer);
-                            let paragraphs = mem::take(&mut self.bounds.paragraphs);
                             let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
 
                             let galleys = mem::take(&mut self.galleys.galleys);
@@ -821,7 +820,6 @@ impl<'ast> Editor {
                             // restore stored values
                             self.buffer = buffer;
                             self.bounds.source_lines = source_lines;
-                            self.bounds.paragraphs = paragraphs;
                             self.bounds.inline_paragraphs = inline_paragraphs;
                             self.calc_words();
 
@@ -879,7 +877,6 @@ impl<'ast> Editor {
         // pre-render work
         self.calc_source_lines();
         self.compute_bounds(root);
-        self.bounds.paragraphs.sort();
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
 
@@ -908,7 +905,6 @@ impl<'ast> Editor {
         // pre-render work
         self.calc_source_lines();
         self.compute_bounds(root);
-        self.bounds.paragraphs.sort();
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
 

@@ -57,7 +57,6 @@ impl<'ast> Editor {
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
-                self.bounds.paragraphs.push(line);
                 self.bounds.inline_paragraphs.push(line);
             }
         }

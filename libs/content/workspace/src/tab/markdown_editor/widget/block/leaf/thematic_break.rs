@@ -47,9 +47,4 @@ impl<'ast> Editor {
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
-
-    pub fn compute_bounds_thematic_break(&mut self, node: &'ast AstNode<'ast>) {
-        let node_line = self.node_line(node, self.node_first_line(node));
-        self.bounds.paragraphs.push(node_line);
-    }
 }

@@ -39,15 +39,6 @@ pub struct Bounds {
     /// * Wrap lines cannot touch - they exclude the newline or last character (usually whitespace) that separates them.
     pub wrap_lines: Lines,
 
-    /// Paragraphs are separated by newline characters. All inlines are contained within a paragraph. This definition
-    /// includes table cells, code block info strings, and everywhere else that shows editable text. Paragraphs also
-    /// contain hidden characters like captured syntax and whitespace that should be copied with selected text.
-    /// * Documents have at least one paragraph.
-    /// * Paragraphs can be empty.
-    /// * Paragraphs cannot touch.
-    // todo: terrible name
-    pub paragraphs: Paragraphs,
-
     /// Inline paragraphs are the subset of paragraphs that can contain typical markdown inline
     /// formatting like emphasis, strong, links, code spans, etc. This includes content within
     /// paragraphs, headings, table cells, and spacing areas between nodes where inline formatting
@@ -251,11 +242,6 @@ pub trait BoundExt {
     ) -> Option<(Self, Self)>
     where
         Self: Sized;
-    fn char_bound(
-        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
-    ) -> Option<(Self, Self)>
-    where
-        Self: Sized;
     fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self;
     fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
@@ -276,21 +262,18 @@ impl BoundExt for DocCharOffset {
         self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds,
     ) -> Option<(Self, Self)> {
         let ranges = match bound {
-            Bound::Char => {
-                return self.char_bound(backwards, jump, &bounds.paragraphs);
-            }
             Bound::Word => &bounds.words,
             Bound::Line => &bounds.wrap_lines,
-            Bound::Paragraph => &bounds.paragraphs,
+            Bound::Paragraph => &bounds.source_lines,
             Bound::Doc => {
                 return Some((
                     bounds
-                        .paragraphs
+                        .source_lines
                         .first()
                         .map(|(start, _)| *start)
                         .unwrap_or(DocCharOffset(0)),
                     bounds
-                        .paragraphs
+                        .source_lines
                         .last()
                         .map(|(_, end)| *end)
                         .unwrap_or(DocCharOffset(0)),
@@ -338,101 +321,6 @@ impl BoundExt for DocCharOffset {
                 BoundCase::AtEndOfNonemptyRange { range_before, .. } => Some(range_before),
                 BoundCase::AtStartOfNonemptyRange { range_after, .. } => Some(range_after),
                 BoundCase::BetweenRanges { .. } => None,
-            }
-        }
-    }
-
-    /// Returns the range in the direction of `backwards` from offset `self` representing a single character for the
-    /// purposes of cursor navigation. Spaces between ranges of rendered text, including markdown syntax sequences
-    /// replaced with bullets or hidden entirely, are considered single characters so that the cursor navigates over
-    /// them in one keystroke.
-    ///
-    /// If a range is returned, it's either a single unicode character or a nonempty range between rendered text. If
-    /// `jump` is true, advancing beyond the first or last character in the doc will return None, otherwise it will
-    /// return the first or last character in the doc.
-    fn char_bound(
-        self, backwards: bool, jump: bool, paragraphs: &Paragraphs,
-    ) -> Option<(Self, Self)> {
-        match self.bound_case(paragraphs) {
-            BoundCase::NoRanges => None, // never happens because we always have at least one text range
-            BoundCase::AtFirstRangeStart { first_range, range_after } => {
-                if backwards && jump {
-                    // jump backwards off the edge from the start of the first paragraph
-                    None
-                } else if first_range.is_empty() {
-                    // nonempty range between paragraphs
-                    // paragraph after is not first_paragraph because Bounds::range_after does not consider the range (offset, offset) to be after offset
-                    // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((first_range.end(), range_after.start()))
-                } else {
-                    // first character of the first paragraph
-                    Some((first_range.start(), first_range.start() + 1))
-                }
-            }
-            BoundCase::AtLastRangeEnd { last_range, range_before } => {
-                if !backwards && jump {
-                    // jump forwards off the edge from the end of the last paragraph
-                    None
-                } else if last_range.is_empty() {
-                    // nonempty range between paragraphs
-                    // paragraph before is not last_paragraph because Bounds::range_before does not consider the range (offset, offset) to be before offset
-                    // range is nonempty because paragraphs cannot both be empty and touch a paragraph before/after
-                    Some((range_before.end(), last_range.start()))
-                } else {
-                    // last character of the last paragraph
-                    Some((last_range.end() - 1, last_range.end()))
-                }
-            }
-            BoundCase::InsideRange { .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::AtEmptyRange { range: _, range_before, range_after } => {
-                if backwards ^ !jump {
-                    if self == range_before.end() {
-                        // assumes we don't have multiple empty ranges on top of
-                        // each other, which falls under the broader assumption
-                        // that we have no duplicate ranges...
-                        Some((range_before.end() - 1, range_before.end()))
-                    } else {
-                        Some((range_before.end(), self))
-                    }
-                } else {
-                    #[allow(clippy::collapsible_else_if)]
-                    if self == range_after.start() {
-                        // ...same assumption here
-                        Some((range_after.start(), range_after.start() + 1))
-                    } else {
-                        Some((self, range_after.start()))
-                    }
-                }
-            }
-            BoundCase::AtSharedBoundOfTouchingNonemptyRanges { .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::AtEndOfNonemptyRange { range_after, .. } => {
-                if backwards ^ !jump {
-                    Some((self - 1, self))
-                } else {
-                    Some((self, range_after.start()))
-                }
-            }
-            BoundCase::AtStartOfNonemptyRange { range_before, .. } => {
-                if backwards ^ !jump {
-                    Some((range_before.end(), self))
-                } else {
-                    Some((self, self + 1))
-                }
-            }
-            BoundCase::BetweenRanges { range_before, range_after } => {
-                Some((range_before.end(), range_after.start()))
             }
         }
     }
@@ -491,12 +379,6 @@ impl BoundExt for DocCharOffset {
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self {
         if let Some(range) = self.range_bound(bound, backwards, jump, bounds) {
             if backwards { range.start() } else { range.end() }
-        } else if !bounds.paragraphs.is_empty() {
-            if backwards {
-                bounds.paragraphs[0].start()
-            } else {
-                bounds.paragraphs[bounds.paragraphs.len() - 1].end()
-            }
         } else {
             self
         }
@@ -719,7 +601,6 @@ impl Editor {
         self.print_words_bounds();
         self.print_wrap_lines_bounds();
         self.print_source_lines_bounds();
-        self.print_paragraphs_bounds();
         self.print_inline_paragraphs_bounds();
     }
 
@@ -736,11 +617,6 @@ impl Editor {
     pub fn print_source_lines_bounds(&self) {
         println!("source lines: {:?}", self.bounds.source_lines);
         println!("source lines: {:?}", self.ranges_text(&self.bounds.source_lines));
-    }
-
-    pub fn print_paragraphs_bounds(&self) {
-        println!("paragraphs: {:?}", self.bounds.paragraphs);
-        println!("paragraphs: {:?}", self.ranges_text(&self.bounds.paragraphs));
     }
 
     pub fn print_inline_paragraphs_bounds(&self) {
