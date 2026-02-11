@@ -29,6 +29,7 @@ pub const BETA_USERS: &[&str] = &[
     "chetna",
     "chefbowyer",
     "raayan",
+    "praful",
 ];
 
 pub type Username = String;
