@@ -113,9 +113,9 @@ impl Theme {
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
-                secondary: Palette::Magenta,
+                secondary: Palette::Green,
                 tertiary: Palette::Cyan,
-                quaternary: Palette::Green,
+                quaternary: Palette::Magenta,
             },
             dark: ThemeVariant {
                 black: hex_color!("#101010"),
@@ -130,9 +130,9 @@ impl Theme {
             },
             dark_prefs: Preferences {
                 primary: Palette::Blue,
-                secondary: Palette::Magenta,
+                secondary: Palette::Green,
                 tertiary: Palette::Cyan,
-                quaternary: Palette::Green,
+                quaternary: Palette::Magenta,
             },
         }
     }
