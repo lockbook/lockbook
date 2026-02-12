@@ -828,7 +828,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(sans)
-        },
+        }
+        .into(),
     );
     fonts.font_data.insert("mono".into(), {
         FontData {
@@ -840,13 +841,15 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
     fonts.font_data.insert(
         "bold".to_string(),
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
-        },
+        }
+        .into(),
     );
 
     fonts.font_data.insert("sans_super".into(), {
@@ -858,6 +861,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(sans)
         }
+        .into()
     });
     fonts.font_data.insert("bold_super".into(), {
         FontData {
@@ -868,6 +872,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(bold)
         }
+        .into()
     });
     fonts.font_data.insert("mono_super".into(), {
         FontData {
@@ -879,6 +884,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
 
     fonts.font_data.insert("sans_sub".into(), {
@@ -890,6 +896,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(sans)
         }
+        .into()
     });
     fonts.font_data.insert("bold_sub".into(), {
         FontData {
@@ -900,6 +907,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(bold)
         }
+        .into()
     });
     fonts.font_data.insert("mono_sub".into(), {
         FontData {
@@ -911,6 +919,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
 
     fonts.font_data.insert("icons".into(), {
@@ -918,6 +927,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             tweak: FontTweak { y_offset: -0.1, scale: mono_scale, ..Default::default() },
             ..FontData::from_static(lb_fonts::NERD_FONTS_MONO_SYMBOLS)
         }
+        .into()
     });
 
     fonts

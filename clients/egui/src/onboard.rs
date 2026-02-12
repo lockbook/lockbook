@@ -151,7 +151,7 @@ impl OnboardScreen {
                 ui.vertical_centered(|ui| {
                     let how_on = ui.ctx().animate_bool_with_time_and_easing(
                         "welcome_route_fade_in".into(),
-                        ui.ctx().frame_nr() > 1,
+                        true, // todo: false if first frame
                         1.0,
                         egui::emath::ease_in_ease_out,
                     );

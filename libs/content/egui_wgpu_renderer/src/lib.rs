@@ -53,7 +53,7 @@ impl<'w> RendererState<'w> {
         let format = Self::text_format(&adapter, &surface);
         let screen = ScreenDescriptor { size_in_pixels: [1300, 800], pixels_per_point: 1.0 };
 
-        let renderer = Renderer::new(&device, format, None, 4);
+        let renderer = Renderer::new(&device, format, None, 4, false);
 
         RendererState {
             screen,
@@ -154,7 +154,7 @@ impl<'w> RendererState<'w> {
         }
 
         {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &msaa_view,
@@ -166,7 +166,8 @@ impl<'w> RendererState<'w> {
                 occlusion_query_set: None,
             });
 
-            self.renderer.render(&mut pass, &paint_jobs, &self.screen);
+            self.renderer
+                .render(&mut pass.forget_lifetime(), &paint_jobs, &self.screen);
         }
 
         // Submit the commands.
@@ -247,7 +248,7 @@ impl<'w> RendererState<'w> {
                     label: None,
                     required_features: adapter.features(),
                     required_limits: adapter.limits(),
-                    // memory_hints: Default::default(), // todo: restore after updating wgpu
+                    memory_hints: Default::default(),
                 },
                 None,
             )
