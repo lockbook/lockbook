@@ -132,7 +132,7 @@ impl Selection {
         let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
         child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
         child_ui.with_layer_id(
-            egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
+            egui::LayerId { order: egui::Order::Foreground, id: "selection_overlay".into() },
             |ui| {
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(

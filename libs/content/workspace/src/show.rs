@@ -19,7 +19,7 @@ use crate::widgets::IconButton;
 use crate::workspace::Workspace;
 
 impl Workspace {
-    #[instrument(level="trace", skip_all, fields(frame = self.ctx.frame_nr()))]
+    #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.user_last_seen = Instant::now();
@@ -348,7 +348,7 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         let bg_color = theme.bg().grey;
         ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
@@ -553,7 +553,7 @@ impl Workspace {
         let tab_bg = if is_active {
             ui.style().visuals.extreme_bg_color
         } else {
-            self.ctx.get_theme().bg().grey
+            self.ctx.get_lb_theme().bg().grey
         };
 
         let tab_padding = egui::Margin::symmetric(10.0, 10.0);
@@ -740,7 +740,7 @@ impl Workspace {
 
                                 ui.with_layer_id(
                                     LayerId::new(
-                                        Order::PanelResizeLine,
+                                        Order::Foreground,
                                         Id::from("tab_reorder_drop_indicator"),
                                     ),
                                     |ui| {

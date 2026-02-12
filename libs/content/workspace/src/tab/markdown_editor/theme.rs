@@ -17,7 +17,7 @@ impl Theme {
     /// todo: the editor should use the paletted directly once there are secondary helpers to do
     /// these in-between colors uniformly
     pub fn bg(&self) -> ColorSet {
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         match theme.current {
             Mode::Light => ColorSet {
@@ -55,7 +55,7 @@ impl Theme {
     /// todo: the editor should use the paletted directly once there are secondary helpers to do
     /// these in-between colors uniformly
     pub fn fg(&self) -> ColorSet {
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         match theme.current {
             Mode::Light => ColorSet {

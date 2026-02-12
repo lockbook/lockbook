@@ -727,9 +727,9 @@ impl AccountScreen {
                     .error(format!("{:#?}, failed to export file", err.kind))
             }
         }
-        .set_closable(false)
-        .set_show_progress_bar(false)
-        .set_duration(Some(Duration::from_secs(7)));
+        .closable(false)
+        .show_progress_bar(false)
+        .duration(Some(Duration::from_secs(7)));
     }
 
     fn accept_share(&self, ctx: &egui::Context, target: File, parent: File) {
