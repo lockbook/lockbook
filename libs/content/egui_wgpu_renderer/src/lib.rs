@@ -76,7 +76,7 @@ impl<'w> RendererState<'w> {
 
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
-        self.context.begin_frame(self.raw_input.take());
+        self.context.begin_pass(self.raw_input.take());
     }
 
     pub fn end_frame(&mut self) -> (PlatformOutput, ViewportIdMap<ViewportOutput>) {
@@ -111,7 +111,7 @@ impl<'w> RendererState<'w> {
         });
 
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let full_output = self.context.end_frame();
+        let full_output = self.context.end_pass();
         self.context.tessellation_options_mut(|w| {
             w.feathering = false;
         });

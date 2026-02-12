@@ -13,7 +13,7 @@ use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -453,7 +453,7 @@ impl Editor {
                     if !self.readonly {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                        ui.allocate_ui_at_rect(rect, |ui| {
+                        ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });
                     }
@@ -661,7 +661,7 @@ impl Editor {
         };
         ScrollArea::vertical()
             .drag_to_scroll(self.touch_mode)
-            .id_source(self.file_id)
+            .id_salt(self.file_id)
             .scroll_bar_visibility(if self.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {
@@ -715,7 +715,7 @@ impl Editor {
 
                             ui.advance_cursor_after_rect(rect);
 
-                            ui.allocate_ui_at_rect(rect, |ui| {
+                            ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                                 self.show_block(ui, root, self.top_left);
                             });
                         });

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
-use egui::TouchPhase;
+use egui::{TouchPhase, UiBuilder};
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
@@ -129,10 +129,17 @@ impl Selection {
         let is_multi_touch = is_multi_touch(ui);
 
         let mut suggested_op = None;
-        let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+        let mut child_ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(ui.clip_rect())
+                .layout(egui::Layout::default()),
+        );
         child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        child_ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Foreground, id: "selection_overlay".into() },
+        child_ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Foreground,
+                id: "selection_overlay".into(),
+            }),
             |ui| {
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(
@@ -732,10 +739,13 @@ impl Selection {
         let min = if bottom_screen_overflow { top_left_min } else { bottom_left_min };
 
         let tooltip_rect = egui::Rect { min, max: min };
-        ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Tooltip, id: "selection_tooltip".into() },
+        ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Tooltip,
+                id: "selection_tooltip".into(),
+            }),
             |ui| {
-                let res = ui.allocate_ui_at_rect(tooltip_rect, |ui| {
+                let res = ui.allocate_new_ui(UiBuilder::new().max_rect(tooltip_rect), |ui| {
                     ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5.0, 0.0);
 
                     egui::Frame::window(ui.style())
@@ -746,18 +756,16 @@ impl Selection {
                 self.layout.container_tooltip = Some(res.response.rect);
 
                 let popover_min = res.response.rect.right_top() + egui::vec2(5.0, 0.0);
-                let res = ui.allocate_ui_at_rect(
-                    egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0)),
-                    |ui| {
-                        if self.show_selection_popover && !show_popover_toggled {
-                            egui::Frame::window(ui.style()).show(ui, |ui| {
-                                ui.vertical(|ui| {
-                                    self.show_selection_popover(ui, selection_ctx);
-                                });
+                let rect = egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0));
+                let res = ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    if self.show_selection_popover && !show_popover_toggled {
+                        egui::Frame::window(ui.style()).show(ui, |ui| {
+                            ui.vertical(|ui| {
+                                self.show_selection_popover(ui, selection_ctx);
                             });
-                        }
-                    },
-                );
+                        });
+                    }
+                });
 
                 self.layout.popover = Some(res.response.rect)
             },

@@ -2,7 +2,8 @@ use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
     Align2, DragAndDrop, EventFilter, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef,
-    Rect, RichText, Sense, TextStyle, TextWrapMode, ViewportCommand, include_image, vec2,
+    Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, ViewportCommand, include_image,
+    vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -562,7 +563,11 @@ impl Workspace {
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                let mut ui_builder = UiBuilder::new();
+                if self.tabs[t].rename.is_some() {
+                    ui_builder = ui_builder.invisible();
+                }
+                ui.scope_builder(ui_builder, |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
                     // create galleys - text layout
@@ -738,11 +743,11 @@ impl Workspace {
                                 };
                                 let y_range = tab_label_rect.y_range();
 
-                                ui.with_layer_id(
-                                    LayerId::new(
+                                ui.scope_builder(
+                                    UiBuilder::new().layer_id(LayerId::new(
                                         Order::Foreground,
                                         Id::from("tab_reorder_drop_indicator"),
-                                    ),
+                                    )),
                                     |ui| {
                                         ui.painter().vline(x, y_range, stroke);
                                     },
@@ -769,7 +774,7 @@ impl Workspace {
         // renaming
         if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
+                .allocate_new_ui(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)
