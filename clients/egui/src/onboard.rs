@@ -2,7 +2,7 @@ use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 
 use egui::text::LayoutJob;
-use egui::{Image, ScrollArea};
+use egui::{Image, ScrollArea, UiBuilder};
 use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
@@ -478,12 +478,12 @@ You can view your key again in the settings."#
         let error_rect =
             egui::Rect::from_min_size(resp_bottom_left, ui.available_size_before_wrap());
 
-        let mut ui = ui.child_ui(
-            ui.available_rect_before_wrap(),
-            egui::Layout::top_down(egui::Align::LEFT),
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(ui.available_rect_before_wrap())
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
         );
-        ui.allocate_ui_at_rect(error_rect, |ui| {
+        ui.allocate_new_ui(UiBuilder::new().max_rect(error_rect), |ui| {
             if let Some(err) = &maybe_err {
                 egui::ScrollArea::vertical()
                     .max_height(100.0)
