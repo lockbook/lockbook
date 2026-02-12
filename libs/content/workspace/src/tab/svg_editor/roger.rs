@@ -3,6 +3,7 @@ use std::{
     slice::Iter,
 };
 
+use egui::{TouchDeviceId, TouchId, TouchPhase};
 use tracing::warn;
 use web_time::Instant;
 
@@ -10,7 +11,8 @@ use web_time::Instant;
 struct Roger {
     touches: HashMap<Pointer, Instant>,
     buttons: HashMap<MouseProps, Instant>,
-    tool_running: bool,
+    tool_running: Option<Instant>,
+    viewport_changing: Option<Instant>,
 }
 
 #[derive(Eq, Hash, PartialEq, Debug)]
@@ -51,7 +53,12 @@ impl From<egui::PointerButton> for ButtonType {
 
 impl Roger {
     pub fn new() -> Self {
-        Self { touches: HashMap::new(), buttons: HashMap::new(), tool_running: false }
+        Self {
+            touches: HashMap::new(),
+            buttons: HashMap::new(),
+            tool_running: None,
+            viewport_changing: None,
+        }
     }
 
     pub fn process(&mut self, ui: &mut egui::Ui) {
@@ -67,6 +74,11 @@ impl Roger {
                     let button = MouseProps { button: button.into(), modifiers };
                     if pressed {
                         self.buttons.insert(button, Instant::now());
+
+                        if button == *run_button {
+                            self.viewport_changing = None
+                            // tool.start()
+                        }
                     } else {
                         let exists = self.buttons.remove(&button).is_some();
                         if !exists {
@@ -75,16 +87,19 @@ impl Roger {
                                 button, pos
                             );
                         }
+
                         if button == *run_button {
-                            self.tool_running = false;
+                            // tool.end()
+                            self.tool_running = None;
                         }
                     }
                 }
                 egui::Event::PointerMoved(pos) => {
                     // we know know if there are any self.buttons pressed. if there are none, then this is a hover event.
                     // if there is something pressed, then this is a stroke event
-                    if self.buttons.contains_key(run_button) {
-                        self.tool_running = true;
+                    if self.buttons.contains_key(run_button) && self.tool_running.is_none() {
+                        self.tool_running = Some(Instant::now());
+                        // tool.run()
                     }
                     // todo: tool can specify behavior when the pointer moves outside of the canvas
                     // do nothing or end. for selection do nothing makes sense, we still wanna drag things
@@ -93,9 +108,13 @@ impl Roger {
                 egui::Event::PointerGone => {
                     println!("Pointer gone");
                 }
-                egui::Event::MouseWheel { unit, delta, modifiers }{
-                    // when did we aquire the tool run lock. if it's less than 100ms ago, then we can assume 
-                    // this is a pan and not a tool run 
+                egui::Event::MouseWheel { unit, delta, modifiers } => {
+                    if self.tool_running.is_none() {
+                        self.viewport_changing = Some(Instant::now());
+                        // change_viewport()
+                    }
+                    // when did we aquire the tool run lock. if it's less than 100ms ago, then we can assume
+                    // this is a pan and not a tool run
                 }
                 egui::Event::Touch { device_id, id, phase, pos, force } => {
                     let touch =
@@ -135,25 +154,21 @@ impl Roger {
 }
 
 #[test]
-fn test_roger() {
+fn test_button_then_mousewheel() {
     let mut roger = Roger::new();
-    let events = vec![
-        egui::Event::PointerButton {
-            pos: egui::pos2(100.0, 200.0),
-            button: egui::PointerButton::Primary,
-            pressed: true,
-            modifiers: egui::Modifiers::NONE,
-        },
-        egui::Event::PointerMoved(egui::pos2(150.0, 250.0)),
-    ];
 
+    let events = vec![egui::Event::PointerButton {
+        pos: egui::pos2(100.0, 200.0),
+        button: egui::PointerButton::Primary,
+        pressed: true,
+        modifiers: egui::Modifiers::NONE,
+    }];
     roger.process_events(events.iter());
-    println!("Roger state: {:?}", roger);
+    assert!(roger.tool_running.is_none() && roger.viewport_changing.is_none());
 
     let events = vec![egui::Event::PointerMoved(egui::pos2(155.0, 256.0))];
-
     roger.process_events(events.iter());
-    println!("Roger state: {:?}", roger);
+    assert!(roger.tool_running.is_some() && roger.viewport_changing.is_none());
 
     let events = vec![
         egui::Event::PointerButton {
@@ -163,8 +178,72 @@ fn test_roger() {
             modifiers: egui::Modifiers::NONE,
         },
         egui::Event::PointerMoved(egui::pos2(150.0, 250.0)),
+        egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::Vec2::ZERO,
+            modifiers: egui::Modifiers::NONE,
+        },
     ];
-
     roger.process_events(events.iter());
-    println!("Roger state: {:?}", roger);
+    assert!(roger.tool_running.is_none() && roger.viewport_changing.is_some());
+}
+
+#[test]
+fn test_touches() {
+    let mut roger = Roger::new();
+
+    let events = vec![
+        egui::Event::Touch {
+            device_id: TouchDeviceId(0),
+            id: TouchId(0),
+            phase: TouchPhase::Start,
+            pos: egui::Pos2::ZERO,
+            force: None,
+        },
+        egui::Event::Touch {
+            device_id: TouchDeviceId(0),
+            id: TouchId(0),
+            phase: TouchPhase::Move,
+            pos: egui::Pos2::ZERO,
+            force: None,
+        },
+    ];
+    roger.process_events(events.iter());
+    assert!(roger.tool_running.is_some() && roger.viewport_changing.is_none());
+
+    let events = vec![
+        egui::Event::Touch {
+            device_id: TouchDeviceId(0),
+            id: TouchId(0),
+            phase: TouchPhase::Start,
+            pos: egui::Pos2::ZERO,
+            force: None,
+        },
+        egui::Event::Touch {
+            device_id: TouchDeviceId(0),
+            id: TouchId(0),
+            phase: TouchPhase::Move,
+            pos: egui::Pos2::ZERO,
+            force: None,
+        },
+    ];
+    roger.process_events(events.iter());
+    assert!(roger.tool_running.is_some() && roger.viewport_changing.is_none());
+
+    let events = vec![
+        egui::Event::PointerButton {
+            pos: egui::pos2(100.0, 200.0),
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        },
+        egui::Event::PointerMoved(egui::pos2(150.0, 250.0)),
+        egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::Vec2::ZERO,
+            modifiers: egui::Modifiers::NONE,
+        },
+    ];
+    roger.process_events(events.iter());
+    assert!(roger.tool_running.is_none() && roger.viewport_changing.is_some());
 }
