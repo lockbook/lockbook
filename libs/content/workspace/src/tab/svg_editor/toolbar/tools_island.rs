@@ -1,5 +1,5 @@
 use bezier_rs::{Cap, Subpath};
-use egui::{InnerResponse, Response, RichText};
+use egui::{InnerResponse, Response, RichText, UiBuilder};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
 use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors};
@@ -43,7 +43,7 @@ impl Toolbar {
             ),
         };
 
-        let res = ui.allocate_ui_at_rect(tools_island_rect, |ui| {
+        let res = ui.allocate_new_ui(UiBuilder::new().max_rect(tools_island_rect), |ui| {
             egui::Frame::window(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let tool_icon_size = 20.0;
@@ -199,7 +199,8 @@ impl Toolbar {
             }
         }
         if self.layout.tool_popover.is_none() {
-            ui.set_sizing_pass();
+            #[allow(deprecated)]
+            ui.set_sizing_pass(); // todo: reimplement using non-deprecated functionality
         }
 
         let mut cursor_pos = self.show_at_cursor_tool_popover.unwrap().unwrap();
@@ -229,9 +230,13 @@ impl Toolbar {
         }
 
         let tool_popover_rect = egui::Rect::from_min_size(cursor_pos, tool_popovers_size);
-        let mut ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(ui.clip_rect())
+                .layout(egui::Layout::default()),
+        );
         let out = ui.scope(|ui| {
-            ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
+            ui.allocate_new_ui(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| match self.active_tool {
                     Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
                     Tool::Eraser => self.show_eraser_popover(ui),
@@ -272,21 +277,22 @@ impl Toolbar {
             max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
         if self.show_tool_popover {
-            let tool_popover = ui.allocate_ui_at_rect(tool_popover_rect, |ui| {
-                egui::Frame::window(ui.style()).show(ui, |ui| {
-                    match self.active_tool {
-                        Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
-                        Tool::Eraser => self.show_eraser_popover(ui),
-                        Tool::Highlighter => {
-                            show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
-                        }
-                        Tool::Selection => {
-                            // buffer_changed = self.show_selection_popover(ui, tlbr_ctx)
-                        }
-                        Tool::Shapes => self.show_shapes_popover(ui),
-                    };
-                })
-            });
+            let tool_popover =
+                ui.allocate_new_ui(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
+                    egui::Frame::window(ui.style()).show(ui, |ui| {
+                        match self.active_tool {
+                            Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
+                            Tool::Eraser => self.show_eraser_popover(ui),
+                            Tool::Highlighter => {
+                                show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
+                            }
+                            Tool::Selection => {
+                                // buffer_changed = self.show_selection_popover(ui, tlbr_ctx)
+                            }
+                            Tool::Shapes => self.show_shapes_popover(ui),
+                        };
+                    })
+                });
 
             self.layout.tool_popover = Some(tool_popover.response.rect);
             Some(tool_popover.response)

@@ -1,6 +1,6 @@
 use egui::{
     Align, Button, Color32, Direction, FontId, Frame, Key, KeyboardShortcut, Layout, Modifiers,
-    Rect, RichText, Stroke, Ui, Vec2,
+    Rect, RichText, Stroke, Ui, UiBuilder, Vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -94,13 +94,13 @@ impl Workspace {
                     let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         response |= self.show_heading(ui);
                         ui.add_space(40.0);
                         response |= self.show_filters(ui);
                         ui.add_space(40.0);
                         response |= self.show_files(ui);
-                    });
+                    })
                 });
         });
 
@@ -218,7 +218,7 @@ impl Workspace {
                 ui.visuals_mut().widgets.active.weak_bg_fill = fill;
                 ui.visuals_mut().widgets.open.weak_bg_fill = fill;
 
-                egui::ComboBox::from_id_source("create_combo")
+                egui::ComboBox::from_id_salt("create_combo")
                     .selected_text("Create")
                     .width(80.0)
                     .show_ui(ui, |ui| {
@@ -277,7 +277,7 @@ impl Workspace {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
                 // Collaborators filter
-                egui::ComboBox::from_id_source(ui.next_auto_id())
+                egui::ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(if self.landing_page.only_me {
                         "Collaborators: Only Me".to_string()
                     } else if self.landing_page.collaborators.is_empty() {
@@ -358,7 +358,7 @@ impl Workspace {
                     });
 
                 // File type filter
-                egui::ComboBox::from_id_source(ui.next_auto_id())
+                egui::ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(if self.landing_page.doc_types.is_empty() {
                         "Types: Any".to_string()
                     } else {

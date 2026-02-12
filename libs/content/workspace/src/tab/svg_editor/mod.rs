@@ -12,6 +12,7 @@ mod shapes;
 mod toolbar;
 mod util;
 
+use egui::UiBuilder;
 use web_time::Instant;
 
 use self::history::History;
@@ -289,12 +290,17 @@ impl SVGEditor {
             read_only: self.read_only,
         };
 
-        ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
+        ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Middle,
+                id: egui::Id::from("canvas_ui_overlay"),
+            }),
             |ui| {
-                let mut ui =
-                    ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
-
+                let mut ui = ui.new_child(
+                    UiBuilder::new()
+                        .max_rect(ui.available_rect_before_wrap())
+                        .layout(egui::Layout::default()),
+                );
                 self.toolbar
                     .show(&mut ui, &mut toolbar_context, &mut self.has_islands_interaction)
             },
