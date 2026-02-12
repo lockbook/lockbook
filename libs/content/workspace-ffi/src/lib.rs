@@ -24,7 +24,7 @@ impl WgpuWorkspace<'_> {
         }
 
         let workspace_frame = egui::Frame::default()
-            .fill(self.renderer.context.style().visuals.panel_fill)
+            .fill(self.renderer.context.style().visuals.extreme_bg_color)
             .inner_margin(egui::Margin {
                 left: 0.0,
                 right: 0.0,
