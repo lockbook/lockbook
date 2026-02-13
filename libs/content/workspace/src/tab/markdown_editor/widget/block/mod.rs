@@ -127,7 +127,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => self.height_block_quote(node),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.block_children_height(node),
+            NodeValue::Document => self.height_document(node),
             NodeValue::FootnoteDefinition(_) => self.height_footnote_definition(node),
             NodeValue::Item(_) => self.height_item(node),
             NodeValue::List(_) => self.block_children_height(node),
