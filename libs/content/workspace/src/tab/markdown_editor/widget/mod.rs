@@ -125,15 +125,12 @@ impl<'ast> Editor {
     // taps from failing. Note that this range does not and need not survive
     // edits to the document itself.
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
-        let mut result = Ui::new(
-            ui.ctx().clone(),
-            Id::new(self.node_range(node)), // <- the magic
+        ui.new_child(
             UiBuilder::new()
+                .id_salt(self.node_range(node)) // <- the magic
                 .layer_id(ui.layer_id())
                 .max_rect(ui.max_rect()),
-        );
-        result.set_style(ui.style().clone());
-        result
+        )
     }
 
     /// Returns the lines spanned by the given range.
