@@ -22,6 +22,24 @@ impl<'ast> Editor {
         }
     }
 
+    pub fn height_document(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let width = self.width(node);
+
+        let any_children = node.children().next().is_some();
+        if any_children && !self.plaintext_mode {
+            self.block_children_height(node)
+        } else {
+            let mut result = 0.;
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                result +=
+                    self.height_section(&mut Wrap::new(width), line, self.text_format_syntax(node));
+                result += ROW_SPACING;
+            }
+            result
+        }
+    }
+
     pub fn show_document(
         &mut self, ui: &mut egui::Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
