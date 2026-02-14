@@ -68,10 +68,6 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn compute_bounds_table(&mut self, node: &'ast AstNode<'ast>) {
-        self.compute_bounds_block_children(node);
-    }
-
     fn reveal_table(&self, node: &'ast AstNode<'ast>) -> bool {
         let selection = self.buffer.current.selection;
         let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;

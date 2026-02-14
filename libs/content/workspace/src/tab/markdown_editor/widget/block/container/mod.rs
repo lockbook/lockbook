@@ -575,10 +575,6 @@ impl<'ast> Editor {
         self.row_height(node)
     }
 
-    pub fn compute_bounds_list(&mut self, node: &'ast AstNode<'ast>) {
-        self.compute_bounds_block_children(node);
-    }
-
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
         let mut children: Vec<_> = node.children().collect();

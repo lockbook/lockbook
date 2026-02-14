@@ -25,33 +25,33 @@ impl<'ast> Editor {
     }
 
     pub fn height_table_row(&self, node: &'ast AstNode<'ast>) -> f32 {
-        BLOCK_PADDING
-            + if self.reveal_table_row(node) {
-                let line = self.node_first_line(node);
-                let node_line = self.node_line(node, line);
+        if self.reveal_table_row(node) {
+            let line = self.node_first_line(node);
+            let node_line = self.node_line(node, line);
 
-                self.height_section(
+            BLOCK_PADDING
+                + self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
                     self.text_format_syntax(node),
                 )
-            } else {
-                // the height of the row is the height of the tallest cell
-                let mut cell_height_max = 0.0f32;
-                for table_cell in node.children() {
-                    cell_height_max = cell_height_max.max(self.height(table_cell));
-                }
-
-                cell_height_max
+                + BLOCK_PADDING
+        } else {
+            // the height of the row is the height of the tallest cell
+            let mut cell_height_max = 0.0f32;
+            for table_cell in node.children() {
+                cell_height_max = cell_height_max.max(self.height(table_cell));
             }
-            + BLOCK_PADDING
+
+            cell_height_max
+        }
     }
 
     pub fn show_table_row(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, is_header_row: bool,
     ) {
         if self.reveal_table_row(node) {
-            top_left.y += BLOCK_PADDING;
+            top_left += Vec2::splat(BLOCK_PADDING);
 
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
@@ -72,8 +72,7 @@ impl<'ast> Editor {
             let child_width = width / node.children().count() as f32;
 
             // draw row backgrounds
-            let row_rect =
-                Rect::from_min_size(top_left, Vec2::new(width, self.height_table_row(node)));
+            let row_rect = Rect::from_min_size(top_left, Vec2::new(width, height));
             if is_header_row {
                 ui.painter()
                     .rect_filled(row_rect, 0., self.theme.bg().neutral_secondary);
@@ -93,8 +92,6 @@ impl<'ast> Editor {
                 );
             }
 
-            top_left.y += BLOCK_PADDING;
-
             // draw cell contents
             let mut child_top_left = top_left;
             for table_cell in node.children() {
@@ -108,58 +105,45 @@ impl<'ast> Editor {
         let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
         let children = self.sorted_children(node); // todo: these will always already be sorted
+        let line = self.node_first_line(node);
+        let node_line = self.node_line(node, line);
 
+        // check for cursor between cells
         let mut range_start = row_range.start();
         for cell in &children {
-            let cell_range = self.node_range(cell);
+            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
+                self.split_range(cell, node_line)
+            {
+                cell_children_range
+            } else {
+                self.node_range(cell)
+            };
 
             let between_range = (range_start, cell_range.start());
-            if between_range.intersects(&selection, true)
-                || between_range.contains(selection.end(), true, true)
-            {
+
+            if between_range.contains_range(&selection, false, false) {
                 return true;
             }
 
             range_start = cell_range.end();
         }
+
+        // check for cursor after last cell
         if let Some(cell) = children.last() {
-            let cell_range = self.node_range(cell);
+            let cell_range = if let Some((_, _, cell_children_range, _, _)) =
+                self.split_range(cell, node_line)
+            {
+                cell_children_range
+            } else {
+                self.node_range(cell)
+            };
 
             let between_range = (cell_range.end(), row_range.end());
-            if between_range.intersects(&selection, true)
-                || between_range.contains(selection.end(), true, true)
-            {
+            if between_range.contains_range(&selection, false, true) {
                 return true;
             }
         }
 
         false
-    }
-
-    pub fn compute_bounds_table_row(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for syntax between cells
-        let row_range = self.node_range(node);
-        let children = self.sorted_children(node);
-
-        let mut range_start = row_range.start();
-        for cell in &children {
-            let cell_range = self.node_range(cell);
-
-            let between_range = (range_start, cell_range.start());
-            self.bounds.inline_paragraphs.push(between_range);
-
-            range_start = cell_range.end();
-        }
-        if let Some(cell) = children.last() {
-            let cell_range = self.node_range(cell);
-
-            let between_range = (cell_range.end(), row_range.end());
-            self.bounds.inline_paragraphs.push(between_range);
-        }
-
-        // Compute bounds for cell contents
-        for table_cell in node.children() {
-            self.compute_bounds(table_cell);
-        }
     }
 }

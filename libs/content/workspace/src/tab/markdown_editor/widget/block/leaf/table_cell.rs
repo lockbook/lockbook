@@ -1,6 +1,5 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
-use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::RangeExt as _;
+use egui::{Pos2, Ui, Vec2};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
@@ -21,26 +20,9 @@ impl<'ast> Editor {
             }
         }
 
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            let reveal = node_line.intersects(&self.buffer.current.selection, true);
-            if reveal {
-                wrap.offset += self.span_section(&wrap, pre_node, self.text_format_syntax(node));
-                wrap.offset +=
-                    self.span_section(&wrap, pre_children, self.text_format_syntax(node));
-            }
-            wrap.offset += self.inline_children_span(node, &wrap, node_line);
-            if reveal {
-                wrap.offset +=
-                    self.span_section(&wrap, post_children, self.text_format_syntax(node));
-                wrap.offset += self.span_section(&wrap, post_node, self.text_format_syntax(node));
-            }
-        } else {
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
-        }
+        wrap.offset += self.inline_children_span(node, &wrap, node_line);
 
-        images_height + wrap.height()
+        BLOCK_PADDING + images_height + wrap.height() + BLOCK_PADDING
     }
 
     pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -49,7 +31,7 @@ impl<'ast> Editor {
     }
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        top_left.x += BLOCK_PADDING;
+        top_left += Vec2::splat(BLOCK_PADDING);
         let width = self.width(node) - 2.0 * BLOCK_PADDING;
         let mut wrap = Wrap::new(width);
         let node_line = self.node_range(node); // table cells are always single-line
@@ -63,56 +45,14 @@ impl<'ast> Editor {
             }
         }
 
-        let reveal = node_line.intersects(&self.buffer.current.selection, true);
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            if reveal {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_node,
-                    self.text_format_syntax(node),
-                    false,
-                );
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_children,
-                    self.text_format_syntax(node),
-                    false,
-                );
-            }
-            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-            if reveal {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_children,
-                    self.text_format_syntax(node),
-                    false,
-                );
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_node,
-                    self.text_format_syntax(node),
-                    false,
-                );
-            }
-        } else {
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format(node), false);
-        }
+        self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
 
     pub fn compute_bounds_table_cell(&mut self, node: &'ast AstNode<'ast>) {
         let node_line = self.node_range(node); // table cells are always single-line
+
         self.bounds.inline_paragraphs.push(node_line);
     }
 }
