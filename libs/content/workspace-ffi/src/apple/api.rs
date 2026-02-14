@@ -62,14 +62,14 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let mut theme = obj.renderer.context.get_theme();
+    let mut theme = obj.renderer.context.get_lb_theme();
     if dark {
         theme.current = Mode::Dark;
     } else {
         theme.current = Mode::Light;
     }
 
-    obj.renderer.context.set_theme(theme);
+    obj.renderer.context.set_lb_theme(theme);
 }
 
 /// # Safety

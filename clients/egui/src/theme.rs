@@ -71,10 +71,10 @@ pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode) {
         // light mode, it is either "Default" (which is presented to us as Unspecified) or
         // dark. This "Default" mode is also illustrated as a mix of light and dark windows
         dark_light::Mode::Unspecified | dark_light::Mode::Light => {
-            ctx.set_theme(Theme::default(Mode::Light));
+            ctx.set_lb_theme(Theme::default(Mode::Light));
         }
         dark_light::Mode::Dark => {
-            ctx.set_theme(Theme::default(Mode::Dark));
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
         }
     };
 }
