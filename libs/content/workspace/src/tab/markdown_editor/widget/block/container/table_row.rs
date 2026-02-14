@@ -146,31 +146,4 @@ impl<'ast> Editor {
 
         false
     }
-
-    pub fn compute_bounds_table_row(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for syntax between cells
-        let row_range = self.node_range(node);
-        let children = self.sorted_children(node);
-
-        let mut range_start = row_range.start();
-        for cell in &children {
-            let cell_range = self.node_range(cell);
-
-            let between_range = (range_start, cell_range.start());
-            self.bounds.inline_paragraphs.push(between_range);
-
-            range_start = cell_range.end();
-        }
-        if let Some(cell) = children.last() {
-            let cell_range = self.node_range(cell);
-
-            let between_range = (cell_range.end(), row_range.end());
-            self.bounds.inline_paragraphs.push(between_range);
-        }
-
-        // Compute bounds for cell contents
-        for table_cell in node.children() {
-            self.compute_bounds(table_cell);
-        }
-    }
 }

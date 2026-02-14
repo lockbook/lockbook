@@ -52,6 +52,7 @@ impl<'ast> Editor {
 
     pub fn compute_bounds_table_cell(&mut self, node: &'ast AstNode<'ast>) {
         let node_line = self.node_range(node); // table cells are always single-line
+
         self.bounds.inline_paragraphs.push(node_line);
     }
 }

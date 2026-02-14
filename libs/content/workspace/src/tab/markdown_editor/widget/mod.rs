@@ -256,10 +256,10 @@ impl<'ast> Editor {
             NodeValue::Document => self.compute_bounds_document(node),
             NodeValue::FootnoteDefinition(_) => self.compute_bounds_footnote_definition(node),
             NodeValue::Item(_) => self.compute_bounds_item(node),
-            NodeValue::List(_) => self.compute_bounds_list(node),
+            NodeValue::List(_) => self.compute_bounds_block_children(node),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => self.compute_bounds_table(node),
-            NodeValue::TableRow(_) => self.compute_bounds_table_row(node),
+            NodeValue::Table(_) => self.compute_bounds_block_children(node),
+            NodeValue::TableRow(_) => self.compute_bounds_block_children(node),
             NodeValue::TaskItem(_) => self.compute_bounds_task_item(node),
 
             // inline
