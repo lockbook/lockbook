@@ -1,6 +1,5 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui, Vec2};
-use lb_rs::model::text::offset_types::RangeExt as _;
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
