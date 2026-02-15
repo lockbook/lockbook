@@ -18,5 +18,5 @@ cd ../docs ; mdbook build ; mv book ../public-site/public ; cd ../public-site/pu
 if [ "$DEPLOY" = true ]; then
     gsutil -m cp -R ./public/* gs://lockbook.net
 else 
-    cd public && python3 -m http.server 5500
+    python3 local-server.py
 fi

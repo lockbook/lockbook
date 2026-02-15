@@ -1,0 +1,23 @@
+{
+    "applinks": {
+        "apps": [],
+        "details": [
+            {
+                "appIDs": [
+                    "39ZS78S25U.com.lockbook.ios"
+                ],
+                "paths": [
+                    "/content/view*"
+                ]
+            },
+            {
+                "appIDs": [
+                    "39ZS78S25U.com.lockbook.macos"
+                ],
+                "paths": [
+                    "/content/view*"
+                ]
+            }
+        ]
+    }
+}

@@ -16,6 +16,8 @@ struct OnLbLinkViewModifier: ViewModifier {
                     } else {
                         handleOpenLink(url: url)
                     }
+                } else if url.host == "lockbook.net" {
+                    handleWebLink(url: url)
                 }
             })
             .onReceive(workspaceOutput.$urlOpened, perform: { url in
@@ -73,6 +75,21 @@ struct OnLbLinkViewModifier: ViewModifier {
             return
         }
 
+        openFileId(id: id)
+    }
+    
+    func handleWebLink(url: URL) {
+        let queryParams = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        guard let uuidString = queryParams?.first(where: { $0.name == "uuid"})?.value,
+              let id = UUID(uuidString: uuidString) else {
+            AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid URL")
+            return
+        }
+        
+        openFileId(id: id)
+    }
+    
+    func openFileId(id: UUID) {
         DispatchQueue.global(qos: .userInitiated).async {
             while filesModel.root == nil {
                 Thread.sleep(until: .now + 1)
