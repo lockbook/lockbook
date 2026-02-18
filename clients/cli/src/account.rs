@@ -4,6 +4,7 @@ use std::str::FromStr;
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
+use lb_rs::DEFAULT_API_LOCATION;
 use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
 use lb_rs::model::work_unit::WorkUnit;
 
@@ -20,7 +21,7 @@ pub async fn new(username: String, api_url: ApiUrl) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn import() -> CliResult<()> {
+pub async fn import(api_url: ApiUrl) -> CliResult<()> {
     let lb = &core().await?;
     if io::stdin().is_terminal() {
         return Err(CliError::from("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import".to_string()));
@@ -33,7 +34,7 @@ pub async fn import() -> CliResult<()> {
     account_string = account_string.trim().to_string();
 
     println!("importing account...");
-    lb.import_account(&account_string, None).await?;
+    lb.import_account(&account_string, Some(&api_url.0)).await?;
 
     println!("account imported! next, try to sync by running: lockbook sync");
 
@@ -180,7 +181,7 @@ pub struct ApiUrl(String);
 
 impl Default for ApiUrl {
     fn default() -> Self {
-        Self(std::env::var("API_URL").unwrap_or("https://api.prod.lockbook.net".to_string()))
+        Self(std::env::var("API_URL").unwrap_or(DEFAULT_API_LOCATION.to_string()))
     }
 }
 

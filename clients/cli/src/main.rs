@@ -47,7 +47,12 @@ fn run() -> CliResult<()> {
                 )
                 .subcommand(
                     Command::name("import").description("import an existing account by piping in the account string")
-                        .handler(account::import)
+                        .input(Flag::<ApiUrl>::new("api_url")
+                        .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
+
+                        .handler(|api_url| {
+                            account::import(api_url.get())
+                        })
                 )
                 .subcommand(
                     Command::name("export").description("reveal your account's private key")

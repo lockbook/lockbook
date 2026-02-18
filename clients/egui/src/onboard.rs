@@ -548,7 +548,10 @@ You can view your key again in the settings."#
         let ctx = ctx.clone();
 
         thread::spawn(move || {
-            if let Err(err) = core.import_account(&key, None) {
+            let api_url =
+                std::env::var("API_URL").unwrap_or_else(|_| DEFAULT_API_LOCATION.to_string());
+
+            if let Err(err) = core.import_account(&key, Some(&api_url)) {
                 tx.send(Update::AccountImported(Some(err))).unwrap();
                 ctx.request_repaint();
                 return;
