@@ -19,7 +19,7 @@ jobs:
     - name: Do it
       run: |
         cd public-site
-        nix-shell -p zola --command "
+        nix-shell -p zola python --command "
           export PATH=\$CARGO_HOME/bin:\$PATH
           rustup target add wasm32-unknown-unknown 
           cargo install trunk mdbook wasm-bindgen-cli 
