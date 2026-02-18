@@ -17,5 +17,12 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Do it
-      run: cd public-site && nix-shell -p zola --command "rustup target add wasm32-unknown-unknown && cargo install trunk mdbook wasm-bindgen-cli && ./build.sh"
+      run: |
+        cd public-site
+        nix-shell -p zola --command "
+          export PATH=\$CARGO_HOME/bin:\$PATH
+          rustup target add wasm32-unknown-unknown 
+          cargo install trunk mdbook wasm-bindgen-cli 
+          ./build.sh
+        "
 
