@@ -16,8 +16,6 @@ jobs:
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
     - uses: actions/checkout@v2
-    - name: Install Deps
-      run: rustup target add wasm32-unknown-unknown && cargo install trunk mdbook wasm-bindgen-cli
-    - name: Build
-      run: cd public-site && nix-shell -p zola --command "./build.sh"
+    - name: Do it
+      run: cd public-site && nix-shell -p zola --command "rustup target add wasm32-unknown-unknown && cargo install trunk mdbook wasm-bindgen-cli && ./build.sh"
 
