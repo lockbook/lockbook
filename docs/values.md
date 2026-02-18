@@ -1,5 +1,5 @@
 # Values
-Understanding our staff's is the best way to learn our product deeply and form
+Understanding our values is the best way to learn our product deeply and form
 an intuition for decisions we've made or will make in the future.
 
 ## Security
