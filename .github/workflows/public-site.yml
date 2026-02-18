@@ -23,6 +23,6 @@ jobs:
           export PATH=\$CARGO_HOME/bin:\$PATH
           rustup target add wasm32-unknown-unknown 
           cargo install trunk mdbook wasm-bindgen-cli 
-          ./build.sh
+          ./build.sh --deploy
         "
 
