@@ -5,7 +5,7 @@ on:
     branches: [ master ]
 
 jobs:
-  Checks:
+  DeploySite:
     if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, ci]
     env:
