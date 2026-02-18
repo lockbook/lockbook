@@ -9,6 +9,7 @@
 - [Drawing](canvas.md)
 - [Multimedia]()
 - [CLI](cli.md)
+- [Self-Hosting Lockbook](self-hosting.md)
 
 # Extending Lockbook
 

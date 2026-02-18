@@ -6,4 +6,4 @@ lb-rs can be pointed to a server via the `API_URL` env var, by default clients a
 
 tests are configured to connect to `https://localhost:8000`.
 
-you can run the server locally by executing `./run-server.sh` in `utils/dev`. This will source a set of environment variables intended for local development.
+you can run the server locally by executing `lbdev server` for local dev.
