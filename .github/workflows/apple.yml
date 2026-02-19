@@ -14,6 +14,8 @@ jobs:
       CARGO_TARGET_DIR: /Users/parthmehrotra/lockbook-ci-cache/target
     steps:
     - uses: actions/checkout@v4 
+    - name: Add cargo to PATH
+      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     - name: Build WS
       run: |
         cargo r -p lbdev apple ws all
