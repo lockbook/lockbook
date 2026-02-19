@@ -4,7 +4,7 @@ Lockbook is grass-roots open-source project that began in 2020. We're on a missi
 
 If these values resonate with you and you'd like to join us, we'd be honored to have you be a part of this journey.
 
-You can contribute to lockbook simply by using it, thinking deeply about the product and giving us feedback. If you enjoy using Lockbook, sharing it with like minded people also is immensely helpful. See more [here](contrib-user.md).
+You can contribute to lockbook simply by using it, thinking deeply about the product and giving us feedback. If you enjoy using Lockbook, sharing it with like-minded people is also immensely helpful. See more [here](contrib-user.md).
 
 Lockbook is built to be [extensible](extending.md). We welcome traditional forms of open source contributions. Things like building bindings to the lb-rs library in new languages, packaging lockbook for new platforms, or just building interesting workflows on top of Lockbook using our CLI and writing about your experiences in a blogpost are all great ways to help grow the project. See more [here](contrib-hobbyist.md).
 

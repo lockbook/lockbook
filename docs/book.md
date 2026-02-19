@@ -1,5 +1,5 @@
 # Welcome!
-This is [Lockbook's](https://lockbook.net) documentation site. Lockbook is an open source note taking app. This website is dedicated to documenting our product for our users. As well as documenting how to contribute to Lockbook. 
+This is [Lockbook's](https://lockbook.net) documentation site. Lockbook is an open source note taking app. This website is dedicated to documenting our product for our users, as well as documenting how to contribute to Lockbook.
 
 To get started here are some places of significance:
 * [Github](https://github.com/lockbook/lockbook) is where you can find the source code for everything we work on.
