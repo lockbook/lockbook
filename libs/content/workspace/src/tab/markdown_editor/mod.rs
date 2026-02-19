@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::Arc;
-use std::time::Instant;
+use web_time::Instant;
 
 use bounds::Bounds;
 use colored::Colorize as _;
