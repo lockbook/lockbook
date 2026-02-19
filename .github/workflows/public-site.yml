@@ -15,14 +15,26 @@ jobs:
       NIXPKGS_ALLOW_UNFREE: 1
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
-    - uses: actions/checkout@v2
-    - name: Do it
+    - uses: actions/checkout@v4 
+    - name: Deploy public site
+      env:
+        # 1. Map your GitHub secret to an environment variable in this step
+        GCP_PUB_SITE_SA_KEY: ${{ secrets.GCP_PUB_SITE_SA_KEY }} 
       run: |
         cd public-site
+        
+        # 2. Create a secure temporary file and write the JSON key to it
+        KEY_FILE=$(mktemp)
+        echo "$GCP_PUB_SITE_SA_KEY" > "$KEY_FILE"
+        
         nix-shell -p zola google-cloud-sdk --command "
+          gcloud auth activate-service-account --key-file=$KEY_FILE
+          
           export PATH=\$CARGO_HOME/bin:\$PATH
           rustup target add wasm32-unknown-unknown 
           cargo install trunk mdbook wasm-bindgen-cli 
           ./build.sh --deploy
         "
-
+        
+        # 4. Clean up the key file
+        rm -f "$KEY_FILE"
