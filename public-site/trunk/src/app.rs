@@ -3,7 +3,9 @@ use workspace_rs::{
     tab::{
         markdown_editor::{Editor, MdConfig},
         svg_editor::SVGEditor,
-    }, theme::palette_v2::{Mode, Theme, ThemeExt}, workspace::Workspace
+    },
+    theme::palette_v2::{Mode, Theme, ThemeExt},
+    workspace::Workspace,
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
