@@ -68,14 +68,14 @@
                 // this supports checkboxes and other interactive markdown elements in the text area (crudely)
                 gestureRecognizer.delaysTouchesBegan = false
                 gestureRecognizer.delaysTouchesEnded = false
-                
+
                 switch gestureRecognizer.name {
                 case "UITextInteractionNameInteractiveRefinement":
                     // send interactive refinements to our handler
                     // this is the intended way to support a floating cursor
                     gestureRecognizer.addTarget(
                         self, action: #selector(handleInteractiveRefinement(_:)))
-                    
+
                     // workspace gets priority on single taps; see checkCancelCursorPlacement()
                     gestureRecognizer.cancelsTouchesInView = false
                 case "UITextInteractionNameSingleTap":
@@ -202,7 +202,7 @@
         public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesCancelled(touches, with: event)
         }
-        
+
         private func checkCancelCursorPlacement(_ touches: Set<UITouch>) {
             // consumed workspace touches (e.g. tapping to stop a kinetic scroll or toggle a checkbox) preclude cursor placement
             for touch in touches {
@@ -1131,7 +1131,7 @@
             let wsHandle = mtkView.wsHandle
 
             resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(mtkView.contentScaleFactor))
+                wsHandle, Float(size.width), Float(size.height), Float(scale()))
             mtkView.setNeedsDisplay()
         }
 
@@ -1147,10 +1147,10 @@
             dark_mode(wsHandle, mtkView.isDarkMode())
             show_hide_tabs(wsHandle, !mtkView.isCompact())
 
-            set_scale(wsHandle, Float(mtkView.contentScaleFactor))
+            set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
             let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
-            set_ws_inset(wsHandle, Float(overlap * mtkView.contentScaleFactor))
+            set_ws_inset(wsHandle, Float(overlap * scale()))
 
             let output = ios_frame(wsHandle)
 
@@ -1247,7 +1247,7 @@
                     mtkView.workspaceOutput?.urlOpened = url
                 }
             }
-            
+
             if output.open_camera {
                 mtkView.workspaceOutput?.openCamera = true
             }
@@ -1275,6 +1275,10 @@
             }
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
+        }
+        
+        func scale() -> CGFloat {
+            mtkView?.window?.screen.scale ?? CGFloat(1.0)
         }
     }
 
@@ -1663,7 +1667,7 @@
                     guard let data = try? Data(contentsOf: url) else {
                         return
                     }
-                    
+
                     workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 } else {
                     clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)

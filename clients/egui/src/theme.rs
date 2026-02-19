@@ -45,6 +45,12 @@ fn poll_system_theme(
                         if mode != m {
                             mode = m;
                             set_colors(&ctx, m);
+
+                            // since updating from egui 0.28 to 0.30, this is
+                            // necessary to prevent light/dark mode switching
+                            // from resetting font sizes to default
+                            visuals::init(&ctx);
+
                             ctx.request_repaint();
                         }
                     }
@@ -53,6 +59,7 @@ fn poll_system_theme(
                     }
                 }
             }
+
             thread::sleep(Duration::from_secs(1));
         }
     });
@@ -71,10 +78,10 @@ pub fn set_colors(ctx: &egui::Context, m: dark_light::Mode) {
         // light mode, it is either "Default" (which is presented to us as Unspecified) or
         // dark. This "Default" mode is also illustrated as a mix of light and dark windows
         dark_light::Mode::Unspecified | dark_light::Mode::Light => {
-            ctx.set_theme(Theme::default(Mode::Light));
+            ctx.set_lb_theme(Theme::default(Mode::Light));
         }
         dark_light::Mode::Dark => {
-            ctx.set_theme(Theme::default(Mode::Dark));
+            ctx.set_lb_theme(Theme::default(Mode::Dark));
         }
     };
 }

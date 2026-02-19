@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
-use lb::service::debug::DebugInfoDisplay;
+use lb::service::debug::DebugInfoDisplay as _;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
 use workspace_rs::workspace::WsPersistentStore;

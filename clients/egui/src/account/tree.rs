@@ -7,7 +7,7 @@ use std::{mem, thread};
 use egui::text_edit::TextEditState;
 use egui::{
     Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId, Modifiers, Order, Pos2,
-    Rect, Sense, TextEdit, Ui, Vec2, WidgetText, vec2,
+    Rect, Sense, TextEdit, Ui, UiBuilder, Vec2, WidgetText, vec2,
 };
 use egui_notify::Toasts;
 use lb::Uuid;
@@ -932,8 +932,11 @@ impl FileTree {
                     (pointer.y - file_resp.rect.center().y).abs() < file_resp.rect.height() / 4.;
                 if file.is_folder() && hovering_file_center {
                     // drop into hovered folder (indicated by a rectangle)
-                    ui.with_layer_id(
-                        LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
+                    ui.scope_builder(
+                        UiBuilder::new().layer_id(LayerId::new(
+                            Order::Middle,
+                            Id::from("file_tree_drop_indicator"),
+                        )),
                         |ui| {
                             ui.painter()
                                 .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
@@ -952,8 +955,11 @@ impl FileTree {
                     let mut x_range = file_resp.rect.x_range();
                     x_range.min += indent;
 
-                    ui.with_layer_id(
-                        LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
+                    ui.scope_builder(
+                        UiBuilder::new().layer_id(LayerId::new(
+                            Order::Middle,
+                            Id::from("file_tree_drop_indicator"),
+                        )),
                         |ui| {
                             ui.painter().hline(x_range, y, stroke);
                             ui.painter().circle_filled(
@@ -1041,7 +1047,7 @@ impl FileTree {
     fn show_file_cell(
         &self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
     ) -> egui::Response {
-        let theme = ui.ctx().get_theme();
+        let theme = ui.ctx().get_lb_theme();
         let doc_type = DocType::from_name(&file.name);
         let mut text = if doc_type.hide_ext() {
             let wo = Path::new(&file.name)
@@ -1154,8 +1160,11 @@ impl FileTree {
             // either something is deeply wrong with egui or something is deeply wrong with me
             {
                 let stroke = ui.style().visuals.widgets.active.fg_stroke;
-                ui.with_layer_id(
-                    LayerId::new(Order::PanelResizeLine, Id::from("file_tree_drop_indicator")),
+                ui.scope_builder(
+                    UiBuilder::new().layer_id(LayerId::new(
+                        Order::Middle,
+                        Id::from("file_tree_drop_indicator"),
+                    )),
                     |ui| {
                         ui.painter()
                             .rect(padding_resp.rect, 2., Color32::TRANSPARENT, stroke);

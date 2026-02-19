@@ -4,7 +4,7 @@ use std::ops::Deref as _;
 use comrak::nodes::{AstNode, NodeLink};
 use egui::{
     self, Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, TextFormat,
-    Ui, Vec2,
+    Ui, UiBuilder, Vec2,
 };
 use epaint::RectShape;
 use lb_rs::model::text::offset_types::DocCharOffset;
@@ -70,7 +70,7 @@ impl<'ast> Editor {
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         let rect = ui.max_rect();
                         ui.painter().text(
                             rect.center(),
@@ -113,7 +113,7 @@ impl<'ast> Editor {
                         });
                     }
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         ui.painter().add(RectShape {
                             rect,
                             rounding: (2.).into(),
@@ -132,7 +132,7 @@ impl<'ast> Editor {
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
                         let rect = ui.max_rect();
                         ui.painter().text(
                             rect.center(),

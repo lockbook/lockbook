@@ -12,6 +12,7 @@ mod shapes;
 mod toolbar;
 mod util;
 
+use egui::UiBuilder;
 use web_time::Instant;
 
 use self::history::History;
@@ -69,7 +70,7 @@ pub struct ViewportSettings {
     /// the drawable rect in the viewport-transformed plane.
     /// **only defined if there's a lock**
     pub bounded_rect: Option<egui::Rect>,
-    /// the intersection of the bounded rect and the current screen rect  
+    /// the intersection of the bounded rect and the current screen rect
     pub working_rect: egui::Rect,
     pub viewport_transform: Option<Transform>,
     pub master_transform: Transform,
@@ -213,8 +214,7 @@ impl SVGEditor {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
 
-        let frame = ui.ctx().frame_nr();
-        let span = span!(Level::TRACE, "showing canvas widget", frame);
+        let span = span!(Level::TRACE, "showing canvas widget");
         let _ = span.enter();
 
         self.viewport_settings.container_rect = ui.available_rect_before_wrap();
@@ -290,12 +290,17 @@ impl SVGEditor {
             read_only: self.read_only,
         };
 
-        ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
+        ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Middle,
+                id: egui::Id::from("canvas_ui_overlay"),
+            }),
             |ui| {
-                let mut ui =
-                    ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
-
+                let mut ui = ui.new_child(
+                    UiBuilder::new()
+                        .max_rect(ui.available_rect_before_wrap())
+                        .layout(egui::Layout::default()),
+                );
                 self.toolbar
                     .show(&mut ui, &mut toolbar_context, &mut self.has_islands_interaction)
             },

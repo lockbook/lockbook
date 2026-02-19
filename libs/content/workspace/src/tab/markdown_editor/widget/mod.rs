@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Id, TextFormat, Ui};
+use egui::{TextFormat, Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use super::Editor;
@@ -125,16 +125,12 @@ impl<'ast> Editor {
     // taps from failing. Note that this range does not and need not survive
     // edits to the document itself.
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
-        let mut result = Ui::new(
-            ui.ctx().clone(),
-            ui.layer_id(),
-            Id::new(self.node_range(node)), // <- the magic
-            ui.max_rect(),
-            ui.painter().clip_rect(),
-            Default::default(),
-        );
-        result.set_style(ui.style().clone());
-        result
+        ui.new_child(
+            UiBuilder::new()
+                .id_salt(self.node_range(node)) // <- the magic
+                .layer_id(ui.layer_id())
+                .max_rect(ui.max_rect()),
+        )
     }
 
     /// Returns the lines spanned by the given range.

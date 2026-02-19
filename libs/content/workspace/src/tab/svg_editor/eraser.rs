@@ -219,7 +219,7 @@ impl Eraser {
     ) {
         let old_layer = painter.layer_id();
         painter.set_layer_id(egui::LayerId {
-            order: egui::Order::PanelResizeLine,
+            order: egui::Order::Foreground,
             id: "eraser_overlay".into(),
         });
 

@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
@@ -545,7 +545,7 @@ impl<'ast> Editor {
         self.touch_consuming_rects.push(space);
 
         if self.fold(node).is_some() {
-            ui.allocate_ui_at_rect(space, |ui| {
+            ui.allocate_new_ui(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
                     self.theme.fg().neutral_quarternary
                 } else {
@@ -561,7 +561,7 @@ impl<'ast> Editor {
                 }
             });
         } else if self.foldable(node).is_some() {
-            ui.allocate_ui_at_rect(space, |ui| {
+            ui.allocate_new_ui(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
                     .color(self.theme.fg().neutral_quarternary);

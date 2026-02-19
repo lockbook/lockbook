@@ -1,4 +1,4 @@
-use egui::Response;
+use egui::{Response, UiBuilder};
 use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
@@ -69,7 +69,7 @@ impl Toolbar {
         };
 
         let mut island_res = ui
-            .allocate_ui_at_rect(viewport_rect, |ui| {
+            .allocate_new_ui(UiBuilder::new().max_rect(viewport_rect), |ui| {
                 egui::Frame::window(ui.style())
                     .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                     .show(ui, |ui| self.show_inner_island(ui, tlbr_ctx))
@@ -219,7 +219,7 @@ impl Toolbar {
                 };
 
                 let popover_res = ui
-                    .allocate_ui_at_rect(popover_rect, |ui| {
+                    .allocate_new_ui(UiBuilder::new().max_rect(popover_rect), |ui| {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
                             ui.set_min_width(
                                 popover_rect.width()
@@ -621,7 +621,7 @@ fn show_bring_back_btn(
             max: egui::Pos2 { x: bring_home_x_start, y: viewport_island_rect.bottom() },
         };
 
-        let res = ui.allocate_ui_at_rect(bring_home_rect, |ui| {
+        let res = ui.allocate_new_ui(UiBuilder::new().max_rect(bring_home_rect), |ui| {
             egui::Frame::window(ui.style())
                 .inner_margin(egui::Margin::symmetric(7.5, 3.5))
                 .show(ui, |ui| {
@@ -727,7 +727,7 @@ fn show_side_controls(
     let mut locked_stroke = unlocked_stroke;
     locked_stroke.width = 1.4;
 
-    let child_ui = &mut ui.child_ui(rect, layout, None);
+    let child_ui = &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(layout));
 
     if !*is_locked {
         child_ui.set_clip_rect(rect);

@@ -17,7 +17,7 @@ use crate::apple::keyboard::UIKeys;
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
+#[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
@@ -254,7 +254,7 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
+#[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
@@ -281,7 +281,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
+#[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
@@ -306,7 +306,7 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
+#[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
@@ -338,7 +338,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 ///
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
 #[no_mangle]
-#[instrument(level="trace", skip(obj) fields(frame = (*(obj as *mut WgpuWorkspace)).renderer.context.frame_nr()))]
+#[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };

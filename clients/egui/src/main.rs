@@ -41,17 +41,28 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
-            Ok(Box::new(EframeLockbook(Lockbook::new(&cc.egui_ctx))))
+            Ok(Box::new(EframeLockbook {
+                lb: Lockbook::new(&cc.egui_ctx),
+                deferred_init_completed: false,
+            }))
         }),
     )
     .unwrap();
 }
 
-struct EframeLockbook(Lockbook);
+struct EframeLockbook {
+    lb: Lockbook,
+    deferred_init_completed: bool,
+}
 
 impl eframe::App for EframeLockbook {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let output = self.0.update(ctx);
+        if !self.deferred_init_completed {
+            self.lb.deferred_init(ctx);
+            self.deferred_init_completed = true;
+        }
+
+        let output = self.lb.update(ctx);
         if output.close {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }
@@ -60,7 +71,7 @@ impl eframe::App for EframeLockbook {
         // 1) close any open modals or dialogs via a window close event, or
         // 2) to start a graceful shutdown by saving state and cleaning up.
         if ctx.input(|i| i.viewport().close_requested()) {
-            if let Lockbook::Account(screen) = &mut self.0 {
+            if let Lockbook::Account(screen) = &mut self.lb {
                 // If the account screen is done shutting down, it's safe to close the app.
                 // If the account screen didn't close an open modal, we begin the shutdown process.
                 if !screen.is_shutdown() && !screen.close_something() {

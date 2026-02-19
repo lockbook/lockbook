@@ -2,7 +2,8 @@ use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
     Align2, DragAndDrop, EventFilter, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef,
-    Rect, RichText, Sense, TextStyle, TextWrapMode, ViewportCommand, include_image, vec2,
+    Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, ViewportCommand, include_image,
+    vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -19,7 +20,7 @@ use crate::widgets::IconButton;
 use crate::workspace::Workspace;
 
 impl Workspace {
-    #[instrument(level="trace", skip_all, fields(frame = self.ctx.frame_nr()))]
+    #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.user_last_seen = Instant::now();
@@ -348,7 +349,7 @@ impl Workspace {
             cursor.y_range(),
         );
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         let bg_color = theme.bg().grey;
         ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
@@ -553,7 +554,7 @@ impl Workspace {
         let tab_bg = if is_active {
             ui.style().visuals.extreme_bg_color
         } else {
-            self.ctx.get_theme().bg().grey
+            self.ctx.get_lb_theme().bg().grey
         };
 
         let tab_padding = egui::Margin::symmetric(10.0, 10.0);
@@ -562,7 +563,11 @@ impl Workspace {
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                ui.add_visible_ui(self.tabs[t].rename.is_none(), |ui| {
+                let mut ui_builder = UiBuilder::new();
+                if self.tabs[t].rename.is_some() {
+                    ui_builder = ui_builder.invisible();
+                }
+                ui.scope_builder(ui_builder, |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
                     // create galleys - text layout
@@ -738,11 +743,11 @@ impl Workspace {
                                 };
                                 let y_range = tab_label_rect.y_range();
 
-                                ui.with_layer_id(
-                                    LayerId::new(
-                                        Order::PanelResizeLine,
+                                ui.scope_builder(
+                                    UiBuilder::new().layer_id(LayerId::new(
+                                        Order::Foreground,
                                         Id::from("tab_reorder_drop_indicator"),
-                                    ),
+                                    )),
                                     |ui| {
                                         ui.painter().vline(x, y_range, stroke);
                                     },
@@ -769,7 +774,7 @@ impl Workspace {
         // renaming
         if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_ui_at_rect(tab_label.response.rect, |ui| {
+                .allocate_new_ui(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)

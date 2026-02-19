@@ -83,8 +83,7 @@ impl Renderer {
         &mut self, ui: &mut egui::Ui, buffer: &mut Buffer, painter: &mut egui::Painter,
         render_options: RenderOptions, master_transform: Transform,
     ) -> RendererOutput {
-        let frame = ui.ctx().frame_nr();
-        let span = span!(Level::TRACE, "rendering svg", frame);
+        let span = span!(Level::TRACE, "rendering svg");
         let _ = span.enter();
         let mut diff_state = DiffState::default();
 
@@ -168,7 +167,6 @@ impl Renderer {
                             path,
                             id,
                             ui.visuals().dark_mode,
-                            frame,
                             master_transform,
                             &buffer.weak_path_pressures,
                             self.viewport_transform,
@@ -319,13 +317,13 @@ impl Renderer {
 
 // todo: maybe impl this on element struct
 fn tesselate_path<'a>(
-    p: &'a mut Path, id: &'a Uuid, dark_mode: bool, frame: u64, master_transform: Transform,
+    p: &'a mut Path, id: &'a Uuid, dark_mode: bool, master_transform: Transform,
     weak_path_pressures: &WeakPathPressures, viewport_transform: Transform,
 ) -> Option<(Uuid, RenderOp<'a>)> {
     let mut mesh: VertexBuffers<_, u32> = VertexBuffers::new();
     let mut stroke_tess = StrokeTessellator::new();
 
-    let span = span!(Level::TRACE, "tessellating path", frame = frame);
+    let span = span!(Level::TRACE, "tessellating path");
     let _ = span.enter();
     if let Some(stroke) = p.stroke {
         if p.data.is_empty() {
