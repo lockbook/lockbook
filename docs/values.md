@@ -12,7 +12,7 @@ highest authority for access control, not Lockbook staff.
 
 ## Privacy
 
-Similarly, we end-to-end encrypt all possible data, making it's content only
+Similarly, we end-to-end encrypt all possible data, making its content only
 accessible to the customer and the people they choose to collaborate with.
 This even applies to the names of files. The only data that Lockbook staff can
 access is the data that is technically required for the existence of our server.
@@ -44,7 +44,7 @@ up are the types of things that indicate our long term view of building Lockbook
 Since 2020 our staff has been working out of pocket to bootstrap Lockbook with a
 sustainable business model (rather than going the traditional VC route). This
 decision, while difficult, we hope will pay dividends and allow us to build
-in accordance with the values specified in this document indefinately.
+in accordance with the values specified in this document indefinitely.
 
 ## Customer Centric
 

@@ -31,7 +31,7 @@ It's always been part of our vision for Lockbook to support federation, allowing
 
 However, the design of our product treats our own server as a hostile entity because even we do not trust our cloud provider. As such we have done everything we can in our control to minimize the information that is sent to our server, and clients are designed to be resilient against server downtime (we call this offline support).
 
-Most people self host as a mitigation for problems that we've solved fundementally for the whole platform. So therefore we've found that it's mostly something people ask us out-of-instinct.
+Most people self host as a mitigation for problems that we've solved fundamentally for the whole platform. So therefore we've found that it's mostly something people ask us out-of-instinct.
 
 If your situation demands self-hosting Lockbook at scale and you'd like an enhanced level of support, don't hesitate to reach out to us!
 * Discord: https://discord.gg/lockbook
