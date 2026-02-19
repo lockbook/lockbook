@@ -5,13 +5,11 @@ on:
     branches: [ master ]
 
 jobs:
-  DeploySite:
+  DeployApple:
     if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, macOS]
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CARGO_HOME: /home/parthmehrotra/lockbook-ci-cache/home
-      CARGO_TARGET_DIR: /home/parthmehrotra/lockbook-ci-cache/target
     steps:
     - uses: actions/checkout@v4 
     - name: Build WS
