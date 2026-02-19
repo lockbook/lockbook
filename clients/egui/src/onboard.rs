@@ -41,7 +41,7 @@ impl Router {
 }
 
 pub struct OnboardScreen {
-    settings: Arc<RwLock<Settings>>,
+    pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
 
     update_tx: mpsc::Sender<Update>,

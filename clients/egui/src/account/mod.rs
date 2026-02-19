@@ -35,7 +35,7 @@ use self::syncing::SyncPanel;
 use self::tree::FileTree;
 
 pub struct AccountScreen {
-    settings: Arc<RwLock<Settings>>,
+    pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
     toasts: egui_notify::Toasts,
 

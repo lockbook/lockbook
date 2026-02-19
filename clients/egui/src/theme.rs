@@ -45,6 +45,12 @@ fn poll_system_theme(
                         if mode != m {
                             mode = m;
                             set_colors(&ctx, m);
+
+                            // since updating from egui 0.28 to 0.30, this is
+                            // necessary to prevent light/dark mode switching
+                            // from resetting font sizes to default
+                            visuals::init(&ctx);
+
                             ctx.request_repaint();
                         }
                     }
@@ -53,6 +59,7 @@ fn poll_system_theme(
                     }
                 }
             }
+
             thread::sleep(Duration::from_secs(1));
         }
     });

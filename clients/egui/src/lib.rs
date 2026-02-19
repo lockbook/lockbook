@@ -46,16 +46,29 @@ impl Lockbook {
         };
         let settings = Arc::new(RwLock::new(settings));
 
+        let splash = SplashScreen::new(settings, maybe_settings_err);
+        splash.start_loading_core(ctx);
+        Lockbook::Splash(splash)
+    }
+
+    // Since updating from egui 0.28 to 0.30, visuals are for some reason reset
+    // between init and first frame. This fn is called during first update for
+    // deferred initialization.
+    pub fn deferred_init(&self, ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         workspace_rs::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
         egui_extras::install_image_loaders(ctx);
 
-        theme::init(&settings, ctx);
+        theme::init(&self.settings(), ctx);
+    }
 
-        let splash = SplashScreen::new(settings, maybe_settings_err);
-        splash.start_loading_core(ctx);
-        Lockbook::Splash(splash)
+    fn settings(&self) -> Arc<RwLock<Settings>> {
+        match self {
+            Lockbook::Splash(screen) => screen.settings.clone(),
+            Lockbook::Onboard(screen) => screen.settings.clone(),
+            Lockbook::Account(screen) => screen.settings.clone(),
+        }
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Response {

@@ -21,7 +21,7 @@ enum SplashUpdate {
 }
 
 pub struct SplashScreen {
-    settings: Arc<RwLock<Settings>>,
+    pub settings: Arc<RwLock<Settings>>,
 
     update_tx: mpsc::Sender<SplashUpdate>,
     update_rx: mpsc::Receiver<SplashUpdate>,
