@@ -27,7 +27,7 @@ jobs:
         KEY_FILE=$(mktemp)
         echo "$GCP_PUB_SITE_SA_KEY" > "$KEY_FILE"
         
-        nix-shell -p zola google-cloud-sdk --command "
+        nix-shell -p zola openssl google-cloud-sdk --command "
           gcloud auth activate-service-account --key-file=$KEY_FILE
           
           export PATH=\$CARGO_HOME/bin:\$PATH
