@@ -3,8 +3,7 @@ use workspace_rs::{
     tab::{
         markdown_editor::{Editor, MdConfig},
         svg_editor::SVGEditor,
-    },
-    workspace::Workspace,
+    }, theme::palette_v2::{Mode, Theme, ThemeExt}, workspace::Workspace
 };
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -41,6 +40,7 @@ impl LbWebApp {
         ctx.set_fonts(fonts);
         ctx.set_zoom_factor(0.9);
 
+        ctx.set_theme(Theme::default(Mode::Dark));
         ctx.set_visuals(generate_visuals());
 
         Self {
