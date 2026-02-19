@@ -181,7 +181,7 @@ impl<'a> Button<'a> {
                             }
                         };
 
-                        let icon_pos = egui::pos2(icon_x_pos, rect.center().y - icon.size().y / 3.);
+                        let icon_pos = egui::pos2(icon_x_pos, rect.center().y - icon.size().y / 2.);
                         ui.painter().galley(icon_pos, icon, icon_color);
 
                         if self.icon.unwrap().has_badge {
