@@ -20,7 +20,7 @@ Server will need to account for sharing in the following four endpoints:
 
 ### Get Updates
 
-`get_updates` will need to additonally return metadata for any files that have
+`get_updates` will need to additionally return metadata for any files that have
 any ancestors with user access keys for them.
 
 ### Get Document

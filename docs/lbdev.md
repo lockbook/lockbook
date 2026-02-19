@@ -1,6 +1,6 @@
 # lbdev
 
-lbdev is the lockbook team's place to store commonly run opperations. Think of it like a `scripts` folder, but we'd prefer to write these things in `Rust`, our team's primary language. You can use `lbdev` to do some of the following:
+lbdev is the lockbook team's place to store commonly run operations. Think of it like a `scripts` folder, but we'd prefer to write these things in `Rust`, our team's primary language. You can use `lbdev` to do some of the following:
 
 - run our server
 - build workspace as a C library to include in native apps
