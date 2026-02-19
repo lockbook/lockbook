@@ -6,6 +6,7 @@ use egui::ViewportCommand;
 use egui_winit::egui;
 use image::ImageDecoder as _;
 use lockbook_egui::Lockbook;
+use workspace_rs::theme::visuals;
 
 fn main() {
     env_logger::init();
@@ -51,6 +52,9 @@ struct EframeLockbook(Lockbook);
 
 impl eframe::App for EframeLockbook {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // since updating from egui 0.28 to 0.30, visuals are for some reason reset between init and first frame
+        visuals::init(ctx);
+
         let output = self.0.update(ctx);
         if output.close {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
