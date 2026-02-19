@@ -130,7 +130,7 @@ space used on users' devices.
 When pulling the state of a user's file tree from the server, we need to avoid
 pulling the whole file tree. We intend for the system to scale to thousands or
 millions of files per user - the user might have access to a shared folder
-containing files for their entire company. To this end we track a version for
+containing files for their entire company. To this end we track a version for the
 file in its metadata (`metadata_version`). The `metadata_version` for a file
 is simply the server-assigned timestamp of the file's most recent update,
 represented as a Unix epoch. When a client fetches updates from the server, it
