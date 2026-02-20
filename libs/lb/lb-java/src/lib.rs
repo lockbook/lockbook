@@ -83,11 +83,7 @@ pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
     let lb = rlb(&mut env, &class);
 
     let username = rstring(&mut env, username);
-    let api_url = if api_url.is_null() {
-        DEFAULT_API_LOCATION.to_string()
-    } else {
-        rstring(&mut env, api_url)
-    };
+    let api_url = get_api_url(&mut env, api_url);
     let welcome_doc = welcome_doc != 0;
 
     match lb.create_account(&username, &api_url, welcome_doc) {
@@ -99,18 +95,25 @@ pub extern "system" fn Java_net_lockbook_Lb_createAccount<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_importAccount<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, key: JString<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, key: JString<'local>, api_url: JString<'local>,
 ) -> jobject {
     let lb = rlb(&mut env, &class);
 
     let key = rstring(&mut env, key);
+    let api_url = get_api_url(&mut env, api_url);
 
     // todo: deal with None, check for null
-    match lb.import_account(&key, None) {
+    match lb.import_account(&key, Some(&api_url)) {
         Ok(account) => j_account(&mut env, account),
         Err(err) => throw_err(&mut env, err),
     }
     .into_raw()
+}
+
+fn get_api_url<'local>(env: &mut JNIEnv<'local>, api_url: JString<'local>) -> String {
+    let api_url =
+        if api_url.is_null() { DEFAULT_API_LOCATION.to_string() } else { rstring(env, api_url) };
+    api_url
 }
 
 fn j_account<'local>(env: &mut JNIEnv<'local>, account: Account) -> JObject<'local> {

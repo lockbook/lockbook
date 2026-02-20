@@ -1,6 +1,7 @@
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
+import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -22,6 +23,10 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.ActivityOnBoardingBinding
@@ -29,6 +34,7 @@ import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
+import app.lockbook.util.getString
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -39,6 +45,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.*
 import net.lockbook.Lb
 import net.lockbook.LbError
+import kotlin.getValue
 
 class OnBoardingActivity : AppCompatActivity() {
     private var _binding: ActivityOnBoardingBinding? = null
@@ -66,6 +73,8 @@ class WelcomeFragment : Fragment() {
 
     private val welcomeBinding get() = _welcomeBinding!!
 
+    private val model: OnboardingViewModel by activityViewModels()
+
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -87,6 +96,11 @@ class WelcomeFragment : Fragment() {
                 .commit()
         }
 
+        model.apiUrl.observe(this.viewLifecycleOwner) {
+            println("changed the api url to " + model.apiUrl.value)
+            welcomeBinding.onBoardingServerButton.text = it.substringAfter("://")
+        }
+
         welcomeBinding.onBoardingServerButton.setOnClickListener {
             showServerDialog()
         }
@@ -97,11 +111,10 @@ class WelcomeFragment : Fragment() {
     private fun showServerDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_pick_server_url, null)
         val editText = dialogView.findViewById<TextInputEditText>(R.id.server_url_edit_text)
-        val serverButton = welcomeBinding.onBoardingServerButton
         val defaultUrl = getString(R.string.default_api_url)
 
         // Pre-populate with the current value (skip if it's the default label)
-        val current = serverButton.text.toString()
+        val current = model.apiUrl.value
         if (current != defaultUrl) {
             editText.setText(current)
         }
@@ -111,18 +124,14 @@ class WelcomeFragment : Fragment() {
             .create()
 
         dialogView.findViewById<MaterialButton>(R.id.btn_reset_default).setOnClickListener {
-            serverButton.text = defaultUrl
-            dialog.dismiss()
-        }
-
-        dialogView.findViewById<MaterialButton>(R.id.btn_cancel).setOnClickListener {
+            model._apiUrl.value = defaultUrl
             dialog.dismiss()
         }
 
         dialogView.findViewById<MaterialButton>(R.id.btn_submit).setOnClickListener {
             val input = editText.text?.toString()?.trim()
             if (!input.isNullOrEmpty()) {
-                serverButton.text = input
+                model._apiUrl.value = input
             }
             dialog.dismiss()
         }
@@ -139,6 +148,7 @@ class CreateFragment : Fragment() {
     private val createBinding get() = _createBinding!!
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+    private val model: OnboardingViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -175,7 +185,7 @@ class CreateFragment : Fragment() {
 
         uiScope.launch {
             try {
-                Lb.createAccount(username, null, true)
+                Lb.createAccount(username, model.apiUrl.value, true)
 
                 withContext(Dispatchers.Main) {
                     parentFragmentManager.beginTransaction()
@@ -201,6 +211,8 @@ class CopyKeyFragment : Fragment() {
     private val copyKeyBinding get() = _copyKeyBinding!!
 
     private lateinit var phrase: String
+
+    private val model: OnboardingViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -278,6 +290,8 @@ class ImportFragment : Fragment() {
     private val importBinding get() = _importBinding!!
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+
+    private val model: OnboardingViewModel by activityViewModels()
 
     private var onQRCodeResult =
         registerForActivityResult(
@@ -364,7 +378,8 @@ class ImportFragment : Fragment() {
 
         uiScope.launch {
             try {
-                Lb.importAccount(account)
+                Lb.importAccount(account, model.apiUrl.value)
+                println(model.apiUrl.value)
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
@@ -383,4 +398,12 @@ class ImportFragment : Fragment() {
         }
     }
 }
+
+class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
+
+    val _apiUrl = MutableLiveData<String>(getString(R.string.default_api_url))
+    val apiUrl: LiveData<String>
+        get() = _apiUrl
+}
+
 class CaptureActivityAutoRotate : CaptureActivity()

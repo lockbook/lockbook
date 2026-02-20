@@ -63,9 +63,7 @@
                 android:layout_height="wrap_content"
                 android:text="@string/server_onboarding_text"
                 android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                android:paddingStart="0dp"
-                android:paddingEnd="4dp"
-/>
+            />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/on_boarding_server_button"
