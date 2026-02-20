@@ -9,16 +9,16 @@ jobs:
     if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, macOS]
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CARGO_HOME: /Users/parthmehrotra/lockbook-ci-cache/home
-      CARGO_TARGET_DIR: /Users/parthmehrotra/lockbook-ci-cache/target
+      APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
     steps:
     - uses: actions/checkout@v4 
     - name: Configure PATH
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     - name: Setup Machine
-      run: rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
-    - name: Build WS
       run: |
+        rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
         cargo install cbindgen
-        cargo r -p lbdev apple ws all
+    - name: deploy iOS
+      run: cargo r -p lbdev releaser apple ios
+    - name: deploy macOS
+      run: cargo r -p lbdev releaser apple mac-app-store
