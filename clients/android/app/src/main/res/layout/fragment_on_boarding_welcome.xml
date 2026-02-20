@@ -52,6 +52,33 @@
             android:text="@string/on_boarding_copy"
             android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
 
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/server_onboarding_text"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                android:paddingStart="0dp"
+                android:paddingEnd="4dp"
+/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/on_boarding_server_button"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/default_api_url"
+                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                app:icon="@drawable/ic_baseline_arrow_down_24"
+                app:iconGravity="end" />
+
+        </LinearLayout>
+
     </LinearLayout>
 
     <LinearLayout

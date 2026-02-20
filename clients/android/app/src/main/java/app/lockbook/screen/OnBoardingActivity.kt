@@ -29,6 +29,9 @@ import app.lockbook.databinding.FragmentOnBoardingCopyKeyBinding
 import app.lockbook.databinding.FragmentOnBoardingCreateAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingImportAccountBinding
 import app.lockbook.databinding.FragmentOnBoardingWelcomeBinding
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
@@ -84,7 +87,47 @@ class WelcomeFragment : Fragment() {
                 .commit()
         }
 
+        welcomeBinding.onBoardingServerButton.setOnClickListener {
+            showServerDialog()
+        }
+
         return welcomeBinding.root
+    }
+
+    private fun showServerDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_pick_server_url, null)
+        val editText = dialogView.findViewById<TextInputEditText>(R.id.server_url_edit_text)
+        val serverButton = welcomeBinding.onBoardingServerButton
+        val defaultUrl = getString(R.string.default_api_url)
+
+        // Pre-populate with the current value (skip if it's the default label)
+        val current = serverButton.text.toString()
+        if (current != defaultUrl) {
+            editText.setText(current)
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this.requireContext())
+            .setView(dialogView)
+            .create()
+
+        dialogView.findViewById<MaterialButton>(R.id.btn_reset_default).setOnClickListener {
+            serverButton.text = defaultUrl
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<MaterialButton>(R.id.btn_cancel).setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialogView.findViewById<MaterialButton>(R.id.btn_submit).setOnClickListener {
+            val input = editText.text?.toString()?.trim()
+            if (!input.isNullOrEmpty()) {
+                serverButton.text = input
+            }
+            dialog.dismiss()
+        }
+
+        dialog.show()
     }
 }
 

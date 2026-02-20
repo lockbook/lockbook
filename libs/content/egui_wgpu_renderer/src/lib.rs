@@ -4,7 +4,7 @@ use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 use wgpu::{
-    Adapter, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceTargetUnsafe,
+    Adapter, Backends, CompositeAlphaMode, Device, Instance, Queue, Surface, SurfaceTargetUnsafe,
     TextureDescriptor, TextureFormat, TextureUsages,
 };
 
@@ -43,7 +43,8 @@ impl<'w> RendererState<'w> {
 
     fn instance() -> wgpu::Instance {
         let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-        let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
+        let instance_desc =
+            wgpu::InstanceDescriptor { backends: Backends::GL, ..Default::default() };
         wgpu::Instance::new(instance_desc)
     }
 
