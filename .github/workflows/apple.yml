@@ -14,8 +14,10 @@ jobs:
       CARGO_TARGET_DIR: /Users/parthmehrotra/lockbook-ci-cache/target
     steps:
     - uses: actions/checkout@v4 
-    - name: Add cargo to PATH
-      run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    - name: Machine Setup
+      run: |
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
     - name: Build WS
       run: |
         cargo install cbindgen
