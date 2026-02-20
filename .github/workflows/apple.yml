@@ -18,4 +18,5 @@ jobs:
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     - name: Build WS
       run: |
+        cargo install cbindgen
         cargo r -p lbdev apple ws all
