@@ -10,6 +10,7 @@ jobs:
     runs-on: [self-hosted, macOS]
     env:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+      MAC_MINI_LOGIN_KEYCHAIN: ${{ secrets.MAC_MINI_LOGIN_KEYCHAIN }}
     steps:
     - uses: actions/checkout@v4 
     - name: Configure PATH
@@ -18,6 +19,7 @@ jobs:
       run: |
         rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
         cargo install cbindgen
+        security unlock-keychain -p $MAC_MINI_LOGIN_KEYCHAIN "$HOME/Library/Keychains/login.keychain-db"
     - name: deploy iOS
       run: cargo r -p lbdev releaser apple ios
     - name: deploy macOS
