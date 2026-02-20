@@ -270,6 +270,12 @@
     <string name="expand_tabs_list">View more info about your tabs</string>
     <string name="close_tab">Close a tab</string>
     <string name="close_all_tabs">Close all tabs</string>
+    <string name="server_onboarding_text">Server:</string>
+    <string name="default_api_url">https://api.prod.lockbook.net</string>
+    <string name="server_url">Server URL</string>
+    <string name="server_url_input_hint">https://example.com</string>
+    <string name="reset_to_default">Reset to Default</string>
+    <string name="set_server_url">Set URL</string>
 
     <array name="share_mode">
         <item>@string/share_mode_read</item>
