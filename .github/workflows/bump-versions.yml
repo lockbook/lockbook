@@ -14,7 +14,7 @@ on:
           - major
 jobs:
   bump:
-    runs-on: macos-latest
+    runs-on: [self-hosted, macOS]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
