@@ -111,9 +111,7 @@ pub extern "system" fn Java_net_lockbook_Lb_importAccount<'local>(
 }
 
 fn get_api_url<'local>(env: &mut JNIEnv<'local>, api_url: JString<'local>) -> String {
-    let api_url =
-        if api_url.is_null() { DEFAULT_API_LOCATION.to_string() } else { rstring(env, api_url) };
-    api_url
+    if api_url.is_null() { DEFAULT_API_LOCATION.to_string() } else { rstring(env, api_url) }
 }
 
 fn j_account<'local>(env: &mut JNIEnv<'local>, account: Account) -> JObject<'local> {
