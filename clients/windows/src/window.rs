@@ -425,6 +425,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         .set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
 
     let app = lbeguiapp::Lockbook::new(&renderer.context);
+    app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {
         renderer,

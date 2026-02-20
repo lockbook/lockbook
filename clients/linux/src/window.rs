@@ -1,4 +1,4 @@
-use egui::{PlatformOutput, ViewportCommand, Visuals};
+use egui::{PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
@@ -9,6 +9,7 @@ use std::ffi::c_void;
 use std::num::NonZeroU32;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, Ordering};
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{ConnectionExt as _, *};
 use x11rb::protocol::{Event, xproto};
@@ -371,9 +372,10 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     let renderer = RendererState::init_window(window);
     renderer
         .context
-        .set_visuals(if dark_mode { Visuals::dark() } else { Visuals::light() });
+        .set_lb_theme(Theme::default(if dark_mode { Mode::Dark } else { Mode::Light }));
 
     let app = lbeguiapp::Lockbook::new(&renderer.context);
+    app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {
         renderer,
