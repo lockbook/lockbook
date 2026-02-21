@@ -1,5 +1,6 @@
 use egui::{
-    style::{self}, Color32, Id, Visuals
+    Color32, Id, Visuals,
+    style::{self},
 };
 use epaint::hex_color;
 
@@ -229,11 +230,7 @@ impl Theme {
             warn_fg_color: self.fg().yellow,
             error_fg_color: self.fg().red,
             panel_fill: self.bg().grey,
-            ..if self.current == Mode::Light {
-                Visuals::light()
-            } else {
-                Visuals::dark()
-            }
+            ..if self.current == Mode::Light { Visuals::light() } else { Visuals::dark() }
         };
 
         base.widgets.noninteractive.bg_fill = self.bg().grey;
