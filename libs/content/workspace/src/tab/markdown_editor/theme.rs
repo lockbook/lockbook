@@ -30,8 +30,8 @@ impl Theme {
                 yellow: theme.bg().yellow,
                 blue: theme.bg().blue,
                 magenta: theme.bg().magenta,
-                accent_primary: theme.bg().get_color(theme.prefs().primary),
-                accent_secondary: theme.bg().get_color(theme.prefs().secondary),
+                accent_primary: theme.bg().get_color(theme.prefs().secondary),
+                accent_secondary: theme.bg().get_color(theme.prefs().primary),
                 accent_tertiary: theme.bg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
@@ -68,8 +68,8 @@ impl Theme {
                 yellow: theme.fg().yellow,
                 blue: theme.fg().blue,
                 magenta: theme.fg().magenta,
-                accent_primary: theme.fg().get_color(theme.prefs().primary),
-                accent_secondary: theme.fg().get_color(theme.prefs().secondary),
+                accent_primary: theme.fg().get_color(theme.prefs().secondary),
+                accent_secondary: theme.fg().get_color(theme.prefs().primary),
                 accent_tertiary: theme.fg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
