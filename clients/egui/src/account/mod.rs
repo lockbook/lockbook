@@ -438,7 +438,7 @@ impl AccountScreen {
         let resp = ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    Frame::canvas(ui.style())
+                    Frame::none()
                         .inner_margin(0.)
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {

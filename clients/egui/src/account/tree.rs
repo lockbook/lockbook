@@ -19,7 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::theme::palette_v2::ThemeExt;
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 use workspace_rs::widgets::Button;
 
 #[derive(Debug, Default)]
@@ -1096,7 +1096,10 @@ impl FileTree {
             let icon = doc_type.to_icon().size(icon_size);
             let file_resp = button
                 .icon(&icon)
-                .icon_color(ui.style().visuals.text_color().linear_multiply(0.5))
+                .icon_color(theme.fg().grey.lerp_to_gamma(
+                    if theme.current == Mode::Light { theme.fg().white } else { theme.fg().black },
+                    0.5,
+                ))
                 .show(ui);
 
             file_resp

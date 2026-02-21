@@ -1,5 +1,5 @@
 use egui::{
-    Color32, Id,
+    Color32, Id, Visuals,
     style::{self},
 };
 use epaint::hex_color;
@@ -56,6 +56,17 @@ impl Theme {
             Mode::Light => self.dark,
             Mode::Dark => self.light,
         }
+    }
+
+    pub fn light(&self) -> bool {
+        match self.current {
+            Mode::Light => true,
+            Mode::Dark => false,
+        }
+    }
+
+    pub fn dark(&self) -> bool {
+        !self.light()
     }
 }
 
@@ -219,7 +230,7 @@ impl Theme {
             warn_fg_color: self.fg().yellow,
             error_fg_color: self.fg().red,
             panel_fill: self.bg().grey,
-            ..Default::default()
+            ..if self.current == Mode::Light { Visuals::light() } else { Visuals::dark() }
         };
 
         base.widgets.noninteractive.bg_fill = self.bg().grey;
@@ -248,38 +259,5 @@ impl Theme {
         base.widgets.open.bg_stroke.color = self.bg().grey;
 
         base
-    }
-
-    pub fn dark(&self) -> egui::Visuals {
-        let mut v = egui::Visuals::dark();
-        let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
-
-        if is_mobile {
-            v.window_fill = Color32::from_rgb(0, 0, 0);
-            v.extreme_bg_color = Color32::from_rgb(0, 0, 0);
-        } else {
-            v.window_fill = Color32::from_rgb(20, 20, 20);
-            v.extreme_bg_color = Color32::from_rgb(20, 20, 20);
-        }
-
-        v.faint_bg_color = Color32::from_rgb(35, 35, 37);
-        v.widgets.noninteractive.bg_fill = Color32::from_rgb(25, 25, 27);
-        v.widgets.noninteractive.fg_stroke.color = Color32::from_rgb(242, 242, 247);
-        v.widgets.inactive.fg_stroke.color = Color32::from_rgb(242, 242, 247);
-        // v.widgets.active.bg_fill = ThemePalette::DARK[primary];
-
-        v.widgets.hovered.bg_fill = v.code_bg_color.linear_multiply(0.1);
-
-        v
-    }
-
-    pub fn light(&self) -> egui::Visuals {
-        let mut v = egui::Visuals::light();
-        v.window_fill = Color32::from_rgb(255, 255, 255);
-        v.extreme_bg_color = Color32::from_rgb(255, 255, 255);
-        // v.widgets.active.bg_fill = ThemePalette::LIGHT[primary];
-        v.widgets.hovered.bg_fill = v.code_bg_color.linear_multiply(0.9);
-
-        v
     }
 }
