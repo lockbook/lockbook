@@ -1,6 +1,6 @@
 use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 
-use crate::theme::icons::Icon;
+use crate::theme::{icons::Icon, palette_v2::ThemeExt};
 
 /// A button with only an icon. Has a background when hovered. Colored when clicked.
 /// Supports an optional tooltip.
@@ -56,7 +56,7 @@ impl IconButton {
             if self.disabled { Sense::hover() } else { Sense::click() },
         );
 
-        if resp.hovered() {
+        if resp.hovered() && !self.disabled {
             ui.painter()
                 .rect(rect, 2., ui.visuals().code_bg_color, egui::Stroke::NONE);
             ui.output_mut(|o: &mut egui::PlatformOutput| {
@@ -71,7 +71,11 @@ impl IconButton {
         };
 
         if self.disabled {
-            icon_color = icon_color.gamma_multiply(0.5);
+            let theme = ui.ctx().get_lb_theme();
+            icon_color = icon_color.lerp_to_gamma(
+                if theme.light() { theme.fg().white } else { theme.fg().black },
+                0.75,
+            );
         }
 
         ui.painter().galley(
