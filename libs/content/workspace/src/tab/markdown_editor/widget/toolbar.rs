@@ -7,7 +7,7 @@ use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
 use egui::scroll_area::ScrollBarVisibility;
 use egui::{
     FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea, Separator,
-    Stroke, Ui, Vec2, Widget,
+    Stroke, Ui, UiBuilder, Vec2, Widget,
 };
 use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
@@ -452,7 +452,7 @@ impl<'ast> Editor {
             if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
         ScrollArea::vertical()
             .drag_to_scroll(true)
-            .id_source("toolbar_settings")
+            .id_salt("toolbar_settings")
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
@@ -969,7 +969,11 @@ impl<'ast> Editor {
         let height = self.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-        self.show_block(&mut ui.child_ui(rect, *ui.layout(), None), root, top_left);
+        self.show_block(
+            &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(*ui.layout())),
+            root,
+            top_left,
+        );
 
         self.layout_cache.clear();
     }

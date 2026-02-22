@@ -4,6 +4,7 @@ use workspace_rs::{
         markdown_editor::{Editor, MdConfig},
         svg_editor::SVGEditor,
     },
+    theme::palette_v2::{Mode, Theme, ThemeExt as _},
     workspace::Workspace,
 };
 
@@ -41,6 +42,7 @@ impl LbWebApp {
         ctx.set_fonts(fonts);
         ctx.set_zoom_factor(0.9);
 
+        ctx.set_lb_theme(Theme::default(Mode::Dark));
         ctx.set_visuals(generate_visuals());
 
         Self {

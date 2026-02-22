@@ -38,11 +38,11 @@ For the purposes of Sync v3, each file has:
   the server, so while the server cannot read file names, it can test them for
   equality.
 * `parent`: the file's parent folder (specified by the parent's `id`). The
-  `root` folder is the folder which has itself as a parent (it's name is by
-  convention it's owners username and it cannot be deleted).
+  `root` folder is the folder which has itself as a parent (its name is by
+  convention its owner's username and it cannot be deleted).
 * `deleted`: a boolean flag which indicates whether the file is _explicitly_
-  deleted. A file whose ancestor is deleted need not be explictly deleted; if
-  not, it is considered _implictly_ deleted (all implicitly deleted files are
+  deleted. A file whose ancestor is deleted need not be explicitly deleted; if
+  not, it is considered _implicitly_ deleted (all implicitly deleted files are
   eventually explicitly deleted). A file that is no longer known to a client at
   all is considered _pruned_ on that client.
 
@@ -66,7 +66,7 @@ true of a user's file tree on all devices at all times:
 * Orphan Invariant: every non-root file must have its parent in the file tree.
   To keep client storage from growing unboundedly, clients eventually prune
   deleted files (remove all mentions of them from durable storage). If the
-  design does not pay careful attention to the disctinctions between explictly
+  design does not pay careful attention to the distinctions between explicitly
   deleted, implicitly deleted, and pruned files, a client may prune a file
   without pruning one of its children.
 
@@ -77,9 +77,9 @@ order to support [sharing](sharing.md), we give every document a symmetric key
 the keys of child folders and documents). This allows users to recursively share
 folder contents performantly and consistently. It also creates an encryption
 chain for each document: the document is encrypted with the document's key,
-which is encrypted with its parent folder's key, which is encrypted with it's
-parent folders key, all the way up to the root folder whose key is encrypted
-with the user's account key which is stored on the user's devices and trasferred
+which is encrypted with its parent folder's key, which is encrypted with its
+parent folder's key, all the way up to the root folder whose key is encrypted
+with the user's account key which is stored on the user's devices and transferred
 directly between them as a string or QR code.
 
 This encryption chain, and its interaction with the invariants, creates
@@ -97,7 +97,7 @@ file tree: one for the current local version (`local`), and one for the last
 version known to be agreed upon by the client and server (`base`). Our ambition
 is to define a 3-way merge operation for file trees which we can use after
 pulling the server's version of the file tree (`remote`) which never results in
-a invariant violation and which otherwise produces satisfying behavior to users.
+an invariant violation and which otherwise produces satisfying behavior to users.
 This operation needs to take place on clients because the server does not have
 access to decrypted files. Once a client uses the 3-way merge operation to
 resolve conflicts, they can write their updates back to the server.
@@ -130,8 +130,8 @@ space used on users' devices.
 When pulling the state of a user's file tree from the server, we need to avoid
 pulling the whole file tree. We intend for the system to scale to thousands or
 millions of files per user - the user might have access to a shared folder
-containing files for their entire company. To this end we track a version for
-the file in its metdata (`metadata_version`). The `metadata_version` for a file
+containing files for their entire company. To this end we track a version for the
+file in its metadata (`metadata_version`). The `metadata_version` for a file
 is simply the server-assigned timestamp of the file's most recent update,
 represented as a Unix epoch. When a client fetches updates from the server, it
 passes the most recent version it knowns of, and the server replies with the new
@@ -210,13 +210,13 @@ client would delete both the folder and the document, then the next time the
 other client synced, the document would be deleted even though it was not in the
 deleted folder. We decided this was unacceptable behavior.
 
-In order to prune a file, we need it to be explictly deleted (and have no
-descendants that are not explictly deleted and would therefore become orphans),
+In order to prune a file, we need it to be explicitly deleted (and have no
+descendants that are not explicitly deleted and would therefore become orphans),
 and for its explicit deletion to be synced to the server. If it's only
 implicitly deleted, then it potentially could have been moved out of its deleted
 ancestor in an update that we have not yet pulled, so a client cannot yet prune
 it. This will perpetually be the case for implicitly deleted files unless they
-are at some point explictly deleted. This means the server is the entity which
+are at some point explicitly deleted. This means the server is the entity which
 must ultimately explicitly delete implicitly deleted files. **Anytime a set of
 file updates is pushed to the server, the server explicitly deletes all
 implicitly deleted files. The next time they pull, clients receive these

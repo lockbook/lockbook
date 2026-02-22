@@ -78,7 +78,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mut native_window = NativeWindow::new(&env, surface);
     let renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
-    visuals::init(&renderer.context, dark_mode);
+    visuals::init(&renderer.context);
 
     let workspace = Workspace::new(core, &renderer.context, false);
 

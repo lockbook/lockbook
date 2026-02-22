@@ -17,7 +17,7 @@ impl Theme {
     /// todo: the editor should use the paletted directly once there are secondary helpers to do
     /// these in-between colors uniformly
     pub fn bg(&self) -> ColorSet {
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         match theme.current {
             Mode::Light => ColorSet {
@@ -30,8 +30,8 @@ impl Theme {
                 yellow: theme.bg().yellow,
                 blue: theme.bg().blue,
                 magenta: theme.bg().magenta,
-                accent_primary: theme.bg().get_color(theme.prefs().primary),
-                accent_secondary: theme.bg().get_color(theme.prefs().secondary),
+                accent_primary: theme.bg().get_color(theme.prefs().secondary),
+                accent_secondary: theme.bg().get_color(theme.prefs().primary),
                 accent_tertiary: theme.bg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
@@ -55,7 +55,7 @@ impl Theme {
     /// todo: the editor should use the paletted directly once there are secondary helpers to do
     /// these in-between colors uniformly
     pub fn fg(&self) -> ColorSet {
-        let theme = self.ctx.get_theme();
+        let theme = self.ctx.get_lb_theme();
 
         match theme.current {
             Mode::Light => ColorSet {
@@ -68,8 +68,8 @@ impl Theme {
                 yellow: theme.fg().yellow,
                 blue: theme.fg().blue,
                 magenta: theme.fg().magenta,
-                accent_primary: theme.fg().get_color(theme.prefs().primary),
-                accent_secondary: theme.fg().get_color(theme.prefs().secondary),
+                accent_primary: theme.fg().get_color(theme.prefs().secondary),
+                accent_secondary: theme.fg().get_color(theme.prefs().primary),
                 accent_tertiary: theme.fg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
