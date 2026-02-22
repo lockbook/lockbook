@@ -4,18 +4,10 @@
         "details": [
             {
                 "appIDs": [
-                    "39ZS78S25U.com.lockbook.ios"
+                    "39ZS78S25U.app.lockbook"
                 ],
                 "paths": [
-                    "/content/view*"
-                ]
-            },
-            {
-                "appIDs": [
-                    "39ZS78S25U.com.lockbook.macos"
-                ],
-                "paths": [
-                    "/content/view*"
+                    "/content/view/*"
                 ]
             }
         ]
