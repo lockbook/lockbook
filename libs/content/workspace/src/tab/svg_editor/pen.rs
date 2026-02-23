@@ -7,12 +7,12 @@ use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
-use tracing::{Level, event, trace};
+use tracing::{Level, event, trace, warn};
 use tracing_test::traced_test;
 use web_time::{Duration, Instant};
 
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::roger::ToolPayload;
+use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};
 use crate::tab::svg_editor::util::is_scroll;
 use crate::theme::palette::ThemePalette;
 
@@ -183,7 +183,7 @@ impl Pen {
                 0.5,
             );
 
-            if is_current_path_empty && !(pen_ctx.settings.pencil_only_drawing) {
+            if is_current_path_empty {
                 let mut radius = self.active_stroke_width / 2.0;
                 if !self.has_inf_thick {
                     radius *= pen_ctx.viewport_settings.master_transform.sx;
@@ -234,6 +234,7 @@ impl Pen {
         match event {
             PathEvent::Draw(payload) => {
                 if payload.force.is_none() && pen_ctx.settings.pencil_only_drawing {
+                    warn!("ignoring touch input because pencil only drawing is enabled");
                     return None;
                 }
 
@@ -584,6 +585,19 @@ pub enum PathEvent {
     ClearPredictedTouches,
     End(ToolPayload),
     CancelStroke,
+}
+
+pub fn from_roger_to_pen_event(event: RogerEvent) -> Option<PathEvent> {
+    match event {
+        RogerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
+        RogerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
+        RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
+        RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
+        RogerEvent::ToolHover(tool_payload) => Some(PathEvent::Hover(tool_payload)),
+        RogerEvent::ViewportChange => None,
+        RogerEvent::Gesture(_) => None,
+        RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
+    }
 }
 
 #[traced_test]

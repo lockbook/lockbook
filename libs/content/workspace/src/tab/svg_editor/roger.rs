@@ -10,7 +10,7 @@ pub struct Roger {
     touches: Vec<TouchInfo>,
     buttons: HashMap<MouseProps, Instant>,
     tool_running: Option<Instant>,
-    tool_start_touch: Option<Pointer>, // keep track of the touch id that started a touch, to inform tool end
+    tool_start_touch: Option<TouchId>, // keep track of the touch id that started a touch, to inform tool end
     viewport_changing: Option<Instant>,
     config: RogerConfig,
     is_touch_frame: bool, // as we traverse the input event stream do we see touch events.
@@ -28,36 +28,24 @@ impl RogerConfig {
     }
 }
 
-#[derive(Eq, Hash, PartialEq, Debug, Clone, Copy)]
-enum Pointer {
-    Finger(u64), // Touch ID
-    Pen(u64),    // Pen ID
-}
-impl Pointer {
-    fn id(self) -> u64 {
-        match self {
-            Pointer::Finger(id) => id,
-            Pointer::Pen(id) => id,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct TouchInfo {
-    id: Pointer,
+    id: egui::TouchId,
     start: Instant,
     is_active: bool,
+    has_force: bool,
     lifetime_distance: f32,
     frame_delta: egui::Vec2,
     last_pos: egui::Pos2,
 }
 
 impl TouchInfo {
-    fn new(id: Pointer, pos: egui::Pos2) -> Self {
+    fn new(id: TouchId, pos: egui::Pos2, force: Option<f32>) -> Self {
         Self {
             id,
             start: Instant::now(),
             is_active: true,
+            has_force: force.is_some(),
             lifetime_distance: 0.0,
             frame_delta: egui::Vec2::ZERO,
             last_pos: pos,
@@ -82,7 +70,7 @@ enum ButtonType {
     Extra2,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum RogerEvent {
     ToolStart(ToolPayload),
     ToolRun(ToolPayload),
@@ -132,11 +120,9 @@ impl Roger {
 
     pub fn process_events(&mut self, events: Iter<egui::Event>) -> Vec<RogerEvent> {
         self.is_touch_frame = false;
-        events
+        let result: Vec<RogerEvent> = events
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event);
-                debug!(?event, ?roger_event, "processing ui event to roger ");
-                debug!(?self, "roger state");
 
                 // only return viewport change events on read only mode.
                 if self.config.is_read_only
@@ -147,7 +133,26 @@ impl Roger {
                     roger_event
                 }
             })
-            .collect()
+            .collect();
+
+        // debug
+        for (i, event) in result.iter().enumerate() {
+            // let next_is_same = result
+            //     .get(i + 1)
+            //     .map(|next| std::mem::discriminant(next) == std::mem::discriminant(event))
+            //     .unwrap_or(false);
+
+            // if !next_is_same {
+            debug!(
+                ?event,
+                touches_count = self.touches.iter().count(),
+                pen_only = self.config.pencil_only_drawing
+            );
+            // debug!(?self);
+            // }
+        }
+
+        result
     }
 
     fn ui_to_roger_event(&mut self, event: &egui::Event) -> Option<RogerEvent> {
@@ -222,7 +227,10 @@ impl Roger {
                 return self.touch_to_roger_event(device_id, id, pos, phase, force);
             }
             egui::Event::Zoom(factor) => {
-                println!("Zoom event with factor: {:?}", factor);
+                if self.tool_running.is_none() {
+                    self.viewport_changing = Some(Instant::now());
+                    return Some(RogerEvent::ViewportChange);
+                }
                 None
             }
             _ => None,
@@ -233,47 +241,55 @@ impl Roger {
         &mut self, device_id: TouchDeviceId, id: TouchId, pos: egui::Pos2, phase: TouchPhase,
         force: Option<f32>,
     ) -> Option<RogerEvent> {
-        let curr_touch_id =
-            if force.is_some() { Pointer::Pen(id.0) } else { Pointer::Finger(id.0) };
+        let curr_touch_id = id;
+        let is_curr_touch_pen = force.is_some();
+
         let payload = ToolPayload { pos, force, id: Some(id) };
 
         match phase {
             egui::TouchPhase::Start => {
-                self.touches.push(TouchInfo::new(curr_touch_id, pos));
+                let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
+                self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
+
                 if let Some(last_touch) = self.touches.iter().rev().nth(1) {
-                    match last_touch.id {
-                        Pointer::Finger(_) => match curr_touch_id {
-                            Pointer::Finger(_) => {
-                                if self.config.pencil_only_drawing {
-                                    // one finger touch trigers a gesture, and so does two fingers
-                                    self.viewport_changing = Some(Instant::now());
-                                    return Some(RogerEvent::ViewportChange);
-                                } else {
-                                    let elapsed = Instant::now() - last_touch.start;
-                                    // todo: source constant from pen impl
-                                    if elapsed < Duration::milliseconds(200) {
-                                        // if the two touch starts are temporaly close then it's a viewport and not
-                                        // a tool run. cancel the tool run and change viewpoort.
-                                        // for ex: cleanup the dot in the pen
-                                        self.viewport_changing = Some(Instant::now());
-                                        self.tool_start_touch = None;
-                                        self.tool_running = None;
-                                        return Some(RogerEvent::ViewportChangeWithToolCancel);
-                                    } else {
-                                        // else: the two fingers are spaced out. the first one runs the tool
-                                        // the second one will be ignored
-                                        return None;
-                                    }
-                                }
+                    if !last_touches_have_pen && is_curr_touch_pen {
+                        if self.tool_running.is_some() {
+                            // this is non pen only mode, let the finger continue to run the tool,
+                            // and ignore the pen input if the pen comes in after the touch
+                            return None;
+                        }
+                        self.viewport_changing = None;
+                        self.tool_start_touch = Some(curr_touch_id);
+                        self.tool_running = Some(Instant::now());
+                        return Some(RogerEvent::ToolStart(payload));
+                    }
+
+                    if !last_touches_have_pen && !is_curr_touch_pen {
+                        if self.config.pencil_only_drawing {
+                            // one finger touch trigers a gesture, and so does two fingers
+                            self.viewport_changing = Some(Instant::now());
+                            return Some(RogerEvent::ViewportChange);
+                        } else {
+                            let elapsed = Instant::now() - last_touch.start;
+                            // todo: source constant from pen impl
+                            if elapsed < Duration::milliseconds(200) {
+                                // if the two touch starts are temporaly close then it's a viewport and not
+                                // a tool run. cancel the tool run and change viewpoort.
+                                // for ex: cleanup the dot in the pen
+                                self.viewport_changing = Some(Instant::now());
+                                self.tool_start_touch = None;
+                                self.tool_running = None;
+                                return Some(RogerEvent::ViewportChangeWithToolCancel);
+                            } else {
+                                // else: the two fingers are spaced out. the first one runs the tool
+                                // the second one will be ignored
+                                return None;
                             }
-                            Pointer::Pen(_) => {
-                                self.viewport_changing = None;
-                                self.tool_start_touch = Some(curr_touch_id);
-                                self.tool_running = Some(Instant::now());
-                                return Some(RogerEvent::ToolStart(payload));
-                            }
-                        },
-                        Pointer::Pen(_) => {} // never interrupt a tool run invoked by a pen,
+                        }
+                    }
+
+                    if last_touches_have_pen {
+                        return None;
                     }
                 }
                 // there's only one touch, but maybe there's a mousewheel event. exmaple ipad touchpad?
@@ -282,13 +298,16 @@ impl Roger {
                     return None;
                 }
 
-                if self.config.pencil_only_drawing && matches!(curr_touch_id, Pointer::Finger(_)) {
+                if self.config.pencil_only_drawing && !is_curr_touch_pen {
                     self.viewport_changing = Some(Instant::now());
                     return Some(RogerEvent::ViewportChange);
                 }
-                self.tool_running = Some(Instant::now());
-                self.tool_start_touch = Some(curr_touch_id);
-                return Some(RogerEvent::ToolStart(payload));
+
+                if self.tool_running.is_none() {
+                    self.tool_running = Some(Instant::now());
+                    self.tool_start_touch = Some(curr_touch_id);
+                    return Some(RogerEvent::ToolStart(payload));
+                }
             }
             egui::TouchPhase::Move => {
                 // update touch info with movement data.
@@ -299,6 +318,9 @@ impl Roger {
                     self.touches[i].lifetime_distance += last_pos.distance(pos);
 
                     self.touches[i].last_pos = pos;
+                    if force.is_some() {
+                        self.touches[i].has_force = true;
+                    }
                 }
 
                 if let Some(start_touch) = self.tool_start_touch {
@@ -315,11 +337,11 @@ impl Roger {
             egui::TouchPhase::End => {
                 if let Some(i) = self.touches.iter().position(|&t| t.id.eq(&curr_touch_id)) {
                     if let Some(start_touch) = self.tool_start_touch {
-                        if start_touch.eq(&curr_touch_id) {
+                        if start_touch == curr_touch_id {
                             self.tool_running = None;
                             self.tool_start_touch = None;
                             // the touch that started the tool ended, a gesture won't fire, so let's end all other touches.
-                            self.touches.remove(i);
+                            self.touches.clear();
                             return Some(RogerEvent::ToolEnd(payload));
                         } else {
                             self.touches[i].is_active = false;
@@ -327,6 +349,8 @@ impl Roger {
                     } else {
                         self.touches[i].is_active = false;
                     }
+                } else {
+                    warn!(?id, ?force, "ending a touch that didn't start")
                 }
 
                 if self.touches.iter().all(|t| !t.is_active) {
@@ -681,12 +705,56 @@ mod tests {
     }
 
     #[test]
-    fn finger_then_pen_starts_pen() {
+    fn pen_then_two_fingers_ignores_fingers() {
+        let mut roger = Roger::new(RogerConfig::default());
+        let pos1 = egui::Pos2::new(10.0, 10.0);
+        let pos2 = egui::Pos2::new(20.0, 20.0);
+        let pos3 = egui::Pos2::new(30.0, 30.0);
+        let pos4 = egui::Pos2::new(40.0, 40.0);
+
+        let force = Some(0.5);
+        let pen_1_payload = ToolPayload { pos: pos1, force, id: Some(TouchId(1)) };
+        let pen_2_payload = ToolPayload { pos: pos4, force, id: Some(TouchId(4)) };
+
+        let test = RogerTestRunner::new(vec![
+            RogerTestFrame::new(
+                start_touch(1, pos1, force), // Pen starts
+                vec![RogerEvent::ToolStart(pen_1_payload)],
+            ),
+            RogerTestFrame::new(
+                start_touch(2, pos2, None), // Finger starts - should be ignored
+                vec![],
+            ),
+            RogerTestFrame::new(
+                start_touch(3, pos3, None), // Finger 2 starts - should be ignored
+                vec![],
+            ),
+            RogerTestFrame::new(
+                vec![move_touch(1, pos1, force)],
+                vec![RogerEvent::ToolRun(pen_1_payload)],
+            ),
+            RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
+            RogerTestFrame::new(end_touch(3, pos3, None), vec![]),
+            RogerTestFrame::new(
+                end_touch(1, pos1, force),
+                vec![RogerEvent::ToolEnd(pen_1_payload)],
+            ),
+            RogerTestFrame::new(
+                start_touch(4, pos4, force),
+                vec![RogerEvent::ToolStart(pen_2_payload)],
+            ),
+        ]);
+
+        test.eval(&mut roger);
+    }
+
+    #[test]
+    fn finger_then_pen_ignore_pen() {
         let mut roger = Roger::new(RogerConfig::default());
         let pos1 = egui::Pos2::new(10.0, 10.0);
         let pos2 = egui::Pos2::new(20.0, 20.0);
         let force = Some(0.5);
-        let pen_payload = ToolPayload { pos: pos2, force, id: Some(TouchId(2)) };
+        let touch_payloud = ToolPayload { pos: pos2, force: None, id: Some(TouchId(1)) };
 
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(
@@ -698,14 +766,19 @@ mod tests {
                 })],
             ),
             RogerTestFrame::new(
-                start_touch(2, pos2, force), // Pen starts
-                vec![RogerEvent::ToolStart(pen_payload)],
+                start_touch(2, pos2, force), // Pen starts, but it's ignored because the finger that runs the tool started first
+                vec![],
             ),
+            RogerTestFrame::new(vec![move_touch(2, pos2, force)], vec![]),
             RogerTestFrame::new(
-                vec![move_touch(2, pos2, force)],
-                vec![RogerEvent::ToolRun(pen_payload)],
+                vec![move_touch(1, pos2, None)],
+                vec![RogerEvent::ToolRun(ToolPayload {
+                    pos: pos2,
+                    force: None,
+                    id: Some(TouchId(1)),
+                })],
             ),
-            RogerTestFrame::new(end_touch(2, pos2, force), vec![RogerEvent::ToolEnd(pen_payload)]),
+            RogerTestFrame::new(end_touch(1, pos2, None), vec![RogerEvent::ToolEnd(touch_payloud)]),
         ]);
 
         test.eval(&mut roger);
@@ -790,7 +863,7 @@ mod tests {
         let test = RogerTestRunner::new(vec![
             RogerTestFrame::new(start_touch(1, pos1, None), vec![RogerEvent::ViewportChange]),
             RogerTestFrame::new(start_touch(2, pos2, None), vec![RogerEvent::ViewportChange]),
-            RogerTestFrame::new(start_touch(3, pos3, None), vec![]),
+            RogerTestFrame::new(start_touch(3, pos3, None), vec![RogerEvent::ViewportChange]),
             RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
             RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
             RogerTestFrame::new(end_touch(3, pos3, None), vec![RogerEvent::Gesture(3)]),

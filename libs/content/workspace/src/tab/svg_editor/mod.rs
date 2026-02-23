@@ -16,7 +16,8 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::pen::PathEvent;
+use crate::tab::svg_editor::eraser::from_roger_to_eraser_event;
+use crate::tab::svg_editor::pen::{PathEvent, from_roger_to_pen_event};
 use crate::tab::svg_editor::roger::{Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::theme::palette::ThemePalette;
@@ -362,28 +363,15 @@ impl SVGEditor {
         }
 
         for event in self.roger.process(ui) {
-            let maybe_tool_event = match event {
-                roger::RogerEvent::ToolStart(payload) | roger::RogerEvent::ToolRun(payload) => {
-                    Some(PathEvent::Draw(payload))
-                }
-                roger::RogerEvent::ToolEnd(payload) => Some(PathEvent::End(payload)),
-                roger::RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
-                roger::RogerEvent::ToolHover(payload) => Some(PathEvent::Hover(payload)),
-                roger::RogerEvent::ViewportChange => {
+            // handle non tool events
+            match event {
+                roger::RogerEvent::ViewportChange
+                | roger::RogerEvent::ViewportChangeWithToolCancel => {
                     self.toolbar.gesture_handler.handle_input(
                         ui,
                         &mut tool_context,
                         self.toolbar.hide_overlay,
                     );
-                    None
-                }
-                roger::RogerEvent::ViewportChangeWithToolCancel => {
-                    self.toolbar.gesture_handler.handle_input(
-                        ui,
-                        &mut tool_context,
-                        self.toolbar.hide_overlay,
-                    );
-                    Some(PathEvent::CancelStroke)
                 }
                 roger::RogerEvent::Gesture(num_touches) => {
                     // todo: show a popup if the gesture has no effect, ex: undo stack empty
@@ -392,13 +380,29 @@ impl SVGEditor {
                     } else if num_touches == 3 {
                         tool_context.history.redo(tool_context.buffer)
                     }
-                    None
                 }
-            };
-            if let Some(tool_event) = maybe_tool_event {
-                self.toolbar
-                    .pen
-                    .handle_path_event(tool_event, &mut tool_context);
+                _ => {}
+            }
+            match self.toolbar.active_tool {
+                Tool::Pen => {
+                    let pen_event = from_roger_to_pen_event(event);
+                    if let Some(pen_event) = pen_event {
+                        self.toolbar
+                            .pen
+                            .handle_path_event(pen_event, &mut tool_context);
+                    }
+                }
+                Tool::Eraser => {
+                    let eraser_event = from_roger_to_eraser_event(event);
+                    if let Some(eraser_event) = eraser_event {
+                        self.toolbar
+                            .eraser
+                            .handle_erase_event(&eraser_event, &mut tool_context);
+                    }
+                }
+                Tool::Selection => todo!(),
+                Tool::Highlighter => todo!(),
+                Tool::Shapes => todo!(),
             }
         }
 

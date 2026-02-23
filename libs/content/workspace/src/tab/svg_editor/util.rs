@@ -153,9 +153,9 @@ pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec
         }
     }
 
-    if cfg!(target_os = "ios") {
-        return None;
-    }
+    // if cfg!(target_os = "ios") {
+    //     return None;
+    // }
 
     ui.input(|r| {
         if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {

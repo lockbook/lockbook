@@ -4,6 +4,8 @@ use web_time::{Duration, Instant};
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
 
+use crate::tab::svg_editor::roger::RogerEvent;
+
 use super::DeleteElement;
 use super::toolbar::ToolContext;
 use super::util::{is_multi_touch, pointer_intersects_element};
@@ -28,6 +30,17 @@ pub enum EraseEvent {
     Build((egui::Pos2, Option<egui::TouchId>)),
     End,
     Cancel,
+}
+
+pub fn from_roger_to_eraser_event(event: RogerEvent) -> Option<EraseEvent> {
+    match event {
+        RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
+            Some(EraseEvent::Build((payload.pos, payload.id)))
+        }
+        RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
+        RogerEvent::ToolCancel => Some(EraseEvent::Cancel),
+        _ => None,
+    }
 }
 
 pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
@@ -133,7 +146,7 @@ impl Eraser {
         None
     }
 
-    fn handle_erase_event(&mut self, event: &EraseEvent, eraser_ctx: &mut ToolContext<'_>) {
+    pub fn handle_erase_event(&mut self, event: &EraseEvent, eraser_ctx: &mut ToolContext<'_>) {
         match *event {
             EraseEvent::Build((pos, maybe_touch_id)) => {
                 if !eraser_ctx.painter.clip_rect().contains(pos) {
