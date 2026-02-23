@@ -58,7 +58,7 @@ struct ToolbarLayout {
     viewport_island: Option<egui::Rect>,
     viewport_popover: Option<egui::Rect>,
     tool_popover: Option<egui::Rect>,
-    zoom_pct_btn: Option<egui::Rect>,
+    zoom_pct_btn: Option<egui::Rect>, // within the viewport popover. used to center the popover above the button
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
     mini_map: Option<egui::Rect>,
@@ -346,6 +346,37 @@ impl Toolbar {
             *has_islands_interaction = true;
         }
         res
+    }
+
+    pub fn get_rects(&self) -> Vec<egui::Rect> {
+        let overlay = || -> Vec<Option<egui::Rect>> {
+            if self.hide_overlay {
+                vec![self.layout.overlay_toggle]
+            } else {
+                let mut islands = vec![
+                    self.layout.history_island,
+                    self.layout.overlay_toggle,
+                    self.layout.tools_island,
+                    self.layout.viewport_island,
+                ];
+                if self.show_tool_popover {
+                    islands.push(self.layout.tool_popover);
+                };
+                if let Some(popover) = self.viewport_popover {
+                    match popover {
+                        ViewportPopover::More => islands.push(self.layout.viewport_popover),
+                        ViewportPopover::ZoomStops => islands.push(self.layout.zoom_stops_popover),
+                    };
+                };
+                islands
+                // todo: handle mini map!!
+            }
+        }();
+
+        overlay
+            .iter()
+            .filter_map(|&i| i)
+            .collect::<Vec<egui::Rect>>()
     }
 
     fn handle_keyboard_shortcuts(

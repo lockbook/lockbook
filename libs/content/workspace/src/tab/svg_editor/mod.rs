@@ -18,7 +18,7 @@ use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::eraser::from_roger_to_eraser_event;
 use crate::tab::svg_editor::pen::{PathEvent, from_roger_to_pen_event};
-use crate::tab::svg_editor::roger::{Roger, RogerConfig};
+use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
@@ -362,7 +362,12 @@ impl SVGEditor {
             return;
         }
 
-        for event in self.roger.process(ui) {
+        let layout_ctx = LayoutContext::new(
+            tool_context.viewport_settings.working_rect,
+            self.toolbar.get_rects(),
+        );
+
+        for event in self.roger.process(ui, &layout_ctx) {
             // handle non tool events
             match event {
                 roger::RogerEvent::ViewportChange

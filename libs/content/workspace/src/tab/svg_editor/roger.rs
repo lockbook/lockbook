@@ -1,14 +1,16 @@
 use std::{collections::HashMap, slice::Iter};
 
-use egui::{TouchDeviceId, TouchId, TouchPhase};
+use egui::{Layout, TouchDeviceId, TouchId, TouchPhase};
 use time::Duration;
 use tracing::{debug, warn};
 use web_time::Instant;
 
+use crate::{tab::svg_editor::roger, widgets::button};
+
 #[derive(Debug)]
 pub struct Roger {
     touches: Vec<TouchInfo>,
-    buttons: HashMap<MouseProps, Instant>,
+    buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
     tool_start_touch: Option<TouchId>, // keep track of the touch id that started a touch, to inform tool end
     viewport_changing: Option<Instant>,
@@ -101,6 +103,28 @@ impl From<egui::PointerButton> for ButtonType {
     }
 }
 
+/**
+ * drawing_rect, (the rect where you can draw on, according to the egui plane)
+ * overlay_rects, rects where tool runs can pass through, but can't start in   
+ */
+#[derive(Debug)]
+pub struct LayoutContext {
+    draw_area: egui::Rect,
+    overlay_areas: Vec<egui::Rect>,
+}
+
+impl LayoutContext {
+    pub fn new(draw_area: egui::Rect, overlay_areas: Vec<egui::Rect>) -> Self {
+        Self { draw_area, overlay_areas }
+    }
+}
+
+impl Default for LayoutContext {
+    fn default() -> Self {
+        Self { draw_area: egui::Rect::EVERYTHING, overlay_areas: vec![] }
+    }
+}
+
 impl Roger {
     pub fn new(config: RogerConfig) -> Self {
         Self {
@@ -114,48 +138,85 @@ impl Roger {
         }
     }
 
-    pub fn process(&mut self, ui: &mut egui::Ui) -> Vec<RogerEvent> {
-        ui.input(|r| self.process_events(r.events.iter()))
+    pub fn process(&mut self, ui: &mut egui::Ui, layout: &LayoutContext) -> Vec<RogerEvent> {
+        ui.input(|r| self.process_events(r.events.iter(), layout))
     }
 
-    pub fn process_events(&mut self, events: Iter<egui::Event>) -> Vec<RogerEvent> {
+    pub fn process_events(
+        &mut self, events: Iter<egui::Event>, layout: &LayoutContext,
+    ) -> Vec<RogerEvent> {
         self.is_touch_frame = false;
         let result: Vec<RogerEvent> = events
             .filter_map(|event| {
-                let roger_event = self.ui_to_roger_event(event);
+                let roger_event = self.ui_to_roger_event(event, layout);
 
-                // only return viewport change events on read only mode.
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange))
                 {
-                    None
-                } else {
-                    roger_event
+                    return None;
                 }
+
+                // if self.event_collides_with_layout(roger_event, layout) {
+                //     warn!(?roger_event, "roger event collides with layout, dropping event");
+                //     return None;
+                // }
+
+                roger_event
             })
             .collect();
 
         // debug
         for (i, event) in result.iter().enumerate() {
-            // let next_is_same = result
-            //     .get(i + 1)
-            //     .map(|next| std::mem::discriminant(next) == std::mem::discriminant(event))
-            //     .unwrap_or(false);
-
-            // if !next_is_same {
             debug!(
                 ?event,
                 touches_count = self.touches.iter().count(),
                 pen_only = self.config.pencil_only_drawing
             );
-            // debug!(?self);
-            // }
         }
 
         result
     }
 
-    fn ui_to_roger_event(&mut self, event: &egui::Event) -> Option<RogerEvent> {
+    fn pos_collides_with_layout(&self, pos: egui::Pos2, ctx: &LayoutContext) -> bool {
+        if !ctx.draw_area.contains(pos) {
+            return true;
+        }
+        ctx.overlay_areas.iter().any(|area| area.contains(pos))
+        // match event {
+        //     RogerEvent::ToolStart(payload) => {
+        //         let overlay_hit = ctx
+        //             .overlay_areas
+        //             .iter()
+        //             .any(|area| area.contains(payload.pos));
+        //         if overlay_hit {
+        //             return true;
+        //         }
+
+        //         !ctx.draw_area.contains(payload.pos)
+        //     }
+        //     RogerEvent::ViewportChange | RogerEvent::ViewportChangeWithToolCancel => {
+        //         let buttons_hit = self
+        //             .buttons
+        //             .values()
+        //             .any(|b| ctx.overlay_areas.iter().any(|area| area.contains(b.1)));
+        //         if buttons_hit {
+        //             return true;
+        //         }
+        //         let touches_hit = self.touches.iter().any(|t| {
+        //             ctx.overlay_areas
+        //                 .iter()
+        //                 .any(|area| area.contains(t.last_pos))
+        //         });
+        //         touches_hit
+        //     }
+        //     // todo: should check that a gesture originates in the draw area
+        //     _ => false,
+        // }
+    }
+
+    fn ui_to_roger_event(
+        &mut self, event: &egui::Event, ctx: &LayoutContext,
+    ) -> Option<RogerEvent> {
         let run_button =
             &MouseProps { button: ButtonType::Primary, modifiers: egui::Modifiers::NONE };
 
@@ -167,8 +228,8 @@ impl Roger {
 
                 let payload = ToolPayload { pos, force: None, id: None };
                 let button = MouseProps { button: button.into(), modifiers };
-                if pressed {
-                    self.buttons.insert(button, Instant::now());
+                if pressed && !self.pos_collides_with_layout(pos, ctx) {
+                    self.buttons.insert(button, (Instant::now(), pos));
 
                     if button == *run_button {
                         self.viewport_changing = None;
@@ -224,7 +285,7 @@ impl Roger {
             }
             egui::Event::Touch { device_id, id, phase, pos, force } => {
                 self.is_touch_frame = true;
-                return self.touch_to_roger_event(device_id, id, pos, phase, force);
+                return self.touch_to_roger_event(device_id, id, pos, phase, force, ctx);
             }
             egui::Event::Zoom(factor) => {
                 if self.tool_running.is_none() {
@@ -239,7 +300,7 @@ impl Roger {
 
     fn touch_to_roger_event(
         &mut self, device_id: TouchDeviceId, id: TouchId, pos: egui::Pos2, phase: TouchPhase,
-        force: Option<f32>,
+        force: Option<f32>, ctx: &LayoutContext,
     ) -> Option<RogerEvent> {
         let curr_touch_id = id;
         let is_curr_touch_pen = force.is_some();
@@ -248,6 +309,10 @@ impl Roger {
 
         match phase {
             egui::TouchPhase::Start => {
+                if self.pos_collides_with_layout(pos, ctx) {
+                    warn!(?pos, ?ctx.overlay_areas, "touch start collides with layout, dropping touch");
+                    return None;
+                }
                 let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
                 self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
 
@@ -321,6 +386,8 @@ impl Roger {
                     if force.is_some() {
                         self.touches[i].has_force = true;
                     }
+                } else {
+                    return None; // maybe this touch isn't found because it failed layout check
                 }
 
                 if let Some(start_touch) = self.tool_start_touch {
@@ -401,7 +468,6 @@ impl Roger {
 #[cfg(test)]
 mod tests {
     use egui::{Event, PointerButton};
-    use futures::AsyncReadExt;
 
     use super::*;
 
@@ -414,11 +480,11 @@ mod tests {
             Self { frame: (ui_events, roger_events) }
         }
 
-        fn eval(&self, roger: &mut Roger) {
+        fn eval(&self, roger: &mut Roger, layout: &LayoutContext) {
             let test_data = self.frame.0.iter();
             let want = &self.frame.1;
 
-            let got = roger.process_events(test_data);
+            let got = roger.process_events(test_data, layout);
 
             assert_eq!(want, &got)
         }
@@ -434,9 +500,9 @@ mod tests {
             Self { scenario }
         }
 
-        fn eval(&self, roger: &mut Roger) {
+        fn eval(&self, roger: &mut Roger, layout: &LayoutContext) {
             for frame in &self.scenario {
-                frame.eval(roger);
+                frame.eval(roger, layout);
             }
         }
     }
@@ -525,6 +591,7 @@ mod tests {
     #[test]
     fn button_then_mousewheel() {
         let mut roger = Roger::new(RogerConfig::default());
+        let layout = LayoutContext::default();
 
         let payload = ToolPayload { pos: egui::Pos2::ZERO, force: None, id: None };
 
@@ -548,7 +615,7 @@ mod tests {
             ],
         )]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -575,7 +642,7 @@ mod tests {
             ],
         )]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
     #[test]
     fn single_pen_touch() {
@@ -593,7 +660,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos, force), vec![RogerEvent::ToolEnd(payload)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -608,7 +675,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos, None), vec![RogerEvent::ToolEnd(payload)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -625,7 +692,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos, None), vec![]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -642,7 +709,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos, None), vec![RogerEvent::Gesture(1)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
     #[test]
     fn two_finger_gesture() {
@@ -674,7 +741,7 @@ mod tests {
             ),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -701,7 +768,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos1, force), vec![RogerEvent::ToolEnd(pen_payload)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -745,7 +812,7 @@ mod tests {
             ),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -781,7 +848,7 @@ mod tests {
             RogerTestFrame::new(end_touch(1, pos2, None), vec![RogerEvent::ToolEnd(touch_payloud)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -800,7 +867,7 @@ mod tests {
             RogerTestFrame::new(cancel_touch(1, pos, force), vec![RogerEvent::ToolCancel]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -823,7 +890,7 @@ mod tests {
             ),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -850,7 +917,7 @@ mod tests {
             ),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -869,7 +936,7 @@ mod tests {
             RogerTestFrame::new(end_touch(3, pos3, None), vec![RogerEvent::Gesture(3)]),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
     }
 
     #[test]
@@ -895,6 +962,28 @@ mod tests {
             ),
         ]);
 
-        test.eval(&mut roger);
+        test.eval(&mut roger, &LayoutContext::default());
+    }
+
+    #[test]
+    fn tool_run_collides_with_layout() {
+        let mut roger = Roger::new(RogerConfig::default());
+        let layout = LayoutContext {
+            draw_area: egui::Rect::EVERYTHING,
+            overlay_areas: vec![egui::Rect::from_min_size(
+                egui::Pos2::new(0.0, 0.0),
+                egui::vec2(10.0, 10.0),
+            )],
+        };
+
+        let pos1 = egui::Pos2::new(5.0, 5.0);
+        let force = Some(0.7);
+
+        let test = RogerTestRunner::new(vec![
+            RogerTestFrame::new(start_touch(1, pos1, force), vec![]),
+            RogerTestFrame::new(vec![move_touch(1, pos1, force)], vec![]),
+        ]);
+
+        test.eval(&mut roger, &layout);
     }
 }
