@@ -45,18 +45,6 @@ pub enum ErrorWrapper<E> {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct UpsertRequest {
-    pub updates: Vec<FileDiff<SignedFile>>,
-}
-
-impl Request for UpsertRequest {
-    type Response = ();
-    type Error = UpsertError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/upsert-file-metadata";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct UpsertRequestV2 {
     pub updates: Vec<FileDiff<SignedMeta>>,
 }
@@ -108,12 +96,6 @@ pub enum UpsertError {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct ChangeDocRequest {
-    pub diff: FileDiff<SignedFile>,
-    pub new_content: EncryptedDocument,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct ChangeDocRequestV2 {
     pub diff: FileDiff<SignedMeta>,
     pub new_content: EncryptedDocument,
@@ -129,13 +111,6 @@ pub enum ChangeDocError {
     OldVersionIncorrect,
     DiffMalformed,
     UsageIsOverDataCap,
-}
-
-impl Request for ChangeDocRequest {
-    type Response = ();
-    type Error = ChangeDocError;
-    const METHOD: Method = Method::PUT;
-    const ROUTE: &'static str = "/change-document-content";
 }
 
 impl Request for ChangeDocRequestV2 {
@@ -269,11 +244,6 @@ impl Request for GetFileIdsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub struct GetUpdatesRequest {
-    pub since_metadata_version: u64,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct GetUpdatesRequestV2 {
     pub since_metadata_version: u64,
 }
@@ -295,25 +265,11 @@ pub enum GetUpdatesError {
     UserNotFound,
 }
 
-impl Request for GetUpdatesRequest {
-    type Response = GetUpdatesResponse;
-    type Error = GetUpdatesError;
-    const METHOD: Method = Method::GET;
-    const ROUTE: &'static str = "/get-updates";
-}
-
 impl Request for GetUpdatesRequestV2 {
     type Response = GetUpdatesResponseV2;
     type Error = GetUpdatesError;
     const METHOD: Method = Method::GET;
     const ROUTE: &'static str = "/get-updates-v2";
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub struct NewAccountRequest {
-    pub username: Username,
-    pub public_key: PublicKey,
-    pub root_folder: SignedFile,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -354,13 +310,6 @@ pub enum NewAccountError {
     FileIdTaken,
     Disabled,
     RateLimited,
-}
-
-impl Request for NewAccountRequest {
-    type Response = NewAccountResponse;
-    type Error = NewAccountError;
-    const METHOD: Method = Method::POST;
-    const ROUTE: &'static str = "/new-account";
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
