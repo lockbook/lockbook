@@ -11,10 +11,10 @@ async fn assert_stuff(c: &Lb) {
 #[tokio::test]
 async fn unmodified() {
     let c1 = test_core_with_account().await;
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
@@ -27,10 +27,10 @@ async fn new_file() {
     let c1 = test_core_with_account().await;
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
@@ -43,10 +43,10 @@ async fn new_files() {
     let c1 = test_core_with_account().await;
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/a/b/c/d").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/"]).await;
     assert::all_document_contents(&c2, &[]).await;
@@ -58,15 +58,15 @@ async fn new_files() {
 async fn edited_document() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/", "/document"]).await;
     assert::all_document_contents(&c2, &[("/document", b"")]).await;
@@ -79,13 +79,13 @@ async fn mv() {
     let c1 = test_core_with_account().await;
     let folder = c1.create_at_path("/folder/").await.unwrap();
     let doc = c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.move_file(&doc.id, &folder.id).await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/", "/folder/", "/document"]).await;
     assert::all_document_contents(&c2, &[("/document", b"")]).await;
@@ -97,13 +97,13 @@ async fn mv() {
 async fn rename() {
     let c1 = test_core_with_account().await;
     let doc = c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.rename_file(&doc.id, "document2").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/", "/document"]).await;
     assert::all_document_contents(&c2, &[("/document", b"")]).await;
@@ -115,13 +115,13 @@ async fn rename() {
 async fn delete() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(&c2, &["/", "/document"]).await;
     assert::all_document_contents(&c2, &[("/document", b"")]).await;
@@ -133,13 +133,13 @@ async fn delete() {
 async fn delete_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
     assert::all_paths(&c2, &["/", "/parent/", "/parent/document"]).await;
     assert::all_document_contents(&c2, &[("/parent/document", b"")]).await;
     assert::server_work_paths(&c2, &["/parent/"]).await;
@@ -152,13 +152,13 @@ async fn delete_grandparent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     assert::all_paths(
         &c2,

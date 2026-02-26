@@ -15,7 +15,7 @@ async fn upsert_id_takeover() {
 
     let mut file1 = {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
-        core1.sync(None).await.unwrap();
+        core1.sync().await.unwrap();
 
         core1
             .client
@@ -51,7 +51,7 @@ async fn upsert_id_takeover_change_parent() {
 
     let file1 = {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
-        core1.sync(None).await.unwrap();
+        core1.sync().await.unwrap();
         core1
             .client
             .request(account1, GetUpdatesRequest { since_metadata_version: 0 })
@@ -82,7 +82,7 @@ async fn change_document_content() {
 
     let file1 = {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
-        core1.sync(None).await.unwrap();
+        core1.sync().await.unwrap();
 
         let mut tx = core1.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()
@@ -123,7 +123,7 @@ async fn get_someone_else_document() {
     let file = {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
         core1.write_document(id, &[1, 2, 3]).await.unwrap();
-        core1.sync(None).await.unwrap();
+        core1.sync().await.unwrap();
 
         let mut tx = core1.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()

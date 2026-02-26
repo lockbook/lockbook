@@ -18,7 +18,7 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
-use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::service::sync::SyncStatus;
 use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
@@ -541,38 +541,11 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, _jsync_progress: JObject<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
 
-    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if jsync_progress.is_null() {
-        None
-    } else {
-        let jvm = env.get_java_vm().unwrap();
-        let jsync_progress = env.new_global_ref(jsync_progress).unwrap();
-
-        Some(Box::new(move |sync_progress: SyncProgress| {
-            let mut env = jvm.attach_current_thread().unwrap();
-
-            let msg = jni_string(&mut env, sync_progress.msg);
-            let args = [
-                JValue::Int(sync_progress.total as i32),
-                JValue::Int(sync_progress.progress as i32),
-                JValue::Object(&msg),
-            ]
-            .to_vec();
-
-            env.call_method(
-                jsync_progress.as_obj(),
-                "updateSyncProgressAndTotal",
-                "(IILjava/lang/String;)V",
-                args.as_slice(),
-            )
-            .unwrap();
-        }))
-    };
-
-    if let Err(err) = lb.sync(f) {
+    if let Err(err) = lb.sync() {
         throw_err(&mut env, err);
     }
 }

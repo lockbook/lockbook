@@ -13,7 +13,7 @@ async fn assert_stuff(core: &Lb) {
 #[tokio::test]
 async fn unmodified() {
     let core = test_core_with_account().await;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert_stuff(&core).await;
@@ -23,7 +23,7 @@ async fn unmodified() {
 async fn new_file() {
     let core = test_core_with_account().await;
     core.create_at_path("/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert_stuff(&core).await;
@@ -36,7 +36,7 @@ async fn new_file_name_same_as_username() {
     core.create_at_path(&format!("/{}", &account.username))
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let account = core.get_account().unwrap();
     let document_path = format!("/{}", account.username);
     assert::all_paths(&core, &["/", &document_path]).await;
@@ -48,7 +48,7 @@ async fn new_file_name_same_as_username() {
 async fn new_files() {
     let core = test_core_with_account().await;
     core.create_at_path("/a/b/c/d").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]).await;
     assert::all_document_contents(&core, &[("/a/b/c/d", b"")]).await;
     assert_stuff(&core).await;
@@ -61,7 +61,7 @@ async fn edited_document() {
     write_path(&core, "/document", b"document content")
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"document content")]).await;
     assert_stuff(&core).await;
@@ -73,7 +73,7 @@ async fn mv() {
     let folder = core.create_at_path("/folder/").await.unwrap();
     let doc = core.create_at_path("/document").await.unwrap();
     core.move_file(&doc.id, &folder.id).await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/", "/folder/", "/folder/document"]).await;
     assert::all_document_contents(&core, &[("/folder/document", b"")]).await;
     assert_stuff(&core).await;
@@ -84,7 +84,7 @@ async fn rename() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
     core.rename_file(&doc.id, "document2").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/", "/document2"]).await;
     assert::all_document_contents(&core, &[("/document2", b"")]).await;
     assert_stuff(&core).await;
@@ -95,7 +95,7 @@ async fn delete() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
     core.delete(&doc.id).await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert_stuff(&core).await;
@@ -106,7 +106,7 @@ async fn delete_parent() {
     let core = test_core_with_account().await;
     core.create_at_path("/folder/document").await.unwrap();
     delete_path(&core, "/folder/").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert_stuff(&core).await;
@@ -119,7 +119,7 @@ async fn delete_grandparent() {
         .await
         .unwrap();
     delete_path(&core, "/grandparent/").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert_stuff(&core).await;

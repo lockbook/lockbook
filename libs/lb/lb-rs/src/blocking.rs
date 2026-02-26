@@ -18,7 +18,7 @@ use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
-use crate::service::sync::{SyncProgress, SyncStatus};
+use crate::service::sync::SyncStatus;
 use crate::service::usage::{UsageItemMetric, UsageMetrics};
 use crate::subscribers::status::Status;
 
@@ -198,8 +198,8 @@ impl Lb {
         self.block_on(self.lb.calculate_work())
     }
 
-    pub fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
-        self.block_on(self.lb.sync(f))
+    pub fn sync(&self) -> LbResult<SyncStatus> {
+        self.block_on(self.lb.sync())
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {

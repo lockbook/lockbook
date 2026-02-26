@@ -5,10 +5,10 @@ use test_utils::*;
 /// devices, operate on both devices, then sync both twice (work should be none, devices dbs should
 /// be equal, deleted files should be pruned)
 async fn sync_and_assert_stuff(c1: &Lb, c2: &Lb) {
-    c1.sync(None).await.unwrap();
-    c2.sync(None).await.unwrap();
-    c1.sync(None).await.unwrap();
-    c2.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(c1, c2).await;
@@ -22,10 +22,10 @@ async fn two_cycle() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/a/").await.unwrap();
@@ -41,10 +41,10 @@ async fn three_cycle_one_move_reverted() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -61,10 +61,10 @@ async fn three_cycle_two_moves_reverted() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -82,10 +82,10 @@ async fn four_cycle_one_move_reverted() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -104,10 +104,10 @@ async fn four_cycle_two_moves_reverted_adjacent() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -126,10 +126,10 @@ async fn four_cycle_two_moves_reverted_alternating() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -148,10 +148,10 @@ async fn four_cycle_three_moves_reverted() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -168,10 +168,10 @@ async fn two_cycle_with_renames_first_device() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -190,10 +190,10 @@ async fn three_cycle_one_move_reverted_with_renames_first_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -214,10 +214,10 @@ async fn three_cycle_two_moves_reverted_with_renames_first_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -239,10 +239,10 @@ async fn four_cycle_one_move_reverted_with_renames_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -266,10 +266,10 @@ async fn four_cycle_two_moves_reverted_adjacent_with_renames_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -293,10 +293,10 @@ async fn four_cycle_two_moves_reverted_alternating_with_renames_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -320,10 +320,10 @@ async fn four_cycle_three_moves_reverted_with_renames_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/a/", "a2").await.unwrap();
     rename_path(&c1, "/b/", "b2").await.unwrap();
@@ -345,10 +345,10 @@ async fn two_cycle_with_renames_second_device() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     rename_path(&c2, "/a/", "a2").await.unwrap();
@@ -366,10 +366,10 @@ async fn three_cycle_one_move_reverted_with_renames_second_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -389,10 +389,10 @@ async fn three_cycle_two_moves_reverted_with_renames_second_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     rename_path(&c2, "/a/", "a2").await.unwrap();
@@ -413,10 +413,10 @@ async fn four_cycle_one_move_reverted_with_renames_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -441,10 +441,10 @@ async fn four_cycle_two_moves_reverted_adjacent_with_renames_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -469,10 +469,10 @@ async fn four_cycle_two_moves_reverted_alternating_with_renames_second_device() 
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
 
@@ -497,10 +497,10 @@ async fn four_cycle_three_moves_reverted_with_renames_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
 
@@ -523,10 +523,10 @@ async fn two_cycle_with_deletes_first_device() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/a/").await.unwrap();
@@ -543,10 +543,10 @@ async fn three_cycle_one_move_reverted_with_deletes_first_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -564,10 +564,10 @@ async fn three_cycle_two_moves_reverted_with_deletes_first_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -587,10 +587,10 @@ async fn four_cycle_one_move_reverted_with_deletes_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -610,10 +610,10 @@ async fn four_cycle_two_moves_reverted_adjacent_with_deletes_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -634,10 +634,10 @@ async fn four_cycle_two_moves_reverted_alternating_with_deletes_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -658,10 +658,10 @@ async fn four_cycle_three_moves_reverted_with_deletes_first_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -682,10 +682,10 @@ async fn two_cycle_with_deletes_second_device() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/a/").await.unwrap();
@@ -702,10 +702,10 @@ async fn three_cycle_one_move_reverted_with_deletes_second_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -724,10 +724,10 @@ async fn three_cycle_two_moves_reverted_with_deletes_second_device() {
     c1.create_at_path("/a/").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -746,10 +746,10 @@ async fn four_cycle_one_move_reverted_with_deletes_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -772,10 +772,10 @@ async fn four_cycle_two_moves_reverted_adjacent_with_deletes_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -797,10 +797,10 @@ async fn four_cycle_two_moves_reverted_alternating_with_deletes_second_device() 
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -822,10 +822,10 @@ async fn four_cycle_three_moves_reverted_with_deletes_second_device() {
     c1.create_at_path("/b/").await.unwrap();
     c1.create_at_path("/c/").await.unwrap();
     c1.create_at_path("/d/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -843,10 +843,10 @@ async fn move_two_cycle_with_children() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/child/").await.unwrap();
     c1.create_at_path("/b/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/a/").await.unwrap();
@@ -861,10 +861,10 @@ async fn move_two_cycle_with_modified_document_children() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/a/child").await.unwrap();
     c1.create_at_path("/b/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/a/child", b"document content")
         .await
@@ -883,10 +883,10 @@ async fn three_cycle_one_move_reverted_with_children() {
     c1.create_at_path("/a/child/").await.unwrap();
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -907,10 +907,10 @@ async fn three_cycle_two_moves_reverted_with_children() {
     c1.create_at_path("/a/child/").await.unwrap();
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -929,10 +929,10 @@ async fn four_cycle_one_move_reverted_with_children() {
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
     c1.create_at_path("/d/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -965,10 +965,10 @@ async fn four_cycle_two_moves_reverted_adjacent_with_children() {
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
     c1.create_at_path("/d/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c1, "/b/", "/c/").await.unwrap();
@@ -1001,10 +1001,10 @@ async fn four_cycle_two_moves_reverted_alternating_with_children() {
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
     c1.create_at_path("/d/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();
@@ -1037,10 +1037,10 @@ async fn four_cycle_three_moves_reverted_with_children() {
     c1.create_at_path("/b/child/").await.unwrap();
     c1.create_at_path("/c/child/").await.unwrap();
     c1.create_at_path("/d/child/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/a/", "/b/").await.unwrap();
     move_by_path(&c2, "/b/", "/c/").await.unwrap();

@@ -40,7 +40,6 @@ use crate::model::api::UpsertDebugInfoRequest;
 pub type SyncFlag = Arc<AtomicBool>;
 
 pub struct SyncContext {
-    progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
     current: usize,
     total: usize,
 
@@ -101,11 +100,10 @@ impl Lb {
             return Err(LbErrKind::AlreadySyncing.into());
         }
 
-        let mut ctx = self.setup_sync(f).await?;
+        let mut ctx = self.setup_sync().await?;
 
         let mut got_updates = false;
         let mut pipeline: LbResult<()> = async {
-            ctx.msg("Preparing Sync..."); // todo remove
             self.events.sync(SyncIncrement::SyncStarted);
             self.prune().await?;
             got_updates = self.fetch_meta(&mut ctx).await?;
@@ -133,9 +131,6 @@ impl Lb {
         self.syncing.store(false, Ordering::Relaxed);
         pipeline?;
         cleanup?;
-
-        // done not being sent if pipeline is an error is likely the reason we get stuck offline
-        ctx.done_msg();
 
         if got_updates {
             // did it?
@@ -166,9 +161,7 @@ impl Lb {
         Ok(ctx.summarize())
     }
 
-    async fn setup_sync(
-        &self, progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
-    ) -> LbResult<SyncContext> {
+    async fn setup_sync(&self) -> LbResult<SyncContext> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -182,7 +175,6 @@ impl Lb {
             last_synced,
             pk_cache,
 
-            progress,
             current,
             total,
 
@@ -239,7 +231,6 @@ impl Lb {
 
     /// Returns true if there were any updates
     async fn fetch_meta(&self, ctx: &mut SyncContext) -> LbResult<bool> {
-        ctx.msg("Fetching tree updates...");
         let updates = self
             .client
             .request(
@@ -259,7 +250,6 @@ impl Lb {
     }
 
     async fn populate_pk_cache(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Updating public key cache...");
         let mut all_owners = HashSet::new();
         for file in &ctx.remote_changes {
             for user_access_key in file.user_access_keys() {
@@ -297,7 +287,6 @@ impl Lb {
     }
 
     async fn fetch_docs(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Fetching documents...");
         let mut docs_to_pull = vec![];
 
         let tx = self.ro_tx().await;
@@ -344,13 +333,10 @@ impl Lb {
                 .into(),
         );
 
-        let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
             ctx.pulled_docs.push(id);
             self.events.sync(SyncIncrement::PullingDocument(id, false));
-            ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
-            idx += 1;
         }
         Ok(())
     }
@@ -963,7 +949,6 @@ impl Lb {
 
     /// Updates remote and base metadata to local.
     async fn push_meta(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Pushing tree changes...");
         let mut updates = vec![];
         let mut local_changes_no_digests = Vec::new();
 
@@ -1015,7 +1000,6 @@ impl Lb {
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
     async fn push_docs(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Pushing document changes...");
         let mut updates = vec![];
         let mut local_changes_digests_only = vec![];
 
@@ -1063,12 +1047,9 @@ impl Lb {
                 .into(),
         );
 
-        let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
             self.events.sync(SyncIncrement::PushingDocument(id, false));
-            ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
-            idx += 1;
         }
         ctx.pushed_docs = updates;
 
@@ -1152,7 +1133,6 @@ impl Lb {
     }
 
     async fn commit_last_synced(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Cleaning up...");
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.last_synced.insert(ctx.update_as_of as i64)?;
@@ -1211,62 +1191,12 @@ impl SyncContext {
 
         SyncStatus { work_units, latest_server_ts: self.update_as_of }
     }
-
-    fn msg(&mut self, msg: &str) {
-        self.current += 1;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: Default::default(),
-                msg: msg.to_string(),
-            })
-        }
-    }
-
-    fn file_msg(&mut self, id: Uuid, msg: &str) {
-        self.current += 1;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: Some(id),
-                msg: msg.to_string(),
-            })
-        }
-    }
-
-    fn done_msg(&mut self) {
-        self.current = self.total;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: None,
-                msg: "Sync successful!".to_string(),
-            })
-        }
-    }
 }
 
 #[derive(Debug, Serialize, Clone)]
 pub struct SyncStatus {
     pub work_units: Vec<WorkUnit>,
     pub latest_server_ts: u64,
-}
-
-#[derive(Clone)]
-pub struct SyncProgress {
-    pub total: usize,
-    pub progress: usize,
-    pub file_being_processed: Option<Uuid>,
-    pub msg: String,
-}
-
-impl Display for SyncProgress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
-    }
 }
 
 #[derive(Debug, Clone)]

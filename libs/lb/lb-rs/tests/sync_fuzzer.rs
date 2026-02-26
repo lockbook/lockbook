@@ -68,7 +68,7 @@ impl Actions {
             SyncAndCheck => {
                 for _ in 0..2 {
                     for client in clients {
-                        client.sync(None).await.unwrap();
+                        client.sync().await.unwrap();
                     }
                 }
 
@@ -260,7 +260,7 @@ async fn create_clients() -> Vec<Lb> {
             .import_account(&account_string, Some(&url()))
             .await
             .unwrap();
-        client.sync(None).await.unwrap();
+        client.sync().await.unwrap();
     }
     cores
 }

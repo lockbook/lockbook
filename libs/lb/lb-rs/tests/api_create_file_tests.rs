@@ -41,7 +41,7 @@ async fn create_document_duplicate_id() {
         .unwrap()
         .clone();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     // create document with same id and key
     let result = core
@@ -70,7 +70,7 @@ async fn create_document_duplicate_path() {
         .get(&id)
         .unwrap()
         .clone();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     // create document with same path
     doc.timestamped_value.value.set_id(Uuid::new_v4());

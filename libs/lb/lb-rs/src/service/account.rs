@@ -66,7 +66,7 @@ impl Lb {
                 .await?;
             self.write_document(welcome_doc.id, Self::WELCOME_MESSAGE.as_bytes())
                 .await?;
-            self.sync(None).await?;
+            self.sync().await?;
         }
 
         Ok(account)

@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 use web_time::{Duration, Instant};
 
@@ -8,7 +8,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
-use lb_rs::service::sync::{SyncProgress, SyncStatus};
+use lb_rs::service::sync::SyncStatus;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
 
@@ -185,14 +185,12 @@ impl InProgressSave {
 }
 
 pub struct InProgressSync {
-    pub progress: mpsc::Receiver<SyncProgress>,
-
     pub timing: InProgressTiming,
 }
 
 impl InProgressSync {
-    fn new(queued: QueuedSync, progress: mpsc::Receiver<SyncProgress>) -> Self {
-        Self { progress, timing: InProgressTiming::new(queued.timing) }
+    fn new(queued: QueuedSync) -> Self {
+        Self { timing: InProgressTiming::new(queued.timing) }
     }
 }
 
@@ -471,8 +469,7 @@ impl TaskManager {
             let span = span!(Level::TRACE, "sync_launch");
             let _enter = span.enter();
 
-            let (sender, receiver) = mpsc::channel();
-            let in_progress_sync = InProgressSync::new(sync, receiver);
+            let in_progress_sync = InProgressSync::new(sync);
             let queue_time = in_progress_sync
                 .timing
                 .started_at
@@ -483,7 +480,7 @@ impl TaskManager {
             tasks.in_progress_sync = Some(in_progress_sync);
 
             let self_clone = self.clone();
-            spawn!(self_clone.background_sync(sender));
+            spawn!(self_clone.background_sync());
         }
 
         if any_to_launch {
@@ -597,16 +594,9 @@ impl TaskManager {
     }
 
     /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "debug", skip(self, sender), fields(thread = format!("{:?}", thread::current().id())))]
-    fn background_sync(&self, sender: mpsc::Sender<SyncProgress>) {
-        let status_result = {
-            let ctx = self.ctx.clone();
-            let progress_closure = move |p| {
-                sender.send(p).unwrap();
-                ctx.request_repaint();
-            };
-            self.core.sync(Some(Box::new(progress_closure)))
-        };
+    #[instrument(level = "debug", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_sync(&self) {
+        let status_result = self.core.sync();
 
         {
             let mut tasks = self.tasks.lock().unwrap();

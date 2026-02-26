@@ -77,7 +77,7 @@ async fn get_uncompressed_usage_with_sync() {
 
     core.write_document(document1.id, b"01234").await.unwrap();
     core.write_document(document2.id, b"56789").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let core2 = test_core_from(&core).await;
 
     assert_eq!(

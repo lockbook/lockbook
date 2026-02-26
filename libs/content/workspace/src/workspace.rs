@@ -568,16 +568,6 @@ impl Workspace {
         }
 
         let start = Instant::now();
-        {
-            let tasks = self.tasks.tasks.lock().unwrap();
-            if let Some(sync) = tasks.in_progress_sync.as_ref() {
-                while let Ok(progress) = sync.progress.try_recv() {
-                    trace!("sync {}", progress);
-                    self.status.sync_message = Some(progress.msg);
-                    self.out.status_updated = true;
-                }
-            }
-        }
         start.warn_after("processing sync progress", Duration::from_millis(100));
 
         // background work: queue
