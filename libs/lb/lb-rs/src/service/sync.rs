@@ -22,7 +22,6 @@ pub use basic_human_duration::ChronoHumanDuration;
 use futures::{StreamExt, stream};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, hash_map};
-use std::fmt::{Display, Formatter};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,7 +39,6 @@ use crate::model::api::UpsertDebugInfoRequest;
 pub type SyncFlag = Arc<AtomicBool>;
 
 pub struct SyncContext {
-    current: usize,
     total: usize,
 
     pk_cache: HashMap<Owner, String>,
