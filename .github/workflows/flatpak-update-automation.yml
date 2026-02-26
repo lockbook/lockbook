@@ -1,0 +1,13 @@
+name: Hello World Test
+
+on:
+  push:
+    branches:
+      - flatpak-automation-update
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello, world!"
