@@ -95,7 +95,7 @@ impl Lb {
     }
 
     #[instrument(level = "debug", skip_all, err(Debug))]
-    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
+    pub async fn sync(&self) -> LbResult<SyncStatus> {
         let old = self.syncing.swap(true, Ordering::SeqCst);
         if old {
             return Err(LbErrKind::AlreadySyncing.into());
