@@ -25,3 +25,7 @@ jobs:
     uses: ./.github/workflows/publish-crate.yml
     secrets:
       CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
+
+  call_publish_flatpak:
+    needs: release
+    uses: ./.github/workflows/deploy-flatpak.yml
