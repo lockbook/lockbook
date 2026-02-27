@@ -2,6 +2,7 @@ use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::model::core_config::Config;
+use lb_rs::service::events::Event;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
@@ -10,7 +11,7 @@ use std::process::exit;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 pub mod cache;
 pub(crate) mod file_handle;
@@ -37,7 +38,10 @@ impl Drive {
 
         let data = Arc::default();
 
-        Self { lb, root, data }
+        let fs = Self { lb, root, data };
+        fs.clone().monitor_lb().await;
+
+        fs
     }
 
     pub async fn import() -> CliResult<()> {
@@ -106,5 +110,16 @@ impl Drive {
         info!("ready");
         listener.handle_forever().await.unwrap();
         Ok(())
+    }
+
+    async fn monitor_lb(self) {
+        tokio::spawn(async move {
+            let mut sub = self.lb.subscribe();
+            loop {
+                if let Event::Sync(sync_increment) = sub.recv().await.unwrap() {
+                    debug!("syncing: {sync_increment:?}")
+                }
+            }
+        });
     }
 }
