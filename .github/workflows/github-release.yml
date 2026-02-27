@@ -28,4 +28,4 @@ jobs:
 
   call_publish_flatpak:
     needs: release
-    uses: ./.github/workflows/flatpak-automation-update.yml
+    uses: ./.github/workflows/deploy-flatpak.yml
