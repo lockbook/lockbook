@@ -76,7 +76,8 @@ impl Lb {
         logging::init(&config)?;
 
         let docs = AsyncDocs::from(&config);
-        let db = migrate_and_init(&config, &docs).await?;
+        let db_cfg = db_rs::Config::in_folder(&config.writeable_path);
+        let db = CoreDb::init(db_cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let client = Network::default();
@@ -117,17 +118,19 @@ pub fn get_code_version() -> &'static str {
 pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+use crate::io::CoreDb;
 #[cfg(target_family = "wasm")]
 use crate::io::CoreDb;
+use db_rs::Db;
 #[cfg(target_family = "wasm")]
 use db_rs::Db;
 #[cfg(not(target_family = "wasm"))]
 use subscribers::search::SearchIndex;
 
 use crate::service::logging;
+use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
-use io::{LbDb, migrate_and_init};
 use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;

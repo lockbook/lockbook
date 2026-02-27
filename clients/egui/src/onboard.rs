@@ -7,7 +7,6 @@ use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
 use lb::model::file::File;
-use lb::service::sync::SyncProgress;
 use workspace_rs::widgets::Button;
 
 use crate::model::AccountPhraseData;
@@ -23,7 +22,6 @@ enum Update {
     AccountCreated(Result<Vec<File>, LbErr>),
     AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
     AccountImported(Option<LbErr>),
-    ImportSyncProgress(SyncProgress),
     ImportSyncDone(Option<LbErr>),
     AccountDataLoaded(Result<Vec<File>, LbErr>),
 }
@@ -567,7 +565,7 @@ You can view your key again in the settings."#
                 }
             };
 
-            match core.sync(Some(Box::new(closure))) {
+            match core.sync() {
                 Ok(_acct) => {
                     tx.send(Update::ImportSyncDone(None)).unwrap();
                     tx.send(Update::AccountDataLoaded(load_account_data(&core)))
