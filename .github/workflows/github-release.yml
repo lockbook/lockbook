@@ -29,5 +29,3 @@ jobs:
   call_publish_flatpak:
     needs: release
     uses: ./.github/workflows/flatpak-automation-update.yml
-    secrets:
-      CRATES_IO_API_TOKEN: ${{ secrets.CRATES_IO_API_TOKEN }}
