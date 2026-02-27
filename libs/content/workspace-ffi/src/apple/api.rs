@@ -48,8 +48,7 @@ pub extern "C" fn create_doc_at(obj: *mut c_void, parent: CUuid, is_drawing: boo
 
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.tasks.queue_sync();
+    todo!()
 }
 
 #[no_mangle]

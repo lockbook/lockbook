@@ -294,8 +294,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_requestSync(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.tasks.queue_sync();
+    todo!()
 }
 
 #[no_mangle]

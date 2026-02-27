@@ -327,10 +327,6 @@ public class MacMTK: MTKView, MTKViewDelegate {
             }
         }
 
-        if output.new_folder_btn_pressed {
-            self.workspaceOutput?.newFolderButtonPressed = ()
-        }
-
         if let text = output.copied_text {
             let text = textFromPtr(s: text)
             if !text.isEmpty {
