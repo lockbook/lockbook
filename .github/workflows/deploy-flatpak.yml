@@ -1,9 +1,9 @@
-name: Hello World Test
+name: Deploy Flatpak
 
 on:
-  push:
-    branches:
-      - flatpak-automation-update
+  release:
+    types: [published]
+  workflow_dispatch:
   workflow_dispatch:
 
 jobs:
