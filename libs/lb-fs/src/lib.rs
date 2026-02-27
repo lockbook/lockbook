@@ -2,7 +2,6 @@ use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::model::core_config::Config;
-use lb_rs::service::sync::SyncProgress;
 use lb_rs::{Lb, Uuid};
 use nfs3_server::tcp::{NFSTcp, NFSTcpListener};
 use std::io;
@@ -61,7 +60,7 @@ impl Drive {
             .await
             .unwrap();
 
-        drive.lb.sync(Self::progress()).await.unwrap();
+        drive.lb.sync().await.unwrap();
 
         Ok(())
     }
@@ -107,9 +106,5 @@ impl Drive {
         info!("ready");
         listener.handle_forever().await.unwrap();
         Ok(())
-    }
-
-    pub fn progress() -> Option<Box<dyn Fn(SyncProgress) + Send>> {
-        Some(Box::new(|status| println!("{status}")))
     }
 }

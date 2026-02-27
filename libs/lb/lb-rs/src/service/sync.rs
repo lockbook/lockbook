@@ -166,14 +166,12 @@ impl Lb {
         let last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
         let pk_cache = db.pub_key_lookup.get().clone();
 
-        let current = 0;
         let total = 7;
 
         Ok(SyncContext {
             last_synced,
             pk_cache,
 
-            current,
             total,
 
             new_root: Default::default(),
@@ -1204,3 +1202,4 @@ pub enum SyncIncrement {
     PushingDocument(Uuid, bool),
     SyncFinished(Option<LbErrKind>),
 }
+
