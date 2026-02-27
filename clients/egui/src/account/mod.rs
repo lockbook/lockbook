@@ -799,7 +799,6 @@ impl AccountScreen {
         });
     }
 
-    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {

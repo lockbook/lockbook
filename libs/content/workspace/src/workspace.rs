@@ -21,7 +21,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 
-use crate::output::{Response, WsStatus};
+use crate::output::{Response};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
@@ -53,7 +53,6 @@ pub struct Workspace {
     pub last_sync_completed: Option<Instant>,
 
     // Output
-    pub status: WsStatus,
     pub out: Response,
 
     // Resources & configuration
@@ -91,7 +90,6 @@ impl Workspace {
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
-            status: Default::default(),
             out: Default::default(),
 
             cfg,
@@ -757,7 +755,6 @@ impl Workspace {
             self.open_file(id, false, false);
         }
 
-        self.out.file_renamed = Some((id, new_name));
         self.ctx.request_repaint();
     }
 
@@ -765,7 +762,6 @@ impl Workspace {
         let (id, new_parent) = req;
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
-                self.out.file_moved = Some((id, new_parent));
                 self.ctx.request_repaint();
             }
             Err(LbErr { kind, .. }) => {

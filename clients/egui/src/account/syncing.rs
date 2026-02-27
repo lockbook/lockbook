@@ -147,7 +147,7 @@ impl super::AccountScreen {
         let ctx = ctx.clone();
 
         thread::spawn(move || {
-            if let Err(err) = core.sync(None) {
+            if let Err(err) = core.sync() {
                 eprintln!("error: final sync: {err:?}");
             }
             update_tx.send(AccountUpdate::FinalSyncAttemptDone).unwrap();

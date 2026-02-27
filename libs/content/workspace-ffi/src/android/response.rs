@@ -15,10 +15,6 @@ pub struct AndroidResponse {
     selected_file: Uuid,
     doc_created: Uuid,
 
-    status_updated: bool,
-    refresh_files: bool,
-
-    new_folder_btn_pressed: bool,
     tab_title_clicked: bool,
     tabs_changed: bool,
 
@@ -36,14 +32,8 @@ impl From<crate::Response> for AndroidResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
-                    file_renamed,
-                    file_moved: _,
-                    new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    settings_updated: _,
-                    sync_done,
-                    status_updated,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated: _,
@@ -69,9 +59,6 @@ impl From<crate::Response> for AndroidResponse {
         Self {
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
-            status_updated,
-            refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
-            new_folder_btn_pressed: new_folder_clicked,
             tab_title_clicked,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
