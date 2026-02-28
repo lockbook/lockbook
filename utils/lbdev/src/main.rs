@@ -86,7 +86,7 @@ fn main() {
                                 .subcommand(Command::name("deb").handler(releaser::linux::desktop::upload_deb_gh))
                                 .subcommand(Command::name("snap").handler(releaser::linux::desktop::update_snap))
                                 .subcommand(Command::name("aur").handler(releaser::linux::desktop::update_aur))
-                                .subcommand(Command::name("flatpak")),
+                                .subcommand(Command::name("flatpak").handler(releaser::linux::desktop:update_flatpak)),
                         )
                 )
                 .subcommand(
