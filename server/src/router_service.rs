@@ -4,6 +4,7 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::config::Config;
 use crate::document_service::DocumentService;
+use crate::external_link::get_preview_html;
 use crate::utils::get_build_info;
 use crate::{ServerError, ServerState, handle_version_header, router_service, verify_auth};
 use lazy_static::lazy_static;
@@ -464,6 +465,28 @@ where
                     warp::reply::with_status("".to_string(), status_code)
                 }
             }
+        })
+}
+
+static EXTERNAL_LINK_ROUTE: &str = "external-link";
+
+pub fn external_link_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    warp::path(EXTERNAL_LINK_ROUTE)
+        .and(warp::path::param::<String>())
+        .map(|uuid: String| {
+            let span = span!(
+                Level::INFO,
+                "matched_request",
+                method = "POST",
+                route = format!("/{EXTERNAL_LINK_ROUTE}").as_str()
+            );
+            let _enter = span.enter();
+            
+            info!("external link routed");
+
+            let redirect_html = get_preview_html(uuid.as_str());
+
+            return warp::reply::html(redirect_html);
         })
 }
 

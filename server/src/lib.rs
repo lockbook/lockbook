@@ -100,6 +100,7 @@ where
     )
 }
 
+pub mod external_link;
 pub mod account_service;
 pub mod billing;
 pub mod config;
