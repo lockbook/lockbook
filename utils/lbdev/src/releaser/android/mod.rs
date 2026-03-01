@@ -1,3 +1,4 @@
+use crate::set_android_version_code;
 use crate::utils::CommandRunner;
 
 use super::secrets::*;
@@ -46,9 +47,8 @@ impl Display for AndroidTrack {
 
 pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()> {
     ws::build()?;
-    build_android()?;
     if gh {
-        release_gh();
+        release_gh()?;
     }
     if play_store {
         release_play_store(track)?;
@@ -70,7 +70,8 @@ fn build_android() -> CliResult<()> {
     Ok(())
 }
 
-fn release_gh() {
+fn release_gh() -> CliResult<()> {
+    build_android()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -88,6 +89,7 @@ fn release_gh() {
             None,
         )
         .unwrap();
+    Ok(())
 }
 
 fn release_play_store(track: AndroidTrack) -> CliResult<()> {
@@ -121,6 +123,27 @@ fn release_play_store(track: AndroidTrack) -> CliResult<()> {
             .1;
 
         let id = app_edit.id.unwrap();
+
+        let tracks = publisher
+            .edits()
+            .tracks_list(PACKAGE, &id)
+            .doit()
+            .await
+            .unwrap()
+            .1;
+
+        let max_version_code = tracks
+            .tracks
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|t| t.releases.iter().flatten())
+            .flat_map(|r| r.version_codes.iter().flatten())
+            .max()
+            .copied()
+            .unwrap_or(0);
+        let next_version_code = max_version_code + 1;
+        set_android_version_code(next_version_code);
+        build_android().unwrap();
 
         publisher
             .edits()
