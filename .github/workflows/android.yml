@@ -26,4 +26,4 @@ jobs:
           echo $ANDROID_RELEASE_STORE_BASE64 | base64 --decode > $HOME/lockbook-android-upload.keystore
           echo "ANDROID_RELEASE_STORE_FILE=$HOME/lockbook-android-upload.keystore" >> $GITHUB_ENV
       - name: deploy android
-        run: cargo r -p lbdev releaser android internal-play-store
+        run: nix-shell clients/android --command "cargo r -p lbdev releaser android internal-play-store"
