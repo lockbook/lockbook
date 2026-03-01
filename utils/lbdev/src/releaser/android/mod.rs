@@ -6,6 +6,7 @@ use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
 use google_androidpublisher3::{AndroidPublisher, hyper, hyper_rustls, oauth2};
+use std::fmt::Display;
 use std::fs::File;
 use std::process::Command;
 use tokio::runtime::Runtime;
@@ -24,20 +25,22 @@ const MIME: &str = "application/octet-stream";
 
 pub enum AndroidTrack {
     Internal,
+    #[allow(dead_code)]
     Alpha,
+    #[allow(dead_code)]
     Beta,
     Production,
 }
 
-impl ToString for AndroidTrack {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for AndroidTrack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             AndroidTrack::Internal => "internal",
             AndroidTrack::Alpha => "alpha",
             AndroidTrack::Beta => "beta",
             AndroidTrack::Production => "production",
-        }
-        .to_string()
+        };
+        write!(f, "{str}")
     }
 }
 
