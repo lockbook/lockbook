@@ -18,19 +18,37 @@ const RELEASE: &str = "release/app-release";
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
-const TRACK: &str = "production";
 const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release(play_store: bool, gh: bool) -> CliResult<()> {
+pub enum AndroidTrack {
+    Internal,
+    Alpha,
+    Beta,
+    Production,
+}
+
+impl ToString for AndroidTrack {
+    fn to_string(&self) -> String {
+        match self {
+            AndroidTrack::Internal => "internal",
+            AndroidTrack::Alpha => "alpha",
+            AndroidTrack::Beta => "beta",
+            AndroidTrack::Production => "production",
+        }
+        .to_string()
+    }
+}
+
+pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()> {
     ws::build()?;
     build_android()?;
     if gh {
         release_gh();
     }
     if play_store {
-        release_play_store()?;
+        release_play_store(track)?;
     }
     Ok(())
 }
@@ -69,7 +87,7 @@ fn release_gh() {
         .unwrap();
 }
 
-fn release_play_store() -> CliResult<()> {
+fn release_play_store(track: AndroidTrack) -> CliResult<()> {
     let ps = PlayStore::env();
     let service_account_key: oauth2::ServiceAccountKey =
         oauth2::parse_service_account_key(ps.service_account_key).unwrap();
@@ -127,11 +145,11 @@ fn release_play_store() -> CliResult<()> {
                         user_fraction: None,
                         version_codes: Some(vec![android_version_code().unwrap()]),
                     }]),
-                    track: Some(TRACK.to_string()),
+                    track: Some(track.to_string()),
                 },
                 PACKAGE,
                 &id,
-                TRACK,
+                &track.to_string(),
             )
             .doit()
             .await
