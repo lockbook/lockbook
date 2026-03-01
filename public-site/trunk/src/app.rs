@@ -56,17 +56,15 @@ impl LbWebApp {
 
 fn generate_visuals() -> egui::Visuals {
     let mut visuals = egui::Visuals::dark();
-    visuals.extreme_bg_color = egui::Color32::from_hex("#1a1a1a").unwrap();
-    visuals.code_bg_color = egui::Color32::from_hex("#67e4b6").unwrap();
-    visuals.faint_bg_color = egui::Color32::BLUE;
-    visuals.widgets.noninteractive.bg_fill = visuals.extreme_bg_color;
 
+    visuals.dark_mode = true;
     visuals
 }
 
 impl eframe::App for LbWebApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_visuals(egui::Visuals::dark());
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
