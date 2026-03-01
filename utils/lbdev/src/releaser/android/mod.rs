@@ -143,6 +143,7 @@ fn release_play_store(track: AndroidTrack) -> CliResult<()> {
             .unwrap_or(0);
         let next_version_code = max_version_code + 1;
         set_android_version_code(next_version_code);
+        build_android().unwrap();
 
         publisher
             .edits()
