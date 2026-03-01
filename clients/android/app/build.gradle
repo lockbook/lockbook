@@ -14,7 +14,7 @@ android {
         minSdkVersion 24
         targetSdk=36
 
-        versionCode 100
+        versionCode Integer.parseInt('git rev-list --count HEAD'.execute().text.trim())
         versionName "26.2.23"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

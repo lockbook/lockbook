@@ -118,14 +118,6 @@ fn handle_android(version: &str) {
     let mut gradle_build = fs::read_to_string(path).unwrap();
 
     let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
-    let version_code_re = Regex::new(r"(versionCode) *(?P<version_code>\d+)").unwrap();
-    let mut version_code = 0;
-    for caps in version_code_re.captures_iter(&gradle_build) {
-        version_code = caps["version_code"].parse().unwrap();
-    }
-    gradle_build = version_code_re
-        .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], version_code + 1))
-        .to_string();
 
     gradle_build = version_name_re
         .replace(&gradle_build, |caps: &Captures| format!("{} \"{}\"", &caps[1], version))
