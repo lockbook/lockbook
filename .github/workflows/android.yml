@@ -2,6 +2,7 @@ name: Android Internal Deployment
 on:
   push:
     branches: [ master ]
+  workflow_dispatch:
 jobs:
   DeployAndroid:
     if: github.repository == 'lockbook/lockbook'
