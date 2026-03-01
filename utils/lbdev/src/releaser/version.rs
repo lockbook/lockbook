@@ -19,7 +19,7 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
 
     handle_cargo_tomls(&new_version);
     handle_apple(&new_version)?;
-    bump_android(Some(&new_version));
+    bump_android(&new_version);
     generate_lockfile()?;
     perform_checks()?;
     push_to_git(&new_version);
@@ -113,7 +113,7 @@ fn handle_apple(version: &str) -> CliResult<()> {
     Ok(())
 }
 
-pub fn bump_android(version: Option<&str>) {
+pub fn bump_android(version: &str) {
     let path = "clients/android/app/build.gradle";
     let mut gradle_build = fs::read_to_string(path).unwrap();
 
@@ -126,12 +126,23 @@ pub fn bump_android(version: Option<&str>) {
         .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], version_code + 1))
         .to_string();
 
-    if let Some(v) = version {
-        let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
-        gradle_build = version_name_re
-            .replace(&gradle_build, |caps: &Captures| format!("{} \"{}\"", &caps[1], v))
-            .to_string();
-    }
+    let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
+    gradle_build = version_name_re
+        .replace(&gradle_build, |caps: &Captures| format!("{} \"{}\"", &caps[1], v))
+        .to_string();
+
+    fs::write(path, gradle_build).unwrap();
+}
+
+pub fn set_android_version_code(code: i64) {
+    let path = "clients/android/app/build.gradle";
+    let mut gradle_build = fs::read_to_string(path).unwrap();
+
+    let version_code_re = Regex::new(r"(versionCode) *(?P<version_code>\d+)").unwrap();
+
+    gradle_build = version_code_re
+        .replace(&gradle_build, |caps: &Captures| format!("{} {}", &caps[1], code))
+        .to_string();
 
     fs::write(path, gradle_build).unwrap();
 }

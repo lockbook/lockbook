@@ -10,7 +10,7 @@ use cli_rs::parser::Cmd;
 use releaser::version::BumpType;
 
 use crate::releaser::android::AndroidTrack;
-pub use releaser::version::bump_android;
+pub use releaser::version::set_android_version_code;
 
 fn main() {
     Command::name("lbdev")

@@ -1,5 +1,5 @@
-use crate::bump_android;
 use crate::utils::CommandRunner;
+use crate::{bump_android, set_android_version_code};
 
 use super::secrets::*;
 use crate::releaser::utils::{android_version_code, lb_repo, lb_version};
@@ -47,7 +47,6 @@ impl Display for AndroidTrack {
 
 pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()> {
     ws::build()?;
-    build_android()?;
     if gh {
         release_gh();
     }
@@ -71,7 +70,8 @@ fn build_android() -> CliResult<()> {
     Ok(())
 }
 
-fn release_gh() {
+fn release_gh() -> CliResult<()> {
+    build_android()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -89,6 +89,7 @@ fn release_gh() {
             None,
         )
         .unwrap();
+    Ok(())
 }
 
 fn release_play_store(track: AndroidTrack) -> CliResult<()> {
@@ -123,37 +124,35 @@ fn release_play_store(track: AndroidTrack) -> CliResult<()> {
 
         let id = app_edit.id.unwrap();
 
-        let upload_result = publisher
+        let tracks = publisher
+            .edits()
+            .tracks_list(PACKAGE, &id)
+            .doit()
+            .await
+            .unwrap()
+            .1;
+
+        let max_version_code = tracks
+            .tracks
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|t| t.releases.iter().flatten())
+            .flat_map(|r| r.version_codes.iter().flatten())
+            .max()
+            .copied()
+            .unwrap_or(0);
+        let next_version_code = max_version_code + 1;
+        set_android_version_code(next_version_code);
+
+        publisher
             .edits()
             .bundles_upload(PACKAGE, &id)
             .upload(
                 File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
                 MIME.parse().unwrap(),
             )
-            .await;
-
-        if let Err(e) = upload_result {
-            if e.to_string().contains("has already been used")
-                && e.to_string().contains("Version code")
-            {
-                eprintln!("Version code already used, bumping and retrying...");
-                bump_android(None);
-
-                // rebuild the AAB with the new version code
-                build_android().unwrap();
-
-                // retry upload
-                publisher
-                    .edits()
-                    .bundles_upload(PACKAGE, &id)
-                    .upload(
-                        File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
-                        MIME.parse().unwrap(),
-                    )
-                    .await
-                    .unwrap();
-            }
-        }
+            .await
+            .unwrap();
 
         publisher
             .edits()
