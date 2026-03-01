@@ -1,7 +1,8 @@
+use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, RwLock};
 use web_time::Instant;
 
 use bounds::Bounds;
@@ -62,6 +63,7 @@ pub struct Editor {
     pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
 
     // theme
     dark_mode: bool, // supports change detection
@@ -84,6 +86,7 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
+    pub glyphon_buffer: Arc<RwLock<glyphon::Buffer>>,
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
@@ -138,6 +141,13 @@ pub struct MdFilePersistence {
     selection: (DocCharOffset, DocCharOffset),
 }
 
+pub struct MdResources {
+    pub ctx: Context,
+    pub core: Lb,
+    pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
+}
+
 pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
@@ -151,9 +161,10 @@ pub type HttpClient = reqwest::blocking::Client;
 
 impl Editor {
     pub fn new(
-        ctx: Context, core: Lb, persistence: WsPersistentStore, md: &str, file_id: Uuid,
-        hmac: Option<DocumentHmac>, cfg: MdConfig,
+        md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
+        let MdResources { ctx, core, persistence, font_system } = res;
+
         let theme = Theme::new(ctx.clone());
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -172,11 +183,23 @@ impl Editor {
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
+        let mut glyphon_buffer =
+            glyphon::Buffer::new(&mut font_system.lock().unwrap(), glyphon::Metrics::new(30., 42.));
+        glyphon_buffer.set_size(&mut font_system.lock().unwrap(), Some(16.), Some(9.));
+        glyphon_buffer.set_text(
+            &mut font_system.lock().unwrap(),
+            "🕊️",
+            glyphon::Attrs::new().family(glyphon::Family::SansSerif),
+            glyphon::Shaping::Advanced,
+        );
+        glyphon_buffer.shape_until_scroll(&mut font_system.lock().unwrap(), false);
+
         Self {
             core,
             client: Default::default(),
             ctx,
             persistence,
+            font_system,
 
             dark_mode,
             theme,
@@ -199,6 +222,7 @@ impl Editor {
             cursor: Default::default(),
             event: Default::default(),
             galleys: Default::default(),
+            glyphon_buffer: Arc::new(RwLock::new(glyphon_buffer)),
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
@@ -223,19 +247,25 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         Self::new(
-            Context::default(),
-            Lb::init(lb_rs::model::core_config::Config {
-                writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                logs: false,
-                stdout_logs: false,
-                colored_logs: false,
-                background_work: false,
-            })
-            .unwrap(),
-            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into()),
             md,
             Uuid::new_v4(),
             None,
+            MdResources {
+                ctx: Context::default(),
+                core: Lb::init(lb_rs::model::core_config::Config {
+                    writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+                    logs: false,
+                    stdout_logs: false,
+                    colored_logs: false,
+                    background_work: false,
+                })
+                .unwrap(),
+                persistence: WsPersistentStore::new(
+                    false,
+                    format!("/tmp/{}", Uuid::new_v4()).into(),
+                ),
+                font_system: Arc::new(Mutex::new(FontSystem::new())),
+            },
             MdConfig { plaintext_mode: false, readonly: false },
         )
     }

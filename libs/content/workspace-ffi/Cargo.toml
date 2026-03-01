@@ -12,6 +12,7 @@ path = "src/lib.rs"
 egui = "0.30.0"
 wgpu = { version = "23.0.1", features = ["metal"] }
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
+glyphon = "0.7.0"
 workspace = { path = "../workspace/" }
 lb-c = { path = "../../lb/lb-c" }
 raw-window-handle = "0.6"

@@ -1,6 +1,7 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
+use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -14,7 +15,7 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
@@ -24,7 +25,7 @@ use crate::landing::LandingPage;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
+use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -62,6 +63,8 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
+    pub font_system: Arc<Mutex<FontSystem>>,
+
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -71,7 +74,9 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
+    pub fn new(
+        core: &Lb, ctx: &Context, font_system: Arc<Mutex<FontSystem>>, show_tabs: bool,
+    ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
@@ -97,6 +102,8 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             core: core.clone(),
+            font_system,
+
             show_tabs,
             focused_parent: Default::default(),
 
@@ -475,12 +482,15 @@ impl Workspace {
                             if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
-                                        self.ctx.clone(),
-                                        core.clone(),
-                                        self.cfg.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
+                                        MdResources {
+                                            ctx: self.ctx.clone(),
+                                            core: core.clone(),
+                                            persistence: self.cfg.clone(),
+                                            font_system: self.font_system.clone(),
+                                        },
                                         MdConfig {
                                             plaintext_mode: ext != "md",
                                             readonly: tab.read_only,

@@ -1,9 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::io::Cursor;
+use std::{
+    io::Cursor,
+    ops::DerefMut,
+    sync::{Arc, Mutex},
+};
 
 use egui::ViewportCommand;
 use egui_winit::egui;
+use glyphon::FontSystem;
 use image::ImageDecoder as _;
 use lockbook_egui::Lockbook;
 
@@ -41,8 +46,21 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
+            let font_system = Arc::new(Mutex::new(FontSystem::new()));
+
+            let Some(ref wgpu) = cc.wgpu_render_state else {
+                panic!("must use wgpu as graphics target")
+            };
+            workspace_rs::register_render_callback_resources(
+                &wgpu.device,
+                &wgpu.queue,
+                wgpu.target_format,
+                wgpu.renderer.write().deref_mut(),
+                font_system.clone(),
+            );
+
             Ok(Box::new(EframeLockbook {
-                lb: Lockbook::new(&cc.egui_ctx),
+                lb: Lockbook::new(&cc.egui_ctx, font_system),
                 deferred_init_completed: false,
             }))
         }),

@@ -5,12 +5,13 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
+use glyphon::FontSystem;
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -49,7 +50,7 @@ pub struct AccountScreen {
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
     lb_status: Status,
-    workspace: Workspace,
+    pub workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
 }
@@ -57,7 +58,7 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
-        is_new_user: bool,
+        font_system: Arc<Mutex<FontSystem>>, is_new_user: bool,
     ) -> Self {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
@@ -82,7 +83,7 @@ impl AccountScreen {
             ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), font_system, true),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
