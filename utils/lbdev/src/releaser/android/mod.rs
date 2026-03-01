@@ -1,5 +1,5 @@
+use crate::set_android_version_code;
 use crate::utils::CommandRunner;
-use crate::{bump_android, set_android_version_code};
 
 use super::secrets::*;
 use crate::releaser::utils::{android_version_code, lb_repo, lb_version};
@@ -48,7 +48,7 @@ impl Display for AndroidTrack {
 pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()> {
     ws::build()?;
     if gh {
-        release_gh();
+        release_gh()?;
     }
     if play_store {
         release_play_store(track)?;

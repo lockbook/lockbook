@@ -128,7 +128,7 @@ pub fn bump_android(version: &str) {
 
     let version_name_re = Regex::new(r"(versionName) (.*)").unwrap();
     gradle_build = version_name_re
-        .replace(&gradle_build, |caps: &Captures| format!("{} \"{}\"", &caps[1], v))
+        .replace(&gradle_build, |caps: &Captures| format!("{} \"{}\"", &caps[1], version))
         .to_string();
 
     fs::write(path, gradle_build).unwrap();
