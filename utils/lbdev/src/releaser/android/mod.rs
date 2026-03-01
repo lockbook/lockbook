@@ -1,3 +1,4 @@
+use crate::bump_android;
 use crate::utils::CommandRunner;
 
 use super::secrets::*;
@@ -122,15 +123,37 @@ fn release_play_store(track: AndroidTrack) -> CliResult<()> {
 
         let id = app_edit.id.unwrap();
 
-        publisher
+        let upload_result = publisher
             .edits()
             .bundles_upload(PACKAGE, &id)
             .upload(
                 File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
                 MIME.parse().unwrap(),
             )
-            .await
-            .unwrap();
+            .await;
+
+        if let Err(e) = upload_result {
+            if e.to_string().contains("has already been used")
+                && e.to_string().contains("Version code")
+            {
+                eprintln!("Version code already used, bumping and retrying...");
+                bump_android(None);
+
+                // rebuild the AAB with the new version code
+                build_android().unwrap();
+
+                // retry upload
+                publisher
+                    .edits()
+                    .bundles_upload(PACKAGE, &id)
+                    .upload(
+                        File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
+                        MIME.parse().unwrap(),
+                    )
+                    .await
+                    .unwrap();
+            }
+        }
 
         publisher
             .edits()
