@@ -9,13 +9,16 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.ActionMode
+import android.view.GestureDetector
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.widget.OverScroller
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import app.lockbook.App
@@ -61,6 +64,64 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ignoreUnknownKeys = true
     }
 
+    private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            return true
+        }
+
+        override fun onScroll(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            distanceX: Float,
+            distanceY: Float
+        ): Boolean {
+
+            if (e2.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+                scroll(-distanceX, -distanceY)
+            }
+            return super.onScroll(e1, e2, distanceX, distanceY)
+        }
+
+//        override fun onFling(
+//            e1: MotionEvent?,
+//            e2: MotionEvent,
+//            velocityX: Float,
+//            velocityY: Float
+//        ): Boolean {
+//            if (e2.getToolType(0) != MotionEvent.TOOL_TYPE_STYLUS) {
+//                val scroller = OverScroller(context)
+//                scroller.fling(0, 0, velocityX.toInt(), velocityY.toInt(), Int.MIN_VALUE, Int.MAX_VALUE, Int.MIN_VALUE, Int.MAX_VALUE)
+//
+//                var lastX = 0
+//                var lastY = 0
+//
+//                val choreographer = android.view.Choreographer.getInstance()
+//                fun tick(frameTimeNanos: Long) {
+//                    if (scroller.computeScrollOffset()) {
+//                        val dx = (scroller.currX - lastX).toFloat()
+//                        val dy = (scroller.currY - lastY).toFloat()
+//                        lastX = scroller.currX
+//                        lastY = scroller.currY
+//                        scroll(dx, dy)
+//                        choreographer.postFrameCallback(::tick)
+//                    }
+//                }
+//                choreographer.postFrameCallback(::tick)
+//            }
+//            return super.onFling(e1, e2, velocityX, velocityY)
+//        }
+    }
+    private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
+
+    private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            zoom(detector.scaleFactor)
+            return true
+        }
+    }
+
+    private val scaleDetector: ScaleGestureDetector = ScaleGestureDetector(context, scaleListener)
+
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.TRANSPARENT)
@@ -97,6 +158,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
             requestFocus()
+
+            scaleDetector.onTouchEvent(event)
+            scrollDetector.onTouchEvent(event)
 
             forwardedTouchEvent(event, 0f)
 
@@ -349,6 +413,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.showTabs(WGPU_OBJ, show)
+    }
+
+
+    fun scroll(distanceX: Float, distanceY: Float) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.scroll(WGPU_OBJ, distanceX, distanceY)
+    }
+
+    fun zoom(factor: Float) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.zoom(WGPU_OBJ, factor)
     }
 
     fun getTabs(): Array<String> {

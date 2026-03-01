@@ -1,4 +1,6 @@
-use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{
+    Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase, vec2,
+};
 use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
@@ -407,9 +409,12 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
 #[no_mangle]
 pub unsafe extern "C" fn pan(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer
-        .context
-        .push_event(workspace_rs::Event::KineticPan { x: scroll_x, y: scroll_y });
+
+    obj.renderer.raw_input.events.push(egui::Event::MouseWheel {
+        unit: MouseWheelUnit::Point,
+        delta: vec2(scroll_x, scroll_y),
+        modifiers: egui::Modifiers::NONE,
+    });
 }
 
 /// # Safety

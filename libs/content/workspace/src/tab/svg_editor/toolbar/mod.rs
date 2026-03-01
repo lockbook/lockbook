@@ -49,6 +49,8 @@ pub struct Toolbar {
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
+
+    pub roger_interrupt: bool,
 }
 
 #[derive(Default)]
@@ -255,6 +257,7 @@ impl Toolbar {
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
             shapes_tool: Default::default(),
+            roger_interrupt: false,
         }
     }
 
@@ -266,7 +269,11 @@ impl Toolbar {
 
         let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
-        let opacity = if self.hide_overlay { 0.0 } else { 1.0 };
+        let target_opacity =
+            if self.hide_overlay { 0.0 } else { if self.roger_interrupt { 0.3 } else { 1.0 } };
+        let opacity =
+            ui.ctx()
+                .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
 
         ui.set_opacity(opacity);
 
@@ -277,7 +284,9 @@ impl Toolbar {
 
         let overlay_toggle_res = ui
             .scope(|ui| {
-                ui.set_opacity(1.0);
+                if !self.roger_interrupt {
+                    ui.set_opacity(1.0);
+                }
                 self.show_overlay_toggle(ui, tlbr_ctx)
             })
             .inner;

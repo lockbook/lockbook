@@ -18,6 +18,7 @@ import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -27,6 +28,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import android.widget.OverScroller
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -509,7 +511,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             return super.onScroll(e1, e2, distanceX, distanceY)
         }
     }
-
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
     companion object {

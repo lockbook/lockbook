@@ -43,7 +43,7 @@ pub fn init(config: &Config) -> LbResult<()> {
             #[cfg(not(target_os = "android"))]
             layers.push(
                 fmt::Layer::new()
-                    .json()
+                    // .json()
                     .with_span_events(FmtSpan::NEW | FmtSpan::CLOSE)
                     .with_ansi(config.colored_logs)
                     .with_target(true)

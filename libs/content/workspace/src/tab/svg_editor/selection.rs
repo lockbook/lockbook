@@ -80,27 +80,6 @@ pub struct Layout {
     pub popover: Option<egui::Rect>,
 }
 
-impl Layout {
-    fn has_ui_interaction(&self, maybe_interact_pos: Option<egui::Pos2>) -> bool {
-        let pos = match maybe_interact_pos {
-            Some(val) => val,
-            None => return false,
-        };
-
-        if let Some(tooltip_rect) = self.container_tooltip {
-            if tooltip_rect.contains(pos) {
-                return true;
-            }
-        }
-        if let Some(popover_rect) = self.popover {
-            if popover_rect.contains(pos) {
-                return true;
-            }
-        }
-
-        false
-    }
-}
 #[derive(Debug)]
 pub enum SelectionEvent {
     StartLaso(BuildPayload),

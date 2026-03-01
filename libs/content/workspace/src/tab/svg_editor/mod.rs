@@ -17,6 +17,7 @@ use web_time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::eraser::from_roger_to_eraser_event;
+use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::pen::{PathEvent, from_roger_to_pen_event};
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::shapes::from_roger_to_shape_event;
@@ -375,12 +376,11 @@ impl SVGEditor {
         for event in self.roger.process(ui, &layout_ctx) {
             // handle non tool events
             match event {
-                roger::RogerEvent::ViewportChange
-                | roger::RogerEvent::ViewportChangeWithToolCancel => {
-                    self.toolbar.gesture_handler.handle_input(
-                        ui,
-                        &mut tool_context,
-                        self.toolbar.hide_overlay,
+                roger::RogerEvent::ViewportChange(transform) => {
+                    transform_canvas(
+                        tool_context.buffer,
+                        tool_context.viewport_settings,
+                        transform,
                     );
                 }
                 roger::RogerEvent::Gesture(num_touches) => {
@@ -399,7 +399,7 @@ impl SVGEditor {
                     if let Some(pen_event) = pen_event {
                         self.toolbar
                             .pen
-                            .handle_path_event(pen_event, &mut tool_context);
+                            .handle_path_event(ui, pen_event, &mut tool_context);
                     }
                 }
                 Tool::Eraser => {
@@ -424,9 +424,11 @@ impl SVGEditor {
                 Tool::Highlighter => {
                     let pen_event = from_roger_to_pen_event(event);
                     if let Some(pen_event) = pen_event {
-                        self.toolbar
-                            .highlighter
-                            .handle_path_event(pen_event, &mut tool_context);
+                        self.toolbar.highlighter.handle_path_event(
+                            ui,
+                            pen_event,
+                            &mut tool_context,
+                        );
                     }
                 }
                 Tool::Shapes => {
@@ -439,6 +441,8 @@ impl SVGEditor {
                 }
             }
         }
+
+        self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
 
         // if !self.read_only {
         //     match self.toolbar.active_tool {

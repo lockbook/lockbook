@@ -1,8 +1,9 @@
 use std::{collections::HashMap, slice::Iter};
 
-use egui::{Layout, TouchDeviceId, TouchId, TouchPhase};
+use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
+use resvg::usvg::Transform;
 use time::Duration;
-use tracing::{debug, warn};
+use tracing::warn;
 use web_time::Instant;
 
 #[derive(Debug)]
@@ -10,13 +11,23 @@ pub struct Roger {
     touches: Vec<TouchInfo>,
     buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
+    mouse_hover_pos: Option<egui::Pos2>,
     tool_start_touch: Option<TouchId>, // keep track of the touch id that started a touch, to inform tool end
     viewport_changing: Option<Instant>,
     config: RogerConfig,
     is_touch_frame: bool, // as we traverse the input event stream do we see touch events.
-    last_roger_event: Option<RogerEvent>, // for logging, keep track of the last roger event we emitted to reduce log volume
+    response: RogerResponse,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct RogerResponse {
+    hide_overlay: bool,
+}
+impl RogerResponse {
+    fn reset(&mut self) {
+        self.hide_overlay = false;
+    }
+}
 #[derive(Debug, Default)]
 pub struct RogerConfig {
     pencil_only_drawing: bool,
@@ -78,9 +89,50 @@ pub enum RogerEvent {
     ToolEnd(ToolPayload),
     ToolCancel,
     ToolHover(ToolPayload),
-    ViewportChange,
+    ViewportChange(Transform),
     Gesture(usize), // number of fingers in the gesture, ex: two finger undo
     ViewportChangeWithToolCancel,
+}
+
+struct ViewportChange;
+impl ViewportChange {
+    // todo: center according to the active touches, or the hover pos
+    fn new(roger: &Roger, event: &egui::Event, cancel_tool: bool) -> RogerEvent {
+        if cancel_tool {
+            return RogerEvent::ViewportChangeWithToolCancel;
+        }
+        let transform = match *event {
+            egui::Event::Zoom(factor) => {
+                let transform = Transform::identity().post_scale(factor, factor);
+
+                let origin_pos = if let Some(pos) = roger.mouse_hover_pos {
+                    pos
+                } else {
+                    let (sum, count) = roger
+                        .touches
+                        .iter()
+                        .filter_map(|t| if t.is_active { Some(t.last_pos) } else { None })
+                        .fold((Pos2::default(), 0), |(sum, count), pos| {
+                            (egui::pos2(sum.x + pos.x, sum.y + pos.y), count + 1)
+                        });
+                    if count != 0 { sum / count as f32 } else { egui::Pos2::ZERO }
+                };
+
+                let transform = transform
+                    .post_translate((1.0 - factor) * origin_pos.x, (1.0 - factor) * origin_pos.y);
+                transform
+            }
+            egui::Event::MouseWheel { unit, delta, modifiers } => {
+                Transform::identity().post_translate(delta.x, delta.y)
+            }
+            _ => Transform::identity(),
+        };
+        RogerEvent::ViewportChange(transform)
+    }
+
+    fn identity() -> RogerEvent {
+        RogerEvent::ViewportChange(Transform::identity())
+    }
 }
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -134,11 +186,13 @@ impl Roger {
             tool_start_touch: None,
             config,
             is_touch_frame: false,
-            last_roger_event: None,
+            mouse_hover_pos: None,
+            response: Default::default(),
         }
     }
 
     pub fn process(&mut self, ui: &mut egui::Ui, layout: &LayoutContext) -> Vec<RogerEvent> {
+        self.response.reset();
         ui.input(|r| self.process_events(r.events.iter(), layout))
     }
 
@@ -153,7 +207,7 @@ impl Roger {
                 // debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
-                    && !matches!(roger_event, Some(RogerEvent::ViewportChange))
+                    && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
                 {
                     return None;
                 }
@@ -162,14 +216,21 @@ impl Roger {
             })
             .collect();
 
-        result
-    }
+        // todo: dedupe hover events to only keep the last one. apple
+        // sends a bunch of pen hover events and if you  draw a tool
+        // hover over all of them, it will resemble a stroke
+        let last_hover = result
+            .iter()
+            .rposition(|e| matches!(e, RogerEvent::ToolHover(_)));
 
-    fn pos_collides_with_layout(&self, pos: egui::Pos2, ctx: &LayoutContext) -> bool {
-        if !ctx.draw_area.contains(pos) {
-            return true;
-        }
-        ctx.overlay_areas.iter().any(|area| area.contains(pos))
+        let result: Vec<RogerEvent> = result
+            .into_iter()
+            .enumerate()
+            .filter(|(i, e)| !matches!(e, RogerEvent::ToolHover(_)) || last_hover == Some(*i))
+            .map(|(_, e)| e)
+            .collect();
+
+        result
     }
 
     fn ui_to_roger_event(
@@ -186,7 +247,7 @@ impl Roger {
 
                 let payload = ToolPayload { pos, force: None, id: None };
                 let button = MouseProps { button: button.into(), modifiers };
-                if pressed && !self.pos_collides_with_layout(pos, ctx) {
+                if pressed && !pos_collides_with_layout(pos, ctx) {
                     self.buttons.insert(button, (Instant::now(), pos));
 
                     if button == *run_button {
@@ -217,9 +278,19 @@ impl Roger {
                 }
                 let payload = ToolPayload { pos, force: None, id: None };
 
+                // so this is used by the transform centering logic, should it also
+                // be used to display the pen hover and the eraser hover.
+
                 if self.buttons.contains_key(run_button) && self.tool_running.is_some() {
+                    self.mouse_hover_pos = None;
+
+                    if pos_collides_with_layout(pos, ctx) {
+                        self.response.hide_overlay = true;
+                    }
                     return Some(RogerEvent::ToolRun(payload));
                 }
+
+                self.mouse_hover_pos = Some(pos);
                 if self.viewport_changing.is_none() {
                     return Some(RogerEvent::ToolHover(payload));
                 }
@@ -232,7 +303,7 @@ impl Roger {
             egui::Event::MouseWheel { unit, delta, modifiers } => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(RogerEvent::ViewportChange);
+                    return Some(ViewportChange::new(&self, event, false));
                 }
                 // when did we aquire the tool run lock. if it's less than 100ms ago, then we can assume
                 // this is a pan and not a tool run
@@ -245,7 +316,7 @@ impl Roger {
             egui::Event::Zoom(factor) => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(RogerEvent::ViewportChange);
+                    return Some(ViewportChange::new(&self, event, false));
                 }
                 None
             }
@@ -281,12 +352,12 @@ impl Roger {
     ) -> Option<RogerEvent> {
         let curr_touch_id = id;
         let is_curr_touch_pen = force.is_some();
-
+        let event = &egui::Event::Touch { device_id, id, phase, pos, force };
         let payload = ToolPayload { pos, force, id: Some(id) };
 
         match phase {
             egui::TouchPhase::Start => {
-                if self.pos_collides_with_layout(pos, ctx) {
+                if pos_collides_with_layout(pos, ctx) {
                     warn!(?pos, ?ctx.overlay_areas, "touch start collides with layout, dropping touch");
                     return None;
                 }
@@ -310,7 +381,7 @@ impl Roger {
                         if self.config.pencil_only_drawing {
                             // one finger touch trigers a gesture, and so does two fingers
                             self.viewport_changing = Some(Instant::now());
-                            return Some(RogerEvent::ViewportChange);
+                            return Some(ViewportChange::new(&self, event, false));
                         } else {
                             let elapsed = Instant::now() - last_touch.start;
                             // todo: source constant from pen impl
@@ -321,7 +392,7 @@ impl Roger {
                                 self.viewport_changing = Some(Instant::now());
                                 self.tool_start_touch = None;
                                 self.tool_running = None;
-                                return Some(RogerEvent::ViewportChangeWithToolCancel);
+                                return Some(ViewportChange::new(&self, event, true));
                             } else {
                                 // else: the two fingers are spaced out. the first one runs the tool
                                 // the second one will be ignored
@@ -342,7 +413,7 @@ impl Roger {
 
                 if self.config.pencil_only_drawing && !is_curr_touch_pen {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(RogerEvent::ViewportChange);
+                    return Some(ViewportChange::new(&self, event, false));
                 }
 
                 if self.tool_running.is_none() {
@@ -369,13 +440,16 @@ impl Roger {
 
                 if let Some(start_touch) = self.tool_start_touch {
                     if start_touch.eq(&curr_touch_id) {
+                        if pos_collides_with_layout(pos, ctx) {
+                            self.response.hide_overlay = true;
+                        }
                         return Some(RogerEvent::ToolRun(payload));
                     }
                 };
 
                 if self.viewport_changing.is_some() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(RogerEvent::ViewportChange);
+                    return Some(ViewportChange::new(&self, event, false));
                 }
             }
             egui::TouchPhase::End => {
@@ -444,6 +518,17 @@ impl Roger {
         }
         None
     }
+
+    pub fn should_hide_overlay(&self) -> bool {
+        self.response.hide_overlay
+    }
+}
+
+fn pos_collides_with_layout(pos: egui::Pos2, ctx: &LayoutContext) -> bool {
+    if !ctx.draw_area.contains(pos) {
+        return true;
+    }
+    ctx.overlay_areas.iter().any(|area| area.contains(pos))
 }
 
 #[cfg(test)]
@@ -467,7 +552,13 @@ mod tests {
 
             let got = roger.process_events(test_data, layout);
 
-            assert_eq!(want, &got)
+            for (i, w) in want.iter().enumerate() {
+                assert_eq!(
+                    w, &got[i],
+                    "event at index {i} mismatch. wanted {w:?} got {:?}.\nfull got: {got:?},\nfull want: {want:?}",
+                    got[i]
+                );
+            }
         }
     }
 
@@ -595,7 +686,7 @@ mod tests {
                 RogerEvent::ToolRun(payload),
                 RogerEvent::ToolEnd(payload),
                 RogerEvent::ToolHover(payload),
-                RogerEvent::ViewportChange,
+                ViewportChange::identity(),
             ],
         )]);
 
@@ -617,7 +708,7 @@ mod tests {
                 Event::PointerMoved(egui::Pos2::ZERO),
             ],
             vec![
-                RogerEvent::ViewportChange,
+                ViewportChange::identity(),
                 RogerEvent::ToolStart(payload),
                 RogerEvent::ToolRun(payload),
                 RogerEvent::ToolRun(payload),
@@ -665,10 +756,10 @@ mod tests {
         let pos = egui::Pos2::new(10.0, 10.0);
 
         let test = RogerTestRunner::new(vec![
-            RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(start_touch(1, pos, None), vec![ViewportChange::identity()]),
             RogerTestFrame::new(
                 move_touch(1, pos + egui::vec2(10.0, 10.0), None), // big movement will not trigger a gesture
-                vec![RogerEvent::ViewportChange],
+                vec![ViewportChange::identity()],
             ),
             RogerTestFrame::new(end_touch(1, pos, None), vec![]),
         ]);
@@ -682,10 +773,10 @@ mod tests {
         let pos = egui::Pos2::new(10.0, 10.0);
 
         let test = RogerTestRunner::new(vec![
-            RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(start_touch(1, pos, None), vec![ViewportChange::identity()]),
             RogerTestFrame::new(
                 move_touch(1, pos + egui::vec2(0.0, 3.0), None), // small movement will trigger a gesture
-                vec![RogerEvent::ViewportChange],
+                vec![ViewportChange::identity()],
             ),
             RogerTestFrame::new(end_touch(1, pos, None), vec![RogerEvent::Gesture(1)]),
         ]);
@@ -709,10 +800,10 @@ mod tests {
             ),
             RogerTestFrame::new(
                 start_touch(2, pos2, None), // Second finger within 200ms
-                vec![RogerEvent::ViewportChangeWithToolCancel],
+                vec![ViewportChange::new(&roger, &start_touch(2, pos2, None)[0], true)],
             ),
-            RogerTestFrame::new(move_touch(1, pos1, None), vec![RogerEvent::ViewportChange]),
-            RogerTestFrame::new(move_touch(2, pos2, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(move_touch(1, pos1, None), vec![ViewportChange::identity()]),
+            RogerTestFrame::new(move_touch(2, pos2, None), vec![ViewportChange::identity()]),
             RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
             RogerTestFrame::new(
                 end_touch(2, pos2, None),
@@ -743,15 +834,15 @@ mod tests {
             ),
             RogerTestFrame::new(
                 start_touch(2, pos2, None), // Second finger within 200ms
-                vec![RogerEvent::ViewportChangeWithToolCancel],
+                vec![ViewportChange::new(&roger, &start_touch(2, pos2, None)[0], true)],
             ),
             RogerTestFrame::new(
                 move_touch(1, pos1 + egui::vec2(10.0, 10.0), None),
-                vec![RogerEvent::ViewportChange],
+                vec![ViewportChange::identity()],
             ),
             RogerTestFrame::new(
                 move_touch(2, pos2 + egui::vec2(10.0, 10.0), None),
-                vec![RogerEvent::ViewportChange],
+                vec![ViewportChange::identity()],
             ),
             RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
             RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
@@ -896,8 +987,8 @@ mod tests {
         let pen_payload = ToolPayload { pos, force, id: Some(TouchId(2)) };
 
         let test = RogerTestRunner::new(vec![
-            RogerTestFrame::new(start_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
-            RogerTestFrame::new(move_touch(1, pos, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(start_touch(1, pos, None), vec![ViewportChange::identity()]),
+            RogerTestFrame::new(move_touch(1, pos, None), vec![ViewportChange::identity()]),
             RogerTestFrame::new(cancel_touch(1, pos, None), vec![]),
             RogerTestFrame::new(
                 start_touch(2, pen_payload.pos, pen_payload.force),
@@ -924,7 +1015,7 @@ mod tests {
             ),
             RogerTestFrame::new(
                 vec![mousewheel(egui::Vec2::new(0.0, 1.0))],
-                vec![RogerEvent::ViewportChange], // Viewport changes still work
+                vec![ViewportChange::identity()], // Viewport changes still work
             ),
         ]);
 
@@ -961,9 +1052,9 @@ mod tests {
         let pos3 = egui::Pos2::new(30.0, 30.0);
 
         let test = RogerTestRunner::new(vec![
-            RogerTestFrame::new(start_touch(1, pos1, None), vec![RogerEvent::ViewportChange]),
-            RogerTestFrame::new(start_touch(2, pos2, None), vec![RogerEvent::ViewportChange]),
-            RogerTestFrame::new(start_touch(3, pos3, None), vec![RogerEvent::ViewportChange]),
+            RogerTestFrame::new(start_touch(1, pos1, None), vec![ViewportChange::identity()]),
+            RogerTestFrame::new(start_touch(2, pos2, None), vec![ViewportChange::identity()]),
+            RogerTestFrame::new(start_touch(3, pos3, None), vec![ViewportChange::identity()]),
             RogerTestFrame::new(end_touch(1, pos1, None), vec![]),
             RogerTestFrame::new(end_touch(2, pos2, None), vec![]),
             RogerTestFrame::new(end_touch(3, pos3, None), vec![RogerEvent::Gesture(3)]),

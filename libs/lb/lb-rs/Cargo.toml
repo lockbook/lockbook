@@ -50,7 +50,8 @@ sha2 = "0.9.9"
 similar = { version = "2.6.0", features = ["unicode"] }
 time = "0.3.20"
 tracing-appender = "0.2"
-tracing-subscriber = { version = "0.3.9", features = ["json"] }
+tracing-subscriber = "0.3.9"
+# tracing-subscriber = { version = "...", features = ["json"] }
 tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
 usvg = "0.41.0"

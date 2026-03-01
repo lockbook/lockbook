@@ -1,4 +1,5 @@
 use bezier_rs::Subpath;
+use egui_animation::{animate_bool_eased, easing};
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::diff::DiffState;
@@ -6,9 +7,11 @@ use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
+use web_time::Duration;
 use web_time::Instant;
 
 use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};
+use crate::theme::palette::ThemePalette;
 
 use super::toolbar::ToolContext;
 use super::{InsertElement, PathBuilder};
@@ -98,51 +101,41 @@ impl Pen {
         }
     }
 
-    // fn show_hover_point(&mut self, ui: &mut egui::Ui, pen_ctx: &mut ToolContext<'_>) {
-    //     let old_layer = pen_ctx.painter.layer_id();
+    fn show_hover_point(
+        &mut self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>,
+    ) {
+        let old_layer = pen_ctx.painter.layer_id();
 
-    //     pen_ctx.painter.set_layer_id(egui::LayerId {
-    //         order: egui::Order::PanelResizeLine,
-    //         id: "eraser_overlay".into(),
-    //     });
+        pen_ctx.painter.set_layer_id(egui::LayerId {
+            order: egui::Order::PanelResizeLine,
+            id: "pen_overlay".into(),
+        });
 
-    //     if let Some((pos, instant)) = self.hover_pos {
-    //         let is_current_path_empty = if let Some(Element::Path(path)) =
-    //             pen_ctx.buffer.elements.get_mut(&self.current_id)
-    //         {
-    //             path.data.is_empty()
-    //         } else {
-    //             true
-    //         };
-    //         let opacity = animate_bool_eased(
-    //             ui.ctx(),
-    //             "pen_hover_pos",
-    //             Instant::now() - instant < Duration::from_millis(10)
-    //                 && !(pen_ctx.settings.pencil_only_drawing),
-    //             easing::cubic_in_out,
-    //             0.5,
-    //         );
+        let is_current_path_empty =
+            if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
+                path.data.is_empty()
+            } else {
+                true
+            };
 
-    //         if is_current_path_empty {
-    //             let mut radius = self.active_stroke_width / 2.0;
-    //             if !self.has_inf_thick {
-    //                 radius *= pen_ctx.viewport_settings.master_transform.sx;
-    //             }
+        if is_current_path_empty {
+            let mut radius = self.active_stroke_width / 2.0;
+            if !self.has_inf_thick {
+                radius *= pen_ctx.viewport_settings.master_transform.sx;
+            }
 
-    //             let pressure_adj = self.pressure_alpha * -0.5 + 1.;
-    //             radius *= pressure_adj;
+            let pressure_adj = self.pressure_alpha * -0.5 + 1.;
+            radius *= pressure_adj;
 
-    //             pen_ctx.painter.circle_filled(
-    //                 pos,
-    //                 radius,
-    //                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
-    //                     .linear_multiply(self.active_opacity * opacity),
-    //             );
-    //         }
-    //     }
+            pen_ctx.painter.circle_filled(
+                pos,
+                radius,
+                ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode),
+            );
+        }
 
-    //     pen_ctx.painter.set_layer_id(old_layer);
-    // }
+        pen_ctx.painter.set_layer_id(old_layer);
+    }
 
     pub fn end_path(&mut self, pen_ctx: &mut ToolContext, is_snapped: bool) {
         if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
@@ -169,7 +162,7 @@ impl Pen {
 
     /// given a path event mutate state of the current path by building it, canceling it, or ending it.
     pub fn handle_path_event(
-        &mut self, event: PathEvent, pen_ctx: &mut ToolContext,
+        &mut self, ui: &mut egui::Ui, event: PathEvent, pen_ctx: &mut ToolContext,
     ) -> Option<egui::Shape> {
         match event {
             PathEvent::Draw(payload) => {
@@ -288,7 +281,7 @@ impl Pen {
                 }
             }
             PathEvent::Hover(draw_payload) => {
-                self.hover_pos = Some((draw_payload.pos, Instant::now()));
+                self.show_hover_point(ui, draw_payload.pos, pen_ctx);
             }
         }
         None
@@ -321,7 +314,7 @@ pub fn from_roger_to_pen_event(event: RogerEvent) -> Option<PathEvent> {
         RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
         RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
         RogerEvent::ToolHover(tool_payload) => Some(PathEvent::Hover(tool_payload)),
-        RogerEvent::ViewportChange => None,
+        RogerEvent::ViewportChange(_) => None,
         RogerEvent::Gesture(_) => None,
         RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
     }

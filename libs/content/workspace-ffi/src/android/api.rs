@@ -193,6 +193,31 @@ fn get_force(pressure: f32) -> Option<f32> {
     if pressure.is_nan() { None } else { Some(pressure) }
 }
 
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_scroll(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.renderer.raw_input.events.push(egui::Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::vec2(x, y),
+        modifiers: egui::Modifiers::NONE,
+    });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_zoom(
+    _env: JNIEnv, _: JClass, obj: jlong, factor: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::Zoom(factor));
+}
+
 #[derive(Debug, Serialize)]
 pub struct WsStatus {
     pub syncing: bool,
