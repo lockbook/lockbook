@@ -1,0 +1,25 @@
+name: Android Internal Deployment
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+jobs:
+  DeployAndroid:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: [self-hosted, ci]
+    env:
+      ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+      ANDROID_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+      ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+      GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}
+      ANDROID_RELEASE_STORE_BASE64: ${{ secrets.ANDROID_RELEASE_STORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure PATH
+        run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      - name: Decode Keystore
+        run: |
+          echo $ANDROID_RELEASE_STORE_BASE64 | base64 --decode > $HOME/lockbook-android-upload.keystore
+          echo "ANDROID_RELEASE_STORE_FILE=$HOME/lockbook-android-upload.keystore" >> $GITHUB_ENV
+      - name: deploy android
+        run: cargo r -p lbdev releaser android internal-play-store
