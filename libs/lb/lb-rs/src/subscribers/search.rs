@@ -241,12 +241,15 @@ impl Lb {
                 continue;
             };
 
-            let Ok(doc) = String::from_utf8(self.read_document(file.id, false).await.unwrap())
-            else {
+            let Ok(doc) = self.read_document(file.id, false).await else {
                 continue;
             };
 
             if doc.len() > CONTENT_MAX_LEN_BYTES {
+                continue;
+            };
+
+            let Ok(doc) = String::from_utf8(doc) else {
                 continue;
             };
 
