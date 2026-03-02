@@ -19,6 +19,14 @@ impl Lb {
     pub(crate) fn setup_syncer(&self) {
         let bg_lb = self.clone();
 
-        
+        if self.config.background_work {
+            let bg_lb = self.clone();
+            tokio::spawn(async move {
+                let events = bg_lb.subscribe();
+                loop {
+                    events.recv().await.unwrap()
+                }
+            });
+        }
     }
 }
