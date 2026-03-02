@@ -31,12 +31,12 @@ pub struct Lb {
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
-    #[cfg(not(target_family = "wasm"))]
-    pub search: SearchIndex,
     pub client: Network,
     pub events: EventSubs,
-    pub syncing: Arc<AtomicBool>,
     pub status: StatusUpdater,
+    pub syncer: Syncer,
+    #[cfg(not(target_family = "wasm"))]
+    pub search: SearchIndex,
 }
 
 impl Lb {
@@ -85,7 +85,7 @@ impl Lb {
         let search = SearchIndex::default();
 
         let status = StatusUpdater::default();
-        let syncing = Arc::default();
+        let syncer = Default::default();
         let events = EventSubs::default();
 
         let result = Self {
@@ -94,15 +94,16 @@ impl Lb {
             db,
             docs,
             client,
-            #[cfg(not(target_family = "wasm"))]
-            search,
-            syncing,
+            syncer,
             events,
             status,
+            #[cfg(not(target_family = "wasm"))]
+            search,
         };
 
         #[cfg(not(target_family = "wasm"))]
         {
+            result.setup_syncer();
             result.setup_search();
             result.setup_status().await?;
         }
@@ -121,6 +122,7 @@ pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 use crate::io::CoreDb;
 #[cfg(target_family = "wasm")]
 use crate::io::CoreDb;
+use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
 #[cfg(target_family = "wasm")]
 use db_rs::Db;
