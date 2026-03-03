@@ -78,6 +78,16 @@ impl AsyncDocs {
         }
     }
 
+    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<bool> {
+        if let Some(hmac) = hmac {
+            let path_str = key_path(&self.location, id, hmac);
+            let path = Path::new(&path_str);
+            Ok(path.exists())
+        } else {
+            Ok(false) // is this the move?
+        }
+    }
+
     pub async fn get(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
         self.maybe_get(id, hmac)
             .await?

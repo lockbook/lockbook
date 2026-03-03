@@ -2,9 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::Lb;
-
-use super::sync::SyncIncrement;
+use crate::{Lb, LbErrKind};
 
 #[derive(Clone)]
 pub struct EventSubs {
@@ -74,4 +72,12 @@ impl Lb {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum SyncIncrement {
+    SyncStarted,
+    PullingDocument(Uuid, bool),
+    PushingDocument(Uuid, bool),
+    SyncFinished(Option<LbErrKind>),
 }
