@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
@@ -584,6 +585,26 @@ pub struct LayoutCache {
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
+    pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
+}
+
+#[derive(Hash, PartialEq, Eq)]
+pub struct GlyphonBufferKey {
+    pub text: String,
+    pub font_size_bits: u32,
+    pub line_height_bits: u32,
+    pub width_bits: u32,
+}
+
+impl GlyphonBufferKey {
+    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32) -> Self {
+        Self {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+            line_height_bits: line_height.to_bits(),
+            width_bits: width.to_bits(),
+        }
+    }
 }
 
 impl LayoutCache {
@@ -592,6 +613,32 @@ impl LayoutCache {
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
+        self.glyphon_buffers.borrow_mut().clear();
+    }
+}
+
+impl Editor {
+    pub fn get_or_create_glyphon_buffer(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        let key = GlyphonBufferKey::new(text, font_size, line_height, width);
+        let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
+        cache
+            .entry(key)
+            .or_insert_with(|| {
+                let metrics = glyphon::Metrics::new(font_size, line_height);
+                let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
+                b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
+                b.set_text(
+                    &mut self.font_system.lock().unwrap(),
+                    text,
+                    glyphon::Attrs::new().family(glyphon::Family::SansSerif),
+                    glyphon::Shaping::Advanced,
+                );
+                b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
+                Arc::new(RwLock::new(b))
+            })
+            .clone()
     }
 }
 

@@ -1,20 +1,16 @@
 use std::mem;
-use std::sync::{Arc, RwLock};
 
 use egui::epaint::text::Row;
 use egui::text::LayoutJob;
-use egui::{Color32, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
-use egui_wgpu_renderer::egui_wgpu;
-use epaint::text::cursor::RCursor;
-use glyphon::{Attrs, Family, Metrics, Shaping};
+use egui::{Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
+use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::Lines;
-use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
-use crate::{GlyphonRendererCallback, TextBufferArea};
 
 #[derive(Clone, Debug)]
 pub struct Wrap {
@@ -161,38 +157,39 @@ impl Editor {
         // 4. click/hover detection, spoilers, code, highlights
         // 5. rewrite the span fns to match
 
-        // determine the first row
-        let mut fs = self.font_system.lock().unwrap();
-        let fs = &mut fs;
-        let mut buffer =
-            glyphon::Buffer::new(fs, Metrics::new(wrap.row_height, wrap.row_height + ROW_SPACING));
-        let mut buffers = Vec::new();
+        let font_size = wrap.row_height;
+        let line_height = wrap.row_height + ROW_SPACING;
 
-        buffer.set_size(fs, Some(wrap.row_remaining()), None);
-        buffer.set_text(fs, text, Attrs::new().family(Family::SansSerif), Shaping::Advanced);
-        buffer.shape_until_scroll(fs, false);
-
-        let first_row_bytes = if let Some(first_row) = buffer.layout_runs().next() {
-            if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
-        } else {
-            0
+        // probe: shape the full text at row_remaining width to find where the first row breaks
+        let (first_row_range, remaining_rows_range) = {
+            let probe_buffer = self.get_or_create_glyphon_buffer(
+                text,
+                font_size,
+                line_height,
+                wrap.row_remaining(),
+            );
+            let probe = probe_buffer.read().unwrap();
+            let first_row_bytes = if let Some(first_row) = probe.layout_runs().next() {
+                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+            } else {
+                0
+            };
+            let byte_range = self.range_to_byte(range);
+            let first_row_range =
+                self.range_to_char((byte_range.start(), byte_range.start() + first_row_bytes));
+            let remaining_rows_range = (first_row_range.end(), range.end());
+            (first_row_range, remaining_rows_range)
         };
-        let byte_range = self.range_to_byte(range);
-        let first_row_range =
-            self.range_to_char((byte_range.start(), byte_range.start() + first_row_bytes));
-        let remaining_rows_range = (first_row_range.end(), range.end());
-
         // layout the first row on its own to continue any existing lines
-        buffer.set_size(fs, Some(wrap.row_remaining()), None);
-        buffer.set_text(
-            fs,
-            &self.buffer[first_row_range],
-            Attrs::new().family(Family::SansSerif),
-            Shaping::Advanced,
+        let first_row_text = self.buffer[first_row_range].to_string();
+        let first_buffer = self.get_or_create_glyphon_buffer(
+            &first_row_text,
+            font_size,
+            line_height,
+            wrap.row_remaining(),
         );
-        buffer.shape_until_scroll(fs, false);
 
-        if let Some(first_row) = buffer.layout_runs().next() {
+        if let Some(first_row) = first_buffer.read().unwrap().layout_runs().next() {
             // for glyph in first_row.glyphs {
             //     let mut rect = Rect {
             //         min: Pos2 { x: glyph.x, y: glyph.y },
@@ -204,34 +201,33 @@ impl Editor {
             //     ui.painter().rect_filled(rect, 3., Color32::DARK_GREEN);
             // }
 
-            let buffer_height = buffer
+            let buffer_height = first_buffer
+                .read()
+                .unwrap()
                 .layout_runs()
                 .last()
                 .map(|run| run.line_top + run.line_height)
                 .unwrap_or(0.);
 
             let rect = Rect::from_min_size(top_left, Vec2::new(wrap.width, buffer_height));
-            buffers.push(TextBufferArea::new(
-                Arc::new(RwLock::new(buffer.clone())),
-                rect,
-                glyphon::Color::rgb(255, 255, 255),
-                ui.ctx(),
-            ));
+            if ui.clip_rect().intersects(rect) {
+                self.pending_text_areas.push(TextBufferArea::new(
+                    first_buffer.clone(),
+                    rect,
+                    glyphon::Color::rgb(255, 255, 255),
+                    ui.ctx(),
+                ));
+            }
             // ui.painter()
             //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_GREEN));
         }
 
         // layout remaining rows
-        buffer.set_size(fs, Some(wrap.width), None);
-        buffer.set_text(
-            fs,
-            &self.buffer[remaining_rows_range],
-            Attrs::new().family(Family::SansSerif),
-            Shaping::Advanced,
-        );
-        buffer.shape_until_scroll(fs, false);
+        let remaining_text = self.buffer[remaining_rows_range].to_string();
+        let remaining_buffer =
+            self.get_or_create_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
 
-        for row in buffer.layout_runs() {
+        for row in remaining_buffer.read().unwrap().layout_runs() {
             // for glyph in row.glyphs {
             //     let mut rect = Rect {
             //         min: Pos2 { x: glyph.x, y: glyph.y },
@@ -247,31 +243,31 @@ impl Editor {
             // todo: determine the range for each row; you'll need it for wrap.row_ranges and for galley info
             // this is the place where you sort out what's going on with multi-row override text
 
-            let buffer_height = buffer
+            let rb = remaining_buffer.read().unwrap();
+            let buffer_height = rb
                 .layout_runs()
                 .last()
                 .map(|run| run.line_top + run.line_height)
                 .unwrap_or(0.);
+            let line_height = rb.metrics().line_height;
+            drop(rb);
 
             let rect = Rect::from_min_size(
-                top_left + buffer.metrics().line_height * Vec2::Y,
+                top_left + line_height * Vec2::Y,
                 Vec2::new(wrap.width, buffer_height),
             );
-            buffers.push(TextBufferArea::new(
-                Arc::new(RwLock::new(buffer.clone())),
-                rect,
-                glyphon::Color::rgb(255, 255, 255),
-                ui.ctx(),
-            ));
+            if ui.clip_rect().intersects(rect) {
+                self.pending_text_areas.push(TextBufferArea::new(
+                    remaining_buffer.clone(),
+                    rect,
+                    glyphon::Color::rgb(255, 255, 255),
+                    ui.ctx(),
+                ));
+            }
 
             // ui.painter()
             //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_BLUE));
         }
-
-        ui.painter().add(egui_wgpu::Callback::new_paint_callback(
-            ui.max_rect(),
-            GlyphonRendererCallback { buffers },
-        ));
 
         /* end changeset */
 

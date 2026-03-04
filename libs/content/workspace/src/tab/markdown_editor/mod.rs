@@ -2,7 +2,7 @@ use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use web_time::Instant;
 
 use bounds::Bounds;
@@ -86,7 +86,8 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
-    pub glyphon_buffer: Arc<RwLock<glyphon::Buffer>>,
+    pub pending_text_areas: Vec<crate::TextBufferArea>,
+
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
@@ -183,17 +184,6 @@ impl Editor {
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
-        let mut glyphon_buffer =
-            glyphon::Buffer::new(&mut font_system.lock().unwrap(), glyphon::Metrics::new(30., 42.));
-        glyphon_buffer.set_size(&mut font_system.lock().unwrap(), Some(16.), Some(9.));
-        glyphon_buffer.set_text(
-            &mut font_system.lock().unwrap(),
-            "dove 🕊️",
-            glyphon::Attrs::new().family(glyphon::Family::SansSerif),
-            glyphon::Shaping::Advanced,
-        );
-        glyphon_buffer.shape_until_scroll(&mut font_system.lock().unwrap(), false);
-
         Self {
             core,
             client: Default::default(),
@@ -222,13 +212,14 @@ impl Editor {
             cursor: Default::default(),
             event: Default::default(),
             galleys: Default::default(),
-            glyphon_buffer: Arc::new(RwLock::new(glyphon_buffer)),
+
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
+            pending_text_areas: Default::default(),
 
             in_progress_selection: None,
 
@@ -561,6 +552,14 @@ impl Editor {
             })
             .inner;
 
+        let text_areas = std::mem::take(&mut self.pending_text_areas);
+        if !text_areas.is_empty() {
+            ui.painter()
+                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                    ui.max_rect(),
+                    crate::GlyphonRendererCallback { buffers: text_areas },
+                ));
+        }
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
