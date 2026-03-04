@@ -37,6 +37,8 @@ pub struct GlyphonRenderCallbackResources {
     pub text_atlas: TextAtlas,
     pub viewport: Viewport,
     pub text_renderer: TextRenderer,
+    pub pending_areas: Vec<TextBufferArea>,
+    pub pending_resolution: Resolution,
 }
 
 pub fn register_render_callback_resources(
@@ -67,6 +69,8 @@ pub fn register_render_callback_resources(
             viewport,
             text_atlas,
             text_renderer,
+            pending_areas: Vec::new(),
+            pending_resolution: Resolution { width: 0, height: 0 },
         });
 }
 
@@ -117,18 +121,32 @@ impl TextBufferArea {
 
 impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
     fn prepare(
-        &self, device: &wgpu::Device, queue: &wgpu::Queue, screen_descriptor: &ScreenDescriptor,
+        &self, _device: &wgpu::Device, _queue: &wgpu::Queue, screen_descriptor: &ScreenDescriptor,
         _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
         let glyphon_renderer: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
-        glyphon_renderer.text_atlas.trim();
-        let bufrefs: Vec<_> = self
-            .buffers
-            .iter()
-            .map(|b| b.buffer.read().unwrap())
-            .collect();
-        let text_areas: Vec<_> = self
-            .buffers
+        glyphon_renderer.pending_resolution = Resolution {
+            width: screen_descriptor.size_in_pixels[0],
+            height: screen_descriptor.size_in_pixels[1],
+        };
+        glyphon_renderer
+            .pending_areas
+            .extend(self.buffers.iter().cloned());
+        Vec::new()
+    }
+
+    fn finish_prepare(
+        &self, device: &wgpu::Device, queue: &wgpu::Queue,
+        _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
+    ) -> Vec<wgpu::CommandBuffer> {
+        let glyphon_renderer: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
+        if glyphon_renderer.pending_areas.is_empty() {
+            return Vec::new();
+        }
+        let areas = std::mem::take(&mut glyphon_renderer.pending_areas);
+        let resolution = glyphon_renderer.pending_resolution;
+        let bufrefs: Vec<_> = areas.iter().map(|b| b.buffer.read().unwrap()).collect();
+        let text_areas: Vec<_> = areas
             .iter()
             .enumerate()
             .map(|(i, b)| TextArea {
@@ -146,22 +164,14 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
                 default_color: b.default_color,
             })
             .collect();
-
+        glyphon_renderer.text_atlas.trim();
         glyphon_renderer
-            .prepare(
-                device,
-                queue,
-                Resolution {
-                    width: screen_descriptor.size_in_pixels[0],
-                    height: screen_descriptor.size_in_pixels[1],
-                },
-                text_areas,
-            )
+            .prepare(device, queue, resolution, text_areas)
             .unwrap();
         Vec::new()
     }
 
-    fn paint<'a>(
+    fn paint(
         &self, info: egui::PaintCallbackInfo, render_pass: &mut wgpu::RenderPass<'static>,
         resources: &egui_wgpu::CallbackResources,
     ) {
@@ -173,7 +183,6 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
             0.0,
             1.0,
         );
-
         let glyphon_renderer: &GlyphonRenderCallbackResources = resources.get().unwrap();
         glyphon_renderer.render(render_pass).unwrap();
     }
