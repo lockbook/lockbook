@@ -6,6 +6,7 @@ use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
+use crate::service::events::Actor;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
@@ -58,7 +59,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         if welcome_doc {
             let welcome_doc = self

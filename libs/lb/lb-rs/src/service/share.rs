@@ -4,6 +4,7 @@ use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
+use crate::service::events::Actor;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
@@ -34,7 +35,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         Ok(())
     }
@@ -80,7 +81,7 @@ impl Lb {
         tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
         tx.end();
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         Ok(())
     }

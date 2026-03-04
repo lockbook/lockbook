@@ -1047,7 +1047,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
             if let Ok(event) = rx.blocking_recv() {
                 let event = match event {
                     Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
-                    Event::MetadataChanged => {
+                    Event::MetadataChanged(_) => {
                         LbEvent { metadata_updated: true, ..Default::default() }
                     }
                     Event::PendingSharesChanged => {

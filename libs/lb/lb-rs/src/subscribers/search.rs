@@ -189,7 +189,7 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::MetadataChanged => {
+                        Event::MetadataChanged(_) => {
                             if let Some(replacement_index) =
                                 SearchMetadata::populate(&lb).await.log_and_ignore()
                             {

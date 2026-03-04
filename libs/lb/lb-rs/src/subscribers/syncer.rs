@@ -31,7 +31,7 @@ use crate::{
         symkey, text,
         tree_like::TreeLike,
     },
-    service::events::{Event, SyncIncrement},
+    service::events::{Actor, Event, SyncIncrement},
 };
 
 pub type Syncer = Arc<Mutex<SyncState>>;
@@ -69,7 +69,7 @@ impl Lb {
                 loop {
                     let evt = events.recv().await.unwrap();
                     match evt {
-                        Event::MetadataChanged => todo!(),
+                        Event::MetadataChanged(actor) => todo!(),
                         Event::DocumentWritten(uuid, actor) => todo!(),
                         Event::PendingSharesChanged => todo!(),
                         Event::Sync(sync_increment) => todo!(),
@@ -81,20 +81,20 @@ impl Lb {
     }
 
     pub async fn sync(&self) -> LbResult<()> {
-        self.pull_updates().await?;
+        let mut sync_state = self.syncer.lock().await;
+
+        self.pull_updates(&mut sync_state).await?;
         self.push_local_changes().await?;
         Ok(())
     }
 
-    pub(crate) async fn pull_updates(&self) -> LbResult<()> {
-        let mut sync_state = self.syncer.lock().await;
-
-        self.inital_sync_state(&mut sync_state);
+    pub(crate) async fn pull_updates(&self, sync_state: &mut SyncState) -> LbResult<()> {
+        self.inital_sync_state(sync_state);
         self.process_deletions().await?;
-        self.fetch_meta(&mut sync_state).await?;
-        self.fetch_required_docs(&mut sync_state).await?;
-        self.merge(&mut sync_state).await?;
-        self.commit_last_synced(&mut sync_state).await?;
+        self.fetch_meta(sync_state).await?;
+        self.fetch_required_docs(sync_state).await?;
+        self.merge(sync_state).await?;
+        self.commit_last_synced(sync_state).await?;
         self.populate_pk_cache().await?;
 
         Ok(())
@@ -157,7 +157,7 @@ impl Lb {
         local_staged.promote()?;
 
         if !prunable_ids.is_empty() {
-            self.events.meta_changed();
+            self.events.meta_changed(Actor::Client);
         }
 
         Ok(())
@@ -935,7 +935,6 @@ impl Lb {
     }
 
     /// Updates remote and base metadata to local.
-    // todo: guard this against race
     async fn push_meta(&self) -> LbResult<()> {
         let mut updates = vec![];
         let mut local_changes_no_digests = Vec::new();

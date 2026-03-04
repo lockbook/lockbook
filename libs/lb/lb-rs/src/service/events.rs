@@ -14,11 +14,11 @@ pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
     /// message to be sent (unless a document was deleted).
-    MetadataChanged,
+    MetadataChanged(Actor),
 
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
-    DocumentWritten(Uuid, Option<Actor>),
+    DocumentWritten(Uuid, Actor),
 
     PendingSharesChanged,
 
@@ -29,7 +29,7 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum Actor {
-    Workspace,
+    Client,
     Sync,
 }
 
@@ -45,11 +45,11 @@ impl EventSubs {
         self.queue(Event::PendingSharesChanged);
     }
 
-    pub(crate) fn meta_changed(&self) {
-        self.queue(Event::MetadataChanged);
+    pub(crate) fn meta_changed(&self, actor: Actor) {
+        self.queue(Event::MetadataChanged(actor));
     }
 
-    pub(crate) fn doc_written(&self, id: Uuid, actor: Option<Actor>) {
+    pub(crate) fn doc_written(&self, id: Uuid, actor: Actor) {
         self.queue(Event::DocumentWritten(id, actor));
     }
 

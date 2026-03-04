@@ -6,6 +6,7 @@ use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::MAX_FILENAME_LENGTH;
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
+use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
@@ -38,7 +39,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
         Ok(ui_file)
     }
 
@@ -60,7 +61,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         Ok(())
     }
@@ -79,7 +80,7 @@ impl Lb {
         tree.move_file(id, new_parent, &self.keychain)?;
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         Ok(())
     }
@@ -99,7 +100,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
+        self.events.meta_changed(Actor::Client);
 
         Ok(())
     }

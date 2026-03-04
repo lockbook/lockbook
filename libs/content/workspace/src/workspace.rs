@@ -326,7 +326,7 @@ impl Workspace {
     pub fn process_lb_updates(&mut self) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged => {
+                Event::MetadataChanged(_) => {
                     self.files = FileCache::new(&self.core).log_and_ignore();
                     if let Some(files) = &self.files {
                         let mut tabs_to_delete = vec![];
@@ -350,7 +350,7 @@ impl Workspace {
                         }
                     }
                 }
-                Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                Event::DocumentWritten(id, Actor::Sync) => {
                     self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
