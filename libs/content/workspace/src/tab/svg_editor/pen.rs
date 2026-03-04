@@ -101,8 +101,8 @@ impl Pen {
         }
     }
 
-    fn show_hover_point(
-        &mut self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>,
+    pub fn show_hover_point(
+        &self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>,
     ) {
         let old_layer = pen_ctx.painter.layer_id();
 
@@ -313,7 +313,7 @@ pub fn from_roger_to_pen_event(event: RogerEvent) -> Option<PathEvent> {
         RogerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
         RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
         RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
-        RogerEvent::ToolHover(tool_payload) => Some(PathEvent::Hover(tool_payload)),
+        RogerEvent::ToolHover(tool_payload) => None,
         RogerEvent::ViewportChange(_) => None,
         RogerEvent::Gesture(_) => None,
         RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),

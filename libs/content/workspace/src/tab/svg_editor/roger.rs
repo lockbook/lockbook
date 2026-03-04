@@ -1,10 +1,13 @@
+use core::f32;
 use std::{collections::HashMap, slice::Iter};
 
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
 use time::Duration;
 use tracing::warn;
-use web_time::Instant;
+use web_time::{Instant, UNIX_EPOCH};
+
+use crate::tab::svg_editor::toolbar::ToolContext;
 
 #[derive(Debug)]
 pub struct Roger {
@@ -12,6 +15,7 @@ pub struct Roger {
     buttons: HashMap<MouseProps, (Instant, egui::Pos2)>, // track the start pos
     tool_running: Option<Instant>,
     mouse_hover_pos: Option<egui::Pos2>,
+    tool_hover_pos: (egui::Pos2, Instant),
     tool_start_touch: Option<TouchId>, // keep track of the touch id that started a touch, to inform tool end
     viewport_changing: Option<Instant>,
     config: RogerConfig,
@@ -188,6 +192,7 @@ impl Roger {
             is_touch_frame: false,
             mouse_hover_pos: None,
             response: Default::default(),
+            tool_hover_pos: (egui::Pos2::ZERO, past_instant()),
         }
     }
 
@@ -216,7 +221,7 @@ impl Roger {
             })
             .collect();
 
-        // todo: dedupe hover events to only keep the last one. apple
+        // dedupe hover events to only keep the last one. apple
         // sends a bunch of pen hover events and if you  draw a tool
         // hover over all of them, it will resemble a stroke
         let last_hover = result
@@ -282,6 +287,8 @@ impl Roger {
                 // be used to display the pen hover and the eraser hover.
 
                 if self.buttons.contains_key(run_button) && self.tool_running.is_some() {
+                    self.update_hover_pos(ctx, pos, past_instant());
+
                     self.mouse_hover_pos = None;
 
                     if pos_collides_with_layout(pos, ctx) {
@@ -291,6 +298,8 @@ impl Roger {
                 }
 
                 self.mouse_hover_pos = Some(pos);
+                self.update_hover_pos(ctx, pos, Instant::now());
+
                 if self.viewport_changing.is_none() {
                     return Some(RogerEvent::ToolHover(payload));
                 }
@@ -335,6 +344,14 @@ impl Roger {
                 None
             }
             _ => None,
+        }
+    }
+
+    fn update_hover_pos(&mut self, ctx: &LayoutContext, pos: Pos2, instant: Instant) {
+        if !pos_collides_with_layout(pos, ctx) {
+            self.tool_hover_pos = (pos, instant);
+        } else {
+            self.tool_hover_pos.0 = egui::pos2(f32::NEG_INFINITY, f32::NEG_INFINITY);
         }
     }
 
@@ -519,6 +536,33 @@ impl Roger {
         None
     }
 
+    pub fn show_hover_indicator(
+        &self, ui: &mut egui::Ui, ctx: &mut ToolContext,
+        add_contents: impl FnOnce(&mut egui::Ui, egui::Pos2, &mut ToolContext),
+    ) {
+        ui.scope(|ui| {
+            let old_layer = ctx.painter.layer_id();
+
+            ctx.painter.set_layer_id(egui::LayerId {
+                order: egui::Order::PanelResizeLine,
+                id: "pen_overlay".into(),
+            });
+
+            let elpased = Instant::now() - self.tool_hover_pos.1;
+            let target_opacity = if elpased > Duration::milliseconds(600) { 0.0 } else { 1.0 };
+
+            let opacity = ui.ctx().animate_value_with_time(
+                egui::Id::new("tool_hover_indicator_ui"),
+                target_opacity,
+                0.3,
+            );
+            ctx.painter.set_opacity(opacity);
+            add_contents(ui, self.tool_hover_pos.0, ctx);
+
+            ctx.painter.set_layer_id(old_layer);
+        });
+    }
+
     pub fn should_hide_overlay(&self) -> bool {
         self.response.hide_overlay
     }
@@ -529,6 +573,10 @@ fn pos_collides_with_layout(pos: egui::Pos2, ctx: &LayoutContext) -> bool {
         return true;
     }
     ctx.overlay_areas.iter().any(|area| area.contains(pos))
+}
+// get an instant that's far in the past
+fn past_instant() -> Instant {
+    Instant::now() - Duration::days(1) // 1 day ago
 }
 
 #[cfg(test)]

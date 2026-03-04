@@ -441,8 +441,24 @@ impl SVGEditor {
                 }
             }
         }
-
         self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
+
+        let hover_add_contents: Box<dyn FnOnce(&mut egui::Ui, egui::Pos2, &mut ToolContext)> =
+            match self.toolbar.active_tool {
+                Tool::Pen => {
+                    Box::new(|ui, pos, ctx| self.toolbar.pen.show_hover_point(ui, pos, ctx))
+                }
+                Tool::Eraser => {
+                    Box::new(|ui, pos, ctx| self.toolbar.eraser.show_eraser_circle(pos, ctx))
+                }
+                Tool::Highlighter => {
+                    Box::new(|ui, pos, ctx| self.toolbar.highlighter.show_hover_point(ui, pos, ctx))
+                }
+                _ => Box::new(|_, _, _| {}),
+            };
+
+        self.roger
+            .show_hover_indicator(ui, &mut tool_context, hover_add_contents);
 
         // if !self.read_only {
         //     match self.toolbar.active_tool {

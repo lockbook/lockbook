@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use web_time::{Duration, Instant};
 
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
@@ -8,26 +7,29 @@ use crate::tab::svg_editor::roger::RogerEvent;
 
 use super::DeleteElement;
 use super::toolbar::ToolContext;
-use super::util::{is_multi_touch, pointer_intersects_element};
+use super::util::pointer_intersects_element;
 
 pub struct Eraser {
     pub radius: f32,
     delete_candidates: HashMap<Uuid, f32>,
-    last_pos: Option<egui::Pos2>,
     is_building: bool,
-    build_touch_id: Option<egui::TouchId>,
-    first_build_frame: Option<web_time::Instant>,
+    cursor_color: egui::Color32,
 }
 
 impl Default for Eraser {
     fn default() -> Self {
-        Self::new()
+        Self {
+            delete_candidates: HashMap::default(),
+            radius: DEFAULT_ERASER_RADIUS,
+            is_building: false,
+            cursor_color: egui::Color32::GRAY,
+        }
     }
 }
 
 #[derive(PartialEq, Debug)]
 pub enum EraseEvent {
-    Build((egui::Pos2, Option<egui::TouchId>)),
+    Build(egui::Pos2),
     End,
     Cancel,
 }
@@ -35,7 +37,7 @@ pub enum EraseEvent {
 pub fn from_roger_to_eraser_event(event: RogerEvent) -> Option<EraseEvent> {
     match event {
         RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
-            Some(EraseEvent::Build((payload.pos, payload.id)))
+            Some(EraseEvent::Build(payload.pos))
         }
         RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
         RogerEvent::ToolCancel => Some(EraseEvent::Cancel),
@@ -46,118 +48,21 @@ pub fn from_roger_to_eraser_event(event: RogerEvent) -> Option<EraseEvent> {
 pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
 
 impl Eraser {
-    pub fn new() -> Self {
+    pub fn new(ui: &mut egui::Ui) -> Self {
         Eraser {
             delete_candidates: HashMap::default(),
             radius: DEFAULT_ERASER_RADIUS,
-            last_pos: None,
             is_building: false,
-            build_touch_id: None,
-            first_build_frame: None,
+            cursor_color: ui.visuals().text_color(),
         }
-    }
-
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
-        if eraser_ctx.toolbar_has_interaction {
-            return;
-        }
-        let is_multi_touch = is_multi_touch(ui);
-
-        ui.input(|r| {
-            for e in r.events.iter() {
-                if let Some(erase_event) = self.map_ui_event(e, eraser_ctx, is_multi_touch) {
-                    self.handle_erase_event(&erase_event, eraser_ctx);
-                    if erase_event == EraseEvent::Cancel || erase_event == EraseEvent::End {
-                        break;
-                    }
-                }
-            }
-        });
-
-        // gotta set this to true every frame, else you can't pan and zoom
-        *eraser_ctx.allow_viewport_changes = !self.is_building;
-
-        if let Some(pos) = ui.input(|r| r.pointer.hover_pos()) {
-            self.draw_elevated_eraser_cursor(ui, eraser_ctx.painter, pos);
-        }
-    }
-
-    pub fn map_ui_event(
-        &mut self, event: &egui::Event, eraser_ctx: &mut ToolContext, is_multi_touch: bool,
-    ) -> Option<EraseEvent> {
-        match *event {
-            egui::Event::PointerMoved(pos) => {
-                if self.is_building && !eraser_ctx.is_touch_frame {
-                    return Some(EraseEvent::Build((pos, None)));
-                }
-            }
-            egui::Event::PointerButton { pos, button, pressed, modifiers: _ } => {
-                if button != egui::PointerButton::Primary {
-                    return None;
-                }
-
-                if eraser_ctx.is_touch_frame {
-                    return None;
-                }
-
-                return if pressed {
-                    Some(EraseEvent::Build((pos, None)))
-                } else {
-                    Some(EraseEvent::End)
-                };
-            }
-            egui::Event::Touch { device_id: _, id, phase, pos, force } => {
-                if phase == egui::TouchPhase::Cancel {
-                    return Some(EraseEvent::Cancel);
-                }
-
-                match phase {
-                    egui::TouchPhase::Start | egui::TouchPhase::Move => {
-                        if let Some(first_build) = self.first_build_frame {
-                            if is_multi_touch
-                                && force.is_none()
-                                && !eraser_ctx.settings.pencil_only_drawing
-                                && Instant::now() - first_build < Duration::from_millis(500)
-                            {
-                                return Some(EraseEvent::Cancel);
-                            }
-                        }
-
-                        if eraser_ctx.settings.pencil_only_drawing && force.is_some() {
-                            return Some(EraseEvent::Build((pos, Some(id))));
-                        }
-                        if !eraser_ctx.settings.pencil_only_drawing && !is_multi_touch {
-                            return Some(EraseEvent::Build((pos, Some(id))));
-                        }
-                    }
-                    egui::TouchPhase::End => {
-                        if let Some(touch_id) = self.build_touch_id {
-                            if touch_id == id {
-                                return Some(EraseEvent::End);
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            _ => {}
-        }
-
-        None
     }
 
     pub fn handle_erase_event(&mut self, event: &EraseEvent, eraser_ctx: &mut ToolContext<'_>) {
         match *event {
-            EraseEvent::Build((pos, maybe_touch_id)) => {
-                if !eraser_ctx.painter.clip_rect().contains(pos) {
-                    return;
-                }
-                self.build_touch_id = maybe_touch_id;
-                self.is_building = true;
+            EraseEvent::Build(pos) => {
+                self.show_eraser_circle(pos, eraser_ctx);
 
-                if self.first_build_frame.is_none() {
-                    self.first_build_frame = Some(Instant::now());
-                }
+                self.is_building = true;
 
                 eraser_ctx
                     .buffer
@@ -168,7 +73,7 @@ impl Eraser {
                         if self.delete_candidates.contains_key(id) {
                             return;
                         }
-                        if pointer_intersects_element(el, pos, self.last_pos, self.radius as f64) {
+                        if pointer_intersects_element(el, pos, None, self.radius as f64) {
                             self.delete_candidates.insert(*id, el.opacity());
                         }
                     });
@@ -181,8 +86,6 @@ impl Eraser {
                         }
                     };
                 });
-
-                self.last_pos = Some(pos);
             }
             EraseEvent::End => {
                 self.is_building = false;
@@ -207,9 +110,7 @@ impl Eraser {
 
                 eraser_ctx.history.save(event);
 
-                self.first_build_frame = None;
                 self.delete_candidates.clear();
-                self.last_pos = None;
             }
             EraseEvent::Cancel => {
                 self.delete_candidates.iter().for_each(|(id, &opacity)| {
@@ -219,35 +120,26 @@ impl Eraser {
                     };
                 });
 
-                self.first_build_frame = None;
                 self.delete_candidates.clear();
-                self.last_pos = None;
                 self.is_building = false;
             }
         }
     }
 
-    fn draw_elevated_eraser_cursor(
-        &mut self, ui: &mut egui::Ui, painter: &mut egui::Painter, pos: egui::Pos2,
-    ) {
-        let old_layer = painter.layer_id();
-        painter.set_layer_id(egui::LayerId {
+    pub fn show_eraser_circle(&mut self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
+        let old_layer = eraser_ctx.painter.layer_id();
+        eraser_ctx.painter.set_layer_id(egui::LayerId {
             order: egui::Order::PanelResizeLine,
             id: "eraser_overlay".into(),
         });
 
-        self.draw_eraser_cursor(ui, painter, pos);
+        self.draw_eraser_cursor(eraser_ctx.painter, pos);
 
-        painter.set_layer_id(old_layer);
+        eraser_ctx.painter.set_layer_id(old_layer);
     }
 
-    pub fn draw_eraser_cursor(
-        &mut self, ui: &mut egui::Ui, painter: &egui::Painter, cursor_pos: egui::Pos2,
-    ) {
-        let stroke = egui::Stroke { width: 1.0, color: ui.visuals().text_color() };
+    pub fn draw_eraser_cursor(&mut self, painter: &egui::Painter, cursor_pos: egui::Pos2) {
+        let stroke = egui::Stroke { width: 1.0, color: self.cursor_color };
         painter.circle_stroke(cursor_pos, self.radius, stroke);
-
-        // todo: apple integration doesn't support this correctly.
-        // ui.output_mut(|w| w.cursor_icon = egui::CursorIcon::None);
     }
 }

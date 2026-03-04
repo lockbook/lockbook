@@ -123,8 +123,6 @@ impl Selection {
                 self.suggested_op = self.show_selection_rects(ui, selection_ctx);
             },
         );
-        // todo: maitre_d should know about the overlay rects in self.layout for proper hit testing.
-        // currently an overlay click will result in a tool run
     }
 
     pub fn map_roger_event(&self, event: RogerEvent) -> Option<SelectionEvent> {
