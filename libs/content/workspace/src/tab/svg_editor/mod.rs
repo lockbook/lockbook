@@ -373,6 +373,10 @@ impl SVGEditor {
             self.toolbar.selection.show_tool_ui(ui, &mut tool_context);
         }
 
+        if self.toolbar.active_tool == Tool::Eraser {
+            self.toolbar.eraser.show_tool_ui(ui, &mut tool_context);
+        }
+
         for event in self.roger.process(ui, &layout_ctx) {
             // handle non tool events
             match event {
@@ -449,7 +453,7 @@ impl SVGEditor {
                     Box::new(|ui, pos, ctx| self.toolbar.pen.show_hover_point(ui, pos, ctx))
                 }
                 Tool::Eraser => {
-                    Box::new(|ui, pos, ctx| self.toolbar.eraser.show_eraser_circle(pos, ctx))
+                    Box::new(|_, pos, ctx| self.toolbar.eraser.show_eraser_circle(pos, ctx))
                 }
                 Tool::Highlighter => {
                     Box::new(|ui, pos, ctx| self.toolbar.highlighter.show_hover_point(ui, pos, ctx))

@@ -1,5 +1,4 @@
 use bezier_rs::Subpath;
-use egui_animation::{animate_bool_eased, easing};
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{get_dyn_color, get_highlighter_colors, get_pen_colors};
 use lb_rs::model::svg::diff::DiffState;
@@ -7,7 +6,6 @@ use lb_rs::model::svg::element::{Color, DynamicColor, Element, Path, Stroke};
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
-use web_time::Duration;
 use web_time::Instant;
 
 use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};

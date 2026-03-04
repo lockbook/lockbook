@@ -13,6 +13,7 @@ pub struct Eraser {
     pub radius: f32,
     delete_candidates: HashMap<Uuid, f32>,
     is_building: bool,
+    pos: egui::Pos2,
     cursor_color: egui::Color32,
 }
 
@@ -23,6 +24,7 @@ impl Default for Eraser {
             radius: DEFAULT_ERASER_RADIUS,
             is_building: false,
             cursor_color: egui::Color32::GRAY,
+            pos: egui::Pos2::ZERO,
         }
     }
 }
@@ -54,15 +56,22 @@ impl Eraser {
             radius: DEFAULT_ERASER_RADIUS,
             is_building: false,
             cursor_color: ui.visuals().text_color(),
+            pos: ui
+                .input(|r| r.pointer.hover_pos())
+                .unwrap_or(egui::Pos2::ZERO),
+        }
+    }
+    pub fn show_tool_ui(&self, _: &mut egui::Ui, eraser_ctx: &mut ToolContext<'_>) {
+        if self.is_building {
+            self.show_eraser_circle(self.pos, eraser_ctx);
         }
     }
 
     pub fn handle_erase_event(&mut self, event: &EraseEvent, eraser_ctx: &mut ToolContext<'_>) {
         match *event {
             EraseEvent::Build(pos) => {
-                self.show_eraser_circle(pos, eraser_ctx);
-
                 self.is_building = true;
+                self.pos = pos;
 
                 eraser_ctx
                     .buffer
@@ -126,7 +135,7 @@ impl Eraser {
         }
     }
 
-    pub fn show_eraser_circle(&mut self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
+    pub fn show_eraser_circle(&self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
         let old_layer = eraser_ctx.painter.layer_id();
         eraser_ctx.painter.set_layer_id(egui::LayerId {
             order: egui::Order::PanelResizeLine,
@@ -138,7 +147,7 @@ impl Eraser {
         eraser_ctx.painter.set_layer_id(old_layer);
     }
 
-    pub fn draw_eraser_cursor(&mut self, painter: &egui::Painter, cursor_pos: egui::Pos2) {
+    pub fn draw_eraser_cursor(&self, painter: &egui::Painter, cursor_pos: egui::Pos2) {
         let stroke = egui::Stroke { width: 1.0, color: self.cursor_color };
         painter.circle_stroke(cursor_pos, self.radius, stroke);
     }
