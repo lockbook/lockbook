@@ -1,9 +1,12 @@
 use std::mem;
+use std::sync::{Arc, RwLock};
 
 use egui::epaint::text::Row;
 use egui::text::LayoutJob;
-use egui::{Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, Pos2, Rect, Sense, Stroke, TextFormat, Ui, Vec2};
+use egui_wgpu_renderer::egui_wgpu;
 use epaint::text::cursor::RCursor;
+use glyphon::{Attrs, Family, Metrics, Shaping};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -11,6 +14,7 @@ use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
+use crate::{GlyphonRendererCallback, TextBufferArea};
 
 #[derive(Clone, Debug)]
 pub struct Wrap {
@@ -133,154 +137,147 @@ impl Editor {
         override_text: Option<&str>, sense: Sense,
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
-        let pre_span = self.text_pre_span(wrap, text_format.clone());
-        let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, text_format.clone());
-
-        wrap.offset += pre_span;
+        let underline = mem::take(&mut text_format.underline);
+        let background = mem::take(&mut text_format.background);
+        let padded = background != Default::default();
 
         #[cfg(debug_assertions)]
         if text.contains('\n') {
             panic!("show_text_line: text contains newline: {text:?}");
         }
 
-        let mut galley_start = self.range_to_byte(range).start();
+        let pre_span = self.text_pre_span(wrap, text_format.clone());
+        let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
+        let post_span = self.text_post_span(wrap, pre_span + mid_span, text_format.clone());
 
-        let underline = mem::take(&mut text_format.underline);
-        let background = mem::take(&mut text_format.background);
-        let padded = background != Default::default();
+        wrap.offset += pre_span;
 
-        let mut layout_job = LayoutJob::single_section(text.into(), text_format.clone());
-        layout_job.wrap.max_width = wrap.width;
-        if let Some(first_section) = layout_job.sections.first_mut() {
-            first_section.leading_space = wrap.row_offset();
+        /* begin changeset */
+
+        // todo:
+        // 1. first section leading space: shape the buffer with the first row's remaining width
+        // 2. determine the rect for each row and draw it, simply as a rect (at first)
+        // 3. sort out what's going on with multi-row override text so you don't break something
+        // 4. click/hover detection, spoilers, code, highlights
+        // 5. rewrite the span fns to match
+
+        // determine the first row
+        let mut fs = self.font_system.lock().unwrap();
+        let fs = &mut fs;
+        let mut buffer =
+            glyphon::Buffer::new(fs, Metrics::new(wrap.row_height, wrap.row_height + ROW_SPACING));
+        let mut buffers = Vec::new();
+
+        buffer.set_size(fs, Some(wrap.row_remaining()), None);
+        buffer.set_text(fs, text, Attrs::new().family(Family::SansSerif), Shaping::Advanced);
+        buffer.shape_until_scroll(fs, false);
+
+        let first_row_bytes = if let Some(first_row) = buffer.layout_runs().next() {
+            if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+        } else {
+            0
+        };
+        let byte_range = self.range_to_byte(range);
+        let first_row_range =
+            self.range_to_char((byte_range.start(), byte_range.start() + first_row_bytes));
+        let remaining_rows_range = (first_row_range.end(), range.end());
+
+        // layout the first row on its own to continue any existing lines
+        buffer.set_size(fs, Some(wrap.row_remaining()), None);
+        buffer.set_text(
+            fs,
+            &self.buffer[first_row_range],
+            Attrs::new().family(Family::SansSerif),
+            Shaping::Advanced,
+        );
+        buffer.shape_until_scroll(fs, false);
+
+        if let Some(first_row) = buffer.layout_runs().next() {
+            // for glyph in first_row.glyphs {
+            //     let mut rect = Rect {
+            //         min: Pos2 { x: glyph.x, y: glyph.y },
+            //         max: Pos2 { x: glyph.x + glyph.w, y: glyph.y + buffer.metrics().font_size },
+            //     };
+            //     rect = rect.translate(wrap.offset * Vec2::X);
+            //     rect = rect.translate(top_left.to_vec2());
+
+            //     ui.painter().rect_filled(rect, 3., Color32::DARK_GREEN);
+            // }
+
+            let buffer_height = buffer
+                .layout_runs()
+                .last()
+                .map(|run| run.line_top + run.line_height)
+                .unwrap_or(0.);
+
+            let rect = Rect::from_min_size(top_left, Vec2::new(wrap.width, buffer_height));
+            buffers.push(TextBufferArea::new(
+                Arc::new(RwLock::new(buffer.clone())),
+                rect,
+                glyphon::Color::rgb(255, 255, 255),
+                ui.ctx(),
+            ));
+            // ui.painter()
+            //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_GREEN));
         }
-        layout_job.round_output_size_to_nearest_ui_point = false;
 
-        let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-        let galley_info = GalleyInfo {
-            range,
-            galley,
-            rect: Rect::ZERO,
-            padded: false,
-            is_override: override_text.is_some(),
-        }; // used for wrap line calculation
-        let pos = top_left + Vec2::new(0., wrap.row() as f32 * (wrap.row_height + ROW_SPACING));
+        // layout remaining rows
+        buffer.set_size(fs, Some(wrap.width), None);
+        buffer.set_text(
+            fs,
+            &self.buffer[remaining_rows_range],
+            Attrs::new().family(Family::SansSerif),
+            Shaping::Advanced,
+        );
+        buffer.shape_until_scroll(fs, false);
 
-        let mut hovered = false;
-        let mut clicked = false;
-        let mut empty_rows = 0;
-        for (i, row) in galley_info.galley.rows.iter().enumerate() {
-            let rect = row.rect.translate(pos.to_vec2());
-            let rect = rect.translate(Vec2::new(
-                0.,
-                i as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
+        for row in buffer.layout_runs() {
+            // for glyph in row.glyphs {
+            //     let mut rect = Rect {
+            //         min: Pos2 { x: glyph.x, y: glyph.y },
+            //         max: Pos2 { x: glyph.x + glyph.w, y: glyph.y + buffer.metrics().font_size },
+            //     };
+            //     rect = rect.translate(buffer.metrics().line_height * Vec2::Y); // first row
+            //     rect = rect.translate(row.line_top * Vec2::Y);
+            //     rect = rect.translate(top_left.to_vec2());
+
+            //     ui.painter().rect_filled(rect, 3., Color32::DARK_BLUE);
+            // }
+
+            // todo: determine the range for each row; you'll need it for wrap.row_ranges and for galley info
+            // this is the place where you sort out what's going on with multi-row override text
+
+            let buffer_height = buffer
+                .layout_runs()
+                .last()
+                .map(|run| run.line_top + run.line_height)
+                .unwrap_or(0.);
+
+            let rect = Rect::from_min_size(
+                top_left + buffer.metrics().line_height * Vec2::Y,
+                Vec2::new(wrap.width, buffer_height),
+            );
+            buffers.push(TextBufferArea::new(
+                Arc::new(RwLock::new(buffer.clone())),
+                rect,
+                glyphon::Color::rgb(255, 255, 255),
+                ui.ctx(),
             ));
 
-            let response = ui.allocate_rect(rect.expand2(Vec2::new(2., 1.)), sense);
-
-            hovered |= response.hovered();
-            clicked |= response.clicked();
-
-            if row.rect.area() < 1. {
-                empty_rows += 1;
-            }
+            // ui.painter()
+            //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_BLUE));
         }
 
-        // break galley into rows to take control of row spacing
-        let mut empty_rows = 0;
-        for (row_idx, row) in galley_info.galley.rows.iter().enumerate() {
-            let row_rect = row.rect.translate(pos.to_vec2());
-            let row_rect = row_rect.translate(Vec2::new(
-                0.,
-                row_idx as f32 * ROW_SPACING + empty_rows as f32 * wrap.row_height,
-            ));
+        ui.painter().add(egui_wgpu::Callback::new_paint_callback(
+            ui.max_rect(),
+            GlyphonRendererCallback { buffers },
+        ));
 
-            let row_expanded_rect = if row_rect.area() < 1. {
-                row_rect
-            } else {
-                row_rect.expand2(Vec2::new(INLINE_PADDING - 2., 1.))
-            };
-            if spoiler {
-                if hovered {
-                    ui.painter()
-                        .rect_stroke(row_expanded_rect, 2., Stroke::new(1., background));
-                }
-            } else if padded && override_text != Some("") {
-                let stroke_color = if background == self.background_color_highlight() {
-                    self.background_color_highlight()
-                } else {
-                    self.theme.bg().neutral_tertiary
-                };
+        /* end changeset */
 
-                ui.painter()
-                    .rect(row_expanded_rect, 2., background, Stroke::new(1., stroke_color));
-            }
-
-            let row_text = row.text().to_string();
-            let row_layout_job = LayoutJob::single_section(row_text, text_format.clone());
-            let row_galley = ui.fonts(|fonts| fonts.layout_job(row_layout_job));
-
-            ui.painter()
-                .galley(row_rect.left_top(), row_galley.clone(), Default::default());
-            ui.painter()
-                .hline(row_rect.x_range(), row_rect.bottom() - 2.0, underline);
-
-            if spoiler && !hovered {
-                ui.painter().rect_filled(row_expanded_rect, 2., background);
-            }
-
-            let galley_info = if override_text.is_some() {
-                GalleyInfo { range, galley: row_galley, rect: row_rect, padded, is_override: true }
-            } else {
-                let row_galley_byte_range = (galley_start, galley_start + row.text().len());
-                let row_galley_range = self.range_to_char(row_galley_byte_range);
-
-                // add the galley range to the wrap to compute wrap line bounds.
-                // for override text, only the first row gets ranges, so we
-                // don't increment wrap.offset (and therefore the row) until the
-                // end of the fn. this may not need to rely on egui cursor math
-                // but this is the way it's already known to work.
-                wrap.offset += row_span(row, wrap);
-                let wrap_line_range = {
-                    let start_cursor = galley_info
-                        .galley
-                        .from_rcursor(RCursor { row: row_idx, column: 0 });
-                    let row_start = self
-                        .galleys
-                        .offset_by_galley_and_cursor(&galley_info, start_cursor);
-                    let end_cursor = galley_info.galley.cursor_end_of_row(&start_cursor);
-                    let row_end = self
-                        .galleys
-                        .offset_by_galley_and_cursor(&galley_info, end_cursor);
-
-                    (row_start, row_end).trim(&row_galley_range)
-                };
-                wrap.add_range(wrap_line_range);
-
-                GalleyInfo {
-                    range: wrap_line_range,
-                    galley: row_galley,
-                    rect: row_rect,
-                    padded,
-                    is_override: false,
-                }
-            };
-
-            self.galleys.push(galley_info);
-
-            galley_start += row.text().len();
-            if row.rect.area() < 1. {
-                empty_rows += 1;
-            }
-        }
-
-        if override_text.is_some() {
-            wrap.offset += mid_span;
-        }
         wrap.offset += post_span;
 
-        Response { clicked, hovered }
+        Default::default()
     }
 
     /// Returns the span of pre-text padding for inline code, spoilers, etc.

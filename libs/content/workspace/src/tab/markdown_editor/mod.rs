@@ -188,7 +188,7 @@ impl Editor {
         glyphon_buffer.set_size(&mut font_system.lock().unwrap(), Some(16.), Some(9.));
         glyphon_buffer.set_text(
             &mut font_system.lock().unwrap(),
-            "🕊️",
+            "dove 🕊️",
             glyphon::Attrs::new().family(glyphon::Family::SansSerif),
             glyphon::Shaping::Advanced,
         );
