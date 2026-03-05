@@ -72,9 +72,37 @@ impl Lb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let doc = self.read_document_helper(id, &mut tree).await?;
-        let hmac = tree.find(&id)?.document_hmac().copied();
-        drop(tx);
+        let file = tree.find(&id)?;
+        validate::is_document(file)?;
+        let hmac = file.document_hmac().copied();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+
+        let doc = match hmac {
+            Some(hmac) => {
+                if self.docs.exists(id, Some(hmac)) {
+                    let doc = self.docs.get(id, Some(hmac)).await?;
+                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
+                    drop(tx);
+                    doc
+                } else {
+                    drop(tx);
+                    // todo: if document not found -- need to trigger a pull
+                    let doc = self.fetch_doc(id, hmac).await?;
+
+                    let tx = self.ro_tx().await;
+                    let db = tx.db();
+                    let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
+                    drop(tx);
+
+                    doc
+                }
+            }
+            None => vec![],
+        };
 
         if user_activity {
             self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
@@ -125,12 +153,6 @@ impl Lb {
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {
-        // there is a risk that dont_delete is set to true after we check it
-        if self.docs.dont_delete.load(Ordering::SeqCst) {
-            debug!("skipping doc cleanup due to active sync");
-            return Ok(());
-        }
-
         let tx = self.ro_tx().await;
         let db = tx.db();
 

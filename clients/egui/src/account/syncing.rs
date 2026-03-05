@@ -129,7 +129,7 @@ impl super::AccountScreen {
             .show(ui);
 
         if sync_btn.clicked() {
-            self.workspace.tasks.queue_sync();
+            todo!();
         }
 
         if sync_btn.hovered() {

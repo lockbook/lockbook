@@ -22,7 +22,6 @@ enum Update {
     AccountCreated(Result<Vec<File>, LbErr>),
     AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
     AccountImported(Option<LbErr>),
-    ImportSyncDone(Option<LbErr>),
     AccountDataLoaded(Result<Vec<File>, LbErr>),
 }
 
@@ -110,18 +109,6 @@ impl OnboardScreen {
                         self.import_err = Some(msg);
                     }
                 }
-                Update::ImportSyncProgress(sp) => {
-                    self.import_status = Some(sp.to_string());
-                    self.router = Router::new(Route::SyncProgress, true)
-                }
-                Update::ImportSyncDone(maybe_err) => {
-                    if let Some(err) = maybe_err {
-                        self.import_err = Some(err);
-                        self.router.needs_focus = true;
-                    } else {
-                        self.import_status = Some("Loading account data...".to_string());
-                    }
-                }
                 Update::AccountDataLoaded(result) => match result {
                     Ok(acct_data) => {
                         resp = Some(OnboardHandOff {
@@ -176,7 +163,6 @@ impl OnboardScreen {
                                     Route::Import => "Enter your account key",
                                     Route::Welcome => "Lockbook",
                                     Route::AccountPhraseConfirmation => "This is your account key",
-                                    Route::SyncProgress => "Importing data",
                                 };
                                 ui.label(egui::RichText::new(header_text).font(egui::FontId::new(
                                     35.0,
@@ -384,11 +370,6 @@ impl OnboardScreen {
                                             });
                                         }
                                     }
-                                    Route::SyncProgress => {
-                                        if let Some(s) = &self.import_status {
-                                            ui.label(s);
-                                        }
-                                    }
                                 }
 
                                 ui.add_space(200.0);
@@ -419,7 +400,6 @@ impl OnboardScreen {
                                         )),
                                         Route::Welcome => None,
                                         Route::AccountPhraseConfirmation => None,
-                                        Route::SyncProgress => None,
                                     };
                                     if let Some((label_text, btn_text, other_route)) =
                                         alternate_route
@@ -465,7 +445,6 @@ The perfect place to record, sync, and share your thoughts."#
                 r#"It proves you're you, and it is a secret. If you lose it, you can't recover your account.
 You can view your key again in the settings."#
             }
-            Route::SyncProgress => "",
         }
     }
 
@@ -555,24 +534,13 @@ You can view your key again in the settings."#
                 return;
             }
 
-            let closure = {
-                let ctx = ctx.clone();
-                let tx = tx.clone();
-
-                move |msg| {
-                    tx.send(Update::ImportSyncProgress(msg)).unwrap();
-                    ctx.request_repaint();
-                }
-            };
-
             match core.sync() {
                 Ok(_acct) => {
-                    tx.send(Update::ImportSyncDone(None)).unwrap();
                     tx.send(Update::AccountDataLoaded(load_account_data(&core)))
                         .unwrap();
                 }
                 Err(err) => {
-                    tx.send(Update::ImportSyncDone(Some(err))).unwrap();
+                    tx.send(Update::AccountImported(Some(err))).unwrap();
                 }
             }
 
@@ -605,5 +573,4 @@ enum Route {
     Import,
     Welcome,
     AccountPhraseConfirmation,
-    SyncProgress,
 }

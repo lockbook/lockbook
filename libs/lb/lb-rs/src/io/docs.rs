@@ -7,7 +7,6 @@ use crate::model::{
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
-    sync::{Arc, atomic::AtomicBool},
 };
 use uuid::Uuid;
 
@@ -23,7 +22,6 @@ use {
 
 #[derive(Clone)]
 pub struct AsyncDocs {
-    pub(crate) dont_delete: Arc<AtomicBool>,
     location: PathBuf,
 }
 
@@ -78,13 +76,13 @@ impl AsyncDocs {
         }
     }
 
-    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> LbResult<bool> {
+    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
         if let Some(hmac) = hmac {
             let path_str = key_path(&self.location, id, hmac);
             let path = Path::new(&path_str);
-            Ok(path.exists())
+            path.exists()
         } else {
-            Ok(false) // is this the move?
+            false // is this the move?
         }
     }
 
@@ -200,6 +198,6 @@ pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String 
 
 impl From<&Config> for AsyncDocs {
     fn from(cfg: &Config) -> Self {
-        Self { location: PathBuf::from(&cfg.writeable_path), dont_delete: Default::default() }
+        Self { location: PathBuf::from(&cfg.writeable_path) }
     }
 }

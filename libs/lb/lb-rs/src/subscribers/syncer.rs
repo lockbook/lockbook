@@ -21,6 +21,7 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertRequestV2,
         },
+        crypto::EncryptedDocument,
         file::ShareMode,
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
@@ -31,7 +32,7 @@ use crate::{
         symkey, text,
         tree_like::TreeLike,
     },
-    service::events::{Actor, Event, SyncIncrement},
+    service::events::{Actor, SyncIncrement},
 };
 
 pub type Syncer = Arc<Mutex<SyncState>>;
@@ -69,11 +70,7 @@ impl Lb {
                 loop {
                     let evt = events.recv().await.unwrap();
                     match evt {
-                        Event::MetadataChanged(actor) => todo!(),
-                        Event::DocumentWritten(uuid, actor) => todo!(),
-                        Event::PendingSharesChanged => todo!(),
-                        Event::Sync(sync_increment) => todo!(),
-                        Event::StatusUpdated => todo!(),
+                        _ => {} // todo!
                     }
                 }
             });
@@ -85,17 +82,18 @@ impl Lb {
 
         self.pull_updates(&mut sync_state).await?;
         self.push_local_changes().await?;
+        self.cleanup().await?;
         Ok(())
     }
 
     pub(crate) async fn pull_updates(&self, sync_state: &mut SyncState) -> LbResult<()> {
-        self.inital_sync_state(sync_state);
+        self.inital_sync_state(sync_state).await?;
         self.process_deletions().await?;
         self.fetch_meta(sync_state).await?;
         self.fetch_required_docs(sync_state).await?;
         self.merge(sync_state).await?;
         self.commit_last_synced(sync_state).await?;
-        self.populate_pk_cache().await?;
+        self.clone().populate_pk_cache();
 
         Ok(())
     }
@@ -241,7 +239,7 @@ impl Lb {
 
             if let Some(remote_hmac) = remote_hmac {
                 // todo: the none case here deserves some scrutiny
-                if self.docs.exists(id, base_hmac)? && !self.docs.exists(id, Some(remote_hmac))? {
+                if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
                     docs_to_pull.push((id, remote_hmac));
                     self.events.sync(SyncIncrement::PullingDocument(id, true));
                 }
@@ -251,7 +249,7 @@ impl Lb {
 
         let futures = docs_to_pull
             .into_iter()
-            .map(|(id, hmac)| self.fetch_doc(id, hmac));
+            .map(|(id, hmac)| async move { self.fetch_doc(id, hmac).await.map(|_| id) });
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -268,7 +266,9 @@ impl Lb {
         Ok(())
     }
 
-    async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Uuid> {
+    pub(crate) async fn fetch_doc(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> LbResult<EncryptedDocument> {
         let remote_document = self
             .client
             .request(self.get_account()?, GetDocRequest { id, hmac })
@@ -277,7 +277,7 @@ impl Lb {
             .insert(id, Some(hmac), &remote_document.content)
             .await?;
 
-        Ok(id)
+        Ok(remote_document.content)
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
@@ -887,51 +887,59 @@ impl Lb {
         Ok(())
     }
 
-    async fn populate_pk_cache(&self) -> LbResult<()> {
-        let mut missing_owners = vec![];
-        {
-            let tx = self.ro_tx().await;
-            let db = tx.db();
-            for (_id, file) in db.base_metadata.get() {
-                for user_access_key in file.user_access_keys() {
-                    let enc_by = Owner(user_access_key.encrypted_by);
-                    let enc_for = Owner(user_access_key.encrypted_for);
+    async fn populate_pk_cache(self) {
+        tokio::spawn(async move { // todo: is this the move?
+            let mut missing_owners = HashSet::new();
+            {
+                let tx = self.ro_tx().await;
+                let db = tx.db();
+                for file in db.base_metadata.get().values() {
+                    for user_access_key in file.user_access_keys() {
+                        let enc_by = Owner(user_access_key.encrypted_by);
+                        let enc_for = Owner(user_access_key.encrypted_for);
 
-                    if !db.pub_key_lookup.get().contains_key(&enc_by) {
-                        missing_owners.push(enc_by);
-                    }
+                        if !db.pub_key_lookup.get().contains_key(&enc_by) {
+                            missing_owners.insert(enc_by);
+                        }
 
-                    if !db.pub_key_lookup.get().contains_key(&enc_for) {
-                        missing_owners.push(enc_for);
+                        if !db.pub_key_lookup.get().contains_key(&enc_for) {
+                            missing_owners.insert(enc_for);
+                        }
                     }
                 }
             }
-        }
 
-        let mut new_owners = HashMap::new();
-        {
-            for owner in missing_owners {
-                let username_result = self
-                    .client
-                    .request(self.get_account()?, GetUsernameRequest { key: owner.0 })
-                    .await;
-                new_owners.insert(owner, username_result);
+            let mut new_owners = HashMap::new();
+            {
+                for owner in missing_owners {
+                    let username_result = self
+                        .client
+                        .request(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
+                        .await;
+                    new_owners.insert(owner, username_result);
+                }
             }
-        }
 
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
+            let mut tx = self.begin_tx().await;
+            let db = tx.db();
 
-        for (owner, username) in new_owners {
-            let username = match username {
-                Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => "<unknown>".to_string(),
-                Ok(username) => username.username,
-                _ => continue, // todo: possibly add some logging here
-            };
+            let have_updates = !new_owners.is_empty();
+            for (owner, username) in new_owners {
+                let username = match username {
+                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
+                        "<unknown>".to_string()
+                    }
+                    Ok(username) => username.username,
+                    _ => continue, // todo: possibly add some logging here
+                };
 
-            db.pub_key_lookup.insert(owner, username)?;
-        }
-        Ok(())
+                db.pub_key_lookup.insert(owner, username).unwrap();
+            }
+
+            if have_updates {
+                self.events.meta_changed(Actor::Sync);
+            }
+        });
     }
 
     /// Updates remote and base metadata to local.
