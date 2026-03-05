@@ -7,7 +7,8 @@ use resvg::usvg::Transform;
 
 use crate::{
     tab::svg_editor::{
-        Event, InsertElement, roger::RogerEvent, toolbar::ToolContext, util::pos_to_dvec,
+        Event, InsertElement, roger::RogerEvent, toolbar::ToolContext, tools::RogerTool,
+        util::pos_to_dvec,
     },
     theme::icons::Icon,
 };
@@ -55,9 +56,23 @@ pub fn from_roger_to_shape_event(event: RogerEvent) -> Option<ShapeEvent> {
         _ => None,
     }
 }
+impl RogerTool for ShapesTool {
+    type ToolEvent = ShapeEvent;
 
-impl ShapesTool {
-    pub fn handle_shape_event(&mut self, event: &ShapeEvent, shapes_ctx: &mut ToolContext) {
+    fn roger_to_tool_event(&self, event: RogerEvent) -> Option<Self::ToolEvent> {
+        match event {
+            RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
+                Some(ShapeEvent::Build(payload.pos))
+            }
+            RogerEvent::ToolEnd(_) => Some(ShapeEvent::End),
+            RogerEvent::ToolCancel => Some(ShapeEvent::Cancel),
+            _ => None,
+        }
+    }
+
+    fn handle_tool_event(
+        &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, shapes_ctx: &mut ToolContext,
+    ) {
         match event {
             ShapeEvent::End => {
                 if let Some(current_id) = self.current_id {
@@ -72,7 +87,7 @@ impl ShapesTool {
             }
             ShapeEvent::Build(pos) => {
                 if self.build_origin.is_none() {
-                    self.build_origin = Some(*pos);
+                    self.build_origin = Some(pos);
                 }
 
                 if self.current_id.is_none() {
@@ -85,7 +100,7 @@ impl ShapesTool {
                 if let Some(Element::Path(p)) = shapes_ctx.buffer.elements.get_mut(&current_id) {
                     p.diff_state.data_changed = true;
                     let anchor1 = pos_to_dvec(build_origin);
-                    let anchor2 = pos_to_dvec(*pos);
+                    let anchor2 = pos_to_dvec(pos);
 
                     p.data = match self.active_shape {
                         ShapeType::Rectangle => Subpath::new_rect(anchor1, anchor2),
@@ -116,6 +131,11 @@ impl ShapesTool {
         }
     }
 
+    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+    fn show_tool_ui(&mut self, _: &mut egui::Ui, _: &mut ToolContext) {}
+}
+
+impl ShapesTool {
     fn reset_build(&mut self) {
         self.build_origin = None;
         self.is_building = false;

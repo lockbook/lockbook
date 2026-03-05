@@ -397,7 +397,7 @@ impl SVGEditor {
                     if let Some(pen_event) = pen_event {
                         self.toolbar
                             .pen
-                            .handle_tool_event(pen_event, &mut tool_context);
+                            .handle_tool_event(ui, pen_event, &mut tool_context);
                     }
                 }
                 Tool::Eraser => {
@@ -405,34 +405,38 @@ impl SVGEditor {
                     if let Some(eraser_event) = eraser_event {
                         self.toolbar
                             .eraser
-                            .handle_tool_event(eraser_event, &mut tool_context);
+                            .handle_tool_event(ui, eraser_event, &mut tool_context);
                     }
                 }
                 Tool::Selection => {
                     // selection tool also needs to handle viewport changes, so we have to pass all events to it
-                    let selection_event = self.toolbar.selection.map_roger_event(event);
+                    let selection_event = self.toolbar.selection.roger_to_tool_event(event);
                     if let Some(selection_event) = selection_event {
-                        self.toolbar.selection.handle_selection_event(
+                        self.toolbar.selection.handle_tool_event(
+                            ui,
                             selection_event,
                             &mut tool_context,
-                            ui.input(|r| r.pointer.delta()),
                         );
                     };
                 }
                 Tool::Highlighter => {
                     let pen_event = self.toolbar.pen.roger_to_tool_event(event);
                     if let Some(pen_event) = pen_event {
-                        self.toolbar
-                            .highlighter
-                            .handle_tool_event(pen_event, &mut tool_context);
+                        self.toolbar.highlighter.handle_tool_event(
+                            ui,
+                            pen_event,
+                            &mut tool_context,
+                        );
                     }
                 }
                 Tool::Shapes => {
-                    let shape_event = from_roger_to_shape_event(event);
+                    let shape_event = self.toolbar.shapes_tool.roger_to_tool_event(event);
                     if let Some(shape_event) = shape_event {
-                        self.toolbar
-                            .shapes_tool
-                            .handle_shape_event(&shape_event, &mut tool_context);
+                        self.toolbar.shapes_tool.handle_tool_event(
+                            ui,
+                            shape_event,
+                            &mut tool_context,
+                        );
                     }
                 }
             }

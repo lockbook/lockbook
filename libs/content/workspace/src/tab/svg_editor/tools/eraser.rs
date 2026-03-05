@@ -63,7 +63,9 @@ impl RogerTool for Eraser {
         }
     }
 
-    fn handle_tool_event(&mut self, event: Self::ToolEvent, eraser_ctx: &mut ToolContext) {
+    fn handle_tool_event(
+        &mut self, _: &mut egui::Ui, event: Self::ToolEvent, eraser_ctx: &mut ToolContext,
+    ) {
         match event {
             EraseEvent::Build(pos) => {
                 self.is_building = true;

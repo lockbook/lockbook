@@ -19,7 +19,7 @@ use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
-use crate::tab::svg_editor::tools::selection;
+use crate::tab::svg_editor::tools::{RogerTool, selection};
 use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
 use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
@@ -100,29 +100,11 @@ struct SelectionInputState {
     is_multi_touch: bool,
 }
 
-impl Selection {
-    pub fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        self.suggested_op = None;
-        let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
-        child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        child_ui.with_layer_id(
-            egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
-            |ui| {
-                if let Some(laso_rect) = self.laso_rect {
-                    ui.painter().rect_filled(
-                        laso_rect,
-                        egui::Rounding::ZERO,
-                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
-                    );
-                };
+impl RogerTool for Selection {
+    type ToolEvent = SelectionEvent;
 
-                self.suggested_op = self.show_selection_rects(ui, selection_ctx);
-            },
-        );
-    }
-
-    pub fn map_roger_event(&self, event: RogerEvent) -> Option<SelectionEvent> {
-        match event {
+    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent> {
+        match roger_event {
             RogerEvent::ToolStart(payload) => {
                 // we're hovering over an element
                 debug!(?self.suggested_op, " tool start");
@@ -157,17 +139,10 @@ impl Selection {
         }
     }
 
-    fn cancel_lasso(&mut self) {
-        // todo: undo/nullify the effects of the laso operation
-        self.current_op = SelectionOperation::Idle;
-        self.laso_rect = None;
-    }
-
-    pub fn handle_selection_event(
-        &mut self, selection_event: SelectionEvent, selection_ctx: &mut ToolContext,
-        pointer_delta: egui::Vec2,
-    ) -> Option<SelectionPropogatedEvent> {
-        match selection_event {
+    fn handle_tool_event(
+        &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, selection_ctx: &mut ToolContext,
+    ) {
+        match event {
             SelectionEvent::StartTransform => {
                 self.current_op = self.suggested_op.unwrap_or(SelectionOperation::Idle);
             }
@@ -180,6 +155,7 @@ impl Selection {
                     // see what edge
                     let transform = match self.current_op {
                         SelectionOperation::Translation => {
+                            let pointer_delta = ui.input(|r| r.pointer.delta());
                             Transform::identity().post_translate(pointer_delta.x, pointer_delta.y)
                         }
                         SelectionOperation::Idle => Transform::identity(),
@@ -437,9 +413,37 @@ impl Selection {
             SelectionEvent::Delete => {
                 self.delete_selection(selection_ctx);
             }
-            SelectionEvent::Copy => return Some(SelectionPropogatedEvent::Copy),
+            SelectionEvent::Copy => self.copy_selection(ui, selection_ctx),
         }
-        None
+    }
+
+    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+
+    fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+        self.suggested_op = None;
+        let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
+        child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
+        child_ui.with_layer_id(
+            egui::LayerId { order: egui::Order::PanelResizeLine, id: "selection_overlay".into() },
+            |ui| {
+                if let Some(laso_rect) = self.laso_rect {
+                    ui.painter().rect_filled(
+                        laso_rect,
+                        egui::Rounding::ZERO,
+                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
+                    );
+                };
+
+                self.suggested_op = self.show_selection_rects(ui, selection_ctx);
+            },
+        );
+    }
+}
+impl Selection {
+    fn cancel_lasso(&mut self) {
+        // todo: undo/nullify the effects of the laso operation
+        self.current_op = SelectionOperation::Idle;
+        self.laso_rect = None;
     }
 
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {

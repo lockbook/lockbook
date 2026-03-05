@@ -100,7 +100,7 @@ impl RogerTool for Pen {
         }
     }
 
-    fn handle_tool_event(&mut self, event: PathEvent, pen_ctx: &mut ToolContext) {
+    fn handle_tool_event(&mut self, _: &mut egui::Ui, event: PathEvent, pen_ctx: &mut ToolContext) {
         match event {
             PathEvent::Draw(payload) => self.draw(pen_ctx, payload),
             PathEvent::End(payload) => self.end(pen_ctx, payload),
