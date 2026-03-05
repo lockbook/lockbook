@@ -8,11 +8,11 @@ use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
 use web_time::Instant;
 
+use crate::tab::svg_editor::InsertElement;
 use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};
+use crate::tab::svg_editor::toolbar::ToolContext;
+use crate::tab::svg_editor::tools::path_builder::PathBuilder;
 use crate::theme::palette::ThemePalette;
-
-use super::toolbar::ToolContext;
-use super::{InsertElement, PathBuilder};
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
@@ -28,7 +28,6 @@ pub struct Pen {
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
     maybe_snap_started: Option<Instant>,
-    hover_pos: Option<(egui::Pos2, Instant)>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -92,7 +91,6 @@ impl Pen {
             path_builder: PathBuilder::new(),
             maybe_snap_started: None,
             active_opacity: settings.opacity,
-            hover_pos: None,
             has_inf_thick: settings.has_inf_thick,
             pressure_alpha: settings.pressure_alpha,
             colors_history: [pen_colors[1], pen_colors[2]],
@@ -152,7 +150,9 @@ impl Pen {
 
             pen_ctx
                 .history
-                .save(super::Event::Insert(vec![InsertElement { id: self.current_id }]));
+                .save(crate::tab::svg_editor::Event::Insert(vec![InsertElement {
+                    id: self.current_id,
+                }]));
 
             self.current_id = Uuid::new_v4();
         }
@@ -278,9 +278,6 @@ impl Pen {
                     }
                 }
             }
-            PathEvent::Hover(draw_payload) => {
-                self.show_hover_point(ui, draw_payload.pos, pen_ctx);
-            }
         }
         None
     }
@@ -298,7 +295,6 @@ impl Pen {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PathEvent {
     Draw(ToolPayload),
-    Hover(ToolPayload),
     PredictedDraw(ToolPayload),
     ClearPredictedTouches,
     End(ToolPayload),
@@ -311,7 +307,7 @@ pub fn from_roger_to_pen_event(event: RogerEvent) -> Option<PathEvent> {
         RogerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
         RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
         RogerEvent::ToolCancel => Some(PathEvent::CancelStroke),
-        RogerEvent::ToolHover(tool_payload) => None,
+        RogerEvent::ToolHover(_) => None,
         RogerEvent::ViewportChange(_) => None,
         RogerEvent::Gesture(_) => None,
         RogerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),

@@ -1,34 +1,30 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
-use egui::TouchPhase;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::get_pen_colors;
+use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 use tracing::debug;
 
-use super::element::BoundedElement;
-use super::util::transform_rect;
 use lb_rs::model::svg::buffer::serialize_inner;
 
 use crate::tab::svg_editor::clip::duplicate_elements;
-use crate::tab::svg_editor::history;
-use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::element::BoundedElement;
+use crate::tab::svg_editor::history::{self, TransformElement};
 use crate::tab::svg_editor::roger::RogerEvent;
 use crate::tab::svg_editor::toolbar::{
-    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+    ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
+use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::tools::selection;
+use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
+use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
-
-use super::history::TransformElement;
-use super::toolbar::ToolContext;
-use super::util::{is_multi_touch, pointer_intersects_element};
-use super::{Buffer, DeleteElement, Event};
 
 #[derive(Default)]
 pub struct Selection {
@@ -349,7 +345,9 @@ impl Selection {
                     })
                     .collect();
                 if !events.is_empty() {
-                    selection_ctx.history.save(Event::Transform(events));
+                    selection_ctx
+                        .history
+                        .save(history::Event::Transform(events));
                 }
             }
             SelectionEvent::StartLaso(build_payload) => {
@@ -458,7 +456,7 @@ impl Selection {
             })
             .collect();
 
-        let delete_event = super::Event::Delete(elements);
+        let delete_event = Event::Delete(elements);
         selection_ctx
             .history
             .apply_event(&delete_event, selection_ctx.buffer);
@@ -841,41 +839,41 @@ impl Selection {
 
             if let Some(stroke) = &mut properties.stroke {
                 let colors = get_pen_colors();
-                ui.horizontal_wrapped(|ui|{
+                ui.horizontal_wrapped(|ui| {
                     colors.iter().for_each(|&c| {
                         let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                        let active_color =
-                            ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
+                        let active_color = ThemePalette::resolve_dynamic_color(
+                            stroke.color,
+                            ui.visuals().dark_mode,
+                        );
 
                         let color_btn = show_color_btn(ui, color, active_color, None);
                         if color_btn.clicked() || color_btn.drag_started() {
                             let event = history::Event::StrokeChange(
-                                self
-                                    .selected_elements
+                                self.selected_elements
                                     .iter()
-                                    .filter_map(
-                                        |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                            {
-                                                let old_stroke = el.stroke();
-                                                stroke.color = c;
-                                                if let Some(mut el_stroke) = el.stroke(){
-                                                    el_stroke.color = c;
-                                                    el.set_stroke(*stroke);
-                                                    buffer_changed = true;
-                                                    Some(history::StrokeChangeElement {
-                                                        id: s_el.id,
-                                                        old_stroke,
-                                                        new_stroke: Some(el_stroke),
-                                                    })
-                                                }else{
-                                                    None
-                                                }
+                                    .filter_map(|s_el: &selection::SelectedElement| {
+                                        if let Some(el) =
+                                            selection_ctx.buffer.elements.get_mut(&s_el.id)
+                                        {
+                                            let old_stroke = el.stroke();
+                                            stroke.color = c;
+                                            if let Some(mut el_stroke) = el.stroke() {
+                                                el_stroke.color = c;
+                                                el.set_stroke(*stroke);
+                                                buffer_changed = true;
+                                                Some(history::StrokeChangeElement {
+                                                    id: s_el.id,
+                                                    old_stroke,
+                                                    new_stroke: Some(el_stroke),
+                                                })
                                             } else {
                                                 None
                                             }
-                                        },
-                                    )
+                                        } else {
+                                            None
+                                        }
+                                    })
                                     .collect(),
                             );
                             selection_ctx.history.save(event);
@@ -914,24 +912,20 @@ impl Selection {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
                             .iter()
-                            .filter_map(
-                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                    if let Some(el) =
-                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                    {
-                                        Some(history::StrokeChangeElement {
-                                            id: s_el.id,
-                                            old_stroke: self
-                                                .selection_stroke_snashot
-                                                .get(&s_el.id)
-                                                .copied(),
-                                            new_stroke: el.stroke(),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                },
-                            )
+                            .filter_map(|s_el: &selection::SelectedElement| {
+                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                                    Some(history::StrokeChangeElement {
+                                        id: s_el.id,
+                                        old_stroke: self
+                                            .selection_stroke_snashot
+                                            .get(&s_el.id)
+                                            .copied(),
+                                        new_stroke: el.stroke(),
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
                             .collect(),
                     );
                     self.selection_stroke_snashot.clear();
@@ -972,24 +966,20 @@ impl Selection {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
                             .iter()
-                            .filter_map(
-                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                    if let Some(el) =
-                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                    {
-                                        Some(history::StrokeChangeElement {
-                                            id: s_el.id,
-                                            old_stroke: self
-                                                .selection_stroke_snashot
-                                                .get(&s_el.id)
-                                                .copied(),
-                                            new_stroke: el.stroke(),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                },
-                            )
+                            .filter_map(|s_el: &selection::SelectedElement| {
+                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                                    Some(history::StrokeChangeElement {
+                                        id: s_el.id,
+                                        old_stroke: self
+                                            .selection_stroke_snashot
+                                            .get(&s_el.id)
+                                            .copied(),
+                                        new_stroke: el.stroke(),
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
                             .collect(),
                     );
                     self.selection_stroke_snashot.clear();

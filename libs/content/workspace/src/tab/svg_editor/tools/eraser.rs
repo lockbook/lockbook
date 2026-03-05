@@ -3,11 +3,10 @@ use std::collections::HashMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
 
+use crate::tab::svg_editor::DeleteElement;
 use crate::tab::svg_editor::roger::RogerEvent;
-
-use super::DeleteElement;
-use super::toolbar::ToolContext;
-use super::util::pointer_intersects_element;
+use crate::tab::svg_editor::toolbar::ToolContext;
+use crate::tab::svg_editor::util::pointer_intersects_element;
 
 pub struct Eraser {
     pub radius: f32,
@@ -110,7 +109,7 @@ impl Eraser {
                         p.diff_state.delete_changed = true;
                     };
                 });
-                let event = super::Event::Delete(
+                let event = crate::tab::svg_editor::Event::Delete(
                     self.delete_candidates
                         .keys()
                         .map(|id| DeleteElement { id: *id })

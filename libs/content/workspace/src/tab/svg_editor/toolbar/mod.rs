@@ -3,16 +3,17 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use std::ops::RangeInclusive;
-use std::sync::Arc;
-
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
-use crate::tab::svg_editor::shapes::ShapesTool;
+use crate::tab::svg_editor::tools::pen::PenSettings;
+use crate::tab::svg_editor::tools::selection::Selection;
+use crate::tab::svg_editor::tools::shapes::ShapesTool;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
+use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
@@ -21,10 +22,9 @@ use viewport_island::ViewportPopover;
 
 use super::gesture_handler::GestureHandler;
 use super::history::History;
-use super::pen::PenSettings;
 use super::renderer::Renderer;
-use super::selection::Selection;
-use super::{CanvasSettings, Eraser, Pen, ViewportSettings};
+use super::tools::{eraser::Eraser, pen::Pen};
+use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -205,7 +205,7 @@ macro_rules! set_tool {
             $obj.layout.tool_popover = None;
 
             if (matches!($new_tool, Tool::Selection)) {
-                $obj.selection = $crate::tab::svg_editor::selection::Selection::default();
+                $obj.selection = $crate::tab::svg_editor::tools::selection::Selection::default();
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;

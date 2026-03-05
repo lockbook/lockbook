@@ -6,7 +6,9 @@ use lb_rs::model::svg::{
 use resvg::usvg::Transform;
 
 use crate::{
-    tab::svg_editor::{InsertElement, roger::RogerEvent, toolbar::ToolContext, util::pos_to_dvec},
+    tab::svg_editor::{
+        Event, InsertElement, roger::RogerEvent, toolbar::ToolContext, util::pos_to_dvec,
+    },
     theme::icons::Icon,
 };
 
@@ -61,7 +63,7 @@ impl ShapesTool {
                 if let Some(current_id) = self.current_id {
                     shapes_ctx
                         .history
-                        .save(super::Event::Insert(vec![InsertElement { id: current_id }]));
+                        .save(Event::Insert(vec![InsertElement { id: current_id }]));
                 }
                 self.reset_build();
             }

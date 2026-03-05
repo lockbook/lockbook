@@ -1,33 +1,29 @@
 mod background;
 mod clip;
 mod element;
-mod eraser;
 mod gesture_handler;
 mod history;
-mod path_builder;
-mod pen;
+
 mod renderer;
 mod roger;
-mod selection;
-mod shapes;
 mod toolbar;
+mod tools;
 mod util;
 use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::eraser::from_roger_to_eraser_event;
 use crate::tab::svg_editor::gesture_handler::transform_canvas;
-use crate::tab::svg_editor::pen::{PathEvent, from_roger_to_pen_event};
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
-use crate::tab::svg_editor::shapes::from_roger_to_shape_event;
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::tab::svg_editor::tools::eraser::from_roger_to_eraser_event;
+use crate::tab::svg_editor::tools::pen::{PathEvent, from_roger_to_pen_event};
+use crate::tab::svg_editor::tools::shapes::from_roger_to_shape_event;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
 use colors_transform::Color;
 use element::PromoteBufferWeakImages;
-pub use eraser::Eraser;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
@@ -35,14 +31,12 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{DynamicColor, Element};
-pub use path_builder::PathBuilder;
-pub use pen::Pen;
-use pen::PenSettings;
 use renderer::Renderer;
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
+use tools::pen::PenSettings;
 use tracing::{debug, info};
 
 pub struct SVGEditor {
