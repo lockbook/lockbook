@@ -12,6 +12,7 @@ pub fn release() -> CliResult<()> {
     update_aur()?;
     update_snap()?;
     upload_gh()?;
+    update_flatpak()?;
     Ok(())
 }
 
@@ -277,6 +278,124 @@ pub fn push_aur() -> CliResult<()> {
     Command::new("git")
         .args(["push", "github", "master"])
         .current_dir("../aur-lockbook-desktop")
+        .assert_success()?;
+    Ok(())
+}
+
+pub fn overwrite_flatpak_manifest(url: &str, sha256: &str) -> CliResult<()> {
+    let manifest = format!(
+        r#"{{
+    "app-id": "net.lockbook.Lockbook",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "25.08",
+    "sdk": "org.freedesktop.Sdk",
+    "sdk-extensions": [
+        "org.freedesktop.Sdk.Extension.rust-stable"
+    ],
+    "build-options": {{
+        "append-path": "/usr/lib/sdk/rust-stable/bin"
+    }},
+    "command": "lockbook-desktop",
+    "finish-args": [
+       "--socket=x11",
+       "--device=dri",
+       "--share=network",
+       "--share=ipc"
+    ],
+    "modules": [
+        {{
+            "name": "lockbook",
+            "buildsystem": "simple",
+            "build-options": {{
+                "env": {{
+                    "CARGO_HOME": "/run/build/lockbook/cargo"
+                }}
+            }},
+            "build-commands": [
+                "cargo build --release --offline -p lockbook-linux",
+                "install -Dm755 target/release/lockbook-linux /app/bin/lockbook-desktop",
+                "install -Dm644 docs/graphics/logo.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
+                "install -Dm644 utils/dev/flatpak-package/lockbook-desktop.desktop /app/share/applications/net.lockbook.Lockbook.desktop",
+                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml /app/share/appdata/net.lockbook.Lockbook.appdata.xml",
+                "install -Dm0644 UNLICENSE -t /app/share/licenses/net.lockbook.Lockbook/"
+            ],
+            "sources": [
+                {{
+                    "type": "archive",
+                    "url": "{url}",
+                    "sha256": "{sha256}"
+                }},
+                "cargo-sources.json"
+            ]
+        }}
+    ]
+}}"#
+    );
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open("../net.lockbook.Lockbook/net.lockbook.Lockbook.json")
+        .unwrap();
+    file.write_all(manifest.as_bytes()).unwrap();
+    Ok(())
+}
+
+pub fn update_flatpak() -> CliResult<()> {
+    let version = "26.2.11".to_string();
+    let clone_dir = format!("/tmp/lockbook-{version}");
+    let tarball = format!("/tmp/lockbook-{version}.tar.gz");
+    let cargo_sources_out = format!("/tmp/cargo-sources-{version}.json");
+
+    if std::path::Path::new(&clone_dir).exists() {
+        std::fs::remove_dir_all(&clone_dir).unwrap();
+    }
+    Command::new("git")
+        .args(["clone", "--depth=1", "--branch", &version, "https://github.com/lockbook/lockbook.git", &clone_dir])
+        .assert_success()?;
+
+    Command::new("python3")
+        .args([
+            "utils/flatpak-cargo-generator.py",
+            &format!("{clone_dir}/Cargo.lock"),
+            "-o",
+            &cargo_sources_out,
+        ])
+        .assert_success()?;
+
+    Command::new("curl")
+        .args(["-fL", &format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz"), "-o", &tarball])
+        .assert_success()?;
+
+    let sha256_output = Command::new("sh")
+        .args(["-c", &format!("sha256sum {tarball} | awk '{{print $1}}'")])
+        .output()
+        .unwrap();
+    let sha256 = String::from_utf8(sha256_output.stdout).unwrap().trim().to_string();
+
+    let url = format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
+    overwrite_flatpak_manifest(&url, &sha256)?;
+
+    std::fs::copy(&cargo_sources_out, "../net.lockbook.Lockbook/cargo-sources.json").unwrap();
+
+    push_flatpak(&version)?;
+
+    Ok(())
+}
+
+pub fn push_flatpak(version: &str) -> CliResult<()> {
+    Command::new("git")
+        .args(["add", "-A"])
+        .current_dir("../net.lockbook.Lockbook")
+        .assert_success()?;
+    Command::new("git")
+        .args(["commit", "-m", &format!("release {}", version)])
+        .current_dir("../net.lockbook.Lockbook")
+        .assert_success()?;
+    Command::new("git")
+        .args(["push", "origin", "master"])
+        .current_dir("../net.lockbook.Lockbook")
         .assert_success()?;
     Ok(())
 }
