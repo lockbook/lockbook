@@ -45,6 +45,7 @@ mod widget;
 
 pub use input::Event;
 
+use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::workspace::WsPersistentStore;
 
@@ -86,7 +87,7 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
-    pub pending_text_areas: Vec<crate::TextBufferArea>,
+    pub text_areas: Vec<TextBufferArea>,
 
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
@@ -219,7 +220,7 @@ impl Editor {
             debug: false,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
-            pending_text_areas: Default::default(),
+            text_areas: Default::default(),
 
             in_progress_selection: None,
 
@@ -552,7 +553,7 @@ impl Editor {
             })
             .inner;
 
-        let text_areas = std::mem::take(&mut self.pending_text_areas);
+        let text_areas = std::mem::take(&mut self.text_areas);
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(

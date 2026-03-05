@@ -618,7 +618,7 @@ impl LayoutCache {
 }
 
 impl Editor {
-    pub fn get_or_create_glyphon_buffer(
+    pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32,
     ) -> Arc<RwLock<glyphon::Buffer>> {
         let key = GlyphonBufferKey::new(text, font_size, line_height, width);

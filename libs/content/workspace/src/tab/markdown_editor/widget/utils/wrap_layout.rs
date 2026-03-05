@@ -1,10 +1,8 @@
 use std::mem;
 
-use egui::epaint::text::Row;
-use egui::text::LayoutJob;
 use egui::{Pos2, Rect, Sense, TextFormat, Ui, Vec2};
 
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
@@ -148,128 +146,88 @@ impl Editor {
 
         wrap.offset += pre_span;
 
-        /* begin changeset */
-
-        // todo:
-        // 1. first section leading space: shape the buffer with the first row's remaining width
-        // 2. determine the rect for each row and draw it, simply as a rect (at first)
-        // 3. sort out what's going on with multi-row override text so you don't break something
-        // 4. click/hover detection, spoilers, code, highlights
-        // 5. rewrite the span fns to match
-
         let font_size = wrap.row_height;
         let line_height = wrap.row_height + ROW_SPACING;
 
-        // probe: shape the full text at row_remaining width to find where the first row breaks
-        let (first_row_range, remaining_rows_range) = {
-            let probe_buffer = self.get_or_create_glyphon_buffer(
-                text,
+        // find where the first row breaks by shaping with row remaining width
+        let (first_row_text, remaining_text) = {
+            let tmp =
+                self.upsert_glyphon_buffer(text, font_size, line_height, wrap.row_remaining());
+            let tmp = tmp.read().unwrap();
+
+            let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
+                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+            } else {
+                text.len()
+            };
+            (text[..first_row_bytes].to_string(), text[first_row_bytes..].to_string())
+        };
+
+        // layout the first row
+        {
+            let row = self.upsert_glyphon_buffer(
+                &first_row_text,
                 font_size,
                 line_height,
                 wrap.row_remaining(),
             );
-            let probe = probe_buffer.read().unwrap();
-            let first_row_bytes = if let Some(first_row) = probe.layout_runs().next() {
-                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+            let size = row.read().unwrap().shaped_size();
+            let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
+            let rect = Rect::from_min_size(pos, size);
+
+            if ui.clip_rect().intersects(rect) {
+                self.text_areas.push(TextBufferArea::new(
+                    row,
+                    rect,
+                    glyphon::Color::rgb(255, 255, 255),
+                    ui.ctx(),
+                ));
+            }
+
+            if !remaining_text.is_empty() {
+                // wrapping row: consume the rest of the row
+                wrap.offset += wrap.row_remaining();
             } else {
-                0
+                // final row: advance by rendered width only
+                wrap.offset += size.x;
+            }
+        }
+
+        // layout the remaining rows
+        let tmp = self.upsert_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
+        let tmp = tmp.read().unwrap();
+        let runs_count = tmp.layout_runs().count();
+        for (i, run) in tmp.layout_runs().enumerate() {
+            let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
+            let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
+            let row_text = if remaining_text[start..].starts_with(' ') {
+                &remaining_text[start + 1..end]
+            } else {
+                &remaining_text[start..end]
             };
-            let byte_range = self.range_to_byte(range);
-            let first_row_range =
-                self.range_to_char((byte_range.start(), byte_range.start() + first_row_bytes));
-            let remaining_rows_range = (first_row_range.end(), range.end());
-            (first_row_range, remaining_rows_range)
-        };
-        // layout the first row on its own to continue any existing lines
-        let first_row_text = self.buffer[first_row_range].to_string();
-        let first_buffer = self.get_or_create_glyphon_buffer(
-            &first_row_text,
-            font_size,
-            line_height,
-            wrap.row_remaining(),
-        );
 
-        if let Some(first_row) = first_buffer.read().unwrap().layout_runs().next() {
-            // for glyph in first_row.glyphs {
-            //     let mut rect = Rect {
-            //         min: Pos2 { x: glyph.x, y: glyph.y },
-            //         max: Pos2 { x: glyph.x + glyph.w, y: glyph.y + buffer.metrics().font_size },
-            //     };
-            //     rect = rect.translate(wrap.offset * Vec2::X);
-            //     rect = rect.translate(top_left.to_vec2());
+            let row = self.upsert_glyphon_buffer(row_text, font_size, line_height, wrap.width);
+            let size = row.read().unwrap().shaped_size();
+            let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
+            let rect = Rect::from_min_size(pos, size);
 
-            //     ui.painter().rect_filled(rect, 3., Color32::DARK_GREEN);
-            // }
-
-            let buffer_height = first_buffer
-                .read()
-                .unwrap()
-                .layout_runs()
-                .last()
-                .map(|run| run.line_top + run.line_height)
-                .unwrap_or(0.);
-
-            let rect = Rect::from_min_size(top_left, Vec2::new(wrap.width, buffer_height));
             if ui.clip_rect().intersects(rect) {
-                self.pending_text_areas.push(TextBufferArea::new(
-                    first_buffer.clone(),
-                    rect,
-                    glyphon::Color::rgb(255, 255, 255),
-                    ui.ctx(),
-                ));
-            }
-            // ui.painter()
-            //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_GREEN));
-        }
-
-        // layout remaining rows
-        let remaining_text = self.buffer[remaining_rows_range].to_string();
-        let remaining_buffer =
-            self.get_or_create_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
-
-        for row in remaining_buffer.read().unwrap().layout_runs() {
-            // for glyph in row.glyphs {
-            //     let mut rect = Rect {
-            //         min: Pos2 { x: glyph.x, y: glyph.y },
-            //         max: Pos2 { x: glyph.x + glyph.w, y: glyph.y + buffer.metrics().font_size },
-            //     };
-            //     rect = rect.translate(buffer.metrics().line_height * Vec2::Y); // first row
-            //     rect = rect.translate(row.line_top * Vec2::Y);
-            //     rect = rect.translate(top_left.to_vec2());
-
-            //     ui.painter().rect_filled(rect, 3., Color32::DARK_BLUE);
-            // }
-
-            // todo: determine the range for each row; you'll need it for wrap.row_ranges and for galley info
-            // this is the place where you sort out what's going on with multi-row override text
-
-            let rb = remaining_buffer.read().unwrap();
-            let buffer_height = rb
-                .layout_runs()
-                .last()
-                .map(|run| run.line_top + run.line_height)
-                .unwrap_or(0.);
-            let line_height = rb.metrics().line_height;
-            drop(rb);
-
-            let rect = Rect::from_min_size(
-                top_left + line_height * Vec2::Y,
-                Vec2::new(wrap.width, buffer_height),
-            );
-            if ui.clip_rect().intersects(rect) {
-                self.pending_text_areas.push(TextBufferArea::new(
-                    remaining_buffer.clone(),
+                self.text_areas.push(TextBufferArea::new(
+                    row,
                     rect,
                     glyphon::Color::rgb(255, 255, 255),
                     ui.ctx(),
                 ));
             }
 
-            // ui.painter()
-            //     .rect_stroke(rect, 3., egui::Stroke::new(1., egui::Color32::LIGHT_BLUE));
+            if i < runs_count - 1 {
+                // wrapping row: consume the rest of the row
+                wrap.offset += wrap.row_remaining();
+            } else {
+                // final row: advance by rendered width only
+                wrap.offset += size.x;
+            }
         }
-
-        /* end changeset */
 
         wrap.offset += post_span;
 
@@ -288,25 +246,66 @@ impl Editor {
 
     /// Returns the span from the text itself of a single section.
     pub fn text_mid_span(
-        &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: TextFormat,
+        &self, wrap: &Wrap, pre_span: f32, text: &str, _text_format: TextFormat,
     ) -> f32 {
-        let mut tmp_wrap =
-            Wrap { offset: wrap.offset + pre_span, row_ranges: Default::default(), ..*wrap };
+        let font_size = wrap.row_height;
+        let line_height = wrap.row_height + ROW_SPACING;
+        let row_remaining = wrap.row_end() - (wrap.offset + pre_span);
 
-        let text = text.to_string();
-        let mut layout_job = LayoutJob::single_section(text, text_format);
-        layout_job.wrap.max_width = wrap.width;
-        if let Some(first_section) = layout_job.sections.first_mut() {
-            first_section.leading_space = tmp_wrap.row_offset();
+        let (first_row_text, remaining_text) = {
+            let tmp = self.upsert_glyphon_buffer(text, font_size, line_height, row_remaining);
+            let tmp = tmp.read().unwrap();
+            let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
+                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+            } else {
+                text.len()
+            };
+            (text[..first_row_bytes].to_string(), text[first_row_bytes..].to_string())
+        };
+
+        // first row
+        let first_row_size = {
+            let row =
+                self.upsert_glyphon_buffer(&first_row_text, font_size, line_height, row_remaining);
+            let guard = row.read().unwrap();
+            guard.shaped_size()
+        };
+
+        if remaining_text.is_empty() {
+            // fits on current row: return rendered width
+            first_row_size.x
+        } else {
+            // wraps: consume rest of current row + remaining rows
+            let mut span = row_remaining;
+
+            let tmp =
+                self.upsert_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
+            let tmp = tmp.read().unwrap();
+            let runs_count = tmp.layout_runs().count();
+            for (i, run) in tmp.layout_runs().enumerate() {
+                let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
+                let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
+                let row_text = if remaining_text[start..].starts_with(' ') {
+                    &remaining_text[start + 1..end]
+                } else {
+                    &remaining_text[start..end]
+                };
+                let size = self
+                    .upsert_glyphon_buffer(row_text, font_size, line_height, wrap.width)
+                    .read()
+                    .unwrap()
+                    .shaped_size();
+                if i < runs_count - 1 {
+                    // wrapping row: consume the full row
+                    span += wrap.width;
+                } else {
+                    // final row: advance by rendered width only
+                    span += size.x;
+                }
+            }
+
+            span
         }
-        layout_job.round_output_size_to_nearest_ui_point = false;
-
-        let galley = self.ctx.fonts(|fonts| fonts.layout_job(layout_job));
-        for row in &galley.rows {
-            tmp_wrap.offset += row_span(row, &tmp_wrap);
-        }
-
-        tmp_wrap.offset - (wrap.offset + pre_span)
     }
 
     /// Returns the span of post-text padding for inline code, spoilers, etc.
@@ -327,16 +326,19 @@ impl Editor {
     }
 }
 
-/// Return the span of the row, including the remaining space on the previous row if there was one
-fn row_span(row: &Row, wrap: &Wrap) -> f32 {
-    row_wrap_span(row, wrap).unwrap_or_default() + row.rect.width()
+trait BufferExt {
+    fn shaped_size(&self) -> Vec2;
 }
 
-/// If the row wrapped, return the remaining space on the line that was ended
-fn row_wrap_span(row: &Row, wrap: &Wrap) -> Option<f32> {
-    if (row.rect.left() - wrap.row_offset()).abs() > 0.5 {
-        Some(wrap.row_remaining())
-    } else {
-        None
+impl BufferExt for glyphon::Buffer {
+    fn shaped_size(&self) -> Vec2 {
+        let mut result = Vec2::ZERO;
+        for run in self.layout_runs() {
+            result.y += self.metrics().line_height;
+            if let Some(last_glyph) = run.glyphs.last() {
+                result.x = result.x.max(last_glyph.x + last_glyph.w)
+            }
+        }
+        result
     }
 }
