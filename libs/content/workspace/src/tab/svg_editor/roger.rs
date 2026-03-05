@@ -7,7 +7,7 @@ use time::Duration;
 use tracing::warn;
 use web_time::{Instant, UNIX_EPOCH};
 
-use crate::tab::svg_editor::toolbar::ToolContext;
+use crate::tab::svg_editor::{toolbar::ToolContext, tools::DynRogerTool};
 
 #[derive(Debug)]
 pub struct Roger {
@@ -536,9 +536,8 @@ impl Roger {
         None
     }
 
-    pub fn show_hover_indicator(
-        &self, ui: &mut egui::Ui, ctx: &mut ToolContext,
-        add_contents: impl FnOnce(&mut egui::Ui, egui::Pos2, &mut ToolContext),
+    pub fn show_hover_indicator<T: DynRogerTool + ?Sized>(
+        &self, ui: &mut egui::Ui, ctx: &mut ToolContext, tool: &mut T,
     ) {
         ui.scope(|ui| {
             let old_layer = ctx.painter.layer_id();
@@ -557,7 +556,7 @@ impl Roger {
                 0.3,
             );
             ctx.painter.set_opacity(opacity);
-            add_contents(ui, self.tool_hover_pos.0, ctx);
+            tool.show_hover_point(ui, self.tool_hover_pos.0, ctx);
 
             ctx.painter.set_layer_id(old_layer);
         });

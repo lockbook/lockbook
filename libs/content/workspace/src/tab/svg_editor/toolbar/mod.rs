@@ -7,6 +7,7 @@ use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
 use crate::tab::svg_editor::tools::shapes::ShapesTool;
+use crate::tab::svg_editor::tools::{DynRogerTool, RogerTool};
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -226,6 +227,16 @@ impl Toolbar {
         set_tool!(self, new_tool);
         if !self.show_tool_popover {
             self.hide_tool_popover(settings, cfg);
+        }
+    }
+
+    pub fn active_tool_mut(&mut self) -> &mut dyn DynRogerTool {
+        match self.active_tool {
+            Tool::Pen => &mut self.pen,
+            Tool::Eraser => &mut self.eraser,
+            Tool::Selection => &mut self.selection,
+            Tool::Highlighter => &mut self.highlighter,
+            Tool::Shapes => &mut self.shapes_tool,
         }
     }
 

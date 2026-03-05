@@ -16,9 +16,9 @@ use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
-use crate::tab::svg_editor::tools::RogerTool;
 use crate::tab::svg_editor::tools::eraser::from_roger_to_eraser_event;
 use crate::tab::svg_editor::tools::shapes::from_roger_to_shape_event;
+use crate::tab::svg_editor::tools::{DynRogerTool, RogerTool};
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
@@ -363,13 +363,9 @@ impl SVGEditor {
             self.toolbar.get_rects(),
         );
 
-        if self.toolbar.active_tool == Tool::Selection {
-            self.toolbar.selection.show_tool_ui(ui, &mut tool_context);
-        }
+        let active_tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
 
-        if self.toolbar.active_tool == Tool::Eraser {
-            self.toolbar.eraser.show_tool_ui(ui, &mut tool_context);
-        }
+        active_tool.show_tool_ui(ui, &mut tool_context);
 
         for event in self.roger.process(ui, &layout_ctx) {
             // handle non tool events
@@ -389,76 +385,16 @@ impl SVGEditor {
                         tool_context.history.redo(tool_context.buffer)
                     }
                 }
-                _ => {}
-            }
-            match self.toolbar.active_tool {
-                Tool::Pen => {
-                    let pen_event = self.toolbar.pen.roger_to_tool_event(event);
-                    if let Some(pen_event) = pen_event {
-                        self.toolbar
-                            .pen
-                            .handle_tool_event(ui, pen_event, &mut tool_context);
-                    }
-                }
-                Tool::Eraser => {
-                    let eraser_event = from_roger_to_eraser_event(event);
-                    if let Some(eraser_event) = eraser_event {
-                        self.toolbar
-                            .eraser
-                            .handle_tool_event(ui, eraser_event, &mut tool_context);
-                    }
-                }
-                Tool::Selection => {
-                    // selection tool also needs to handle viewport changes, so we have to pass all events to it
-                    let selection_event = self.toolbar.selection.roger_to_tool_event(event);
-                    if let Some(selection_event) = selection_event {
-                        self.toolbar.selection.handle_tool_event(
-                            ui,
-                            selection_event,
-                            &mut tool_context,
-                        );
-                    };
-                }
-                Tool::Highlighter => {
-                    let pen_event = self.toolbar.pen.roger_to_tool_event(event);
-                    if let Some(pen_event) = pen_event {
-                        self.toolbar.highlighter.handle_tool_event(
-                            ui,
-                            pen_event,
-                            &mut tool_context,
-                        );
-                    }
-                }
-                Tool::Shapes => {
-                    let shape_event = self.toolbar.shapes_tool.roger_to_tool_event(event);
-                    if let Some(shape_event) = shape_event {
-                        self.toolbar.shapes_tool.handle_tool_event(
-                            ui,
-                            shape_event,
-                            &mut tool_context,
-                        );
-                    }
+                _ => {
+                    active_tool.process_roger_event(ui, event, &mut tool_context);
                 }
             }
         }
-        self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
-
-        let hover_add_contents: Box<dyn FnOnce(&mut egui::Ui, egui::Pos2, &mut ToolContext)> =
-            match self.toolbar.active_tool {
-                Tool::Pen => {
-                    Box::new(|ui, pos, ctx| self.toolbar.pen.show_hover_point(ui, pos, ctx))
-                }
-                Tool::Eraser => {
-                    Box::new(|ui, pos, ctx| self.toolbar.eraser.show_hover_point(ui, pos, ctx))
-                }
-                Tool::Highlighter => {
-                    Box::new(|ui, pos, ctx| self.toolbar.highlighter.show_hover_point(ui, pos, ctx))
-                }
-                _ => Box::new(|_, _, _| {}),
-            };
 
         self.roger
-            .show_hover_indicator(ui, &mut tool_context, hover_add_contents);
+            .show_hover_indicator(ui, &mut tool_context, active_tool);
+
+        self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
 
         // if !self.read_only {
         //     match self.toolbar.active_tool {
