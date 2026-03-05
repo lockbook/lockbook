@@ -6,6 +6,7 @@ use lb_rs::model::svg::element::Element;
 use crate::tab::svg_editor::DeleteElement;
 use crate::tab::svg_editor::roger::RogerEvent;
 use crate::tab::svg_editor::toolbar::ToolContext;
+use crate::tab::svg_editor::tools::RogerTool;
 use crate::tab::svg_editor::util::pointer_intersects_element;
 
 pub struct Eraser {
@@ -48,26 +49,22 @@ pub fn from_roger_to_eraser_event(event: RogerEvent) -> Option<EraseEvent> {
 
 pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
 
-impl Eraser {
-    pub fn new(ui: &mut egui::Ui) -> Self {
-        Eraser {
-            delete_candidates: HashMap::default(),
-            radius: DEFAULT_ERASER_RADIUS,
-            is_building: false,
-            cursor_color: ui.visuals().text_color(),
-            pos: ui
-                .input(|r| r.pointer.hover_pos())
-                .unwrap_or(egui::Pos2::ZERO),
-        }
-    }
-    pub fn show_tool_ui(&self, _: &mut egui::Ui, eraser_ctx: &mut ToolContext<'_>) {
-        if self.is_building {
-            self.show_eraser_circle(self.pos, eraser_ctx);
+impl RogerTool for Eraser {
+    type ToolEvent = EraseEvent;
+
+    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent> {
+        match roger_event {
+            RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
+                Some(EraseEvent::Build(payload.pos))
+            }
+            RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
+            RogerEvent::ToolCancel => Some(EraseEvent::Cancel),
+            _ => None,
         }
     }
 
-    pub fn handle_erase_event(&mut self, event: &EraseEvent, eraser_ctx: &mut ToolContext<'_>) {
-        match *event {
+    fn handle_tool_event(&mut self, event: Self::ToolEvent, eraser_ctx: &mut ToolContext) {
+        match event {
             EraseEvent::Build(pos) => {
                 self.is_building = true;
                 self.pos = pos;
@@ -134,7 +131,33 @@ impl Eraser {
         }
     }
 
-    pub fn show_eraser_circle(&self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
+    fn show_hover_point(
+        &self, _: &mut egui::Ui, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>,
+    ) {
+        self.show_eraser_circle(pos, eraser_ctx);
+    }
+
+    fn show_tool_ui(&mut self, _: &mut egui::Ui, eraser_ctx: &mut ToolContext) {
+        if self.is_building {
+            self.show_eraser_circle(self.pos, eraser_ctx);
+        }
+    }
+}
+
+impl Eraser {
+    pub fn new(ui: &mut egui::Ui) -> Self {
+        Eraser {
+            delete_candidates: HashMap::default(),
+            radius: DEFAULT_ERASER_RADIUS,
+            is_building: false,
+            cursor_color: ui.visuals().text_color(),
+            pos: ui
+                .input(|r| r.pointer.hover_pos())
+                .unwrap_or(egui::Pos2::ZERO),
+        }
+    }
+
+    fn show_eraser_circle(&self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
         let old_layer = eraser_ctx.painter.layer_id();
         eraser_ctx.painter.set_layer_id(egui::LayerId {
             order: egui::Order::PanelResizeLine,

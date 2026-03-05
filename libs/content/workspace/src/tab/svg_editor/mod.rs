@@ -16,8 +16,8 @@ use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::tab::svg_editor::tools::RogerTool;
 use crate::tab::svg_editor::tools::eraser::from_roger_to_eraser_event;
-use crate::tab::svg_editor::tools::pen::{PathEvent, from_roger_to_pen_event};
 use crate::tab::svg_editor::tools::shapes::from_roger_to_shape_event;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
@@ -393,11 +393,11 @@ impl SVGEditor {
             }
             match self.toolbar.active_tool {
                 Tool::Pen => {
-                    let pen_event = from_roger_to_pen_event(event);
+                    let pen_event = self.toolbar.pen.roger_to_tool_event(event);
                     if let Some(pen_event) = pen_event {
                         self.toolbar
                             .pen
-                            .handle_path_event(ui, pen_event, &mut tool_context);
+                            .handle_tool_event(pen_event, &mut tool_context);
                     }
                 }
                 Tool::Eraser => {
@@ -405,7 +405,7 @@ impl SVGEditor {
                     if let Some(eraser_event) = eraser_event {
                         self.toolbar
                             .eraser
-                            .handle_erase_event(&eraser_event, &mut tool_context);
+                            .handle_tool_event(eraser_event, &mut tool_context);
                     }
                 }
                 Tool::Selection => {
@@ -420,13 +420,11 @@ impl SVGEditor {
                     };
                 }
                 Tool::Highlighter => {
-                    let pen_event = from_roger_to_pen_event(event);
+                    let pen_event = self.toolbar.pen.roger_to_tool_event(event);
                     if let Some(pen_event) = pen_event {
-                        self.toolbar.highlighter.handle_path_event(
-                            ui,
-                            pen_event,
-                            &mut tool_context,
-                        );
+                        self.toolbar
+                            .highlighter
+                            .handle_tool_event(pen_event, &mut tool_context);
                     }
                 }
                 Tool::Shapes => {
@@ -447,7 +445,7 @@ impl SVGEditor {
                     Box::new(|ui, pos, ctx| self.toolbar.pen.show_hover_point(ui, pos, ctx))
                 }
                 Tool::Eraser => {
-                    Box::new(|_, pos, ctx| self.toolbar.eraser.show_eraser_circle(pos, ctx))
+                    Box::new(|ui, pos, ctx| self.toolbar.eraser.show_hover_point(ui, pos, ctx))
                 }
                 Tool::Highlighter => {
                     Box::new(|ui, pos, ctx| self.toolbar.highlighter.show_hover_point(ui, pos, ctx))
