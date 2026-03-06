@@ -370,7 +370,7 @@ impl HasDisplayHandle for AppWindowHandle {
 pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
-    let renderer = RendererState::init_window(window);
+    let mut renderer = RendererState::init_window(window);
     let font_system = std::sync::Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
         &renderer.device,
