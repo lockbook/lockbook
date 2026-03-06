@@ -1,7 +1,6 @@
 use crate::WgpuWorkspace;
 use egui::FontDefinitions;
 use egui_wgpu_renderer::RendererState;
-use glyphon::FontSystem;
 use lb_c::Lb;
 use std::ffi::c_void;
 use std::sync::{Arc, Mutex};
@@ -19,7 +18,7 @@ pub unsafe extern "C" fn init_ws(
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer));
-    let font_system = Arc::new(Mutex::new(FontSystem::new()));
+    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
         &renderer.device,
         &renderer.queue,

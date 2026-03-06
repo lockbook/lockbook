@@ -1,13 +1,13 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, TextFormat, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> Format {
         self.text_format(parent)
     }
 
@@ -54,7 +54,6 @@ impl<'ast> Editor {
                         wrap,
                         prefix_range,
                         self.text_format(node),
-                        false,
                     );
                 }
             }
@@ -67,7 +66,6 @@ impl<'ast> Editor {
                         wrap,
                         postfix_range,
                         self.text_format(node),
-                        false,
                     );
                 }
             }
@@ -80,7 +78,6 @@ impl<'ast> Editor {
                     wrap,
                     node_range,
                     self.text_format(node),
-                    false,
                 );
             }
         }

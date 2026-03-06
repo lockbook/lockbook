@@ -3,8 +3,8 @@ use std::ops::Deref as _;
 
 use comrak::nodes::{AstNode, NodeLink};
 use egui::{
-    self, Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, TextFormat,
-    Ui, UiBuilder, Vec2,
+    self, Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, Ui,
+    UiBuilder, Vec2,
 };
 use epaint::RectShape;
 use lb_rs::model::text::offset_types::DocCharOffset;
@@ -12,13 +12,13 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::MARGIN;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::icons::Icon;
 
 use super::cache::ImageState;
 
 impl<'ast> Editor {
-    pub fn text_format_image(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_image(&self, parent: &AstNode<'_>) -> Format {
         self.text_format_link(parent)
     }
 

@@ -1,4 +1,5 @@
 pub mod file_cache;
+mod font;
 pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
@@ -20,12 +21,24 @@ use glyphon::{
     Buffer, Color, ColorMode, RenderError, Resolution, SwashCache, TextArea, TextAtlas, TextBounds,
     TextRenderer, Viewport,
 };
-use glyphon::{FontSystem, PrepareError};
+use glyphon::{FontSystem, PrepareError, fontdb};
 pub use output::Response;
 pub use tab::Event;
 
 use egui_wgpu_renderer::wgpu::{self, Device, MultisampleState, Queue, TextureFormat};
 use epaint::text::FontDefinitions;
+
+pub fn make_font_system() -> FontSystem {
+    let mut db = fontdb::Database::new();
+
+    font::load(&mut db);
+
+    db.set_sans_serif_family(font::SANS);
+    db.set_serif_family(font::SANS); // no serif bundled; fall back to sans
+    db.set_monospace_family(font::MONO);
+
+    FontSystem::new_with_locale_and_db("en-US".into(), db)
+}
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     tab::markdown_editor::register_fonts(fonts)

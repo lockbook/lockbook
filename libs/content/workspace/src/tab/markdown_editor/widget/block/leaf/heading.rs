@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, UiBuilder, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
@@ -7,28 +7,21 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_SPACING};
+use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT, ROW_SPACING};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 
 impl<'ast> Editor {
-    pub fn text_format_heading(&self, parent: &AstNode<'_>, level: u8) -> TextFormat {
-        let parent_text_format = self.text_format(parent);
-        TextFormat {
-            font_id: FontId {
-                size: parent_text_format.font_id.size
-                    * match level {
-                        6 => 1.2,
-                        5 => 1.4,
-                        4 => 1.6,
-                        3 => 1.8,
-                        2 => 2.0,
-                        _ => 2.4,
-                    },
-                ..parent_text_format.font_id
-            },
-            ..parent_text_format
-        }
+    pub fn heading_row_height(&self, level: u8) -> f32 {
+        ROW_HEIGHT
+            * match level {
+                6 => 1.2,
+                5 => 1.4,
+                4 => 1.6,
+                3 => 1.8,
+                2 => 2.0,
+                _ => 2.4,
+            }
     }
 
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
@@ -58,8 +51,7 @@ impl<'ast> Editor {
                 if reveal {
                     let mut wrap = Wrap::new(width);
                     wrap.row_height = self.row_height(node);
-                    wrap.offset =
-                        self.span_section(&wrap, node_line, self.text_format_syntax(node));
+                    wrap.offset = self.span_section(&wrap, node_line, self.text_format_syntax());
 
                     result += wrap.height();
                     result += ROW_SPACING;
@@ -81,8 +73,8 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if reveal {
-                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax(node));
-                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
+                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax());
             }
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
@@ -125,11 +117,9 @@ impl<'ast> Editor {
         {
             if reveal {
                 if !indentation.is_empty() {
-                    wrap.offset +=
-                        self.span_section(&wrap, indentation, self.text_format_syntax(node));
+                    wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
                 }
-                wrap.offset +=
-                    self.span_section(&wrap, prefix_range, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, prefix_range, self.text_format_syntax());
             }
 
             if self.infix_range(node).is_some() {
@@ -141,7 +131,7 @@ impl<'ast> Editor {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
+            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax());
         }
 
         wrap.height()
@@ -222,8 +212,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         node_line,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
 
                     top_left.y += wrap.height();
@@ -262,8 +251,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         indentation,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                 }
                 if !prefix.is_empty() {
@@ -272,8 +260,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         prefix,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                 }
             }
@@ -285,7 +272,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     postfix_whitespace,
                     self.text_format(node),
-                    false,
                 );
             }
         } else {
@@ -321,8 +307,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         indentation,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                 }
                 resp |= self.show_section(
@@ -330,8 +315,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     prefix_range,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             }
             if self.infix_range(node).is_some() {
@@ -345,7 +329,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     postfix_range,
                     self.text_format(node),
-                    false,
                 );
             }
         } else {
@@ -355,8 +338,7 @@ impl<'ast> Editor {
                 top_left,
                 &mut wrap,
                 node_line,
-                self.text_format_syntax(node),
-                false,
+                self.text_format_syntax(),
             );
         }
 

@@ -256,7 +256,7 @@ impl Editor {
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
-                font_system: Arc::new(Mutex::new(FontSystem::new())),
+                font_system: Arc::new(Mutex::new(crate::make_font_system())),
             },
             MdConfig { plaintext_mode: false, readonly: false },
         )

@@ -1,27 +1,15 @@
-use std::sync::Arc;
-
 use comrak::nodes::AstNode;
-use egui::{FontFamily, FontId, Pos2, Rangef, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rangef, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt;
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_PADDING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> TextFormat {
+    pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat {
-            font_id: FontId {
-                family: if is_header_row {
-                    FontFamily::Name(Arc::from("Bold"))
-                } else {
-                    FontFamily::Proportional
-                },
-                ..parent_text_format.font_id
-            },
-            ..parent_text_format
-        }
+        Format { bold: is_header_row, ..parent_text_format }
     }
 
     pub fn height_table_row(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -33,7 +21,7 @@ impl<'ast> Editor {
                 + self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 )
                 + BLOCK_PADDING
         } else {
@@ -57,14 +45,7 @@ impl<'ast> Editor {
             let node_line = self.node_line(node, line);
 
             let mut wrap = Wrap::new(self.width(node));
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_syntax(node),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let height = self.height_table_row(node);

@@ -1,6 +1,4 @@
-use std::mem;
-
-use egui::{Pos2, Rect, Sense, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Sense, Ui, Vec2};
 
 use lb_rs::model::text::offset_types::DocCharOffset;
 
@@ -69,7 +67,7 @@ impl Wrap {
 impl Editor {
     /// Returns the height of a single text section. Pass a fresh wrap initialized with the desired width.
     pub fn height_section(
-        &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
+        &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: Format,
     ) -> f32 {
         wrap.offset += self.span_section(wrap, range, text_format);
         wrap.height()
@@ -78,9 +76,9 @@ impl Editor {
     /// Returns the span of a text section in a wrap layout, which includes
     /// space added to the end of a row when text wraps.
     pub fn span_section(
-        &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: TextFormat,
+        &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: Format,
     ) -> f32 {
-        self.text_mid_span(wrap, Default::default(), &self.buffer[range], text_format)
+        self.text_mid_span(wrap, 0., &self.buffer[range], text_format)
     }
 
     /// Show source text specified by the given range.
@@ -89,7 +87,7 @@ impl Editor {
     /// doesn't have to be a whole line.
     pub fn show_section(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), text_format: TextFormat, spoiler: bool,
+        range: (DocCharOffset, DocCharOffset), text_format: Format,
     ) -> Response {
         self.show_override_section(
             ui,
@@ -97,7 +95,6 @@ impl Editor {
             wrap,
             range,
             text_format,
-            spoiler,
             None,
             Sense { click: false, drag: false, focusable: false },
         )
@@ -105,9 +102,7 @@ impl Editor {
 
     /// Returns the height of a single section that's not from the document's
     /// source text. Pass a fresh wrap initialized with the desired width.
-    pub fn height_override_section(
-        &self, wrap: &mut Wrap, text: &str, text_format: TextFormat,
-    ) -> f32 {
+    pub fn height_override_section(&self, wrap: &mut Wrap, text: &str, text_format: Format) -> f32 {
         wrap.offset += self.span_override_section(wrap, text, text_format);
         wrap.height()
     }
@@ -115,8 +110,8 @@ impl Editor {
     /// Returns the span of a single section that's not from the document's
     /// source text in a wrap layout, which includes space added to the end of a
     /// row when text wraps.
-    pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: TextFormat) -> f32 {
-        self.text_mid_span(wrap, Default::default(), text, text_format)
+    pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: Format) -> f32 {
+        self.text_mid_span(wrap, 0., text, text_format)
     }
 
     /// Show source text specified by the given range or override text. In the
@@ -127,32 +122,39 @@ impl Editor {
     #[allow(clippy::too_many_arguments)]
     pub fn show_override_section(
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), mut text_format: TextFormat, spoiler: bool,
-        override_text: Option<&str>, sense: Sense,
+        range: (DocCharOffset, DocCharOffset), text_format: Format, override_text: Option<&str>,
+        sense: Sense,
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
-        let underline = mem::take(&mut text_format.underline);
-        let background = mem::take(&mut text_format.background);
-        let padded = background != Default::default();
+        let padded = text_format.background != egui::Color32::TRANSPARENT;
 
         #[cfg(debug_assertions)]
         if text.contains('\n') {
             panic!("show_text_line: text contains newline: {text:?}");
         }
 
-        let pre_span = self.text_pre_span(wrap, text_format.clone());
+        let pre_span = self.text_pre_span(wrap, &text_format);
         let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, text_format.clone());
+        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
 
         wrap.offset += pre_span;
 
         let font_size = wrap.row_height;
         let line_height = wrap.row_height + ROW_SPACING;
+        let glyphon_color = {
+            let [r, g, b, a] = text_format.color.to_array();
+            glyphon::Color::rgba(r, g, b, a)
+        };
 
         // find where the first row breaks by shaping with row remaining width
         let (first_row_text, remaining_text) = {
-            let tmp =
-                self.upsert_glyphon_buffer(text, font_size, line_height, wrap.row_remaining());
+            let tmp = self.upsert_glyphon_buffer(
+                text,
+                font_size,
+                line_height,
+                wrap.row_remaining(),
+                &text_format,
+            );
             let tmp = tmp.read().unwrap();
 
             let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
@@ -170,18 +172,15 @@ impl Editor {
                 font_size,
                 line_height,
                 wrap.row_remaining(),
+                &text_format,
             );
             let size = row.read().unwrap().shaped_size();
             let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
             let rect = Rect::from_min_size(pos, size);
 
             if ui.clip_rect().intersects(rect) {
-                self.text_areas.push(TextBufferArea::new(
-                    row,
-                    rect,
-                    glyphon::Color::rgb(255, 255, 255),
-                    ui.ctx(),
-                ));
+                self.text_areas
+                    .push(TextBufferArea::new(row, rect, glyphon_color, ui.ctx()));
             }
 
             if !remaining_text.is_empty() {
@@ -194,7 +193,13 @@ impl Editor {
         }
 
         // layout the remaining rows
-        let tmp = self.upsert_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
+        let tmp = self.upsert_glyphon_buffer(
+            &remaining_text,
+            font_size,
+            line_height,
+            wrap.width,
+            &text_format,
+        );
         let tmp = tmp.read().unwrap();
         let runs_count = tmp.layout_runs().count();
         for (i, run) in tmp.layout_runs().enumerate() {
@@ -206,18 +211,20 @@ impl Editor {
                 &remaining_text[start..end]
             };
 
-            let row = self.upsert_glyphon_buffer(row_text, font_size, line_height, wrap.width);
+            let row = self.upsert_glyphon_buffer(
+                row_text,
+                font_size,
+                line_height,
+                wrap.width,
+                &text_format,
+            );
             let size = row.read().unwrap().shaped_size();
             let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
             let rect = Rect::from_min_size(pos, size);
 
             if ui.clip_rect().intersects(rect) {
-                self.text_areas.push(TextBufferArea::new(
-                    row,
-                    rect,
-                    glyphon::Color::rgb(255, 255, 255),
-                    ui.ctx(),
-                ));
+                self.text_areas
+                    .push(TextBufferArea::new(row, rect, glyphon_color, ui.ctx()));
             }
 
             if i < runs_count - 1 {
@@ -235,8 +242,8 @@ impl Editor {
     }
 
     /// Returns the span of pre-text padding for inline code, spoilers, etc.
-    pub fn text_pre_span(&self, wrap: &Wrap, text_format: TextFormat) -> f32 {
-        let padded = text_format.background != Default::default();
+    pub fn text_pre_span(&self, wrap: &Wrap, text_format: &Format) -> f32 {
+        let padded = text_format.background != egui::Color32::TRANSPARENT;
         if padded && wrap.row_offset() > 0.5 {
             INLINE_PADDING.min(wrap.row_remaining())
         } else {
@@ -246,14 +253,20 @@ impl Editor {
 
     /// Returns the span from the text itself of a single section.
     pub fn text_mid_span(
-        &self, wrap: &Wrap, pre_span: f32, text: &str, _text_format: TextFormat,
+        &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: Format,
     ) -> f32 {
         let font_size = wrap.row_height;
         let line_height = wrap.row_height + ROW_SPACING;
         let row_remaining = wrap.row_end() - (wrap.offset + pre_span);
 
         let (first_row_text, remaining_text) = {
-            let tmp = self.upsert_glyphon_buffer(text, font_size, line_height, row_remaining);
+            let tmp = self.upsert_glyphon_buffer(
+                text,
+                font_size,
+                line_height,
+                row_remaining,
+                &text_format,
+            );
             let tmp = tmp.read().unwrap();
             let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
                 if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
@@ -265,8 +278,13 @@ impl Editor {
 
         // first row
         let first_row_size = {
-            let row =
-                self.upsert_glyphon_buffer(&first_row_text, font_size, line_height, row_remaining);
+            let row = self.upsert_glyphon_buffer(
+                &first_row_text,
+                font_size,
+                line_height,
+                row_remaining,
+                &text_format,
+            );
             let guard = row.read().unwrap();
             guard.shaped_size()
         };
@@ -278,8 +296,13 @@ impl Editor {
             // wraps: consume rest of current row + remaining rows
             let mut span = row_remaining;
 
-            let tmp =
-                self.upsert_glyphon_buffer(&remaining_text, font_size, line_height, wrap.width);
+            let tmp = self.upsert_glyphon_buffer(
+                &remaining_text,
+                font_size,
+                line_height,
+                wrap.width,
+                &text_format,
+            );
             let tmp = tmp.read().unwrap();
             let runs_count = tmp.layout_runs().count();
             for (i, run) in tmp.layout_runs().enumerate() {
@@ -291,7 +314,13 @@ impl Editor {
                     &remaining_text[start..end]
                 };
                 let size = self
-                    .upsert_glyphon_buffer(row_text, font_size, line_height, wrap.width)
+                    .upsert_glyphon_buffer(
+                        row_text,
+                        font_size,
+                        line_height,
+                        wrap.width,
+                        &text_format,
+                    )
                     .read()
                     .unwrap()
                     .shaped_size();
@@ -309,10 +338,8 @@ impl Editor {
     }
 
     /// Returns the span of post-text padding for inline code, spoilers, etc.
-    pub fn text_post_span(
-        &self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: TextFormat,
-    ) -> f32 {
-        let padded = text_format.background != Default::default();
+    pub fn text_post_span(&self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: &Format) -> f32 {
+        let padded = text_format.background != egui::Color32::TRANSPARENT;
         if padded {
             let wrap = Wrap {
                 offset: wrap.offset + pre_plus_mid_span,
@@ -341,4 +368,26 @@ impl BufferExt for glyphon::Buffer {
         }
         result
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum FontFamily {
+    Sans,
+    Mono,
+    Icons,
+}
+
+#[derive(Clone, Debug)]
+pub struct Format {
+    pub family: FontFamily,
+    pub bold: bool,
+    pub italic: bool,
+    pub color: egui::Color32,
+
+    pub underline: bool,
+    pub strikethrough: bool,
+    pub background: egui::Color32,
+    pub spoiler: bool,
+    pub superscript: bool,
+    pub subscript: bool,
 }

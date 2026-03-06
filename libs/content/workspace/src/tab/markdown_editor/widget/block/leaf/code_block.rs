@@ -1,43 +1,20 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
 
 impl<'ast> Editor {
-    pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        let parent_row_height = self
-            .ctx
-            .fonts(|fonts| fonts.row_height(&parent_text_format.font_id));
-
-        let family =
-            if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSuper")) {
-                FontFamily::Name(Arc::from("MonoSuper"))
-            } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSub")) {
-                FontFamily::Name(Arc::from("MonoSub"))
-            } else {
-                FontFamily::Monospace
-            };
-
-        let monospace_row_height = self.ctx.fonts(|fonts| {
-            fonts.row_height(&FontId { family: family.clone(), ..parent_text_format.font_id })
-        });
-        let monospace_row_height_preserving_size =
-            parent_text_format.font_id.size * parent_row_height / monospace_row_height;
-        TextFormat {
-            font_id: FontId { size: monospace_row_height_preserving_size, family },
-            line_height: Some(parent_row_height),
-            ..parent_text_format
-        }
+        Format { family: FontFamily::Mono, ..parent_text_format }
     }
 
     pub fn height_code_block(
@@ -87,7 +64,7 @@ impl<'ast> Editor {
                     result += self.height_section(
                         &mut Wrap::new(width),
                         node_line,
-                        self.text_format_syntax(node),
+                        self.text_format_syntax(),
                     );
                 }
             } else {
@@ -136,8 +113,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         node_line,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                     top_left.y += wrap.height();
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -184,7 +160,7 @@ impl<'ast> Editor {
                 result += self.height_section(
                     &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
             } else {
                 result += self.height_code_block_line(node, node_code_block, line, synthetic);
@@ -229,8 +205,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     node_line,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -427,18 +402,17 @@ impl<'ast> Editor {
                     &mut wrap,
                     code_line.start().into_range(),
                     text_format.clone(),
-                    false,
                 );
             }
             for (style, region) in regions {
                 text_format.color =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
 
-                self.show_section(ui, top_left, &mut wrap, region, text_format.clone(), false);
+                self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
             }
         } else {
             // no syntax highlighting
-            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node));
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);

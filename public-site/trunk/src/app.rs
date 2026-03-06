@@ -1,6 +1,5 @@
 use std::sync::{Arc, Mutex};
 
-use glyphon::FontSystem;
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
     tab::{
@@ -52,7 +51,7 @@ impl LbWebApp {
             panic!("must use wgpu as graphics target")
         };
 
-        let font_system = Arc::new(Mutex::new(FontSystem::new()));
+        let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
         workspace_rs::register_render_callback_resources(
             &wgpu.device,
             &wgpu.queue,
@@ -95,7 +94,7 @@ impl eframe::App for LbWebApp {
                             ctx: ctx.clone(),
                             core: self.workspace.core.clone(),
                             persistence: self.workspace.cfg.clone(),
-                            font_system: Arc::new(Mutex::new(FontSystem::new())),
+                            font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
                         },
                         MdConfig { plaintext_mode: false, readonly: false },
                     ));

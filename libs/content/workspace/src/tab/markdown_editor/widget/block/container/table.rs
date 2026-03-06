@@ -18,7 +18,7 @@ impl<'ast> Editor {
                 height += self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
                 height += BLOCK_SPACING;
             }
@@ -46,8 +46,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     node_line,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
 
                 top_left.y += wrap.height();

@@ -1,6 +1,8 @@
 use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
 
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
@@ -101,7 +103,7 @@ impl<'ast> Editor {
                 height += self.height_section(
                     &mut Wrap::new(self.width(node)),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
                 height += BLOCK_SPACING;
             }
@@ -202,8 +204,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     node_line,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
 
                 top_left.y += wrap.height();
@@ -594,15 +595,23 @@ pub struct GlyphonBufferKey {
     pub font_size_bits: u32,
     pub line_height_bits: u32,
     pub width_bits: u32,
+    pub family: FontFamily,
+    pub bold: bool,
+    pub italic: bool,
+    pub color: [u8; 4],
 }
 
 impl GlyphonBufferKey {
-    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32) -> Self {
+    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32, format: &Format) -> Self {
         Self {
             text: text.to_string(),
             font_size_bits: font_size.to_bits(),
             line_height_bits: line_height.to_bits(),
             width_bits: width.to_bits(),
+            family: format.family.clone(),
+            bold: format.bold,
+            italic: format.italic,
+            color: format.color.to_array(),
         }
     }
 }
@@ -619,20 +628,36 @@ impl LayoutCache {
 
 impl Editor {
     pub fn upsert_glyphon_buffer(
-        &self, text: &str, font_size: f32, line_height: f32, width: f32,
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
-        let key = GlyphonBufferKey::new(text, font_size, line_height, width);
+        let key = GlyphonBufferKey::new(text, font_size, line_height, width, format);
         let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
         cache
             .entry(key)
             .or_insert_with(|| {
+                let attrs = glyphon::Attrs::new()
+                    .family(match format.family {
+                        FontFamily::Sans => glyphon::Family::SansSerif,
+                        FontFamily::Mono => glyphon::Family::Monospace,
+                        FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
+                    })
+                    .weight(if format.bold {
+                        glyphon::Weight::BOLD
+                    } else {
+                        glyphon::Weight::NORMAL
+                    })
+                    .style(if format.italic {
+                        glyphon::Style::Italic
+                    } else {
+                        glyphon::Style::Normal
+                    });
                 let metrics = glyphon::Metrics::new(font_size, line_height);
                 let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
                 b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
                 b.set_text(
                     &mut self.font_system.lock().unwrap(),
                     text,
-                    glyphon::Attrs::new().family(glyphon::Family::SansSerif),
+                    attrs,
                     glyphon::Shaping::Advanced,
                 );
                 b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);

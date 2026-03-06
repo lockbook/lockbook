@@ -102,7 +102,13 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if !pre_node.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    pre_node,
+                    self.text_format(node),
+                );
             }
             if !pre_children.is_empty() {
                 self.show_section(
@@ -111,7 +117,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     pre_children,
                     self.text_format(node),
-                    false,
                 );
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
@@ -122,7 +127,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     post_children,
                     self.text_format(node),
-                    false,
                 );
             }
             if !post_node.is_empty() {
@@ -132,7 +136,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     post_node,
                     self.text_format(node),
-                    false,
                 );
             }
         };

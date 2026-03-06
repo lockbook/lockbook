@@ -245,7 +245,7 @@ impl<'ast> Editor {
 
     pub fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(prefix_range) = self.prefix_range(node) {
-            self.span_section(wrap, prefix_range, self.text_format_syntax(node))
+            self.span_section(wrap, prefix_range, self.text_format_syntax())
         } else {
             0.
         }
@@ -274,7 +274,7 @@ impl<'ast> Editor {
 
     pub fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(postfix_range) = self.postfix_range(node) {
-            self.span_section(wrap, postfix_range, self.text_format_syntax(node))
+            self.span_section(wrap, postfix_range, self.text_format_syntax())
         } else {
             0.
         }
@@ -331,8 +331,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if !node_range.trim(&range).is_empty() {
-                tmp_wrap.offset +=
-                    self.span_section(wrap, node_range, self.text_format_syntax(node))
+                tmp_wrap.offset += self.span_section(wrap, node_range, self.text_format_syntax())
             }
         }
 
@@ -355,8 +354,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             prefix_range,
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     } else {
                         // when syntax is captured, show an empty range
@@ -368,8 +366,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             prefix_range.start().into_range(),
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -387,8 +384,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             postfix_range,
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     } else {
                         // when syntax is captured, show an empty range
@@ -400,8 +396,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             postfix_range.end().into_range(),
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -414,8 +409,7 @@ impl<'ast> Editor {
                     top_left,
                     wrap,
                     node_range,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             }
         }
