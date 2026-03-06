@@ -9,6 +9,7 @@ use raw_window_handle::{
     RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
 };
 use std::num::NonZeroIsize;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -429,11 +430,11 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         font_system.clone(),
     );
 
-    visuals::init(&renderer.context);
+    workspace_rs::theme::visuals::init(&renderer.context);
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let app = lbeguiapp::Lockbook::new(&renderer.context);
+    let app = lbeguiapp::Lockbook::new(&renderer.context, font_system);
     app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {

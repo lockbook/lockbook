@@ -8,6 +8,7 @@ use raw_window_handle::{
 use std::ffi::c_void;
 use std::num::NonZeroU32;
 use std::ptr::NonNull;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use x11rb::connection::Connection;
@@ -370,7 +371,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
     let renderer = RendererState::init_window(window);
-    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
+    let font_system = std::sync::Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
         &renderer.device,
         &renderer.queue,
@@ -379,11 +380,11 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         font_system.clone(),
     );
 
-    visuals::init(&renderer.context);
+    workspace_rs::theme::visuals::init(&renderer.context);
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let app = lbeguiapp::Lockbook::new(&renderer.context);
+    let app = lbeguiapp::Lockbook::new(&renderer.context, font_system);
     app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {
