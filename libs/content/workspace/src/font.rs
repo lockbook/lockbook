@@ -11,32 +11,37 @@ pub const MONO: &str = "SF Mono";
 #[cfg(not(target_vendor = "apple"))]
 pub const MONO: &str = "JetBrains Mono";
 
+// SF Pro's font files ship with different font family names
+// this fn corrects the names so that they are recognized as one family
+fn load_as_family(db: &mut Database, family: &str, data: &'static [u8]) {
+    let ids = db.load_font_source(Source::Binary(Arc::new(data) as _));
+    for id in ids {
+        if let Some(face) = db.face(id) {
+            let mut info = FaceInfo {
+                families: vec![(family.to_string(), fontdb::Language::English_UnitedStates)],
+                ..face.clone()
+            };
+            info.id = fontdb::ID::dummy();
+            db.push_face_info(info);
+            db.remove_face(id);
+        }
+    }
+}
+
 pub fn load(db: &mut Database) {
     #[cfg(target_vendor = "apple")]
     {
         db.load_font_source(Source::Binary(Arc::new(lb_fonts::SF_PRO_REGULAR) as _));
         db.load_font_source(Source::Binary(Arc::new(lb_fonts::SF_MONO_REGULAR) as _));
-
-        // SF Pro Text Bold reports family "SF Pro Text", not "SF Pro".
-        // Load it manually so fontdb sees it as the bold face of the "SF Pro" family.
-        let ids = db.load_font_source(Source::Binary(Arc::new(lb_fonts::SF_PRO_TEXT_BOLD) as _));
-        for id in ids {
-            if let Some(face) = db.face(id) {
-                let mut info = FaceInfo {
-                    families: vec![(SANS.to_string(), fontdb::Language::English_UnitedStates)],
-                    ..face.clone()
-                };
-                info.id = fontdb::ID::dummy();
-                db.push_face_info(info);
-                db.remove_face(id);
-            }
-        }
+        load_as_family(db, SANS, lb_fonts::SF_PRO_TEXT_BOLD);
+        load_as_family(db, SANS, lb_fonts::SF_PRO_ITALIC);
     }
 
     #[cfg(not(target_vendor = "apple"))]
     {
         db.load_font_source(Source::Binary(Arc::new(lb_fonts::PT_SANS_REGULAR) as _));
         db.load_font_source(Source::Binary(Arc::new(lb_fonts::PT_SANS_BOLD) as _));
+        db.load_font_source(Source::Binary(Arc::new(lb_fonts::PT_SANS_ITALIC) as _));
         db.load_font_source(Source::Binary(Arc::new(lb_fonts::JETBRAINS_MONO) as _));
     }
 
