@@ -46,5 +46,5 @@ pub fn load(db: &mut Database) {
     }
 
     db.load_font_source(Source::Binary(Arc::new(lb_fonts::NERD_FONTS_MONO_SYMBOLS) as _));
-    db.load_font_source(Source::Binary(Arc::new(lb_fonts::TWITTER_COLOR_EMOJI_15_1) as _));
+    db.load_font_source(Source::Binary(Arc::new(lb_fonts::TWEMOJI_MOZILLA) as _));
 }
