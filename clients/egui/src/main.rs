@@ -8,7 +8,6 @@ use std::{
 
 use egui::ViewportCommand;
 use egui_winit::egui;
-use glyphon::FontSystem;
 use image::ImageDecoder as _;
 use lockbook_egui::Lockbook;
 
@@ -46,7 +45,7 @@ fn main() {
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {
-            let font_system = Arc::new(Mutex::new(FontSystem::new()));
+            let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
 
             let Some(ref wgpu) = cc.wgpu_render_state else {
                 panic!("must use wgpu as graphics target")
