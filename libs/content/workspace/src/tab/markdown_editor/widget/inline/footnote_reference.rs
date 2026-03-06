@@ -61,31 +61,16 @@ impl<'ast> Editor {
 
         if self.node_intersects_selection(node) {
             if range.contains_range(&prefix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range,
-                    self.text_format_syntax(),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
             }
             if range.contains_range(&infix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    infix_range,
-                    self.text_format(node),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, infix_range, self.text_format(node));
             }
             if range.contains_range(&postfix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    postfix_range,
-                    self.text_format_syntax(),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, postfix_range, self.text_format_syntax());
             }
         } else {
             let node_range = self.node_range(node);

@@ -45,13 +45,8 @@ impl<'ast> Editor {
         if self.node_intersects_selection(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
-                    response |= self.show_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        postfix_range,
-                        text_format_syntax,
-                    );
+                    response |=
+                        self.show_section(ui, top_left, wrap, postfix_range, text_format_syntax);
                 }
             }
         }

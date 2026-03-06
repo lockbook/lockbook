@@ -102,41 +102,17 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if !pre_node.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_node,
-                    self.text_format(node),
-                );
+                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node));
             }
             if !pre_children.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_children,
-                    self.text_format(node),
-                );
+                self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node));
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if !post_children.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_children,
-                    self.text_format(node),
-                );
+                self.show_section(ui, top_left, &mut wrap, post_children, self.text_format(node));
             }
             if !post_node.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_node,
-                    self.text_format(node),
-                );
+                self.show_section(ui, top_left, &mut wrap, post_node, self.text_format(node));
             }
         };
 

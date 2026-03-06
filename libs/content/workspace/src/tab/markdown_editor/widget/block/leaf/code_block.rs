@@ -200,13 +200,7 @@ impl<'ast> Editor {
             if reveal {
                 let node_line = self.node_line(node, line);
                 let mut wrap = Wrap::new(width);
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    node_line,
-                    self.text_format_syntax(),
-                );
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {

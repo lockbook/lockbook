@@ -149,13 +149,7 @@ impl<'ast> Editor {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             let mut wrap = Wrap::new(self.width(node) - INDENT);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                line_content,
-                self.text_format_syntax(),
-            );
+            self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let icon_space = Rect::from_min_size(top_left, Vec2::splat(ROW_HEIGHT));

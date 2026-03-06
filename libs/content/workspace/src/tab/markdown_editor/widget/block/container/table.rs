@@ -41,13 +41,7 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 let mut wrap = Wrap::new(self.width(node));
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    node_line,
-                    self.text_format_syntax(),
-                );
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
 
                 top_left.y += wrap.height();
                 top_left.y += BLOCK_SPACING;

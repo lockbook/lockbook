@@ -48,13 +48,8 @@ impl<'ast> Editor {
         if any_children {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
-                    response |= self.show_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        prefix_range,
-                        self.text_format(node),
-                    );
+                    response |=
+                        self.show_section(ui, top_left, wrap, prefix_range, self.text_format(node));
                 }
             }
             response |= self.show_inline_children(ui, node, top_left, wrap, range);
@@ -72,13 +67,8 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    node_range,
-                    self.text_format(node),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, node_range, self.text_format(node));
             }
         }
         response

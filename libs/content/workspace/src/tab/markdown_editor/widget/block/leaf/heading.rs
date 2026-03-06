@@ -255,13 +255,7 @@ impl<'ast> Editor {
                     );
                 }
                 if !prefix.is_empty() {
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        prefix,
-                        self.text_format_syntax(),
-                    );
+                    self.show_section(ui, top_left, &mut wrap, prefix, self.text_format_syntax());
                 }
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
@@ -333,13 +327,8 @@ impl<'ast> Editor {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            resp |= self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_syntax(),
-            );
+            resp |=
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
         }
 
         top_left.y += height;

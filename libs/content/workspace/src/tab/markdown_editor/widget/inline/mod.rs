@@ -404,13 +404,8 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    node_range,
-                    self.text_format_syntax(),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, node_range, self.text_format_syntax());
             }
         }
 

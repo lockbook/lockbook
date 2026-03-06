@@ -69,13 +69,8 @@ impl<'ast> Editor {
             // prefix range is empty when it's trimmed to 0 because we're not
             // rendering the line containing the prefix
             if reveal {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range,
-                    self.text_format_syntax(),
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
             } else {
                 // when syntax is captured, show an empty range
                 // representing the beginning of the prefix, so that clicking
