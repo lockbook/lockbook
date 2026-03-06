@@ -1,4 +1,4 @@
-use egui::{Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
 use lb_rs::model::text::offset_types::DocCharOffset;
 
@@ -127,6 +127,7 @@ impl Editor {
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
         let padded = text_format.background != egui::Color32::TRANSPARENT;
+        let sense = if text_format.spoiler { Sense::hover() } else { sense };
 
         #[cfg(debug_assertions)]
         if text.contains('\n') {
@@ -139,9 +140,13 @@ impl Editor {
 
         wrap.offset += pre_span;
 
-        let font_size = wrap.row_height;
-        let line_height = wrap.row_height + ROW_SPACING;
-        let glyphon_color = {
+        let font_size = if text_format.superscript || text_format.subscript {
+            wrap.row_height * 0.75
+        } else {
+            wrap.row_height
+        };
+        let y_offset = if text_format.subscript { 0.3 * wrap.row_height } else { 0. };
+        let color = {
             let [r, g, b, a] = text_format.color.to_array();
             glyphon::Color::rgba(r, g, b, a)
         };
@@ -151,7 +156,7 @@ impl Editor {
             let tmp = self.upsert_glyphon_buffer(
                 text,
                 font_size,
-                line_height,
+                font_size,
                 wrap.row_remaining(),
                 &text_format,
             );
@@ -165,80 +170,100 @@ impl Editor {
             (text[..first_row_bytes].to_string(), text[first_row_bytes..].to_string())
         };
 
-        // layout the first row
+        // collect rows
+        struct RowData {
+            buffer: std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>,
+            size: Vec2,
+            pos: Pos2,
+        }
+        let mut rows: Vec<RowData> = Vec::new();
+
         {
+            // collect rows: first row
             let row = self.upsert_glyphon_buffer(
                 &first_row_text,
                 font_size,
-                line_height,
+                font_size,
                 wrap.row_remaining(),
                 &text_format,
             );
             let size = row.read().unwrap().shaped_size();
-            let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
-            let rect = Rect::from_min_size(pos, size);
-
-            if ui.clip_rect().intersects(rect) {
-                self.text_areas
-                    .push(TextBufferArea::new(row, rect, glyphon_color, ui.ctx()));
-            }
-
-            if !remaining_text.is_empty() {
-                // wrapping row: consume the rest of the row
-                wrap.offset += wrap.row_remaining();
-            } else {
-                // final row: advance by rendered width only
-                wrap.offset += size.x;
-            }
+            let pos =
+                top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * font_size + y_offset);
+            let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
+            rows.push(RowData { buffer: row, size, pos });
+            wrap.offset += advance;
         }
 
-        // layout the remaining rows
-        let tmp = self.upsert_glyphon_buffer(
-            &remaining_text,
-            font_size,
-            line_height,
-            wrap.width,
-            &text_format,
-        );
-        let tmp = tmp.read().unwrap();
-        let runs_count = tmp.layout_runs().count();
-        for (i, run) in tmp.layout_runs().enumerate() {
-            let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-            let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-            let row_text = if remaining_text[start..].starts_with(' ') {
-                &remaining_text[start + 1..end]
-            } else {
-                &remaining_text[start..end]
-            };
-
-            let row = self.upsert_glyphon_buffer(
-                row_text,
+        if !remaining_text.is_empty() {
+            // collect rows: remaining rows
+            let tmp = self.upsert_glyphon_buffer(
+                &remaining_text,
                 font_size,
-                line_height,
+                font_size,
                 wrap.width,
                 &text_format,
             );
-            let size = row.read().unwrap().shaped_size();
-            let pos = top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * line_height);
-            let rect = Rect::from_min_size(pos, size);
-
-            if ui.clip_rect().intersects(rect) {
-                self.text_areas
-                    .push(TextBufferArea::new(row, rect, glyphon_color, ui.ctx()));
+            let tmp = tmp.read().unwrap();
+            let runs_count = tmp.layout_runs().count();
+            for (i, run) in tmp.layout_runs().enumerate() {
+                let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
+                let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
+                let row_text = if remaining_text[start..].starts_with(' ') {
+                    &remaining_text[start + 1..end]
+                } else {
+                    &remaining_text[start..end]
+                };
+                let row = self.upsert_glyphon_buffer(
+                    row_text,
+                    font_size,
+                    font_size,
+                    wrap.width,
+                    &text_format,
+                );
+                let size = row.read().unwrap().shaped_size();
+                let pos = top_left
+                    + Vec2::new(wrap.row_offset(), wrap.row() as f32 * font_size + y_offset);
+                let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
+                rows.push(RowData { buffer: row, size, pos });
+                wrap.offset += advance;
             }
+        }
 
-            if i < runs_count - 1 {
-                // wrapping row: consume the rest of the row
-                wrap.offset += wrap.row_remaining();
-            } else {
-                // final row: advance by rendered width only
-                wrap.offset += size.x;
+        // interact with all rows
+        let mut response = Response::default();
+        for row in &rows {
+            let rect = Rect::from_min_size(row.pos, row.size);
+            let interact_rect =
+                if padded { rect.expand2(Vec2::new(INLINE_PADDING, 2.)) } else { rect };
+            let id = ui.id().with((row.pos.x.to_bits(), row.pos.y.to_bits()));
+            let egui_resp = ui.interact(interact_rect, id, sense);
+            response.hovered |= egui_resp.hovered();
+            response.clicked |= egui_resp.clicked();
+        }
+
+        // render
+        let color = if text_format.spoiler && !response.hovered {
+            glyphon::Color::rgba(0, 0, 0, 0)
+        } else {
+            color
+        };
+        for row in &rows {
+            let rect = Rect::from_min_size(row.pos, row.size);
+            if ui.clip_rect().intersects(rect) {
+                self.text_areas.push(TextBufferArea::new(
+                    row.buffer.clone(),
+                    rect,
+                    color,
+                    ui.ctx(),
+                ));
+                draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
             }
         }
 
         wrap.offset += post_span;
 
-        Default::default()
+        response
     }
 
     /// Returns the span of pre-text padding for inline code, spoilers, etc.
@@ -255,18 +280,16 @@ impl Editor {
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: Format,
     ) -> f32 {
-        let font_size = wrap.row_height;
-        let line_height = wrap.row_height + ROW_SPACING;
+        let font_size = if text_format.superscript || text_format.subscript {
+            wrap.row_height * 0.75
+        } else {
+            wrap.row_height
+        };
         let row_remaining = wrap.row_end() - (wrap.offset + pre_span);
 
         let (first_row_text, remaining_text) = {
-            let tmp = self.upsert_glyphon_buffer(
-                text,
-                font_size,
-                line_height,
-                row_remaining,
-                &text_format,
-            );
+            let tmp =
+                self.upsert_glyphon_buffer(text, font_size, font_size, row_remaining, &text_format);
             let tmp = tmp.read().unwrap();
             let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
                 if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
@@ -281,7 +304,7 @@ impl Editor {
             let row = self.upsert_glyphon_buffer(
                 &first_row_text,
                 font_size,
-                line_height,
+                font_size,
                 row_remaining,
                 &text_format,
             );
@@ -299,7 +322,7 @@ impl Editor {
             let tmp = self.upsert_glyphon_buffer(
                 &remaining_text,
                 font_size,
-                line_height,
+                font_size,
                 wrap.width,
                 &text_format,
             );
@@ -314,13 +337,7 @@ impl Editor {
                     &remaining_text[start..end]
                 };
                 let size = self
-                    .upsert_glyphon_buffer(
-                        row_text,
-                        font_size,
-                        line_height,
-                        wrap.width,
-                        &text_format,
-                    )
+                    .upsert_glyphon_buffer(row_text, font_size, font_size, wrap.width, &text_format)
                     .read()
                     .unwrap()
                     .shaped_size();
@@ -350,6 +367,31 @@ impl Editor {
         } else {
             0.
         }
+    }
+}
+
+fn draw_decorations(
+    ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
+) {
+    if text_format.background != egui::Color32::TRANSPARENT {
+        let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(INLINE_PADDING, 2.));
+        if text_format.spoiler && hovered {
+            ui.painter()
+                .rect_stroke(bg_rect, 2.0, Stroke::new(1.0, text_format.background));
+        } else {
+            ui.painter()
+                .rect_filled(bg_rect, 2.0, text_format.background);
+        }
+    }
+    let stroke = Stroke::new(1.0, text_format.color);
+    let x_range = pos.x..=(pos.x + size.x);
+    if text_format.strikethrough {
+        ui.painter()
+            .hline(x_range.clone(), pos.y + font_size * 0.55, stroke);
+    }
+    if text_format.underline {
+        ui.painter()
+            .hline(x_range, pos.y + font_size * 0.95, stroke);
     }
 }
 

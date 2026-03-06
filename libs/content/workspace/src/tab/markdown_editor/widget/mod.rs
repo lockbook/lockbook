@@ -17,7 +17,7 @@ pub const MARGIN: f32 = 45.0; // space between the editor and window border; mus
 pub const MAX_WIDTH: f32 = 1000.0; // the maximum width of the editor before it starts adding padding
 
 pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
-pub const ROW_HEIGHT: f32 = 15.0; // ...at default font size
+pub const ROW_HEIGHT: f32 = 20.0; // ...at default font size
 pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
 pub const INDENT: f32 = 30.0; // enough space for two digits in a numbered list
 pub const BULLET_RADIUS: f32 = 2.0;
