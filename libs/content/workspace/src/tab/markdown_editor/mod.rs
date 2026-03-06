@@ -839,9 +839,14 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
     } else {
-        (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
+        (
+            lb_fonts::NOTO_SANS_REGULAR,
+            lb_fonts::NOTO_SANS_MONO_REGULAR,
+            lb_fonts::NOTO_SANS_BOLD,
+            1.,
+        )
     };
 
     let mono_scale = 0.9 * base_scale;

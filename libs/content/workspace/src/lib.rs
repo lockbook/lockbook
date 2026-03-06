@@ -33,10 +33,6 @@ pub fn make_font_system() -> FontSystem {
 
     font::load(&mut db);
 
-    db.set_sans_serif_family(font::SANS);
-    db.set_serif_family(font::SANS); // no serif bundled; fall back to sans
-    db.set_monospace_family(font::MONO);
-
     FontSystem::new_with_locale_and_db("en-US".into(), db)
 }
 
@@ -118,6 +114,7 @@ pub struct GlyphonRendererCallback {
 pub struct TextBufferArea {
     pub buffer: Arc<RwLock<Buffer>>,
     pub rect: Rect,
+    pub clip_rect: Rect,
     pub scale: f32,
     pub default_color: Color,
 }
@@ -125,10 +122,12 @@ pub struct TextBufferArea {
 impl TextBufferArea {
     pub fn new(
         buffer: Arc<RwLock<Buffer>>, rect: Rect, default_color: Color, ctx: &egui::Context,
+        clip_rect: egui::Rect,
     ) -> Self {
         let ppi = ctx.pixels_per_point();
         let rect = rect * ppi;
-        TextBufferArea { buffer, rect, scale: ppi, default_color }
+        let clip_rect = clip_rect * ppi;
+        TextBufferArea { buffer, rect, clip_rect, scale: ppi, default_color }
     }
 }
 
@@ -169,10 +168,10 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
                 top: b.rect.top(),
                 scale: b.scale,
                 bounds: TextBounds {
-                    left: b.rect.left() as i32,
-                    top: b.rect.top() as i32,
-                    right: b.rect.right() as i32,
-                    bottom: b.rect.bottom() as i32,
+                    left: b.clip_rect.left() as i32,
+                    top: b.clip_rect.top() as i32,
+                    right: b.clip_rect.right() as i32,
+                    bottom: b.clip_rect.bottom() as i32,
                 },
                 default_color: b.default_color,
             })

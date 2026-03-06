@@ -256,6 +256,7 @@ impl Editor {
                     rect,
                     color,
                     ui.ctx(),
+                    ui.clip_rect(),
                 ));
                 draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
             }
