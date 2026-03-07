@@ -318,7 +318,7 @@ impl Workspace {
         self.tabs.remove(i);
         self.out.tabs_changed = true;
 
-        if !self.tabs.is_empty() && self.current_tab >= self.tabs.len() {
+        if !self.tabs.is_empty() && (self.current_tab >= self.tabs.len() || i < self.current_tab) {
             self.current_tab -= 1;
         }
         self.current_tab_changed = true;
