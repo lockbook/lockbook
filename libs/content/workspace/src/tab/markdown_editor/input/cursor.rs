@@ -3,8 +3,9 @@ use std::mem;
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::INLINE_PADDING;
+use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 
 use super::{Event, Location, Region};
 
@@ -27,44 +28,34 @@ impl Editor {
         }
     }
 
-    pub fn range_rects(&self, _range: (DocCharOffset, DocCharOffset)) -> Vec<Rect> {
-        Default::default()
+    pub fn range_rects(&self, range: (DocCharOffset, DocCharOffset)) -> Vec<Rect> {
+        let mut result = Vec::new();
 
-        // let mut result = Vec::new();
+        // todo: binary search
+        for galley_info in self.galleys.galleys.iter().rev() {
+            let GalleyInfo { range: galley_range, mut rect, padded, .. } = galley_info;
+            if galley_range.end() < range.start() {
+                break;
+            } else if galley_range.start() > range.end() {
+                continue;
+            }
 
-        // // todo: binary search
-        // for galley_info in self.galleys.galleys.iter().rev() {
-        //     let GalleyInfo { range: galley_range, galley, mut rect, padded, .. } = galley_info;
-        //     if galley_range.end() < range.start() {
-        //         break;
-        //     } else if galley_range.start() > range.end() {
-        //         continue;
-        //     }
+            if galley_range.contains_inclusive(range.start()) {
+                rect.min.x = galley_info.x(range.start());
+            }
+            if galley_range.contains_inclusive(range.end()) {
+                rect.max.x = galley_info.x(range.end());
+            }
 
-        //     if galley_range.contains_inclusive(range.start()) {
-        //         let cursor = galley.from_ccursor(CCursor {
-        //             index: (range.start() - galley_range.start()).0,
-        //             prefer_next_row: true,
-        //         });
-        //         rect.min.x = cursor_to_pos_abs(galley_info, cursor).x;
-        //     }
-        //     if galley_range.contains_inclusive(range.end()) {
-        //         let cursor = galley.from_ccursor(CCursor {
-        //             index: (range.end() - galley_range.start()).0,
-        //             prefer_next_row: true,
-        //         });
-        //         rect.max.x = cursor_to_pos_abs(galley_info, cursor).x;
-        //     }
+            if rect.area() > 0.001 && *padded {
+                rect = rect.expand2(INLINE_PADDING * Vec2::X);
+            }
 
-        //     if rect.area() > 0.001 && *padded {
-        //         rect = rect.expand2(INLINE_PADDING * Vec2::X);
-        //     }
+            result.push(rect);
+        }
 
-        //     result.push(rect);
-        // }
-
-        // result.reverse();
-        // result
+        result.reverse();
+        result
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.
@@ -207,13 +198,11 @@ impl Editor {
         }
     }
 
-    pub fn cursor_line(&self, _offset: DocCharOffset) -> Option<[Pos2; 2]> {
-        Default::default()
-
-        // let (galley_idx, cursor) = self.galleys.galley_and_cursor_by_offset(offset)?;
-        // let galley = &self.galleys[galley_idx];
-        // let x = cursor_to_pos_abs(galley, cursor).x;
-        // let y_range = galley.rect.y_range();
-        // Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
+    pub fn cursor_line(&self, offset: DocCharOffset) -> Option<[Pos2; 2]> {
+        let galley_idx = self.galleys.galley_at_offset(offset)?;
+        let galley = &self.galleys[galley_idx];
+        let x = galley.x(offset);
+        let y_range = galley.rect.y_range();
+        Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }

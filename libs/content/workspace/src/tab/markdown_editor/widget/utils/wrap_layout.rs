@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::Lines;
+use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
 
@@ -248,7 +249,8 @@ impl Editor {
         } else {
             color
         };
-        for row in &rows {
+        for row in rows {
+            // todo: perhaps text areas and galleys can be the same thing
             let rect = Rect::from_min_size(row.pos, row.size);
             if ui.clip_rect().intersects(rect) {
                 self.text_areas.push(TextBufferArea::new(
@@ -260,6 +262,13 @@ impl Editor {
                 ));
                 draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
             }
+            self.galleys.push(GalleyInfo {
+                is_override: override_text.is_some(),
+                range,
+                buffer: row.buffer,
+                rect,
+                padded,
+            });
         }
 
         wrap.offset += post_span;

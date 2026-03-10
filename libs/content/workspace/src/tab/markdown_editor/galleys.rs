@@ -48,3 +48,21 @@ impl Galleys {
         None
     }
 }
+
+impl GalleyInfo {
+    /// Returns the x position of the offset, assuming the offset lies in this galley.
+    pub fn x(&self, offset: DocCharOffset) -> f32 {
+        // todo: assumes one glyph per unicode segment
+        let rel_offset = offset - self.range.start();
+        let mut rel_x = 0.;
+        if rel_offset > 0 {
+            let buffer = self.buffer.read().unwrap();
+            let glyphs = buffer.layout_runs().next().unwrap().glyphs;
+            for glyph in glyphs.iter().take(rel_offset.0) {
+                rel_x += glyph.w;
+            }
+        }
+
+        self.rect.min.x + rel_x
+    }
+}
