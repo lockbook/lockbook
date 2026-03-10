@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::atomic::Ordering;
 
 use crate::Lb;
 use crate::model::clock::get_time;

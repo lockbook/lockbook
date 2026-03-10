@@ -65,6 +65,7 @@ impl Lb {
     pub(crate) fn setup_syncer(&self) {
         if self.config.background_work {
             let bg_lb = self.clone();
+            // syncer
             tokio::spawn(async move {
                 let mut events = bg_lb.subscribe();
                 loop {
@@ -75,6 +76,26 @@ impl Lb {
                 }
             });
         }
+    }
+
+    async fn fetcher(&self) -> LbResult<()> {
+        let mut files_to_pull = vec![];
+
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        // todo: what triggers this?
+        let Some(root) = db.root.get() else {
+            return Ok(());
+        };
+
+        let tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
+
+        for id in tree.descendants(root)? {
+            let name = tree.name(&id, &self.keychain)?;
+        }
+
+        Ok(())
     }
 
     pub async fn sync(&self) -> LbResult<()> {
@@ -91,6 +112,7 @@ impl Lb {
         self.process_deletions().await?;
         self.fetch_meta(sync_state).await?;
         self.fetch_required_docs(sync_state).await?;
+        // todo: should this inform a re-pull?
         self.merge(sync_state).await?;
         self.commit_last_synced(sync_state).await?;
         self.clone().populate_pk_cache();
@@ -887,7 +909,7 @@ impl Lb {
         Ok(())
     }
 
-    async fn populate_pk_cache(self) {
+    fn populate_pk_cache(self) {
         tokio::spawn(async move { // todo: is this the move?
             let mut missing_owners = HashSet::new();
             {
