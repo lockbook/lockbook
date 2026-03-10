@@ -58,6 +58,7 @@ impl LbWebApp {
             wgpu.target_format,
             &mut wgpu.renderer.write(),
             font_system.clone(),
+            1,
         );
 
         Self {

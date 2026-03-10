@@ -428,6 +428,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
         RendererState::text_format(&renderer.adapter, &renderer.surface),
         &mut renderer.renderer,
         font_system.clone(),
+        renderer.sample_count,
     );
 
     workspace_rs::theme::visuals::init(&renderer.context);

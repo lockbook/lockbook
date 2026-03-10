@@ -52,7 +52,7 @@ pub struct GlyphonRenderCallbackResources {
 
 pub fn register_render_callback_resources(
     device: &Device, queue: &Queue, texture_format: TextureFormat, renderer: &mut Renderer,
-    font_system: Arc<Mutex<FontSystem>>,
+    font_system: Arc<Mutex<FontSystem>>, msaa_samples: u32,
 ) {
     let swash_cache = SwashCache::new();
     let gcache = glyphon::Cache::new(device);
@@ -62,11 +62,7 @@ pub fn register_render_callback_resources(
     let text_renderer = TextRenderer::new(
         &mut text_atlas,
         device,
-        MultisampleState {
-            count: 1, /* todo: 4 on macos, ? on ios, ...? */
-            mask: !0,
-            alpha_to_coverage_enabled: false,
-        },
+        MultisampleState { count: msaa_samples, mask: !0, alpha_to_coverage_enabled: false },
         None,
     );
 

@@ -22,6 +22,7 @@ pub struct RendererState<'w> {
     pub surface: Surface<'w>,
     pub renderer: Renderer,
     pub queue: Queue,
+    pub sample_count: u32,
 
     start_time: Instant,
     surface_width: u32,
@@ -65,6 +66,7 @@ impl<'w> RendererState<'w> {
             device,
             renderer,
             queue,
+            sample_count: 4,
             surface_width: 0,
             surface_height: 0,
             bottom_inset: None,

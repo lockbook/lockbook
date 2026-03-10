@@ -56,6 +56,7 @@ fn main() {
                 wgpu.target_format,
                 wgpu.renderer.write().deref_mut(),
                 font_system.clone(),
+                1,
             );
 
             Ok(Box::new(EframeLockbook {

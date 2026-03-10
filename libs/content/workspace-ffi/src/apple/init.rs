@@ -25,6 +25,7 @@ pub unsafe extern "C" fn init_ws(
         RendererState::text_format(&renderer.adapter, &renderer.surface),
         &mut renderer.renderer,
         font_system.clone(),
+        renderer.sample_count,
     );
 
     visuals::init(&renderer.context);
