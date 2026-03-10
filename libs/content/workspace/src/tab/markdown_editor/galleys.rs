@@ -65,7 +65,7 @@ impl GalleyInfo {
         self.rect.min.x + rel_x
     }
 
-    /// Retuns the offset closest to pos in this galley.
+    /// Returns the offset closest to pos in this galley.
     pub fn offset(&self, pos: Pos2) -> DocCharOffset {
         let rel_x = pos.x - self.rect.min.x;
 

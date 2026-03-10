@@ -1,6 +1,6 @@
 use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
@@ -153,7 +153,7 @@ impl Editor {
         };
 
         // find where the first row breaks by shaping with row remaining width
-        let (first_row_text, remaining_text) = {
+        let (first_row_range, remaining_range) = {
             let tmp = self.upsert_glyphon_buffer(
                 text,
                 font_size,
@@ -168,38 +168,50 @@ impl Editor {
             } else {
                 text.len()
             };
-            (text[..first_row_bytes].to_string(), text[first_row_bytes..].to_string())
+
+            let first_row_start_byte = self.offset_to_byte(range.start());
+            let first_row_range =
+                self.range_to_char((first_row_start_byte, first_row_start_byte + first_row_bytes));
+            let remaining_range = (first_row_range.end(), range.end());
+
+            (first_row_range, remaining_range)
         };
+        let first_row_text = &self.buffer[first_row_range];
+        let remaining_text = &self.buffer[remaining_range];
 
         // collect rows
         struct RowData {
             buffer: std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>,
             size: Vec2,
             pos: Pos2,
+            range: (DocCharOffset, DocCharOffset),
         }
         let mut rows: Vec<RowData> = Vec::new();
 
         {
             // collect rows: first row
             let row = self.upsert_glyphon_buffer(
-                &first_row_text,
+                first_row_text,
                 font_size,
                 font_size,
                 wrap.row_remaining(),
                 &text_format,
             );
             let size = row.read().unwrap().shaped_size();
-            let pos =
-                top_left + Vec2::new(wrap.row_offset(), wrap.row() as f32 * font_size + y_offset);
+            let pos = top_left
+                + Vec2::new(
+                    wrap.row_offset(),
+                    wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
+                );
             let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
-            rows.push(RowData { buffer: row, size, pos });
+            rows.push(RowData { buffer: row, size, pos, range: first_row_range });
             wrap.offset += advance;
         }
 
         if !remaining_text.is_empty() {
             // collect rows: remaining rows
             let tmp = self.upsert_glyphon_buffer(
-                &remaining_text,
+                remaining_text,
                 font_size,
                 font_size,
                 wrap.width,
@@ -207,14 +219,23 @@ impl Editor {
             );
             let tmp = tmp.read().unwrap();
             let runs_count = tmp.layout_runs().count();
+            let remaining_range_bytes = self.range_to_byte(remaining_range);
             for (i, run) in tmp.layout_runs().enumerate() {
                 let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
                 let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                let row_text = if remaining_text[start..].starts_with(' ') {
-                    &remaining_text[start + 1..end]
+                let row_range = if remaining_text[start..].starts_with(' ') {
+                    self.range_to_char((
+                        remaining_range_bytes.start() + start + 1,
+                        remaining_range_bytes.start() + end,
+                    ))
                 } else {
-                    &remaining_text[start..end]
+                    self.range_to_char((
+                        remaining_range_bytes.start() + start,
+                        remaining_range_bytes.start() + end,
+                    ))
                 };
+
+                let row_text = &self.buffer[row_range];
                 let row = self.upsert_glyphon_buffer(
                     row_text,
                     font_size,
@@ -224,9 +245,12 @@ impl Editor {
                 );
                 let size = row.read().unwrap().shaped_size();
                 let pos = top_left
-                    + Vec2::new(wrap.row_offset(), wrap.row() as f32 * font_size + y_offset);
+                    + Vec2::new(
+                        wrap.row_offset(),
+                        wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
+                    );
                 let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
-                rows.push(RowData { buffer: row, size, pos });
+                rows.push(RowData { buffer: row, size, pos, range: row_range });
                 wrap.offset += advance;
             }
         }
@@ -250,7 +274,7 @@ impl Editor {
             color
         };
         for row in rows {
-            // todo: perhaps text areas and galleys can be the same thing
+            // todo: some of these can be the same thing
             let rect = Rect::from_min_size(row.pos, row.size);
             if ui.clip_rect().intersects(rect) {
                 self.text_areas.push(TextBufferArea::new(
@@ -264,11 +288,12 @@ impl Editor {
             }
             self.galleys.push(GalleyInfo {
                 is_override: override_text.is_some(),
-                range,
+                range: row.range,
                 buffer: row.buffer,
                 rect,
                 padded,
             });
+            wrap.row_ranges.push(row.range);
         }
 
         wrap.offset += post_span;

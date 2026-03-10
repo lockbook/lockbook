@@ -922,13 +922,13 @@ impl<'ast> Editor {
                 }
                 current_selection
             }
-            Region::ToAdvance { advance: offset, backwards, extend_selection } => {
+            Region::ToAdvance { advance, backwards, extend_selection } => {
                 if extend_selection
                     || current_selection.is_empty()
-                    || matches!(offset, Advance::To(..))
+                    || matches!(advance, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = self.advance(selection.1, offset, backwards);
+                    selection.1 = self.advance(selection.1, advance, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
