@@ -64,7 +64,7 @@ impl Editor {
         if let Some([top, bot]) = self.cursor_line(offset) {
             ui.painter().clone().vline(
                 top.x,
-                Rangef { min: top.y, max: bot.y }.expand(ROW_SPACING / 2.),
+                Rangef { min: top.y, max: bot.y },
                 Stroke::new(1., accent),
             );
         }
@@ -202,7 +202,7 @@ impl Editor {
         let galley_idx = self.galleys.galley_at_offset(offset)?;
         let galley = &self.galleys[galley_idx];
         let x = self.galley_x(galley, offset);
-        let y_range = galley.rect.y_range();
+        let y_range = galley.rect.y_range().expand(ROW_SPACING / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }
