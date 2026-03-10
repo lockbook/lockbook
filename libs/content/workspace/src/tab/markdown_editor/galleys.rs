@@ -3,6 +3,8 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
+use crate::tab::markdown_editor::Editor;
+
 #[derive(Default)]
 pub struct Galleys {
     pub galleys: Vec<GalleyInfo>,
@@ -49,37 +51,44 @@ impl Galleys {
     }
 }
 
-impl GalleyInfo {
+impl Editor {
     /// Returns the x position of the offset, assuming the offset lies in this
     /// galley. For the y position, use self.rect.y_range().
-    pub fn x(&self, offset: DocCharOffset) -> f32 {
-        // todo: assumes one glyph per unicode segment
-        let rel_offset = offset - self.range.start();
-        let mut rel_x = 0.;
-        let buffer = self.buffer.read().unwrap();
+    pub fn galley_x(&self, galley: &GalleyInfo, offset: DocCharOffset) -> f32 {
+        let buffer = galley.buffer.read().unwrap();
         let glyphs = buffer.layout_runs().next().unwrap().glyphs;
-        for glyph in glyphs.iter().take(rel_offset.0) {
-            rel_x += glyph.w;
+
+        let rel_offset = self.range_to_byte((galley.range.start(), offset)).len();
+        let mut rel_x = 0.;
+
+        for glyph in glyphs {
+            if glyph.end > rel_offset {
+                break;
+            }
+            rel_x += glyph.w / self.ctx.pixels_per_point();
         }
 
-        self.rect.min.x + rel_x
+        galley.rect.min.x + rel_x
     }
 
     /// Returns the offset closest to pos in this galley.
-    pub fn offset(&self, pos: Pos2) -> DocCharOffset {
-        let rel_x = pos.x - self.rect.min.x;
-
-        let buffer = self.buffer.read().unwrap();
+    pub fn galley_offset(&self, galley: &GalleyInfo, pos: Pos2) -> DocCharOffset {
+        let buffer = galley.buffer.read().unwrap();
         let glyphs = buffer.layout_runs().next().unwrap().glyphs;
-        let mut offset = self.range.start();
+
+        let rel_x = pos.x - galley.rect.min.x;
+        let start = self.offset_to_byte(galley.range.start());
+
+        let mut rel_offset = 0;
         let mut x = 0.;
         for glyph in glyphs.iter() {
             if x + glyph.w / 2. > rel_x {
                 break;
             }
-            x += glyph.w;
-            offset += 1;
+            x += glyph.w / self.ctx.pixels_per_point();
+            rel_offset = glyph.end;
         }
-        offset
+
+        self.offset_to_char(start + rel_offset)
     }
 }

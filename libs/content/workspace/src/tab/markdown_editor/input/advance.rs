@@ -72,8 +72,8 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = new_galley.offset(target_pos);
-                    let new_x = new_galley.x(new_offset);
+                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_x = self.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target
 
@@ -112,8 +112,8 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = new_galley.offset(target_pos);
-                    let new_x = new_galley.x(new_offset);
+                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_x = self.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target
 
@@ -150,6 +150,6 @@ impl Editor {
     fn x(&self, offset: DocCharOffset) -> Option<f32> {
         let cur_galley_idx = self.galleys.galley_at_offset(offset)?;
         let cur_galley = &self.galleys[cur_galley_idx];
-        Some(cur_galley.x(offset))
+        Some(self.galley_x(cur_galley, offset))
     }
 }

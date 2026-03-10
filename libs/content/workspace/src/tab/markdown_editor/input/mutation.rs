@@ -1014,7 +1014,7 @@ impl<'ast> Editor {
                 // click an override galley to select the whole thing
                 galley.range
             } else {
-                galley.offset(pos).into_range()
+                self.galley_offset(galley, pos).into_range()
             }
         }
     }

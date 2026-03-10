@@ -41,10 +41,10 @@ impl Editor {
             }
 
             if galley_range.contains_inclusive(range.start()) {
-                rect.min.x = galley_info.x(range.start());
+                rect.min.x = self.galley_x(galley_info, range.start());
             }
             if galley_range.contains_inclusive(range.end()) {
-                rect.max.x = galley_info.x(range.end());
+                rect.max.x = self.galley_x(galley_info, range.end());
             }
 
             if rect.area() > 0.001 && *padded {
@@ -201,7 +201,7 @@ impl Editor {
     pub fn cursor_line(&self, offset: DocCharOffset) -> Option<[Pos2; 2]> {
         let galley_idx = self.galleys.galley_at_offset(offset)?;
         let galley = &self.galleys[galley_idx];
-        let x = galley.x(offset);
+        let x = self.galley_x(galley, offset);
         let y_range = galley.rect.y_range();
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
