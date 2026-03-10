@@ -4,7 +4,7 @@ use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::INLINE_PADDING;
+use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_SPACING};
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 
 use super::{Event, Location, Region};
@@ -64,7 +64,7 @@ impl Editor {
         if let Some([top, bot]) = self.cursor_line(offset) {
             ui.painter().clone().vline(
                 top.x,
-                Rangef { min: top.y, max: bot.y },
+                Rangef { min: top.y, max: bot.y }.expand(ROW_SPACING / 2.),
                 Stroke::new(1., accent),
             );
         }
