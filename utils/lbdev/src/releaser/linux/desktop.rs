@@ -355,10 +355,13 @@ pub fn update_flatpak() -> CliResult<()> {
         .args(["clone", "--depth=1", "--branch", &version, "https://github.com/lockbook/lockbook.git", &clone_dir])
         .assert_success()?;
 
-    Command::new("python3")
+    Command::new("git")
         .args([
-            "utils/flatpak-cargo-generator.py",
-            &format!("{clone_dir}/Cargo.lock"),
+            "clone",
+            "--depth=1",
+            "--branch",
+            "https://github.com/flatpak/flatpak-builder-tools.git",
+            &format!("/Cargo.lock"),
             "-o",
             &cargo_sources_out,
         ])
