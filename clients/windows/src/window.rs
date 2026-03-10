@@ -1,7 +1,7 @@
 use crate::input::file_drop::FileDropHandler;
 use crate::input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use crate::{input, output};
-use egui::{PlatformOutput, ViewportCommand, Visuals};
+use egui::{PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
@@ -9,8 +9,10 @@ use raw_window_handle::{
     RawWindowHandle, Win32WindowHandle, WindowHandle, WindowsDisplayHandle,
 };
 use std::num::NonZeroIsize;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+
 use windows::Win32::Foundation::*;
 use windows::Win32::Graphics::Direct3D12::*;
 use windows::Win32::Graphics::Dxgi::*;
