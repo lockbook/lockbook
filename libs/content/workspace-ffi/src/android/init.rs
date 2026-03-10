@@ -15,6 +15,7 @@ use raw_window_handle::{
 use std::ptr::NonNull;
 use std::sync::{Arc, Mutex};
 use wgpu::SurfaceTargetUnsafe;
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
@@ -93,7 +94,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let workspace = Workspace::new(core, &renderer.context, false);
+    let workspace = Workspace::new(core, &renderer.context, font_system, false);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
