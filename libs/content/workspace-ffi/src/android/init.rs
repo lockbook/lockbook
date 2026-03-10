@@ -78,7 +78,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
-    let renderer =
+    let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
     let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
