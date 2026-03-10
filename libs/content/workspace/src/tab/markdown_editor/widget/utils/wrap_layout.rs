@@ -259,8 +259,7 @@ impl Editor {
         let mut response = Response::default();
         for row in &rows {
             let rect = Rect::from_min_size(row.pos, row.size);
-            let interact_rect =
-                if padded { rect.expand2(Vec2::new(INLINE_PADDING, 2.)) } else { rect };
+            let interact_rect = if padded { rect.expand(INLINE_PADDING) } else { rect };
             let id = ui.id().with((row.pos.x.to_bits(), row.pos.y.to_bits()));
             let egui_resp = ui.interact(interact_rect, id, sense);
             response.hovered |= egui_resp.hovered();
