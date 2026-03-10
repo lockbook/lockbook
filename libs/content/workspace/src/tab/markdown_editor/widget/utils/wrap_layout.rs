@@ -1,6 +1,6 @@
 use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
@@ -153,7 +153,13 @@ impl Editor {
         };
 
         // find where the first row breaks by shaping with row remaining width
-        let (first_row_range, remaining_range) = {
+        let (first_row_range, remaining_range) = if override_text.is_some() {
+            // todo: only first row of override text gets shown
+            // this is fine-ish because override text is only used for single
+            // glyphs (emoji shortcodes, link buttons) or whole-line text (alert
+            // types)
+            (range, range.end().into_range())
+        } else {
             let tmp = self.upsert_glyphon_buffer(
                 text,
                 font_size,
@@ -176,8 +182,10 @@ impl Editor {
 
             (first_row_range, remaining_range)
         };
-        let first_row_text = &self.buffer[first_row_range];
-        let remaining_text = &self.buffer[remaining_range];
+        let first_row_text = override_text.unwrap_or(&self.buffer[first_row_range]);
+        let remaining_text = override_text
+            .map(|_| "")
+            .unwrap_or(&self.buffer[remaining_range]);
 
         // collect rows
         struct RowData {
@@ -204,7 +212,12 @@ impl Editor {
                     wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
                 );
             let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
-            rows.push(RowData { buffer: row, size, pos, range: first_row_range });
+            rows.push(RowData {
+                buffer: row,
+                size,
+                pos,
+                range: if override_text.is_some() { range } else { first_row_range },
+            });
             wrap.offset += advance;
         }
 
