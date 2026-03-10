@@ -624,6 +624,10 @@ impl Editor {
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
+        let ppi = self.ctx.pixels_per_point();
+        let font_size = font_size * ppi;
+        let line_height = line_height * ppi;
+        let width = width * ppi;
         let key = GlyphonBufferKey::new(text, font_size, line_height, width, format);
         let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
         cache

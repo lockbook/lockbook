@@ -127,6 +127,7 @@ impl Editor {
         sense: Sense,
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
+        let ppi = self.ctx.pixels_per_point();
         let padded = text_format.background != egui::Color32::TRANSPARENT;
         let sense = if text_format.spoiler { Sense::hover() } else { sense };
 
@@ -205,7 +206,7 @@ impl Editor {
                 wrap.row_remaining(),
                 &text_format,
             );
-            let size = row.read().unwrap().shaped_size();
+            let size = row.read().unwrap().shaped_size() / ppi;
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
@@ -256,7 +257,7 @@ impl Editor {
                     wrap.width,
                     &text_format,
                 );
-                let size = row.read().unwrap().shaped_size();
+                let size = row.read().unwrap().shaped_size() / ppi;
                 let pos = top_left
                     + Vec2::new(
                         wrap.row_offset(),
@@ -327,6 +328,7 @@ impl Editor {
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: Format,
     ) -> f32 {
+        let ppi = self.ctx.pixels_per_point();
         let font_size = if text_format.superscript || text_format.subscript {
             wrap.row_height * 0.75
         } else {
@@ -356,7 +358,7 @@ impl Editor {
                 &text_format,
             );
             let guard = row.read().unwrap();
-            guard.shaped_size()
+            guard.shaped_size() / ppi
         };
 
         if remaining_text.is_empty() {
@@ -387,7 +389,8 @@ impl Editor {
                     .upsert_glyphon_buffer(row_text, font_size, font_size, wrap.width, &text_format)
                     .read()
                     .unwrap()
-                    .shaped_size();
+                    .shaped_size()
+                    / ppi;
                 if i < runs_count - 1 {
                     // wrapping row: consume the full row
                     span += wrap.width;

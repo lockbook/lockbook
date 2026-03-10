@@ -111,7 +111,6 @@ pub struct TextBufferArea {
     pub buffer: Arc<RwLock<Buffer>>,
     pub rect: Rect,
     pub clip_rect: Rect,
-    pub scale: f32,
     pub default_color: Color,
 }
 
@@ -123,7 +122,7 @@ impl TextBufferArea {
         let ppi = ctx.pixels_per_point();
         let rect = rect * ppi;
         let clip_rect = clip_rect * ppi;
-        TextBufferArea { buffer, rect, clip_rect, scale: ppi, default_color }
+        TextBufferArea { buffer, rect, clip_rect, default_color }
     }
 }
 
@@ -162,7 +161,7 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
                 buffer: bufrefs.get(i).unwrap(),
                 left: b.rect.left(),
                 top: b.rect.top(),
-                scale: b.scale,
+                scale: 1.0,
                 bounds: TextBounds {
                     left: b.clip_rect.left() as i32,
                     top: b.clip_rect.top() as i32,
