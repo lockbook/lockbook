@@ -1,35 +1,20 @@
-use std::sync::Arc;
-
 use comrak::nodes::{AstNode, NodeLink};
-use egui::{FontFamily, FontId, OpenUrl, Pos2, Sense, Stroke, TextFormat, Ui};
+use egui::{OpenUrl, Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::theme::icons::Icon;
 
 impl<'ast> Editor {
-    pub fn text_format_link(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_link(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat {
-            color: self.theme.fg().blue,
-            underline: Stroke { width: 1., color: self.theme.fg().blue },
-            ..parent_text_format
-        }
+        Format { color: self.theme.fg().blue, underline: true, ..parent_text_format }
     }
 
-    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> TextFormat {
-        let parent_text_format = self.text_format(parent);
-        let link_text_format = self.text_format_link(parent);
-        TextFormat {
-            color: link_text_format.color,
-            font_id: FontId {
-                family: FontFamily::Name(Arc::from("Icons")),
-                ..parent_text_format.font_id
-            },
-            ..parent_text_format
-        }
+    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
+        Format { family: FontFamily::Icons, ..self.text_format_link(parent) }
     }
 
     pub fn span_link(
@@ -79,7 +64,6 @@ impl<'ast> Editor {
                 wrap,
                 self.node_range(node).end().into_range(),
                 self.text_format(node.parent().unwrap()),
-                false,
                 Some(" "),
                 Sense { click: true, drag: false, focusable: false },
             );
@@ -89,7 +73,6 @@ impl<'ast> Editor {
                 wrap,
                 self.node_range(node).end().into_range(),
                 self.text_format_link_button(node.parent().unwrap()),
-                false,
                 Some(Icon::OPEN_IN_NEW.icon),
                 Sense { click: true, drag: false, focusable: false },
             );

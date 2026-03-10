@@ -8,17 +8,21 @@ use wgpu::{
     TextureDescriptor, TextureFormat, TextureUsages,
 };
 
+pub use egui_wgpu;
+pub use wgpu;
+
 pub struct RendererState<'w> {
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
     pub screen: ScreenDescriptor,
     pub bottom_inset: Option<u32>,
 
-    device: Device,
-    adapter: Adapter,
-    surface: Surface<'w>,
-    renderer: Renderer,
-    queue: Queue,
+    pub device: Device,
+    pub adapter: Adapter,
+    pub surface: Surface<'w>,
+    pub renderer: Renderer,
+    pub queue: Queue,
+    pub sample_count: u32,
 
     start_time: Instant,
     surface_width: u32,
@@ -62,6 +66,7 @@ impl<'w> RendererState<'w> {
             device,
             renderer,
             queue,
+            sample_count: 4,
             surface_width: 0,
             surface_height: 0,
             bottom_inset: None,
@@ -184,7 +189,7 @@ impl<'w> RendererState<'w> {
     }
 
     /// inspired by egui_wgpu::RenderState
-    fn text_format(adapter: &Adapter, surface: &Surface<'w>) -> TextureFormat {
+    pub fn text_format(adapter: &Adapter, surface: &Surface<'w>) -> TextureFormat {
         egui_wgpu::preferred_framebuffer_format(&surface.get_capabilities(adapter).formats).unwrap()
     }
 

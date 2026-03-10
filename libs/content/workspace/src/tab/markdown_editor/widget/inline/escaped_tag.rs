@@ -1,13 +1,13 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, TextFormat, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> Format {
         self.text_format(parent)
     }
 
@@ -48,14 +48,8 @@ impl<'ast> Editor {
         if any_children {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
-                    response |= self.show_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        prefix_range,
-                        self.text_format(node),
-                        false,
-                    );
+                    response |=
+                        self.show_section(ui, top_left, wrap, prefix_range, self.text_format(node));
                 }
             }
             response |= self.show_inline_children(ui, node, top_left, wrap, range);
@@ -67,21 +61,14 @@ impl<'ast> Editor {
                         wrap,
                         postfix_range,
                         self.text_format(node),
-                        false,
                     );
                 }
             }
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    node_range,
-                    self.text_format(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, node_range, self.text_format(node));
             }
         }
         response

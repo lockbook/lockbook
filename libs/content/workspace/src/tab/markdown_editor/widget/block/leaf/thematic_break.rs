@@ -17,14 +17,7 @@ impl<'ast> Editor {
 
         if self.node_intersects_selection(node) {
             let mut wrap = Wrap::new(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_syntax(node),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let rect = Rect::from_min_size(top_left, Vec2::new(width, ROW_HEIGHT));
@@ -41,8 +34,7 @@ impl<'ast> Editor {
                 top_left,
                 &mut wrap,
                 node_line.end().into_range(),
-                self.text_format_syntax(node),
-                false,
+                self.text_format_syntax(),
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         }

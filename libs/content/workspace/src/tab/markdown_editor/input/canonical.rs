@@ -456,4 +456,3 @@ impl<'ast> Editor {
         }
     }
 }
-impl Event {}

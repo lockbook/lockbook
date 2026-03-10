@@ -1,7 +1,9 @@
+use std::sync::{Arc, Mutex};
+
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
     tab::{
-        markdown_editor::{Editor, MdConfig},
+        markdown_editor::{Editor, MdConfig, MdResources},
         svg_editor::SVGEditor,
     },
     theme::palette_v2::{Mode, Theme, ThemeExt as _},
@@ -45,8 +47,22 @@ impl LbWebApp {
         ctx.set_lb_theme(Theme::default(Mode::Dark));
         ctx.set_visuals(generate_visuals());
 
+        let Some(ref wgpu) = cc.wgpu_render_state else {
+            panic!("must use wgpu as graphics target")
+        };
+
+        let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
+        workspace_rs::register_render_callback_resources(
+            &wgpu.device,
+            &wgpu.queue,
+            wgpu.target_format,
+            &mut wgpu.renderer.write(),
+            font_system.clone(),
+            1,
+        );
+
         Self {
-            workspace: Workspace::new(&lb, &ctx, false),
+            workspace: Workspace::new(&lb, &ctx, font_system, false),
             editor: None,
             canvas: None,
             initial_screen,
@@ -70,12 +86,15 @@ impl eframe::App for LbWebApp {
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
                     self.editor = Some(Editor::new(
-                        ctx.clone(),
-                        self.workspace.core.clone(),
-                        self.workspace.cfg.clone(),
                         include_str!("../resources/editor-demo.md"),
                         Uuid::new_v4(),
                         None,
+                        MdResources {
+                            ctx: ctx.clone(),
+                            core: self.workspace.core.clone(),
+                            persistence: self.workspace.cfg.clone(),
+                            font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
+                        },
                         MdConfig { plaintext_mode: false, readonly: false },
                     ));
                 }

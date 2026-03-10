@@ -1,12 +1,10 @@
 use std::mem;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt};
+use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Advance, Increment};
-use egui::Vec2;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
-
-use super::cursor;
+use egui::Pos2;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 impl Editor {
     pub fn advance(
@@ -48,21 +46,11 @@ impl Editor {
     fn advance_by_line(
         &self, offset: DocCharOffset, x_target: f32, backwards: bool,
     ) -> DocCharOffset {
-        let Some((cur_galley_idx, cur_ecursor)) = self.galleys.galley_and_cursor_by_offset(offset)
-        else {
+        let Some(cur_galley_idx) = self.galleys.galley_at_offset(offset) else {
             return offset;
         };
         let cur_galley = &self.galleys[cur_galley_idx];
         if backwards {
-            let at_top_of_cur_galley = cur_ecursor.rcursor.row == 0;
-            if !at_top_of_cur_galley {
-                // within a galley: just move up one row
-                let new_cursor = cur_galley.galley.cursor_up_one_row(&cur_ecursor);
-                return self
-                    .galleys
-                    .offset_by_galley_and_cursor(cur_galley, new_cursor);
-            }
-
             // jump to the closest galley above that's not above another galley that's above
             let mut closest_offset: Option<DocCharOffset> = None;
             let mut closest_distance = f32::INFINITY;
@@ -81,24 +69,19 @@ impl Editor {
                 } else if new_galley_is_above {
                     row_above_top = Some(new_galley.rect.top());
 
-                    let mut new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
-                        x: 0.0, // overwritten next line
-                        y: new_galley.rect.bottom(),
-                    });
-                    new_cursor =
-                        cursor::from_x(x_target, &self.galleys[new_galley_idx], new_cursor);
+                    let cur_y = cur_galley.rect.min.y;
+                    let target_pos = Pos2::new(x_target, cur_y);
 
-                    let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
-                    let distance = (pos.x - x_target).abs(); // closest as in closest to target
+                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_x = self.galley_x(new_galley, new_offset);
+
+                    let distance = (new_x - x_target).abs(); // closest as in closest to target
 
                     // prefer empty galleys which are placed deliberately to affect such behavior
                     if distance < closest_distance
                         || (distance == closest_distance && new_galley.range.is_empty())
                     {
-                        closest_offset = Some(
-                            self.galleys
-                                .offset_by_galley_and_cursor(new_galley, new_cursor),
-                        );
+                        closest_offset = Some(new_offset);
                         closest_distance = distance;
                     }
                 } else {
@@ -108,16 +91,6 @@ impl Editor {
 
             closest_offset.unwrap_or(offset)
         } else {
-            let at_bottom_of_cur_galley =
-                cur_ecursor.rcursor.row == cur_galley.galley.rows.len() - 1;
-            if !at_bottom_of_cur_galley {
-                // within a galley: just move down one row
-                let new_cursor = cur_galley.galley.cursor_down_one_row(&cur_ecursor);
-                return self
-                    .galleys
-                    .offset_by_galley_and_cursor(cur_galley, new_cursor);
-            }
-
             // jump to the closest galley below that's not below another galley that's below
             let mut closest_offset: Option<DocCharOffset> = None;
             let mut closest_distance = f32::INFINITY;
@@ -136,24 +109,19 @@ impl Editor {
                 } else if new_galley_is_below {
                     row_below_bottom = Some(new_galley.rect.bottom());
 
-                    let mut new_cursor = new_galley.galley.cursor_from_pos(Vec2 {
-                        x: 0.0, // overwritten next line
-                        y: new_galley.rect.top(),
-                    });
-                    new_cursor =
-                        cursor::from_x(x_target, &self.galleys[new_galley_idx], new_cursor);
+                    let cur_y = cur_galley.rect.min.y;
+                    let target_pos = Pos2::new(x_target, cur_y);
 
-                    let pos = cursor::cursor_to_pos_abs(new_galley, new_cursor);
-                    let distance = (pos.x - x_target).abs(); // closest as in closest to target
+                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_x = self.galley_x(new_galley, new_offset);
+
+                    let distance = (new_x - x_target).abs(); // closest as in closest to target
 
                     // prefer empty galleys which are placed deliberately to affect such behavior
                     if distance < closest_distance
                         || (distance == closest_distance && new_galley.range.is_empty())
                     {
-                        closest_offset = Some(
-                            self.galleys
-                                .offset_by_galley_and_cursor(new_galley, new_cursor),
-                        );
+                        closest_offset = Some(new_offset);
                         closest_distance = distance;
                     }
                 } else {
@@ -180,8 +148,8 @@ impl Editor {
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
     fn x(&self, offset: DocCharOffset) -> Option<f32> {
-        let (cur_galley_idx, cur_cursor) = self.galleys.galley_and_cursor_by_offset(offset)?;
+        let cur_galley_idx = self.galleys.galley_at_offset(offset)?;
         let cur_galley = &self.galleys[cur_galley_idx];
-        Some(cursor::x_impl(cur_galley, cur_cursor))
+        Some(self.galley_x(cur_galley, offset))
     }
 }
