@@ -995,36 +995,28 @@ impl<'ast> Editor {
     }
 
     // todo: find a better home
-    pub fn pos_to_range(&self, _pos: Pos2) -> (DocCharOffset, DocCharOffset) {
-        todo!()
+    pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
+        let galleys = &self.galleys;
+        let galley_idx = pos_to_galley(pos, galleys);
+        let galley = &galleys[galley_idx];
 
-        // let galleys = &self.galleys;
-        // let galley_idx = pos_to_galley(pos, galleys);
-        // let galley = &galleys[galley_idx];
-        // let relative_pos = pos - galley.rect.min;
-
-        // if galley.range.is_empty() {
-        //     // empty galley range means every position in the galley maps to
-        //     // that location
-        //     let result = galley.range.start();
-        //     result.into_range()
-        // } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
-        //     // every position lower than the final galley's bottom maps to the last cursor position
-        //     self.buffer.current.segs.last_cursor_position().into_range()
-        // } else {
-        //     // clamp y coordinate for forgiving cursor placement clicks
-        //     let relative_pos =
-        //         Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
-
-        //     if galley.is_override {
-        //         // click an override galley to select the whole thing
-        //         galley.range
-        //     } else {
-        //         let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-        //         let result = galleys.offset_by_galley_and_cursor(galley, new_cursor);
-        //         result.into_range()
-        //     }
-        // }
+        if galley.range.is_empty() {
+            // empty galley range means every position in the galley maps to
+            // that location
+            let result = galley.range.start();
+            result.into_range()
+        } else if galley_idx == galleys.len() - 1 && pos.y > galley.rect.max.y {
+            // every position lower than the final galley's bottom maps to the last cursor position
+            self.buffer.current.segs.last_cursor_position().into_range()
+        } else {
+            #[allow(clippy::collapsible_else_if)]
+            if galley.is_override {
+                // click an override galley to select the whole thing
+                galley.range
+            } else {
+                galley.offset(pos).into_range()
+            }
+        }
     }
 
     pub fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {

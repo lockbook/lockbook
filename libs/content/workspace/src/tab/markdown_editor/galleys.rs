@@ -1,4 +1,4 @@
-use egui::Rect;
+use egui::{Pos2, Rect};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
@@ -50,19 +50,36 @@ impl Galleys {
 }
 
 impl GalleyInfo {
-    /// Returns the x position of the offset, assuming the offset lies in this galley.
+    /// Returns the x position of the offset, assuming the offset lies in this
+    /// galley. For the y position, use self.rect.y_range().
     pub fn x(&self, offset: DocCharOffset) -> f32 {
         // todo: assumes one glyph per unicode segment
         let rel_offset = offset - self.range.start();
         let mut rel_x = 0.;
-        if rel_offset > 0 {
-            let buffer = self.buffer.read().unwrap();
-            let glyphs = buffer.layout_runs().next().unwrap().glyphs;
-            for glyph in glyphs.iter().take(rel_offset.0) {
-                rel_x += glyph.w;
-            }
+        let buffer = self.buffer.read().unwrap();
+        let glyphs = buffer.layout_runs().next().unwrap().glyphs;
+        for glyph in glyphs.iter().take(rel_offset.0) {
+            rel_x += glyph.w;
         }
 
         self.rect.min.x + rel_x
+    }
+
+    /// Retuns the offset closest to pos in this galley.
+    pub fn offset(&self, pos: Pos2) -> DocCharOffset {
+        let rel_x = pos.x - self.rect.min.x;
+
+        let buffer = self.buffer.read().unwrap();
+        let glyphs = buffer.layout_runs().next().unwrap().glyphs;
+        let mut offset = self.range.start();
+        let mut x = 0.;
+        for glyph in glyphs.iter() {
+            if x + glyph.w / 2. > rel_x {
+                break;
+            }
+            x += glyph.w;
+            offset += 1;
+        }
+        offset
     }
 }
