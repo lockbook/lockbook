@@ -305,7 +305,7 @@ impl Editor {
                 rect,
                 padded,
             });
-            wrap.row_ranges.push(row.range);
+            wrap.add_range(row.range);
         }
 
         wrap.offset += post_span;
