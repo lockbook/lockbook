@@ -206,7 +206,7 @@ impl Editor {
                 wrap.row_remaining(),
                 &text_format,
             );
-            let size = row.read().unwrap().shaped_size() / ppi;
+            let size = row.read().unwrap().shaped_size(ppi);
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
@@ -257,7 +257,7 @@ impl Editor {
                     wrap.width,
                     &text_format,
                 );
-                let size = row.read().unwrap().shaped_size() / ppi;
+                let size = row.read().unwrap().shaped_size(ppi);
                 let pos = top_left
                     + Vec2::new(
                         wrap.row_offset(),
@@ -358,7 +358,7 @@ impl Editor {
                 &text_format,
             );
             let guard = row.read().unwrap();
-            guard.shaped_size() / ppi
+            guard.shaped_size(ppi)
         };
 
         if remaining_text.is_empty() {
@@ -389,8 +389,7 @@ impl Editor {
                     .upsert_glyphon_buffer(row_text, font_size, font_size, wrap.width, &text_format)
                     .read()
                     .unwrap()
-                    .shaped_size()
-                    / ppi;
+                    .shaped_size(ppi);
                 if i < runs_count - 1 {
                     // wrapping row: consume the full row
                     span += wrap.width;
@@ -446,11 +445,11 @@ fn draw_decorations(
 }
 
 trait BufferExt {
-    fn shaped_size(&self) -> Vec2;
+    fn shaped_size(&self, ppi: f32) -> Vec2;
 }
 
 impl BufferExt for glyphon::Buffer {
-    fn shaped_size(&self) -> Vec2 {
+    fn shaped_size(&self, ppi: f32) -> Vec2 {
         let mut result = Vec2::ZERO;
         for run in self.layout_runs() {
             result.y += self.metrics().line_height;
@@ -458,7 +457,7 @@ impl BufferExt for glyphon::Buffer {
                 result.x = result.x.max(last_glyph.x + last_glyph.w)
             }
         }
-        result
+        result / ppi
     }
 }
 

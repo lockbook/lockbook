@@ -82,7 +82,7 @@ impl Editor {
         let mut rel_offset = 0;
         let mut x = 0.;
         for glyph in glyphs.iter() {
-            if x + glyph.w / 2. > rel_x {
+            if x + glyph.w / self.ctx.pixels_per_point() / 2. > rel_x {
                 break;
             }
             x += glyph.w / self.ctx.pixels_per_point();
