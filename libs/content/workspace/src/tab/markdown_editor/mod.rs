@@ -332,8 +332,8 @@ impl Editor {
         let width = ui.max_rect().width().min(MAX_WIDTH);
         let height_updated = self.height != height;
         let width_updated = self.width != width;
-        self.height = height;
-        self.width = width;
+        self.height = height.round();
+        self.width = width.round();
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
