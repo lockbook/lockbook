@@ -352,7 +352,14 @@ pub fn update_flatpak() -> CliResult<()> {
         std::fs::remove_dir_all(&clone_dir).unwrap();
     }
     Command::new("git")
-        .args(["clone", "--depth=1", "--branch", &version, "https://github.com/lockbook/lockbook.git", &clone_dir])
+        .args([
+            "clone",
+            "--depth=1",
+            "--branch",
+            &version,
+            "https://github.com/lockbook/lockbook.git",
+            &clone_dir,
+        ])
         .assert_success()?;
 
     Command::new("git")
@@ -368,14 +375,22 @@ pub fn update_flatpak() -> CliResult<()> {
         .assert_success()?;
 
     Command::new("curl")
-        .args(["-fL", &format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz"), "-o", &tarball])
+        .args([
+            "-fL",
+            &format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz"),
+            "-o",
+            &tarball,
+        ])
         .assert_success()?;
 
     let sha256_output = Command::new("sh")
         .args(["-c", &format!("sha256sum {tarball} | awk '{{print $1}}'")])
         .output()
         .unwrap();
-    let sha256 = String::from_utf8(sha256_output.stdout).unwrap().trim().to_string();
+    let sha256 = String::from_utf8(sha256_output.stdout)
+        .unwrap()
+        .trim()
+        .to_string();
 
     let url = format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
     overwrite_flatpak_manifest(&url, &sha256)?;
