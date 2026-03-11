@@ -32,7 +32,7 @@ use crate::{
         symkey, text,
         tree_like::TreeLike,
     },
-    service::events::{Actor, SyncIncrement},
+    service::events::{Actor, Event, SyncIncrement},
 };
 
 pub type Syncer = Arc<Mutex<SyncState>>;
@@ -71,7 +71,10 @@ impl Lb {
                 loop {
                     let evt = events.recv().await.unwrap();
                     match evt {
-                        _ => {} // todo!
+                        Event::Sync(SyncIncrement::SyncFinished(_)) => {
+                            bg_lb.fetcher().await.unwrap();
+                        },
+                        _ => {}
                     }
                 }
             });
@@ -84,15 +87,41 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        // todo: what triggers this?
         let Some(root) = db.root.get() else {
             return Ok(());
         };
 
-        let tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
+        let mut tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
 
-        for id in tree.descendants(root)? {
+        for id in tree.descendants_using_links(root)? {
+            let file = tree.find(&id)?;
+            let hmac = file.document_hmac().copied();
+
+            // skip non-documents
+            if !file.is_document() {
+                continue;
+            }
+
+            // skip deleted files
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+
+            // skip non-first-party files
             let name = tree.name(&id, &self.keychain)?;
+            if !name.ends_with(".md") && !name.ends_with(".svg") {
+                continue;
+            }
+
+            files_to_pull.push((id, hmac));
+        }
+
+        drop(tx);
+
+        for (id, hmac) in files_to_pull {
+            if let Some(hmac) = hmac {
+                self.fetch_doc(id, hmac).await?;
+            }
         }
 
         Ok(())
@@ -910,7 +939,8 @@ impl Lb {
     }
 
     fn populate_pk_cache(self) {
-        tokio::spawn(async move { // todo: is this the move?
+        tokio::spawn(async move {
+            // todo: is this the move?
             let mut missing_owners = HashSet::new();
             {
                 let tx = self.ro_tx().await;
