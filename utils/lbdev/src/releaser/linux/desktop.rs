@@ -368,7 +368,7 @@ pub fn update_flatpak() -> CliResult<()> {
             "--depth=1",
             "--branch",
             "https://github.com/flatpak/flatpak-builder-tools.git",
-            &format!("/Cargo.lock"),
+            "/Cargo.lock",
             "-o",
             &cargo_sources_out,
         ])
