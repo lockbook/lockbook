@@ -343,7 +343,7 @@ pub fn overwrite_flatpak_manifest(url: &str, sha256: &str) -> CliResult<()> {
 }
 
 pub fn update_flatpak() -> CliResult<()> {
-    let version = "26.2.11".to_string();
+    let version = lb_version();
     let clone_dir = format!("/tmp/lockbook-{version}");
     let tarball = format!("/tmp/lockbook-{version}.tar.gz");
     let cargo_sources_out = format!("/tmp/cargo-sources-{version}.json");
