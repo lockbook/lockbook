@@ -14,8 +14,6 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, MARGIN};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
@@ -39,7 +37,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width - 2. * MARGIN,
+            NodeValue::Document => self.width - 2. * self.visuals.margin,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items
@@ -101,14 +99,14 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 height += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.wrap(self.width(node)),
                     node_line,
                     self.text_format_syntax(),
                 );
-                height += BLOCK_SPACING;
+                height += self.visuals.block_spacing;
             }
             if height > 0. {
-                height -= BLOCK_SPACING;
+                height -= self.visuals.block_spacing;
             }
 
             return height;
@@ -198,11 +196,11 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = Wrap::new(self.width(node));
+                let mut wrap = self.wrap(self.width(node));
                 self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
 
                 top_left.y += wrap.height();
-                top_left.y += BLOCK_SPACING;
+                top_left.y += self.visuals.block_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 

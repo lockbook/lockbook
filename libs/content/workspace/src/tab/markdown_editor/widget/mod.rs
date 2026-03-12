@@ -13,17 +13,6 @@ pub(crate) mod inline;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-pub const MARGIN: f32 = 45.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
-pub const MAX_WIDTH: f32 = 1000.0; // the maximum width of the editor before it starts adding padding
-
-pub const INLINE_PADDING: f32 = 2.0; // the extra space granted to inline code for a border (all sides)
-pub const ROW_HEIGHT: f32 = 16.0; // ...at default font size
-pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
-pub const INDENT: f32 = 26.0; // enough space for two digits in a numbered list
-pub const BULLET_RADIUS: f32 = 2.0;
-pub const ROW_SPACING: f32 = 6.0; // must be large enough to accommodate bordered elements e.g. inline code
-pub const BLOCK_SPACING: f32 = 14.0;
-
 impl<'ast> Editor {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
@@ -238,7 +227,7 @@ impl<'ast> Editor {
     pub fn row_height(&self, node: &AstNode<'_>) -> f32 {
         match &node.data.borrow().value {
             NodeValue::Heading(NodeHeading { level, .. }) => self.heading_row_height(*level),
-            _ => ROW_HEIGHT,
+            _ => self.visuals.row_height,
         }
     }
 

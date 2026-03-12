@@ -6,8 +6,6 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -20,7 +18,7 @@ impl<'ast> Editor {
             let line_content = self.line_content(node, line);
 
             self.height_section(
-                &mut Wrap::new(self.width(node) - INDENT),
+                &mut self.wrap(self.width(node) - self.visuals.indent),
                 line_content,
                 self.text_format_syntax(),
             )
@@ -37,7 +35,7 @@ impl<'ast> Editor {
         };
         let NodeList { list_type, start, .. } = node_list;
 
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_size = Vec2 { x: self.visuals.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         let annotation_color = self.theme.fg().neutral_tertiary;
@@ -45,7 +43,7 @@ impl<'ast> Editor {
             ListType::Bullet => {
                 ui.painter().circle_filled(
                     annotation_space.center(),
-                    BULLET_RADIUS * row_height / ROW_HEIGHT,
+                    self.visuals.bullet_radius * row_height / self.visuals.row_height,
                     annotation_color,
                 );
             }
@@ -58,7 +56,7 @@ impl<'ast> Editor {
                 let layout_job = LayoutJob::single_section(
                     text,
                     TextFormat {
-                        font_id: FontId::new(ROW_HEIGHT, FontFamily::Monospace),
+                        font_id: FontId::new(self.visuals.row_height, FontFamily::Monospace),
                         color: annotation_color,
                         ..Default::default()
                     },
@@ -71,7 +69,7 @@ impl<'ast> Editor {
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+            self.show_block_children(ui, node, top_left + self.visuals.indent * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let children_height = self.block_children_height(node);
@@ -82,10 +80,10 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            let mut wrap = Wrap::new(self.width(node) - INDENT);
+            let mut wrap = self.wrap(self.width(node) - self.visuals.indent);
             let resp = self.show_section(
                 ui,
-                top_left + INDENT * Vec2::X,
+                top_left + self.visuals.indent * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_syntax(),
@@ -100,7 +98,7 @@ impl<'ast> Editor {
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.visuals.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)

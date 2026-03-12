@@ -2,8 +2,6 @@ use comrak::nodes::{AstNode, NodeTaskItem};
 use egui::{Checkbox, Pos2, Rect, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_editor::widget::INDENT;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::{Editor, Event};
 
 impl<'ast> Editor {
@@ -20,7 +18,7 @@ impl<'ast> Editor {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_size = Vec2 { x: self.visuals.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         self.touch_consuming_rects.push(annotation_space);
 
@@ -41,7 +39,7 @@ impl<'ast> Editor {
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+            self.show_block_children(ui, node, top_left + self.visuals.indent * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let children_height = self.block_children_height(node);
@@ -52,10 +50,10 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            let mut wrap = Wrap::new(self.width(node));
+            let mut wrap = self.wrap(self.width(node));
             let resp = self.show_section(
                 ui,
-                top_left + INDENT * Vec2::X,
+                top_left + self.visuals.indent * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_document(),
@@ -70,7 +68,7 @@ impl<'ast> Editor {
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.visuals.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)

@@ -34,7 +34,6 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
-use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
 mod galleys;
@@ -56,6 +55,34 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
+}
+
+pub struct Visuals {
+    pub margin: f32,
+    pub max_width: f32,
+    pub inline_padding: f32,
+    pub row_height: f32,
+    pub block_padding: f32,
+    pub indent: f32,
+    pub bullet_radius: f32,
+    pub row_spacing: f32,
+    pub block_spacing: f32,
+}
+
+impl Default for Visuals {
+    fn default() -> Self {
+        Self {
+            margin: 45.0, // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
+            max_width: 1000.0, // the maximum width of the editor before it starts adding padding
+            inline_padding: 2.0, // the extra space granted to inline code for a border (all sides)
+            row_height: 16.0,
+            block_padding: 10.0, // between a table cell / code block and its contents (all sides)
+            indent: 26.0,        // enough space for two digits in a numbered list
+            bullet_radius: 2.0,
+            row_spacing: 6.0, // must be large enough to accommodate bordered elements e.g. inline code
+            block_spacing: 14.0,
+        }
+    }
 }
 
 pub struct Editor {
@@ -97,6 +124,7 @@ pub struct Editor {
     pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
     // widgets
+    pub visuals: Visuals,
     pub toolbar: Toolbar,
     pub find: Find,
 
@@ -228,6 +256,8 @@ impl Editor {
             scroll_to_cursor: Default::default(),
             unprocessed_scroll: Default::default(),
 
+            visuals: Default::default(),
+
             top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
@@ -329,7 +359,7 @@ impl Editor {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(MAX_WIDTH);
+        let width = ui.max_rect().width().min(self.visuals.max_width);
         let height_updated = self.height != height;
         let width_updated = self.width != width;
         self.height = height.round();
@@ -708,7 +738,8 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
+                            self.top_left =
+                                ui.max_rect().min + (padding + self.visuals.margin) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -722,7 +753,7 @@ impl Editor {
                             };
                             let rect = Rect::from_min_size(
                                 self.top_left,
-                                Vec2::new(self.width - 2. * MARGIN, height),
+                                Vec2::new(self.width - 2. * self.visuals.margin, height),
                             );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame

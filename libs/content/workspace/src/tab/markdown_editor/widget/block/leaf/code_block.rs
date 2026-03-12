@@ -8,8 +8,7 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 impl<'ast> Editor {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
@@ -41,10 +40,10 @@ impl<'ast> Editor {
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
-        let width = self.width(node) - 2. * BLOCK_PADDING;
+        let width = self.width(node) - 2. * self.visuals.block_padding;
 
-        let mut result = BLOCK_PADDING;
-        result -= ROW_SPACING;
+        let mut result = self.visuals.block_padding;
+        result -= self.visuals.row_spacing;
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -60,20 +59,20 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    result += ROW_SPACING;
+                    result += self.visuals.row_spacing;
                     result += self.height_section(
-                        &mut Wrap::new(width),
+                        &mut self.wrap(width),
                         node_line,
                         self.text_format_syntax(),
                     );
                 }
             } else {
-                result += ROW_SPACING;
+                result += self.visuals.row_spacing;
                 result += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
 
-        result + BLOCK_PADDING
+        result + self.visuals.block_padding
     }
 
     pub fn show_fenced_code_block(
@@ -87,10 +86,10 @@ impl<'ast> Editor {
         ui.painter()
             .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
 
-        width -= 2. * BLOCK_PADDING;
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
-        top_left.y -= ROW_SPACING; // makes spacing logic simpler
+        width -= 2. * self.visuals.block_padding;
+        top_left.x += self.visuals.block_padding;
+        top_left.y += self.visuals.block_padding;
+        top_left.y -= self.visuals.row_spacing; // makes spacing logic simpler
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -106,8 +105,8 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    top_left.y += ROW_SPACING;
-                    let mut wrap = Wrap::new(width);
+                    top_left.y += self.visuals.row_spacing;
+                    let mut wrap = self.wrap(width);
                     self.show_section(
                         ui,
                         top_left,
@@ -119,7 +118,7 @@ impl<'ast> Editor {
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             } else {
-                top_left.y += ROW_SPACING;
+                top_left.y += self.visuals.row_spacing;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
                 top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
@@ -158,7 +157,7 @@ impl<'ast> Editor {
             if reveal {
                 let node_line = self.node_line(node, line);
                 result += self.height_section(
-                    &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
+                    &mut self.wrap(self.width(node) - 2. * self.visuals.block_padding),
                     node_line,
                     self.text_format_syntax(),
                 );
@@ -167,11 +166,11 @@ impl<'ast> Editor {
             }
 
             if line_idx != last_line_idx {
-                result += ROW_SPACING;
+                result += self.visuals.row_spacing;
             }
         }
 
-        result + 2. * BLOCK_PADDING
+        result + 2. * self.visuals.block_padding
     }
 
     // indented code blocks don't have an info string; the `info` parameter is
@@ -188,8 +187,8 @@ impl<'ast> Editor {
         ui.painter()
             .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
 
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
+        top_left.x += self.visuals.block_padding;
+        top_left.y += self.visuals.block_padding;
 
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
@@ -199,7 +198,7 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                let mut wrap = Wrap::new(width);
+                let mut wrap = self.wrap(width);
                 self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -208,7 +207,7 @@ impl<'ast> Editor {
                 top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
-            top_left.y += ROW_SPACING;
+            top_left.y += self.visuals.row_spacing;
         }
     }
 
@@ -283,7 +282,7 @@ impl<'ast> Editor {
             .find_syntax_by_token(info)
             .map(|syntax| HighlightLines::new(syntax, syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.wrap(self.width(node) - 2. * self.visuals.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
@@ -364,7 +363,7 @@ impl<'ast> Editor {
             .find_syntax_by_token(info)
             .map(|syntax| HighlightLines::new(syntax, syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.wrap(self.width(node) - 2. * self.visuals.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {

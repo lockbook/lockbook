@@ -7,19 +7,18 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_HEIGHT, ROW_SPACING};
-
 #[derive(Clone, Debug)]
 pub struct Wrap {
     pub offset: f32,
     pub width: f32,
     pub row_height: f32, // overridden by headings
+    pub row_spacing: f32,
     pub row_ranges: Lines,
 }
 
 impl Wrap {
-    pub fn new(width: f32) -> Self {
-        Self { offset: 0.0, width, row_height: ROW_HEIGHT, row_ranges: Vec::new() }
+    pub fn new(width: f32, row_height: f32, row_spacing: f32) -> Self {
+        Self { offset: 0.0, width, row_height, row_spacing, row_ranges: Vec::new() }
     }
 
     /// The index of the current row
@@ -51,7 +50,7 @@ impl Wrap {
     pub fn height(&self) -> f32 {
         let num_rows = ((self.offset / self.width).ceil() as usize).max(1);
         let num_spacings = num_rows.saturating_sub(1);
-        num_rows as f32 * self.row_height + num_spacings as f32 * ROW_SPACING
+        num_rows as f32 * self.row_height + num_spacings as f32 * self.row_spacing
     }
 
     pub fn add_range(&mut self, range: (DocCharOffset, DocCharOffset)) {
@@ -66,6 +65,10 @@ impl Wrap {
 }
 
 impl Editor {
+    pub fn wrap(&self, width: f32) -> Wrap {
+        Wrap::new(width, self.visuals.row_height, self.visuals.row_spacing)
+    }
+
     /// Returns the height of a single text section. Pass a fresh wrap initialized with the desired width.
     pub fn height_section(
         &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: Format,
@@ -210,7 +213,7 @@ impl Editor {
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
-                    wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
+                    wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
                 );
             let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
             rows.push(RowData {
@@ -261,7 +264,7 @@ impl Editor {
                 let pos = top_left
                     + Vec2::new(
                         wrap.row_offset(),
-                        wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
+                        wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
                     );
                 let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
                 rows.push(RowData { buffer: row, size, pos, range: row_range });
@@ -273,7 +276,8 @@ impl Editor {
         let mut response = Response::default();
         for row in &rows {
             let rect = Rect::from_min_size(row.pos, row.size);
-            let interact_rect = if padded { rect.expand(INLINE_PADDING) } else { rect };
+            let interact_rect =
+                if padded { rect.expand(self.visuals.inline_padding) } else { rect };
             let id = ui.id().with((row.pos.x.to_bits(), row.pos.y.to_bits()));
             let egui_resp = ui.interact(interact_rect, id, sense);
             response.hovered |= egui_resp.hovered();
@@ -297,7 +301,15 @@ impl Editor {
                     ui.ctx(),
                     ui.clip_rect(),
                 ));
-                draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
+                draw_decorations(
+                    ui,
+                    row.pos,
+                    row.size,
+                    font_size,
+                    &text_format,
+                    response.hovered,
+                    self.visuals.inline_padding,
+                );
             }
             self.galleys.push(GalleyInfo {
                 is_override: override_text.is_some(),
@@ -318,7 +330,7 @@ impl Editor {
     pub fn text_pre_span(&self, wrap: &Wrap, text_format: &Format) -> f32 {
         let padded = text_format.background != egui::Color32::TRANSPARENT;
         if padded && wrap.row_offset() > 0.5 {
-            INLINE_PADDING.min(wrap.row_remaining())
+            self.visuals.inline_padding.min(wrap.row_remaining())
         } else {
             0.
         }
@@ -412,7 +424,7 @@ impl Editor {
                 row_ranges: Default::default(),
                 ..*wrap
             };
-            INLINE_PADDING.min(wrap.row_remaining())
+            self.visuals.inline_padding.min(wrap.row_remaining())
         } else {
             0.
         }
@@ -421,9 +433,10 @@ impl Editor {
 
 fn draw_decorations(
     ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
+    inline_padding: f32,
 ) {
     if text_format.background != egui::Color32::TRANSPARENT {
-        let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(INLINE_PADDING, 2.));
+        let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(inline_padding, 2.));
         if text_format.spoiler && hovered {
             ui.painter()
                 .rect_stroke(bg_rect, 2.0, Stroke::new(1.0, text_format.background));

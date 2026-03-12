@@ -3,8 +3,7 @@ use egui::{Pos2, Rangef, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::BLOCK_PADDING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 impl<'ast> Editor {
     pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> Format {
@@ -17,13 +16,13 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
 
-            BLOCK_PADDING
+            self.visuals.block_padding
                 + self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.wrap(self.width(node)),
                     node_line,
                     self.text_format_syntax(),
                 )
-                + BLOCK_PADDING
+                + self.visuals.block_padding
         } else {
             // the height of the row is the height of the tallest cell
             let mut cell_height_max = 0.0f32;
@@ -39,12 +38,12 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, is_header_row: bool,
     ) {
         if self.reveal_table_row(node) {
-            top_left += Vec2::splat(BLOCK_PADDING);
+            top_left += Vec2::splat(self.visuals.block_padding);
 
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
 
-            let mut wrap = Wrap::new(self.width(node));
+            let mut wrap = self.wrap(self.width(node));
             self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {

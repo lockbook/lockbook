@@ -3,8 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeIterExt as _;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::ROW_SPACING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 impl<'ast> Editor {
     pub fn text_format_document(&self) -> Format {
@@ -33,8 +32,8 @@ impl<'ast> Editor {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 result +=
-                    self.height_section(&mut Wrap::new(width), line, self.text_format_syntax());
-                result += ROW_SPACING;
+                    self.height_section(&mut self.wrap(width), line, self.text_format_syntax());
+                result += self.visuals.row_spacing;
             }
             result
         }
@@ -50,10 +49,10 @@ impl<'ast> Editor {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
 
-                let mut wrap = Wrap::new(width);
+                let mut wrap = self.wrap(width);
                 self.show_section(ui, top_left, &mut wrap, line, self.text_format_syntax());
                 top_left.y += wrap.height();
-                top_left.y += ROW_SPACING;
+                top_left.y += self.visuals.row_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
