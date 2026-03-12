@@ -83,6 +83,15 @@ impl<'w> RendererState<'w> {
         self.screen.pixels_per_point = native * self.context.zoom_factor();
     }
 
+    pub fn pos_from_pixels(&self, x: f32, y: f32) -> egui::Pos2 {
+        egui::Pos2 { x: x / self.screen.pixels_per_point, y: y / self.screen.pixels_per_point }
+    }
+
+    pub fn pos_from_points(&self, x: f32, y: f32) -> egui::Pos2 {
+        let z = self.context.zoom_factor();
+        egui::Pos2 { x: x / z, y: y / z }
+    }
+
     pub fn begin_frame(&mut self) {
         self.configure_surface();
 
