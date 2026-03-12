@@ -300,8 +300,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
             if let Some(ref mut window) = maybe_window {
                 if let Some(ref mut app) = window.maybe_app {
                     // events sent to app every frame
-                    app.renderer.context.set_pixels_per_point(window.dpi_scale);
-                    app.renderer.screen.pixels_per_point = window.dpi_scale;
+                    app.renderer.set_native_pixels_per_point(window.dpi_scale);
                     app.renderer.screen.size_in_pixels[0] = window.width as _;
                     app.renderer.screen.size_in_pixels[1] = window.height as _;
                     app.renderer.raw_input.modifiers = modifiers;

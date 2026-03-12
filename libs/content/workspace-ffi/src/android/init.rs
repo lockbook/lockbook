@@ -115,7 +115,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
 
     obj.renderer.screen.size_in_pixels[0] = native_window.get_width();
     obj.renderer.screen.size_in_pixels[1] = native_window.get_height();
-    obj.renderer.screen.pixels_per_point = scale_factor;
+    obj.renderer.set_native_pixels_per_point(scale_factor);
 }
 
 #[no_mangle]

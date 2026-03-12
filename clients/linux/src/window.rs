@@ -231,8 +231,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => 1.0,
             };
-            lb.renderer.screen.pixels_per_point = scale_factor;
-            lb.renderer.context.set_pixels_per_point(scale_factor);
+            lb.renderer.set_native_pixels_per_point(scale_factor);
 
             if close {
                 output::close();

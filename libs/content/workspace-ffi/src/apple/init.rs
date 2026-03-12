@@ -48,5 +48,5 @@ pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.screen.size_in_pixels[0] = width as u32;
     obj.renderer.screen.size_in_pixels[1] = height as u32;
-    obj.renderer.screen.pixels_per_point = scale;
+    obj.renderer.set_native_pixels_per_point(scale);
 }

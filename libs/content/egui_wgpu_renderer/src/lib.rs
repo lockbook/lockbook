@@ -76,6 +76,13 @@ impl<'w> RendererState<'w> {
         }
     }
 
+    /// Call to update the screen ppp based on an up-to-date native ppp. This is
+    /// how the app responds to native ppp changes, such as when the app is
+    /// moved to a display with a different pixel density.
+    pub fn set_native_pixels_per_point(&mut self, native: f32) {
+        self.screen.pixels_per_point = native * self.context.zoom_factor();
+    }
+
     pub fn begin_frame(&mut self) {
         self.configure_surface();
 
@@ -117,6 +124,14 @@ impl<'w> RendererState<'w> {
 
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let full_output = self.context.end_pass();
+
+        // Update the screen ppp based on an up-to-date screen ppp from egui.
+        // This is how the app responds to zoom factor changes, such as cmd+-,
+        // cmd+=, or cmd+0. If the zoom factor changed this frame, the new zoom
+        // factor was already used, so this value must be updated before using
+        // self.screen for tesselation & render.
+        self.screen.pixels_per_point = full_output.pixels_per_point;
+
         self.context.tessellation_options_mut(|w| {
             w.feathering = false;
         });
@@ -237,8 +252,14 @@ impl<'w> RendererState<'w> {
                 self.screen.size_in_pixels[1] as f32 / self.screen.pixels_per_point,
             ),
         });
-        self.context
-            .set_pixels_per_point(self.screen.pixels_per_point);
+        if let Some(viewport) = self
+            .raw_input
+            .viewports
+            .get_mut(&self.raw_input.viewport_id)
+        {
+            viewport.native_pixels_per_point =
+                Some(self.screen.pixels_per_point / self.context.zoom_factor());
+        }
     }
 
     async fn request_device(
