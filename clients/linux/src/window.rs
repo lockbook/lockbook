@@ -231,8 +231,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => 1.0,
             };
-            lb.renderer.screen.pixels_per_point = scale_factor;
-            lb.renderer.context.set_pixels_per_point(scale_factor);
+            lb.renderer.set_native_pixels_per_point(scale_factor);
 
             if close {
                 output::close();
@@ -264,15 +263,9 @@ fn handle(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
-        Event::ButtonPress(event) => {
-            input::pointer::handle_press(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::ButtonRelease(event) => {
-            input::pointer::handle_release(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::MotionNotify(event) => {
-            input::pointer::handle_motion(lb, event, lb.renderer.screen.pixels_per_point)
-        }
+        Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
+        Event::ButtonRelease(event) => input::pointer::handle_release(lb, event),
+        Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
 
         // keyboard
         Event::KeymapNotify(_) => {

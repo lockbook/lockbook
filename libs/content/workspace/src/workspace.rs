@@ -83,6 +83,7 @@ impl Workspace {
         let files = FileCache::new(core).log_and_ignore();
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+        ctx.set_zoom_factor(cfg.get_zoom_factor());
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -878,6 +879,7 @@ pub struct WsPresistentData {
     auto_save: bool,
     auto_sync: bool,
     landing_page: LandingPage,
+    zoom_factor: f32,
 }
 
 impl Default for WsPresistentData {
@@ -890,6 +892,7 @@ impl Default for WsPresistentData {
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
+            zoom_factor: 1.,
         }
     }
 }
@@ -981,6 +984,16 @@ impl WsPersistentStore {
     pub fn set_landing_page(&mut self, landing_page: LandingPage) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.landing_page = landing_page;
+        self.write_to_file();
+    }
+
+    pub fn get_zoom_factor(&self) -> f32 {
+        self.data.read().unwrap().zoom_factor
+    }
+
+    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.zoom_factor = zoom_factor;
         self.write_to_file();
     }
 

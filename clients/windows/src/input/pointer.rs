@@ -21,7 +21,7 @@ impl PointerManager {
     // interestingly, the message type doesn't matter; we just need to call GetPointerFrameInfoHistory for relevant information
     pub fn handle(
         &mut self, app: &mut WgpuLockbook, window_handle: HWND, modifiers: egui::Modifiers,
-        dpi_scale: f32, pointer_id: u16,
+        pointer_id: u16,
     ) -> bool {
         let pointer_id = pointer_id as _;
         let pointer_infos = {
@@ -132,10 +132,10 @@ impl PointerManager {
                 _ => 0.0,
             };
 
-            let pos = egui::Pos2 {
-                x: (location.x as f64 + x.fract()) as f32 / dpi_scale,
-                y: (location.y as f64 + y.fract()) as f32 / dpi_scale,
-            };
+            let pos = app.renderer.pos_from_pixels(
+                (location.x as f64 + x.fract()) as f32,
+                (location.y as f64 + y.fract()) as f32,
+            );
 
             // also send pointer events when we receive touch events, similar to ios ffi
             // todo: account for other pointer flags e.g. to distinguish draw from erase
