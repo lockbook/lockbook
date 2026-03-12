@@ -46,6 +46,11 @@ impl Workspace {
             self.cfg.set_tabs(&self.tabs, self.current_tab);
         }
 
+        let zoom = self.ctx.zoom_factor();
+        if zoom != self.cfg.get_zoom_factor() {
+            self.cfg.set_zoom_factor(zoom);
+        }
+
         mem::take(&mut self.out)
     }
 
