@@ -40,7 +40,7 @@ impl<'ast> Editor {
                 self.node_range(node).end().into_range(),
                 self.text_format(node),
                 Some(&node_short_code.emoji),
-                Sense { click: false, drag: false, focusable: false },
+                Sense::hover(),
             )
         } else {
             Response::default()

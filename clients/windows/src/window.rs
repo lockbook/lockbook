@@ -1,7 +1,7 @@
 use crate::input::file_drop::FileDropHandler;
 use crate::input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use crate::{input, output};
-use egui::{PlatformOutput, ViewportCommand};
+use egui::{OutputCommand, PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
@@ -334,10 +334,27 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
                             let Output {
-                                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                                platform: PlatformOutput { cursor_icon, commands, .. },
                                 viewport,
                                 app: Response { close },
                             } = app.frame();
+                            let open_url = commands.iter().find_map(|c| {
+                                if let OutputCommand::OpenUrl(u) = c {
+                                    Some(u.clone())
+                                } else {
+                                    None
+                                }
+                            });
+                            let copied_text = commands
+                                .iter()
+                                .find_map(|c| {
+                                    if let OutputCommand::CopyText(t) = c {
+                                        Some(t.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap_or_default();
 
                             let mut redraw_in = None;
                             let mut window_title = None;
@@ -360,9 +377,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                             if output::clipboard_copy::handle(copied_text.clone()).is_err() {
                                 // windows clipboard sometimes has transient errors
-                                app.renderer
-                                    .context
-                                    .output_mut(|o| o.copied_text = copied_text);
+                                app.renderer.context.copy_text(copied_text);
                             }
                             if request_paste {
                                 input::clipboard_paste::handle(app);

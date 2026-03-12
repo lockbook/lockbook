@@ -21,9 +21,9 @@ impl Toolbar {
             max: egui::Pos2 { x: history_island_x_start, y: history_island_y_start },
         };
 
-        let res = ui.allocate_new_ui(UiBuilder::new().max_rect(history_rect), |ui| {
+        let res = ui.scope_builder(UiBuilder::new().max_rect(history_rect), |ui| {
             egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(7.5, 3.5))
+                .inner_margin(egui::Margin::symmetric(8, 4))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let undo_btn = ui

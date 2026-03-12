@@ -99,10 +99,10 @@ impl SettingsModal {
     }
 
     fn show_tab_labels(&mut self, ui: &mut egui::Ui) {
-        egui::Frame::none()
+        egui::Frame::new()
             .fill(ui.visuals().faint_bg_color)
-            .rounding(egui::Rounding {
-                sw: ui.style().visuals.window_rounding.sw,
+            .corner_radius(egui::CornerRadius {
+                sw: ui.style().visuals.window_corner_radius.sw,
                 ..Default::default()
             })
             .show(ui, |ui| {

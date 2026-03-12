@@ -32,7 +32,7 @@ impl super::Modal for CreateShareModal {
         let mut maybe_submission = None;
 
         egui::Frame::default()
-            .inner_margin(egui::Margin::same(10.0))
+            .inner_margin(egui::Margin::same(10))
             .show(ui, |ui| {
                 let is_folder = if self.file.is_folder() { "Folder" } else { "" };
                 ui.heading(format!("Share \"{}\" {}", self.file.name, is_folder));
@@ -98,8 +98,8 @@ fn sharee_info(ui: &mut egui::Ui, share: &Share) {
     egui::Frame::default()
         .fill(ui.style().visuals.faint_bg_color)
         .stroke(egui::Stroke { width: 0.1, color: ui.visuals().text_color() })
-        .inner_margin(egui::Margin::same(10.0))
-        .rounding(egui::Rounding::same(5.0))
+        .inner_margin(egui::Margin::same(10))
+        .corner_radius(5.0)
         .show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(share.shared_with.to_string());

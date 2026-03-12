@@ -83,7 +83,7 @@ impl<'ast> Editor {
                     (node_range.end() - 1).into_range(),
                     self.text_format(node),
                     Some(&text),
-                    Sense { click: false, drag: false, focusable: false },
+                    Sense::hover(),
                 );
             }
         }

@@ -11,7 +11,7 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
+use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility, ScrollSource};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
     Pos2, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, scroll_area,
@@ -475,7 +475,7 @@ impl Editor {
                     if !self.readonly {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                        ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                        ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });
                     }
@@ -685,12 +685,16 @@ impl Editor {
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
         let margin: Margin = if cfg!(target_os = "android") {
-            Margin::symmetric(0.0, 60.0)
+            Margin::symmetric(0, 60)
         } else {
-            Margin::symmetric(0.0, 15.0)
+            Margin::symmetric(0, 15)
         };
         ScrollArea::vertical()
-            .drag_to_scroll(self.touch_mode)
+            .scroll_source(if self.touch_mode {
+                ScrollSource::ALL
+            } else {
+                ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
+            })
             .id_salt(self.file_id)
             .scroll_bar_visibility(if self.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
@@ -730,14 +734,18 @@ impl Editor {
                             let response = ui.interact(
                                 rect,
                                 self.id(),
-                                Sense { click: true, drag: !self.touch_mode, focusable: true },
+                                if self.touch_mode {
+                                    Sense::click()
+                                } else {
+                                    Sense::click_and_drag()
+                                },
                             );
                             if focused && !self.focused(ui.ctx()) {
                                 // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
                                 self.focus(ui.ctx());
                             }
                             let response_properly_clicked =
-                                response.clicked() && !response.fake_primary_click;
+                                response.clicked_by(egui::PointerButton::Primary);
                             if response.hovered() || response_properly_clicked {
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
@@ -745,7 +753,7 @@ impl Editor {
 
                             ui.advance_cursor_after_rect(rect);
 
-                            ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                                 self.show_block(ui, root, self.top_left);
                             });
                         });

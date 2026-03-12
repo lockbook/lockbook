@@ -1,4 +1,4 @@
-use egui::{Rounding, Stroke, TextStyle, TextWrapMode, WidgetText};
+use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
 
@@ -11,7 +11,7 @@ pub struct Button<'a> {
     icon_alignment: Option<egui::Align>,
     padding: Option<egui::Vec2>,
     is_loading: bool,
-    rounding: egui::Rounding,
+    rounding: egui::CornerRadius,
     stroke: egui::Stroke,
     frame: bool,
     hexpand: bool,
@@ -50,7 +50,7 @@ impl<'a> Button<'a> {
         Self { padding: Some(padding.into()), ..self }
     }
 
-    pub fn rounding(self, rounding: impl Into<Rounding>) -> Self {
+    pub fn rounding(self, rounding: impl Into<egui::CornerRadius>) -> Self {
         Self { rounding: rounding.into(), ..self }
     }
 
@@ -83,7 +83,7 @@ impl<'a> Button<'a> {
     }
 
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
-        egui::Frame::none()
+        egui::Frame::new()
             .outer_margin(self.margin)
             .show(ui, |ui| {
                 let text_style = self.text_style.unwrap_or(egui::TextStyle::Body);
@@ -147,12 +147,13 @@ impl<'a> Button<'a> {
 
                     ui.painter().add(epaint::RectShape {
                         rect,
-                        rounding: self.rounding,
+                        corner_radius: self.rounding,
                         fill: if self.frame { bg_fill } else { egui::Color32::TRANSPARENT },
                         stroke: self.stroke,
-                        fill_texture_id: egui::TextureId::default(),
-                        uv: egui::Rect::ZERO,
+                        stroke_kind: epaint::StrokeKind::Inside,
+                        round_to_pixels: None,
                         blur_width: 0.,
+                        brush: None,
                     });
 
                     let mut text_pos = egui::pos2(

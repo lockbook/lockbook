@@ -94,7 +94,7 @@ impl Workspace {
                     let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         response |= self.show_heading(ui);
                         ui.add_space(40.0);
                         response |= self.show_filters(ui);
@@ -236,7 +236,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Note").clicked() {
                                     response.create_note = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -252,7 +252,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Drawing").clicked() {
                                     response.create_drawing = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -268,7 +268,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Folder").clicked() {
                                     response.create_folder = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -438,6 +438,7 @@ impl Workspace {
                             filters_height / 2.,
                             ui.visuals().extreme_bg_color,
                             ui.visuals().widgets.noninteractive.bg_stroke,
+                            egui::epaint::StrokeKind::Inside,
                         );
 
                         ui.add_space(15.0); // margin

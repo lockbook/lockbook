@@ -25,7 +25,7 @@ impl super::AccountScreen {
         if self.settings.read().unwrap().sidebar_usage {
             if let Some(usage) = &self.lb_status.space_used {
                 let usage = Usage::from(usage);
-                egui::Frame::none().show(ui, |ui| {
+                egui::Frame::new().show(ui, |ui| {
                     let is_throttled_hover =
                         if let Some(hover_origin) = self.sync.usage_msg_gained_hover {
                             let throttle_duration = Duration::from_millis(100);
@@ -124,7 +124,7 @@ impl super::AccountScreen {
             .icon_alignment(egui::Align::RIGHT)
             .padding(egui::vec2(20.0, 7.0))
             .frame(true)
-            .rounding(egui::Rounding::same(5.0))
+            .rounding(5.0)
             .is_loading(self.lb_status.syncing)
             .show(ui);
 

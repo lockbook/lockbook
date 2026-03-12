@@ -24,7 +24,7 @@ impl<'ast> Editor {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         self.touch_consuming_rects.push(annotation_space);
 
-        ui.allocate_new_ui(UiBuilder::new().max_rect(annotation_space), |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(annotation_space), |ui| {
             let mut checked = maybe_check.is_some();
             ui.add_enabled(!self.readonly, Checkbox::new(&mut checked, ""));
             if checked != maybe_check.is_some() {

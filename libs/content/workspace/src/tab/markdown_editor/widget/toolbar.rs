@@ -4,7 +4,7 @@ use web_time::{Duration, Instant};
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
-use egui::scroll_area::ScrollBarVisibility;
+use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
     FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea, Separator,
     Stroke, Ui, UiBuilder, Vec2, Widget,
@@ -65,7 +65,7 @@ impl<'ast> Editor {
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
-            .inner_margin(Margin::symmetric(10., 10.))
+            .inner_margin(Margin::symmetric(10, 10))
             .show(ui, |ui| self.show_toolbar_inner(root, ui))
             .inner
     }
@@ -449,9 +449,9 @@ impl<'ast> Editor {
 
     pub fn show_toolbar_menu(&mut self, ui: &mut Ui) {
         let margin: Margin =
-            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
+            if cfg!(target_os = "android") { Margin::symmetric(0, 60) } else { Margin::ZERO };
         ScrollArea::vertical()
-            .drag_to_scroll(true)
+            .scroll_source(ScrollSource::ALL)
             .id_salt("toolbar_settings")
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {

@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::{Pos2, Sense, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -190,19 +190,18 @@ impl<'ast> Editor {
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    pub fn sense_inline(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> Sense {
+    pub fn inline_clickable(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> bool {
         match &node.data.borrow().value {
             NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
                 let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
                     || ui.ctx().os() == egui::os::OperatingSystem::IOS;
-                let clickable = if is_mobile { false } else { ui.input(|i| i.modifiers.command) };
-                Sense { click: clickable, drag: false, focusable: false }
+                if is_mobile { false } else { ui.input(|i| i.modifiers.command) }
             }
             _ => {
                 if let Some(parent) = node.parent() {
-                    self.sense_inline(ui, parent)
+                    self.inline_clickable(ui, parent)
                 } else {
-                    Sense { click: false, drag: false, focusable: false }
+                    false
                 }
             }
         }

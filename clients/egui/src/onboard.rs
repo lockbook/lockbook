@@ -200,7 +200,7 @@ impl OnboardScreen {
                                                 set_button_style(ui);
                                                 if Button::default()
                                                     .text("Create an account")
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .frame(true)
                                                     .show(ui)
                                                     .clicked()
@@ -223,7 +223,7 @@ impl OnboardScreen {
                                                     text_stroke;
                                                 if Button::default()
                                                     .text("I have an account")
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .show(ui)
                                                     .clicked()
                                                 {
@@ -258,7 +258,7 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Create account")
-                                                        .rounding(egui::Rounding::same(3.0))
+                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -301,7 +301,7 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Import account")
-                                                        .rounding(egui::Rounding::same(3.0))
+                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -354,8 +354,8 @@ impl OnboardScreen {
 
                                             egui::Frame::default()
                                                 .fill(ui.visuals().code_bg_color)
-                                                .inner_margin(egui::Margin::symmetric(50.0, 40.0))
-                                                .rounding(3.0)
+                                                .inner_margin(egui::Margin::symmetric(50, 40))
+                                                .corner_radius(3.0)
                                                 .show(ui, |ui| {
                                                     ui.horizontal(|ui| {
                                                         ui.label(col1);
@@ -373,7 +373,7 @@ impl OnboardScreen {
                                                 if Button::default()
                                                     .text("Create account")
                                                     .frame(true)
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .show(ui)
                                                     .clicked()
                                                 {
@@ -488,7 +488,7 @@ You can view your key again in the settings."#
                 .max_rect(ui.available_rect_before_wrap())
                 .layout(egui::Layout::top_down(egui::Align::LEFT)),
         );
-        ui.allocate_new_ui(UiBuilder::new().max_rect(error_rect), |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(error_rect), |ui| {
             if let Some(err) = &maybe_err {
                 egui::ScrollArea::vertical()
                     .max_height(100.0)

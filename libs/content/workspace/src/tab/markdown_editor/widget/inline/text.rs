@@ -1,5 +1,5 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Ui};
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
 use crate::tab::markdown_editor::Editor;
@@ -31,7 +31,7 @@ impl<'ast> Editor {
     ) -> Response {
         let node_range = self.node_range(node).trim(&range);
         let text_format = self.text_format(node);
-        let sense = self.sense_inline(ui, node);
+        let sense = if self.inline_clickable(ui, node) { Sense::click() } else { Sense::hover() };
 
         if !node_range.is_empty() {
             self.show_override_section(

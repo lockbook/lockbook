@@ -46,9 +46,8 @@ impl<'w> RendererState<'w> {
     }
 
     fn instance() -> wgpu::Instance {
-        let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-        let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-        wgpu::Instance::new(instance_desc)
+        let instance_desc = wgpu::InstanceDescriptor::from_env_or_default();
+        wgpu::Instance::new(&instance_desc)
     }
 
     fn init(instance: Instance, surface: Surface<'w>) -> Self {
@@ -278,15 +277,13 @@ impl<'w> RendererState<'w> {
             .await
             .expect("No suitable GPU adapters found on the system!");
         let res = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: adapter.features(),
-                    required_limits: adapter.limits(),
-                    memory_hints: Default::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
+                memory_hints: Default::default(),
+                trace: Default::default(),
+            })
             .await;
         match res {
             Err(err) => {

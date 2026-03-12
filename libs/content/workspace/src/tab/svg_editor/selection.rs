@@ -144,7 +144,7 @@ impl Selection {
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(
                         laso_rect,
-                        egui::Rounding::ZERO,
+                        egui::CornerRadius::ZERO,
                         ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
                     );
                 };
@@ -693,7 +693,7 @@ impl Selection {
             op = self.show_selection_container(ui, container);
         }
 
-        ui.visuals_mut().window_rounding = egui::Rounding::same(7.0);
+        ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
         ui.style_mut()
             .text_styles
             .insert(egui::TextStyle::Body, egui::FontId::new(15.0, egui::FontFamily::Proportional));
@@ -745,8 +745,8 @@ impl Selection {
                 id: "selection_tooltip".into(),
             }),
             |ui| {
-                let res = ui.allocate_new_ui(UiBuilder::new().max_rect(tooltip_rect), |ui| {
-                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5.0, 0.0);
+                let res = ui.scope_builder(UiBuilder::new().max_rect(tooltip_rect), |ui| {
+                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5, 0);
 
                     egui::Frame::window(ui.style())
                         .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
@@ -757,7 +757,7 @@ impl Selection {
 
                 let popover_min = res.response.rect.right_top() + egui::vec2(5.0, 0.0);
                 let rect = egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0));
-                let res = ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                let res = ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     if self.show_selection_popover && !show_popover_toggled {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
                             ui.vertical(|ui| {
@@ -859,7 +859,7 @@ impl Selection {
             &selection_ctx.buffer.weak_path_pressures,
         );
 
-        ui.output_mut(|w| w.copied_text = serialized_selection);
+        ui.ctx().copy_text(serialized_selection);
     }
 
     pub fn get_container_rect(&self, buffer: &Buffer) -> egui::Rect {
@@ -882,11 +882,12 @@ impl Selection {
     fn show_child_selection_rect(&self, ui: &mut egui::Ui, rect: egui::Rect) {
         ui.painter().rect_stroke(
             rect,
-            egui::Rounding::ZERO,
+            egui::CornerRadius::ZERO,
             egui::Stroke {
                 width: 1.0,
                 color: ui.visuals().widgets.active.bg_fill.linear_multiply(0.4),
             },
+            egui::epaint::StrokeKind::Inside,
         );
     }
 
@@ -926,9 +927,10 @@ impl Selection {
 
             ui.painter().rect(
                 rect,
-                egui::Rounding::same(2.0),
+                egui::CornerRadius::same(2),
                 egui::Color32::WHITE,
                 egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
+                egui::epaint::StrokeKind::Inside,
             );
 
             let res = ui.interact(
@@ -944,8 +946,9 @@ impl Selection {
 
         ui.painter().rect_stroke(
             rect,
-            egui::Rounding::ZERO,
+            egui::CornerRadius::ZERO,
             egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
+            egui::epaint::StrokeKind::Inside,
         );
         if out.is_none() && should_translate {
             out = Some(SelectionOperation::Translation);

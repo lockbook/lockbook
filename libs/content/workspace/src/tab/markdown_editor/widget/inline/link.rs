@@ -55,7 +55,7 @@ impl<'ast> Editor {
         // https://github.github.com/gfm/#link-title
 
         let mut response = self.show_circumfix(ui, node, top_left, wrap, range);
-        response.hovered &= self.sense_inline(ui, node).click;
+        response.hovered &= self.inline_clickable(ui, node);
 
         if range.contains_inclusive(self.node_range(node).end()) && self.touch_mode {
             response |= self.show_override_section(
@@ -65,7 +65,7 @@ impl<'ast> Editor {
                 self.node_range(node).end().into_range(),
                 self.text_format(node.parent().unwrap()),
                 Some(" "),
-                Sense { click: true, drag: false, focusable: false },
+                Sense::click(),
             );
             response |= self.show_override_section(
                 ui,
@@ -74,7 +74,7 @@ impl<'ast> Editor {
                 self.node_range(node).end().into_range(),
                 self.text_format_link_button(node.parent().unwrap()),
                 Some(Icon::OPEN_IN_NEW.icon),
-                Sense { click: true, drag: false, focusable: false },
+                Sense::click(),
             );
         }
 
@@ -83,9 +83,8 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            ui.output_mut(|o| {
-                o.open_url = Some(OpenUrl { url: node_link.url.clone(), new_tab: cmd })
-            });
+            ui.ctx()
+                .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
         }
 
         response
