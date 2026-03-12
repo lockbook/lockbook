@@ -73,7 +73,7 @@ impl Lb {
                     match evt {
                         Event::Sync(SyncIncrement::SyncFinished(_)) => {
                             bg_lb.fetcher().await.unwrap();
-                        },
+                        }
                         _ => {}
                     }
                 }
@@ -91,7 +91,8 @@ impl Lb {
             return Ok(());
         };
 
-        let mut tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
+        // we can only fetch things we know the server knows about
+        let mut tree = db.base_metadata.stage(None).to_lazy();
 
         for id in tree.descendants_using_links(root)? {
             let file = tree.find(&id)?;
@@ -118,6 +119,9 @@ impl Lb {
 
         drop(tx);
 
+        // this could all be done in parallel, but for now going to not do it that way
+        // benefits: less work, but also ensures that a file that needs to be fetched immediately
+        // can be
         for (id, hmac) in files_to_pull {
             if let Some(hmac) = hmac {
                 self.fetch_doc(id, hmac).await?;
@@ -130,8 +134,16 @@ impl Lb {
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
 
-        self.pull_updates(&mut sync_state).await?;
-        self.push_local_changes().await?;
+        let pipeline: LbResult<()> = async {
+            self.pull_updates(&mut sync_state).await?;
+            self.push_local_changes().await?;
+            Ok(())
+        }
+        .await;
+
+        self.events
+            .sync_update(SyncIncrement::SyncFinished(pipeline.err().map(|err| err.kind)));
+
         self.cleanup().await?;
         Ok(())
     }
@@ -144,6 +156,7 @@ impl Lb {
         // todo: should this inform a re-pull?
         self.merge(sync_state).await?;
         self.commit_last_synced(sync_state).await?;
+        self.send_pull_events(sync_state).await?;
         self.clone().populate_pk_cache();
 
         Ok(())
@@ -292,7 +305,6 @@ impl Lb {
                 // todo: the none case here deserves some scrutiny
                 if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
                     docs_to_pull.push((id, remote_hmac));
-                    self.events.sync(SyncIncrement::PullingDocument(id, true));
                 }
             }
         }
@@ -311,7 +323,6 @@ impl Lb {
         while let Some(fut) = stream.next().await {
             let id = fut?;
             state.pulled_docs.push(id);
-            self.events.sync(SyncIncrement::PullingDocument(id, false));
         }
 
         Ok(())
@@ -320,6 +331,14 @@ impl Lb {
     pub(crate) async fn fetch_doc(
         &self, id: Uuid, hmac: DocumentHmac,
     ) -> LbResult<EncryptedDocument> {
+        // todo: in a lot of cases there is a list of ids we're trying to get, it would be better
+        // if the caller managed the event updates, the status would be more meaningful for longer
+        if let Ok(Some(doc)) = self.docs.maybe_get(id, Some(hmac)).await {
+            return Ok(doc);
+        }
+
+        self.events
+            .sync_update(SyncIncrement::PullingDocument(id, true));
         let remote_document = self
             .client
             .request(self.get_account()?, GetDocRequest { id, hmac })
@@ -327,6 +346,8 @@ impl Lb {
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
             .await?;
+        self.events
+            .sync_update(SyncIncrement::PullingDocument(id, false));
 
         Ok(remote_document.content)
     }
@@ -926,6 +947,18 @@ impl Lb {
         Ok(())
     }
 
+    async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
+        if !state.remote_changes.is_empty() {
+            self.events.meta_changed(Actor::Sync);
+        }
+
+        for &doc in &state.pulled_docs {
+            self.events.doc_written(doc, Actor::Sync);
+        }
+
+        Ok(())
+    }
+
     async fn commit_last_synced(&self, state: &mut SyncState) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -1075,7 +1108,8 @@ impl Lb {
 
             updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
             local_changes_digests_only.push(local_change);
-            self.events.sync(SyncIncrement::PushingDocument(id, true));
+            self.events
+                .sync_update(SyncIncrement::PushingDocument(id, true));
         }
 
         drop(tx);
@@ -1093,7 +1127,8 @@ impl Lb {
 
         while let Some(fut) = stream.next().await {
             let id = fut?;
-            self.events.sync(SyncIncrement::PushingDocument(id, false));
+            self.events
+                .sync_update(SyncIncrement::PushingDocument(id, false));
         }
 
         let mut tx = self.begin_tx().await;

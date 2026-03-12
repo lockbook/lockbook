@@ -20,20 +20,7 @@ impl Lb {
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<DecryptedDocument> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-
-        let doc = self.read_document_helper(id, &mut tree).await?;
-
-        drop(tx);
-
-        if user_activity {
-            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await?;
-        }
-
+        let (_, doc) = self.read_document_with_hmac(id, user_activity).await?;
         Ok(doc)
     }
 
@@ -173,6 +160,8 @@ impl Lb {
     }
 
     /// This fn is what will fetch the document remotely if it's not present locally
+    /// todo: no it will not, and callers need to manage pre-fetching their documents themselves 
+    /// realistically this should just be used by syncer and should just move there
     pub(crate) async fn read_document_helper<T>(
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>

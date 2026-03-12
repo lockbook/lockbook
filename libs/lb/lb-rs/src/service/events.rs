@@ -53,7 +53,7 @@ impl EventSubs {
         self.queue(Event::DocumentWritten(id, actor));
     }
 
-    pub(crate) fn sync(&self, s: SyncIncrement) {
+    pub(crate) fn sync_update(&self, s: SyncIncrement) {
         self.queue(Event::Sync(s));
     }
 
