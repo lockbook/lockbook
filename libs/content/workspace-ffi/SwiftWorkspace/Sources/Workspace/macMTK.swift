@@ -60,6 +60,11 @@ public class MacMTK: MTKView, MTKViewDelegate {
         return true
     }
 
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        window?.makeFirstResponder(self)
+    }
+
     public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
         let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(self.layer!).toOpaque())
         self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
