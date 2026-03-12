@@ -1,15 +1,15 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT};
 
 impl<'ast> Editor {
-    pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
+        Format { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
     }
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -30,7 +30,7 @@ impl<'ast> Editor {
                 result += self.height_section(
                     &mut Wrap::new(self.width(node)),
                     line_content,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
             }
         }
@@ -65,14 +65,7 @@ impl<'ast> Editor {
                 }
 
                 let mut wrap = Wrap::new(self.width(node));
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    line_content,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }

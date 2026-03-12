@@ -59,7 +59,6 @@ impl<'ast> Editor {
                 &mut wrap,
                 line_content,
                 self.text_format_document(),
-                false,
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
 

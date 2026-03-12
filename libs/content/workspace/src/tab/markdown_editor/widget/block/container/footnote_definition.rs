@@ -1,17 +1,16 @@
-use std::sync::Arc;
-
 use comrak::nodes::{AstNode, NodeValue};
 use egui::text::LayoutJob;
-use egui::{FontFamily, Pos2, Rect, TextFormat, Ui, Vec2};
+use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::tab::markdown_editor::widget::{INDENT, ROW_HEIGHT};
 
 impl<'ast> Editor {
-    pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
+        Format { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
     }
 
     pub fn height_footnote_definition(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -24,11 +23,16 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let mut text_format = self.text_format_syntax(node);
-        text_format.font_id.family = FontFamily::Name(Arc::from("SansSuper"));
-
+        let color = self.theme.fg().neutral_quarternary;
         let text = format!("{}.", self.definition_number(node));
-        let layout_job = LayoutJob::single_section(text, text_format);
+        let layout_job = LayoutJob::single_section(
+            text,
+            TextFormat {
+                font_id: FontId::new(ROW_HEIGHT, FontFamily::Monospace),
+                color,
+                ..Default::default()
+            },
+        );
         let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
         ui.painter()
             .galley(annotation_space.left_top(), galley, Default::default());

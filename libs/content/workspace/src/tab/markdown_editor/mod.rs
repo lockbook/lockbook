@@ -1,7 +1,8 @@
+use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use web_time::Instant;
 
 use bounds::Bounds;
@@ -44,6 +45,7 @@ mod widget;
 
 pub use input::Event;
 
+use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::workspace::WsPersistentStore;
 
@@ -62,6 +64,7 @@ pub struct Editor {
     pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
 
     // theme
     dark_mode: bool, // supports change detection
@@ -84,6 +87,8 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
+    pub text_areas: Vec<TextBufferArea>,
+
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
@@ -138,6 +143,13 @@ pub struct MdFilePersistence {
     selection: (DocCharOffset, DocCharOffset),
 }
 
+pub struct MdResources {
+    pub ctx: Context,
+    pub core: Lb,
+    pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
+}
+
 pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
@@ -151,9 +163,10 @@ pub type HttpClient = reqwest::blocking::Client;
 
 impl Editor {
     pub fn new(
-        ctx: Context, core: Lb, persistence: WsPersistentStore, md: &str, file_id: Uuid,
-        hmac: Option<DocumentHmac>, cfg: MdConfig,
+        md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
+        let MdResources { ctx, core, persistence, font_system } = res;
+
         let theme = Theme::new(ctx.clone());
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -177,6 +190,7 @@ impl Editor {
             client: Default::default(),
             ctx,
             persistence,
+            font_system,
 
             dark_mode,
             theme,
@@ -199,12 +213,14 @@ impl Editor {
             cursor: Default::default(),
             event: Default::default(),
             galleys: Default::default(),
+
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
+            text_areas: Default::default(),
 
             in_progress_selection: None,
 
@@ -223,19 +239,25 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         Self::new(
-            Context::default(),
-            Lb::init(lb_rs::model::core_config::Config {
-                writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                logs: false,
-                stdout_logs: false,
-                colored_logs: false,
-                background_work: false,
-            })
-            .unwrap(),
-            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into()),
             md,
             Uuid::new_v4(),
             None,
+            MdResources {
+                ctx: Context::default(),
+                core: Lb::init(lb_rs::model::core_config::Config {
+                    writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+                    logs: false,
+                    stdout_logs: false,
+                    colored_logs: false,
+                    background_work: false,
+                })
+                .unwrap(),
+                persistence: WsPersistentStore::new(
+                    false,
+                    format!("/tmp/{}", Uuid::new_v4()).into(),
+                ),
+                font_system: Arc::new(Mutex::new(crate::make_font_system())),
+            },
             MdConfig { plaintext_mode: false, readonly: false },
         )
     }
@@ -310,8 +332,8 @@ impl Editor {
         let width = ui.max_rect().width().min(MAX_WIDTH);
         let height_updated = self.height != height;
         let width_updated = self.width != width;
-        self.height = height;
-        self.width = width;
+        self.height = height.round();
+        self.width = width.round();
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
@@ -531,6 +553,14 @@ impl Editor {
             })
             .inner;
 
+        let text_areas = std::mem::take(&mut self.text_areas);
+        if !text_areas.is_empty() {
+            ui.painter()
+                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                    ui.max_rect(),
+                    crate::GlyphonRendererCallback { buffers: text_areas },
+                ));
+        }
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -809,9 +839,14 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
     } else {
-        (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
+        (
+            lb_fonts::NOTO_SANS_REGULAR,
+            lb_fonts::NOTO_SANS_MONO_REGULAR,
+            lb_fonts::NOTO_SANS_BOLD,
+            1.,
+        )
     };
 
     let mono_scale = 0.9 * base_scale;

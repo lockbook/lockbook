@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
 };
@@ -22,7 +22,7 @@ impl<'ast> Editor {
             self.height_section(
                 &mut Wrap::new(self.width(node) - INDENT),
                 line_content,
-                self.text_format_syntax(node),
+                self.text_format_syntax(),
             )
         }
     }
@@ -40,14 +40,13 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let mut annotation_text_format = self.text_format_syntax(node);
-        annotation_text_format.color = self.theme.fg().neutral_tertiary;
+        let annotation_color = self.theme.fg().neutral_tertiary;
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(
                     annotation_space.center(),
                     BULLET_RADIUS * row_height / ROW_HEIGHT,
-                    annotation_text_format.color,
+                    annotation_color,
                 );
             }
             ListType::Ordered => {
@@ -56,7 +55,14 @@ impl<'ast> Editor {
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
-                let layout_job = LayoutJob::single_section(text, annotation_text_format);
+                let layout_job = LayoutJob::single_section(
+                    text,
+                    TextFormat {
+                        font_id: FontId::new(ROW_HEIGHT, FontFamily::Monospace),
+                        color: annotation_color,
+                        ..Default::default()
+                    },
+                );
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                 ui.painter()
                     .galley(annotation_space.left_top(), galley, Default::default());
@@ -82,8 +88,7 @@ impl<'ast> Editor {
                 top_left + INDENT * Vec2::X,
                 &mut wrap,
                 line_content,
-                self.text_format_syntax(node),
-                false,
+                self.text_format_syntax(),
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
 

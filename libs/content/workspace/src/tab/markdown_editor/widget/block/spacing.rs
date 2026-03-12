@@ -107,14 +107,7 @@ impl<'ast> Editor {
             let node_line = self.node_line(node, line);
 
             let mut wrap = Wrap::new(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_document(),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
             top_left.y += wrap.height();
             top_left.y += BLOCK_SPACING;
             self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -192,14 +185,7 @@ impl<'ast> Editor {
             top_left.y += BLOCK_SPACING;
 
             let mut wrap = Wrap::new(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_document(),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
             top_left.y += wrap.height();
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         }

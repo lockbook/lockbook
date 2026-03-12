@@ -1,9 +1,9 @@
-use egui::epaint::text::cursor::Cursor;
-use egui::text::CCursor;
-use egui::{Galley, Rect};
+use egui::{Pos2, Rect};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ops::Index;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
+
+use crate::tab::markdown_editor::Editor;
 
 #[derive(Default)]
 pub struct Galleys {
@@ -14,7 +14,7 @@ pub struct Galleys {
 pub struct GalleyInfo {
     pub is_override: bool,
     pub range: (DocCharOffset, DocCharOffset),
-    pub galley: Arc<Galley>,
+    pub buffer: Arc<RwLock<glyphon::Buffer>>,
     pub rect: Rect,
     pub padded: bool,
 }
@@ -49,33 +49,46 @@ impl Galleys {
         }
         None
     }
+}
 
-    pub fn galley_and_cursor_by_offset(&self, offset: DocCharOffset) -> Option<(usize, Cursor)> {
-        let galley_index = self.galley_at_offset(offset)?;
-        let galley = &self.galleys[galley_index];
+impl Editor {
+    /// Returns the x position of the offset, assuming the offset lies in this
+    /// galley. For the y position, use self.rect.y_range().
+    pub fn galley_x(&self, galley: &GalleyInfo, offset: DocCharOffset) -> f32 {
+        let buffer = galley.buffer.read().unwrap();
+        let glyphs = buffer.layout_runs().next().unwrap().glyphs;
 
-        let cursor = galley.galley.from_ccursor(CCursor {
-            index: (offset - galley.range.start()).0,
-            prefer_next_row: true,
-        });
-        Some((galley_index, cursor))
-    }
+        let rel_offset = self.range_to_byte((galley.range.start(), offset)).len();
+        let mut rel_x = 0.;
 
-    pub fn offset_by_galley_and_cursor(
-        &self, galley: &GalleyInfo, cursor: Cursor,
-    ) -> DocCharOffset {
-        let galley_text_range = galley.range;
-        let mut result = galley_text_range.start() + cursor.ccursor.index;
-
-        // correct for prefer_next_row behavior
-        let read_cursor = galley.galley.from_ccursor(CCursor {
-            index: (result - galley_text_range.start()).0,
-            prefer_next_row: true,
-        });
-        if read_cursor.rcursor.row > cursor.rcursor.row {
-            result -= 1;
+        for glyph in glyphs {
+            if glyph.end > rel_offset {
+                break;
+            }
+            rel_x += glyph.w / self.ctx.pixels_per_point();
         }
 
-        result.max(galley.range.start()).min(galley.range.end())
+        galley.rect.min.x + rel_x
+    }
+
+    /// Returns the offset closest to pos in this galley.
+    pub fn galley_offset(&self, galley: &GalleyInfo, pos: Pos2) -> DocCharOffset {
+        let buffer = galley.buffer.read().unwrap();
+        let glyphs = buffer.layout_runs().next().unwrap().glyphs;
+
+        let rel_x = pos.x - galley.rect.min.x;
+        let start = self.offset_to_byte(galley.range.start());
+
+        let mut rel_offset = 0;
+        let mut x = 0.;
+        for glyph in glyphs.iter() {
+            if x + glyph.w / self.ctx.pixels_per_point() / 2. > rel_x {
+                break;
+            }
+            x += glyph.w / self.ctx.pixels_per_point();
+            rel_offset = glyph.end;
+        }
+
+        self.offset_to_char(start + rel_offset)
     }
 }

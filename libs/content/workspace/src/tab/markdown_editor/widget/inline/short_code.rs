@@ -1,13 +1,13 @@
 use comrak::nodes::{AstNode, NodeShortCode};
-use egui::{Pos2, Sense, TextFormat, Ui};
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_short_code(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_short_code(&self, parent: &AstNode<'_>) -> Format {
         self.text_format(parent)
     }
 
@@ -39,7 +39,6 @@ impl<'ast> Editor {
                 wrap,
                 self.node_range(node).end().into_range(),
                 self.text_format(node),
-                false,
                 Some(&node_short_code.emoji),
                 Sense { click: false, drag: false, focusable: false },
             )
