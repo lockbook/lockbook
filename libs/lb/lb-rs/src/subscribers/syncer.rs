@@ -206,7 +206,7 @@ impl Lb {
         local_staged.promote()?;
 
         if !prunable_ids.is_empty() {
-            self.events.meta_changed(Actor::Client);
+            self.events.meta_changed(Actor::Sync);
         }
 
         Ok(())

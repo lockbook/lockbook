@@ -22,7 +22,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
 
         Ok(ui_file)
     }
@@ -42,7 +42,7 @@ impl Lb {
 
         let ui_file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
 
         Ok(ui_file)
     }

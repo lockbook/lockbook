@@ -2,6 +2,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use egui::{Color32, TextWrapMode};
+use lb::model::errors::Unexpected;
 use lb::model::usage::bytes_to_human;
 use lb::service::usage::UsageMetrics;
 use workspace_rs::theme::icons::Icon;
@@ -129,7 +130,7 @@ impl super::AccountScreen {
             .show(ui);
 
         if sync_btn.clicked() {
-            todo!();
+            self.core.sync().map_unexpected().log_and_ignore();
         }
 
         if sync_btn.hovered() {

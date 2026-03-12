@@ -39,7 +39,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
         Ok(ui_file)
     }
 
@@ -61,7 +61,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
 
         Ok(())
     }
@@ -80,7 +80,7 @@ impl Lb {
         tree.move_file(id, new_parent, &self.keychain)?;
         tx.end();
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
 
         Ok(())
     }
@@ -100,7 +100,7 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::Client);
+        self.events.meta_changed(Actor::User);
 
         Ok(())
     }

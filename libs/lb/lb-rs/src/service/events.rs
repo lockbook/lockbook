@@ -29,7 +29,7 @@ pub enum Event {
 
 #[derive(Debug, Clone)]
 pub enum Actor {
-    Client,
+    User,
     Sync,
 }
 

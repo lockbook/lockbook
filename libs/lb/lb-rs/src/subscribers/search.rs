@@ -242,6 +242,7 @@ impl Lb {
             };
 
             let Ok(doc) = self.read_document(file.id, false).await else {
+                error!("failed to read doc");
                 continue;
             };
 

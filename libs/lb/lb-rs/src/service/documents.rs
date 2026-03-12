@@ -55,7 +55,7 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
-        self.events.doc_written(id, Actor::Client);
+        self.events.doc_written(id, Actor::User);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
             .await?;
 
@@ -144,7 +144,7 @@ impl Lb {
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
         // or it will happen when there are multiple co-operative core processes.
-        self.events.doc_written(id, Actor::Client);
+        self.events.doc_written(id, Actor::User);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
             .await?;
 
