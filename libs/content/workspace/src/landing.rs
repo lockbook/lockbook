@@ -470,8 +470,8 @@ impl Workspace {
                                 .show(ui)
                                 .response;
 
-                        // Focus when Cmd+F is pressed
-                        if cmd_f {
+                        // Focus when Cmd+F is pressed or on first frame
+                        if cmd_f || (!response.has_focus() && !response.lost_focus()) {
                             response.request_focus();
                         }
 
