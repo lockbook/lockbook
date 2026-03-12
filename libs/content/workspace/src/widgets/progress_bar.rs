@@ -24,18 +24,19 @@ impl ProgressBar {
         let (rect, resp) = ui.allocate_at_least(desired_size, egui::Sense::hover());
 
         if ui.is_rect_visible(rect) {
-            let rounding = egui::Rounding::same(self.height / 2.0);
+            let rounding = egui::CornerRadius::same((self.height / 2.0) as u8);
             let stroke = egui::Stroke::NONE;
 
             // Background (the full line).
             ui.painter().add(epaint::RectShape {
                 rect,
-                rounding,
+                corner_radius: rounding,
                 fill: ui.visuals().extreme_bg_color,
                 stroke,
-                fill_texture_id: egui::TextureId::default(),
-                uv: egui::Rect::ZERO,
+                stroke_kind: epaint::StrokeKind::Inside,
+                round_to_pixels: None,
                 blur_width: 0.,
+                brush: None,
             });
 
             let width = rect.max.x - rect.min.x;
@@ -45,12 +46,13 @@ impl ProgressBar {
             // Filled portion.
             ui.painter().add(epaint::RectShape {
                 rect: progress_rect,
-                rounding,
+                corner_radius: rounding,
                 fill: ui.visuals().widgets.active.bg_fill,
                 stroke,
-                fill_texture_id: egui::TextureId::default(),
-                uv: egui::Rect::ZERO,
+                stroke_kind: epaint::StrokeKind::Inside,
+                round_to_pixels: None,
                 blur_width: 0.,
+                brush: None,
             });
         }
 

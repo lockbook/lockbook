@@ -201,7 +201,7 @@ impl<'ast> Editor {
                     (line_content.end() - 1).into_range(),
                     self.text_format(node),
                     Some(type_display_text),
-                    Sense { click: false, drag: false, focusable: false },
+                    Sense::hover(),
                 );
             }
         }

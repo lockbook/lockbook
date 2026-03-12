@@ -1,5 +1,5 @@
 use egui::style::{WidgetVisuals, Widgets};
-use egui::{Color32, Context, Rounding, Stroke, Ui};
+use egui::{Color32, Context, Stroke, Ui};
 
 use crate::theme::palette_v2::{Mode, ThemeExt};
 
@@ -91,7 +91,7 @@ impl Theme {
 
     // todo: all egui needs to be themed this way and this should be removed
     pub fn apply(&self, ui: &mut Ui) {
-        let rounding = Rounding::same(2.0);
+        let rounding = egui::CornerRadius::same(2);
         let expansion = 0.0;
         let bg_stroke = Stroke::new(1.0, self.bg().neutral_tertiary);
         let fg_stroke = Stroke::new(1.5, self.fg().neutral_secondary);
@@ -101,7 +101,7 @@ impl Theme {
                 bg_fill: self.bg().neutral_tertiary,
                 bg_stroke,
                 fg_stroke,
-                rounding,
+                corner_radius: rounding,
                 expansion,
             },
             inactive: WidgetVisuals {
@@ -109,7 +109,7 @@ impl Theme {
                 bg_fill: self.bg().neutral_secondary,      // checkbox background
                 bg_stroke,
                 fg_stroke,
-                rounding,
+                corner_radius: rounding,
                 expansion,
             },
             hovered: WidgetVisuals {
@@ -117,7 +117,7 @@ impl Theme {
                 bg_fill: self.bg().neutral_tertiary,
                 bg_stroke,
                 fg_stroke,
-                rounding,
+                corner_radius: rounding,
                 expansion,
             },
             active: WidgetVisuals {
@@ -125,7 +125,7 @@ impl Theme {
                 bg_fill: self.bg().accent_primary.gamma_multiply(0.2),
                 bg_stroke,
                 fg_stroke,
-                rounding,
+                corner_radius: rounding,
                 expansion,
             },
             open: WidgetVisuals {
@@ -133,7 +133,7 @@ impl Theme {
                 bg_fill: self.bg().neutral_tertiary,
                 bg_stroke,
                 fg_stroke,
-                rounding,
+                corner_radius: rounding,
                 expansion,
             },
         };

@@ -84,8 +84,12 @@ impl<'ast> Editor {
         let height = self.height_fenced_code_block(node, node_code_block);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.theme.bg().neutral_tertiary),
+            egui::epaint::StrokeKind::Inside,
+        );
 
         width -= 2. * BLOCK_PADDING;
         top_left.x += BLOCK_PADDING;
@@ -185,8 +189,12 @@ impl<'ast> Editor {
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.theme.bg().neutral_tertiary),
+            egui::epaint::StrokeKind::Inside,
+        );
 
         top_left.x += BLOCK_PADDING;
         top_left.y += BLOCK_PADDING;

@@ -86,7 +86,11 @@ impl<'ast> Editor {
             }
         }
         if !infix_range.is_empty() {
-            let sense = self.sense_inline(ui, node);
+            let sense = if self.inline_clickable(ui, node) {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            };
             response |= self.show_override_section(
                 ui,
                 top_left,

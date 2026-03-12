@@ -56,7 +56,11 @@ impl<'ast> Editor {
         let mut response = Default::default();
 
         if !node_range.is_empty() {
-            let sense = self.sense_inline(ui, node);
+            let sense = if self.inline_clickable(ui, node) {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            };
             let text_format =
                 if reveal { self.text_format_syntax() } else { self.text_format(node) };
             let override_text = if reveal { None } else { Some("") };

@@ -180,7 +180,7 @@ impl Icon {
             if self.frame {
                 painter.unwrap_or(ui.painter()).rect_filled(
                     rect.expand2(ui.spacing().button_padding),
-                    style.rounding,
+                    style.corner_radius,
                     style.bg_fill,
                 );
             }

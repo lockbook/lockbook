@@ -516,7 +516,7 @@ impl<'ast> Editor {
         self.touch_consuming_rects.push(space);
 
         if self.fold(node).is_some() {
-            ui.allocate_new_ui(UiBuilder::new().max_rect(space), |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
                     self.theme.fg().neutral_quarternary
                 } else {
@@ -532,7 +532,7 @@ impl<'ast> Editor {
                 }
             });
         } else if self.foldable(node).is_some() {
-            ui.allocate_new_ui(UiBuilder::new().max_rect(space), |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
                     .color(self.theme.fg().neutral_quarternary);

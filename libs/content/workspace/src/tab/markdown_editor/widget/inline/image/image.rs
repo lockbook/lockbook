@@ -70,7 +70,7 @@ impl<'ast> Editor {
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
 
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         let rect = ui.max_rect();
                         ui.painter().text(
                             rect.center(),
@@ -90,6 +90,7 @@ impl<'ast> Editor {
                             rect,
                             2.,
                             Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                            egui::epaint::StrokeKind::Inside,
                         );
                     });
                 }
@@ -108,21 +109,17 @@ impl<'ast> Editor {
                         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
                     }
                     if resp.clicked() {
-                        ui.output_mut(|o| {
-                            o.open_url = Some(OpenUrl { url: url.into(), new_tab: true })
-                        });
+                        ui.ctx()
+                            .open_url(OpenUrl { url: url.into(), new_tab: true });
                     }
 
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
-                        ui.painter().add(RectShape {
-                            rect,
-                            rounding: (2.).into(),
-                            fill: Color32::WHITE,
-                            stroke: Stroke::NONE,
-                            blur_width: 0.0,
-                            fill_texture_id: texture_id,
-                            uv: Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
-                        });
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                        ui.painter().add(
+                            RectShape::filled(rect, 2.0_f32, Color32::WHITE).with_texture(
+                                texture_id,
+                                Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
+                            ),
+                        );
                     });
                 }
                 ImageState::Failed(message) => {
@@ -132,7 +129,7 @@ impl<'ast> Editor {
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
 
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         let rect = ui.max_rect();
                         ui.painter().text(
                             rect.center(),
@@ -152,6 +149,7 @@ impl<'ast> Editor {
                             rect,
                             2.,
                             Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                            egui::epaint::StrokeKind::Inside,
                         );
                     });
                 }

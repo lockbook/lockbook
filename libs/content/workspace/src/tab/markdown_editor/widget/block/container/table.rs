@@ -57,6 +57,7 @@ impl<'ast> Editor {
                 table,
                 2.,
                 Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                egui::epaint::StrokeKind::Inside,
             );
         }
     }

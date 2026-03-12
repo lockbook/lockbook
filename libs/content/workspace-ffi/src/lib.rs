@@ -26,11 +26,11 @@ impl WgpuWorkspace<'_> {
         let workspace_frame = egui::Frame::default()
             .fill(self.renderer.context.style().visuals.extreme_bg_color)
             .inner_margin(egui::Margin {
-                left: 0.0,
-                right: 0.0,
-                top: 0.0,
-                bottom: self.renderer.bottom_inset.unwrap_or(0) as f32
-                    / self.renderer.screen.pixels_per_point,
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: (self.renderer.bottom_inset.unwrap_or(0) as f32
+                    / self.renderer.screen.pixels_per_point) as i8,
             });
 
         let workspace_response = egui::CentralPanel::default()

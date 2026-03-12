@@ -376,7 +376,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
@@ -386,7 +386,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
             }
             Event::ToggleDebug => {
                 self.debug = !self.debug;

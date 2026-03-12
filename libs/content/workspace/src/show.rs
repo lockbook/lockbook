@@ -201,16 +201,20 @@ impl Workspace {
                     }
 
                     ui.ctx().output_mut(|w| {
-                        if let Some(url) = &w.open_url {
-                            // only intercept open urls for tabs representing files
-                            let Some(id) = id else {
+                        let open_url_cmd_idx = w
+                            .commands
+                            .iter()
+                            .position(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
+                        if let Some(idx) = open_url_cmd_idx {
+                            let egui::OutputCommand::OpenUrl(url) = w.commands[idx].clone() else {
                                 return;
                             };
 
+                            // only intercept open urls for tabs representing files
+                            let Some(id) = id else { return };
+
                             // lookup this file so we can get the parent
-                            let Ok(file) = self.core.get_file_by_id(id) else {
-                                return;
-                            };
+                            let Ok(file) = self.core.get_file_by_id(id) else { return };
 
                             // evaluate relative path based on parent location
                             let Ok(file) =
@@ -222,8 +226,7 @@ impl Workspace {
                             // if all that found something then open within lockbook
                             open_id = Some(file.id);
                             new_tab = url.new_tab;
-
-                            w.open_url = None;
+                            w.commands.remove(idx);
                         }
                     });
                 }
@@ -308,6 +311,7 @@ impl Workspace {
                                                                 .unwrap_or(active_name.len()),
                                                         ),
                                                         secondary: egui::text::CCursor::new(0),
+                                                        h_pos: None,
                                                     },
                                                 ));
                                                 egui::TextEdit::store_state(
@@ -570,7 +574,7 @@ impl Workspace {
             self.ctx.get_lb_theme().bg().grey
         };
 
-        let tab_padding = egui::Margin::symmetric(10.0, 10.0);
+        let tab_padding = egui::Margin::symmetric(10, 10);
 
         let tab_label = egui::Frame::default()
             .fill(tab_bg)
@@ -672,10 +676,10 @@ impl Workspace {
                         ui.visuals().text_color(),
                     );
 
-                    let mut tab_label_resp = ui.interact(
+                    let tab_label_resp = ui.interact(
                         tab_label_rect,
                         Id::new("tab label").with(t),
-                        Sense { click: true, drag: true, focusable: false },
+                        Sense::click_and_drag(),
                     );
 
                     let pointer_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default());
@@ -684,8 +688,6 @@ impl Workspace {
                     let close_button_pointed = close_button_interact_rect.contains(pointer_pos);
                     let close_button_hovered = tab_label_resp.hovered() && close_button_pointed;
                     let close_button_clicked = tab_label_resp.clicked() && close_button_pointed;
-
-                    tab_label_resp.clicked &= !close_button_clicked;
 
                     let text_color = if is_active {
                         ui.visuals().text_color()
@@ -710,6 +712,7 @@ impl Workspace {
                             2.0,
                             ui.visuals().code_bg_color,
                             egui::Stroke::NONE,
+                            egui::epaint::StrokeKind::Inside,
                         );
                     }
 
@@ -721,13 +724,13 @@ impl Workspace {
                             ui.visuals().text_color(),
                         );
                     }
-                    if tab_label_resp.clicked() {
+                    if tab_label_resp.clicked() && !close_button_clicked {
                         result = Some(TabLabelResponse::Clicked);
                     }
                     tab_label_resp.context_menu(|ui| {
                         if ui.button("Close tab").clicked() {
                             result = Some(TabLabelResponse::Closed);
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
 
@@ -787,7 +790,7 @@ impl Workspace {
         // renaming
         if let Some(ref mut str) = self.tabs[t].rename {
             let res = ui
-                .allocate_new_ui(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
+                .scope_builder(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
                     ui.add(
                         egui::TextEdit::singleline(str)
                             .font(TextStyle::Small)

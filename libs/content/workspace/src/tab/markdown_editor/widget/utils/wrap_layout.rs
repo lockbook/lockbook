@@ -90,15 +90,7 @@ impl Editor {
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: Format,
     ) -> Response {
-        self.show_override_section(
-            ui,
-            top_left,
-            wrap,
-            range,
-            text_format,
-            None,
-            Sense { click: false, drag: false, focusable: false },
-        )
+        self.show_override_section(ui, top_left, wrap, range, text_format, None, Sense::hover())
     }
 
     /// Returns the height of a single section that's not from the document's
@@ -425,8 +417,12 @@ fn draw_decorations(
     if text_format.background != egui::Color32::TRANSPARENT {
         let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(INLINE_PADDING, 2.));
         if text_format.spoiler && hovered {
-            ui.painter()
-                .rect_stroke(bg_rect, 2.0, Stroke::new(1.0, text_format.background));
+            ui.painter().rect_stroke(
+                bg_rect,
+                2.0,
+                Stroke::new(1.0, text_format.background),
+                egui::epaint::StrokeKind::Inside,
+            );
         } else {
             ui.painter()
                 .rect_filled(bg_rect, 2.0, text_format.background);

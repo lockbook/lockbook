@@ -142,7 +142,7 @@ impl AccountScreen {
 
         egui::SidePanel::left("sidebar_panel")
             // get rid of the space, keep the colors normal
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .frame(egui::Frame::new().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
             .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
@@ -153,7 +153,7 @@ impl AccountScreen {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
                     egui::Frame::default()
-                        .inner_margin(egui::Margin::symmetric(20.0, 20.0))
+                        .inner_margin(egui::Margin::symmetric(20, 20))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
                             self.show_sync_btn(ui);
@@ -219,7 +219,7 @@ impl AccountScreen {
                     let max = ui.clip_rect().left_bottom();
 
                     let rect = egui::Rect { min, max };
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         let zen_mode_btn = Button::default()
                             .icon(&Icon::TOGGLE_SIDEBAR)
                             .frame(true)
@@ -439,7 +439,7 @@ impl AccountScreen {
         let resp = ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    Frame::none()
+                    Frame::new()
                         .inner_margin(0.)
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {

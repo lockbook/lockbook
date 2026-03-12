@@ -13,10 +13,10 @@ pub fn subscription(
     let stroke_color = ui.visuals().extreme_bg_color;
     let bg = ui.visuals().faint_bg_color;
 
-    egui::Frame::none()
+    egui::Frame::new()
         .fill(bg)
         .stroke(egui::Stroke::new(2.0, stroke_color))
-        .rounding(egui::Rounding::same(4.0))
+        .corner_radius(4.0)
         .inner_margin(12.0)
         .show(ui, |ui| {
             let resp = subscription_info(ui, maybe_sub_info);

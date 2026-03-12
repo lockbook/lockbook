@@ -105,7 +105,7 @@ impl<'ast> Editor {
             }
 
             ctx.style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
-            ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
+            ctx.style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
             ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
             ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
             if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
@@ -122,7 +122,7 @@ impl<'ast> Editor {
                             .clicked()
                         {
                             context_menu_events.push(Event::Cut);
-                            ui.close_menu();
+                            ui.close();
                         }
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_COPY)
@@ -131,7 +131,7 @@ impl<'ast> Editor {
                             .clicked()
                         {
                             context_menu_events.push(Event::Copy);
-                            ui.close_menu();
+                            ui.close();
                         }
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_PASTE)
@@ -142,7 +142,7 @@ impl<'ast> Editor {
                         {
                             // paste must go through the window because we don't yet have the clipboard content
                             ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
                 });
