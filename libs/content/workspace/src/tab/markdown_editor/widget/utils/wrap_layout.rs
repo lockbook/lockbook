@@ -61,6 +61,17 @@ impl Wrap {
             line.1 = line.1.max(range.1);
         } else {
             self.row_ranges.push(range);
+
+            // prefer next row
+            if row > 0 {
+                if let Some(prev_line) = self.row_ranges.get_mut(row - 1) {
+                    // when two rows' ranges touch, shorten the earlier so that
+                    // the boundary belongs to the later
+                    if prev_line.end() == range.start() {
+                        prev_line.1 -= 1;
+                    }
+                }
+            }
         }
     }
 }
@@ -193,7 +204,6 @@ impl Editor {
             buffer: std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>,
             size: Vec2,
             pos: Pos2,
-            range: (DocCharOffset, DocCharOffset),
         }
         let mut rows: Vec<RowData> = Vec::new();
 
@@ -212,14 +222,21 @@ impl Editor {
                     wrap.row_offset(),
                     wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
                 );
+            let rect = Rect::from_min_size(pos, size);
+
+            let row_range = if override_text.is_some() { range } else { first_row_range };
             let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
-            rows.push(RowData {
-                buffer: row,
-                size,
-                pos,
-                range: if override_text.is_some() { range } else { first_row_range },
-            });
+
+            wrap.add_range(row_range);
             wrap.offset += advance;
+            self.galleys.push(GalleyInfo {
+                is_override: override_text.is_some(),
+                range: row_range,
+                buffer: row.clone(),
+                rect,
+                padded,
+            });
+            rows.push(RowData { buffer: row, size, pos });
         }
 
         if !remaining_text.is_empty() {
@@ -257,15 +274,27 @@ impl Editor {
                     wrap.width,
                     &text_format,
                 );
+
                 let size = row.read().unwrap().shaped_size(ppi);
                 let pos = top_left
                     + Vec2::new(
                         wrap.row_offset(),
                         wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
                     );
+                let rect = Rect::from_min_size(pos, size);
+
                 let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
-                rows.push(RowData { buffer: row, size, pos, range: row_range });
+
+                wrap.add_range(row_range);
                 wrap.offset += advance;
+                self.galleys.push(GalleyInfo {
+                    is_override: override_text.is_some(),
+                    range: row_range,
+                    buffer: row.clone(),
+                    rect,
+                    padded,
+                });
+                rows.push(RowData { buffer: row, size, pos });
             }
         }
 
@@ -299,14 +328,6 @@ impl Editor {
                 ));
                 draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
             }
-            self.galleys.push(GalleyInfo {
-                is_override: override_text.is_some(),
-                range: row.range,
-                buffer: row.buffer,
-                rect,
-                padded,
-            });
-            wrap.add_range(row.range);
         }
 
         wrap.offset += post_span;

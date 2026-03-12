@@ -71,17 +71,36 @@ impl Editor {
         galley.rect.min.x + rel_x
     }
 
-    /// Returns the offset closest to pos in this galley.
-    pub fn galley_offset(&self, galley: &GalleyInfo, pos: Pos2) -> DocCharOffset {
+    /// Returns the offset closest to pos in this galley, excluding the offset
+    /// after the last glyph.
+    pub fn galley_offset(&self, galley_idx: usize, pos: Pos2) -> DocCharOffset {
+        let galley = &self.galleys.galleys[galley_idx];
         let buffer = galley.buffer.read().unwrap();
-        let glyphs = buffer.layout_runs().next().unwrap().glyphs;
+        let layout_run = buffer.layout_runs().next().unwrap();
+        let glyphs = layout_run.glyphs;
 
         let rel_x = pos.x - galley.rect.min.x;
         let start = self.offset_to_byte(galley.range.start());
 
         let mut rel_offset = 0;
         let mut x = 0.;
-        for glyph in glyphs.iter() {
+
+        // prefer next row
+        let owned_glyphs = if self.galleys.len() > galley_idx + 1 {
+            let next_galley = &self.galleys.galleys[galley_idx + 1];
+            if next_galley.range.start() == galley.range.end() {
+                // when galleys touch, the boundary belongs to the later galley
+                glyphs.len().saturating_sub(1)
+            } else {
+                // doesn't touch next galley
+                glyphs.len()
+            }
+        } else {
+            // no further galleys
+            glyphs.len()
+        };
+
+        for glyph in glyphs.iter().take(owned_glyphs) {
             if x + glyph.w / self.ctx.pixels_per_point() / 2. > rel_x {
                 break;
             }
