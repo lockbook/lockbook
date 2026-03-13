@@ -3,11 +3,11 @@ use std::{
     num::NonZeroUsize,
     sync::Arc,
     thread,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use futures::{StreamExt, stream};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use usvg::Transform;
 use uuid::Uuid;
 
@@ -21,7 +21,9 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertRequestV2,
         },
+        clock,
         crypto::EncryptedDocument,
+        errors::Unexpected,
         file::ShareMode,
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
@@ -64,21 +66,89 @@ pub struct SyncState {
 impl Lb {
     pub(crate) fn setup_syncer(&self) {
         if self.config.background_work {
-            let bg_lb = self.clone();
-            // syncer
-            tokio::spawn(async move {
-                let mut events = bg_lb.subscribe();
+            self.clone().local_change_worker();
+            self.clone().periodic_sync_worker();
+            self.clone().post_sync_worker();
+        }
+    }
+
+    fn local_change_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            let sync_criteria = |e: Event| {
+                matches!(
+                    e,
+                    Event::MetadataChanged(Actor::User) | Event::DocumentWritten(_, Actor::User)
+                )
+            };
+
+            loop {
+                let mut should_sync = false;
+
+                // drain the current channel, so we don't sync for each keystroke if they pile up
                 loop {
-                    let evt = events.recv().await.unwrap();
-                    match evt {
-                        Event::Sync(SyncIncrement::SyncFinished(_)) => {
-                            bg_lb.fetcher().await.unwrap();
+                    let event = events.try_recv();
+                    match event {
+                        Ok(event) => {
+                            if sync_criteria(event) {
+                                should_sync = true;
+                            }
                         }
-                        _ => {}
+                        Err(TryRecvError::Empty) => break,
+                        _ => {
+                            panic!(
+                                "unexpected broadcast receive error, returning local_change_worker"
+                            );
+                        }
                     }
                 }
-            });
-        }
+
+                // empty channel + nothing interesting has happened, sit and wait for something
+                // interesting
+                if !should_sync {
+                    let event = events.recv().await.unwrap();
+                    if sync_criteria(event) {
+                        self.sync().await.map_unexpected().log_and_ignore();
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        });
+    }
+
+    fn periodic_sync_worker(self) {
+        tokio::spawn(async move {
+            self.sync().await.map_unexpected().log_and_ignore();
+            if self.user_active().await {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            } else {
+                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            }
+        });
+    }
+
+    async fn user_active(&self) -> bool {
+        let last_seen = self.user_last_seen.read().await;
+        last_seen.elapsed() < Duration::from_secs(3 * 60)
+    }
+
+    fn post_sync_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            loop {
+                let event = events.recv().await.unwrap();
+                if let Event::Sync(SyncIncrement::SyncFinished(maybe_err)) = event {
+                    match maybe_err {
+                        Some(LbErrKind::ServerUnreachable) => continue,
+                        None => self.fetcher().await.unwrap(),
+                        _ => error!("unexpected sync error (post_sync_worker) {:?}", maybe_err),
+                    }
+                };
+            }
+        });
     }
 
     async fn fetcher(&self) -> LbResult<()> {
@@ -141,10 +211,14 @@ impl Lb {
         }
         .await;
 
-        self.events
-            .sync_update(SyncIncrement::SyncFinished(pipeline.err().map(|err| err.kind)));
+        self.events.sync_update(SyncIncrement::SyncFinished(
+            pipeline.as_ref().err().map(|err| err.kind.clone()),
+        ));
 
         self.cleanup().await?;
+
+        pipeline?;
+
         Ok(())
     }
 
@@ -1078,6 +1152,9 @@ impl Lb {
     }
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
+    // todo: make this so that all document updates are attempted and we don't just return the
+    // first error. Once an attempt is made we can return any or all errors, either would be an
+    // improvement
     async fn push_docs(&self) -> LbResult<()> {
         let mut updates = vec![];
         let mut local_changes_digests_only = vec![];

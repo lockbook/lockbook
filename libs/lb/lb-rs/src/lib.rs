@@ -28,6 +28,7 @@ pub mod subscribers;
 #[derive(Clone)]
 pub struct Lb {
     pub config: Config,
+    pub user_last_seen: Arc<RwLock<Instant>>,
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
@@ -56,8 +57,10 @@ impl Lb {
             schema_name: Default::default(),
         })
         .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
+        let user_last_seen = Arc::new(AtomicU64::new(0));
 
         Ok(Self {
+            user_last_seen,
             config: config.clone(),
             keychain: Default::default(),
             db: Arc::new(RwLock::new(db)),
@@ -87,6 +90,7 @@ impl Lb {
         let status = StatusUpdater::default();
         let syncer = Default::default();
         let events = EventSubs::default();
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         let result = Self {
             config,
@@ -97,6 +101,7 @@ impl Lb {
             syncer,
             events,
             status,
+            user_last_seen,
             #[cfg(not(target_family = "wasm"))]
             search,
         };
@@ -138,7 +143,8 @@ pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
+use std::time::Instant;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;
