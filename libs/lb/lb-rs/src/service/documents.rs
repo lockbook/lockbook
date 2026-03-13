@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::atomic::Ordering;
 
 use crate::Lb;
 use crate::model::clock::get_time;
@@ -21,20 +20,7 @@ impl Lb {
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<DecryptedDocument> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-
-        let doc = self.read_document_helper(id, &mut tree).await?;
-
-        drop(tx);
-
-        if user_activity {
-            self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
-                .await?;
-        }
-
+        let (_, doc) = self.read_document_with_hmac(id, user_activity).await?;
         Ok(doc)
     }
 
@@ -56,7 +42,7 @@ impl Lb {
         self.docs.insert(id, hmac, &encrypted_document).await?;
         tx.end();
 
-        self.events.doc_written(id, None);
+        self.events.doc_written(id, Actor::User);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
             .await?;
 
@@ -72,9 +58,37 @@ impl Lb {
 
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let doc = self.read_document_helper(id, &mut tree).await?;
-        let hmac = tree.find(&id)?.document_hmac().copied();
-        drop(tx);
+        let file = tree.find(&id)?;
+        validate::is_document(file)?;
+        let hmac = file.document_hmac().copied();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+
+        let doc = match hmac {
+            Some(hmac) => {
+                if self.docs.exists(id, Some(hmac)) {
+                    let doc = self.docs.get(id, Some(hmac)).await?;
+                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
+                    drop(tx);
+                    doc
+                } else {
+                    drop(tx);
+                    // todo: if document not found -- need to trigger a pull
+                    let doc = self.fetch_doc(id, hmac).await?;
+
+                    let tx = self.ro_tx().await;
+                    let db = tx.db();
+                    let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
+                    drop(tx);
+
+                    doc
+                }
+            }
+            None => vec![],
+        };
 
         if user_activity {
             self.add_doc_event(activity::DocEvent::Read(id, get_time().0))
@@ -117,7 +131,7 @@ impl Lb {
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
         // or it will happen when there are multiple co-operative core processes.
-        self.events.doc_written(id, Some(Actor::Workspace));
+        self.events.doc_written(id, Actor::User);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
             .await?;
 
@@ -125,12 +139,6 @@ impl Lb {
     }
 
     pub(crate) async fn cleanup(&self) -> LbResult<()> {
-        // there is a risk that dont_delete is set to true after we check it
-        if self.docs.dont_delete.load(Ordering::SeqCst) {
-            debug!("skipping doc cleanup due to active sync");
-            return Ok(());
-        }
-
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -152,6 +160,8 @@ impl Lb {
     }
 
     /// This fn is what will fetch the document remotely if it's not present locally
+    /// todo: no it will not, and callers need to manage pre-fetching their documents themselves 
+    /// realistically this should just be used by syncer and should just move there
     pub(crate) async fn read_document_helper<T>(
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>

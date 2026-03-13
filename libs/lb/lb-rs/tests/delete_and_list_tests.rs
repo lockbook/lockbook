@@ -193,5 +193,5 @@ async fn test_write_delete_sync_doc() {
     let doc = core.create_at_path("test.md").await.unwrap().id;
     core.write_document(doc, &[1, 2, 3]).await.unwrap();
     core.delete(&doc).await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 }

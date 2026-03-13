@@ -280,7 +280,7 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged | Event::PendingSharesChanged => {
+                Event::MetadataChanged(_) | Event::PendingSharesChanged => {
                     self.refresh_tree(ctx);
                 }
                 Event::StatusUpdated => {
@@ -325,8 +325,6 @@ impl AccountScreen {
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        self.workspace.tasks.queue_sync();
-                        // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -351,7 +349,6 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        self.workspace.tasks.queue_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {
@@ -800,7 +797,6 @@ impl AccountScreen {
         });
     }
 
-    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {

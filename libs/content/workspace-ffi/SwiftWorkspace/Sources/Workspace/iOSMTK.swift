@@ -1234,10 +1234,6 @@
                 mtkView.workspaceInput?.openFile(id: newFile)
             }
 
-            if output.new_folder_btn_pressed {
-                mtkView.workspaceOutput?.newFolderButtonPressed = ()
-            }
-
             if let openedUrl = output.url_opened {
                 let url = textFromPtr(s: openedUrl)
 

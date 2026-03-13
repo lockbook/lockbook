@@ -48,8 +48,7 @@ pub extern "C" fn create_doc_at(obj: *mut c_void, parent: CUuid, is_drawing: boo
 
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.tasks.queue_sync();
+    todo!()
 }
 
 #[no_mangle]
@@ -221,23 +220,3 @@ pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
     }
 }
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct FfiWsStatus {
-    pub syncing: bool,
-    pub msg: *const c_char,
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn get_status(obj: *mut c_void) -> FfiWsStatus {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let syncing = obj.workspace.visibly_syncing();
-    let msg = obj.workspace.status.message.clone();
-    let msg = CString::new(msg)
-        .expect("Could not Rust String -> C String")
-        .into_raw();
-
-    FfiWsStatus { syncing, msg }
-}

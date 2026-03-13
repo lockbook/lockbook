@@ -2,3 +2,4 @@
 #[cfg(not(target_family = "wasm"))]
 pub mod search;
 pub mod status;
+pub mod syncer;

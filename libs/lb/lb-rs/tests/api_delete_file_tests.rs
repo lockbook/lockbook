@@ -9,7 +9,7 @@ async fn delete_document() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let doc1 = core
         .begin_tx()
@@ -33,7 +33,7 @@ async fn delete_document_not_found() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let mut doc1 = core
         .begin_tx()
         .await
@@ -100,7 +100,7 @@ async fn delete_document_deleted() {
         .get(&doc)
         .unwrap()
         .clone();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     // delete document
     let mut doc2 = doc.clone();

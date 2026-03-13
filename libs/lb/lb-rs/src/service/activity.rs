@@ -2,8 +2,7 @@ use crate::Lb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
 use serde::{Deserialize, Serialize};
-use std::cmp;
-use std::cmp::Ordering;
+use std::cmp::{self, Ordering};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -117,6 +116,14 @@ impl Lb {
             f.write_count.normalize(write_count_range);
             f.last_read_timestamp.normalize(last_read_range);
             f.last_write_timestamp.normalize(last_write_range);
+        });
+    }
+
+    /// hint to background processing pipelines whether or not a user is around
+    pub fn app_foregrounded(&self) {
+        let bg_lb = self.clone();
+        tokio::spawn(async move {
+            *bg_lb.user_last_seen.write().await = web_time::Instant::now();
         });
     }
 }

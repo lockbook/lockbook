@@ -149,8 +149,8 @@ async fn search_exclude_pending_share() {
         .await
         .unwrap();
 
-    core1.sync(None).await.unwrap();
-    core2.sync(None).await.unwrap();
+    core1.sync().await.unwrap();
+    core2.sync().await.unwrap();
 
     core2.create_at_path("/bbbbbbb.md").await.unwrap();
     core2

@@ -12,7 +12,7 @@ async fn move_document() {
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("doc.md").await.unwrap().id;
     let folder = core.create_at_path("folder/").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let mut tx = core.begin_tx().await;
     let doc1 = tx.db().base_metadata.get().get(&doc).unwrap().clone();
@@ -33,7 +33,7 @@ async fn move_document_parent_not_found() {
 
     // create document and folder, but don't send folder to server
     let doc = core.create_at_path("folder/doc.md").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let mut tx = core.begin_tx().await;
     let doc1 = tx.db().base_metadata.get().get(&doc).unwrap().clone();

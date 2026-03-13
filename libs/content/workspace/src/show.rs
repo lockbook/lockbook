@@ -31,7 +31,6 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
-        self.status.message = self.status_message();
 
         if self.is_empty() {
             if self.show_tabs {

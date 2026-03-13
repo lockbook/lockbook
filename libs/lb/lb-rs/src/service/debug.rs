@@ -9,9 +9,6 @@ use std::path::PathBuf;
 use time::Duration;
 
 #[cfg(not(target_family = "wasm"))]
-use std::sync::atomic::Ordering;
-
-#[cfg(not(target_family = "wasm"))]
 use std::path::Path;
 
 #[cfg(not(target_family = "wasm"))]
@@ -195,7 +192,7 @@ impl Lb {
         let mut status = self.status().await;
         status.space_used = None;
         let status = format!("{status:?}");
-        let is_syncing = self.syncing.load(Ordering::Relaxed);
+        let is_syncing = self.syncer.try_lock().is_ok();
 
         Ok(DebugInfo {
             time: self.now(),

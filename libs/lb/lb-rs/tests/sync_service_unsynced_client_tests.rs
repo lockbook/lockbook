@@ -85,7 +85,7 @@ async fn delete() {
     core.delete(&doc.id).await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
-    let summary = core.sync(None).await.unwrap();
+    let summary = core.sync().await.unwrap();
     assert!(summary.work_units.is_empty());
     core.test_repo_integrity(true).await.unwrap();
 }
@@ -97,7 +97,7 @@ async fn delete_parent() {
     delete_path(&core, "/parent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
-    let summary = core.sync(None).await.unwrap();
+    let summary = core.sync().await.unwrap();
     assert!(summary.work_units.is_empty());
     core.test_repo_integrity(true).await.unwrap();
 }
@@ -111,7 +111,7 @@ async fn delete_grandparent() {
     delete_path(&core, "/grandparent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
-    let summary = core.sync(None).await.unwrap();
+    let summary = core.sync().await.unwrap();
     assert!(summary.work_units.is_empty());
     core.test_repo_integrity(true).await.unwrap();
 }

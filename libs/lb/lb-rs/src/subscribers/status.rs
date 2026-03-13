@@ -1,13 +1,14 @@
 use std::sync::Arc;
-use web_time::Duration;
+use basic_human_duration::ChronoHumanDuration;
+use time::Duration;
 
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 use web_time::Instant;
 
+use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult, Unexpected};
-use crate::service::events::Event;
-use crate::service::sync::SyncIncrement;
+use crate::service::events::{Event, SyncIncrement};
 use crate::service::usage::UsageMetrics;
 use crate::{Lb, tokio_spawn};
 
@@ -160,10 +161,28 @@ impl Lb {
         Ok(())
     }
 
+    pub async fn get_last_synced_human(&self) -> LbResult<String> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+        let last_synced = db.last_synced.get().copied().unwrap_or(0);
+
+        Ok(self.get_timestamp_human_string(last_synced))
+    }
+
+    pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
+        if timestamp != 0 {
+            Duration::milliseconds(clock::get_time().0 - timestamp)
+                .format_human()
+                .to_string()
+        } else {
+            "never".to_string()
+        }
+    }
+
     async fn process_event(&self, e: Event) -> LbResult<()> {
         let current = self.status.current_status.read().await.clone();
         match e {
-            Event::MetadataChanged | Event::DocumentWritten(_, _) => {
+            Event::MetadataChanged(_) | Event::DocumentWritten(_, _) => {
                 self.compute_dirty_locally(current).await?;
             }
             Event::Sync(s) => self.update_sync(s, current).await?,
@@ -200,8 +219,8 @@ impl Lb {
 
         let bg = self.clone();
         tokio_spawn!(async move {
-            if initialized && computed.elapsed() < Duration::from_secs(60) {
-                tokio::time::sleep(Duration::from_secs(60) - computed.elapsed()).await;
+            if initialized && computed.elapsed() < web_time::Duration::from_secs(60) {
+                tokio::time::sleep(web_time::Duration::from_secs(60) - computed.elapsed()).await;
             }
             let usage = bg.get_usage().await.log_and_ignore();
             let mut lock = bg.status.space_updated.lock().await;

@@ -27,7 +27,7 @@ async fn report_usage() {
     );
     assert_eq!(core.get_usage().await.unwrap().usages[0].size_bytes, METADATA_FEE);
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let hmac = core
         .begin_tx()
         .await
@@ -67,9 +67,9 @@ async fn usage_go_back_down_after_delete() {
         .await
         .unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.delete(&file.id).await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     assert_eq!(
         core.get_usage()
@@ -111,14 +111,14 @@ async fn usage_go_back_down_after_delete_folder() {
         .await
         .unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let usages = core.get_usage().await.unwrap();
     assert_eq!(usages.usages.len(), 5);
     core.delete(&folder.id).await.unwrap();
     for usage in usages.usages {
         assert_ne!(usage.size_bytes, 0);
     }
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let hmac = core
         .begin_tx()
@@ -155,7 +155,7 @@ async fn usage_new_files_have_no_size() {
         "Didn't account for the cost of root file metadata"
     );
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let total_usage = core
         .get_usage()
@@ -179,7 +179,7 @@ async fn change_doc_over_data_cap() {
         .collect();
     core.write_document(document.id, &content).await.unwrap();
 
-    let result = core.sync(None).await;
+    let result = core.sync().await;
 
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
@@ -193,12 +193,12 @@ async fn old_file_and_new_large_one() {
         .collect();
     core.write_document(document1.id, &content).await.unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let document2 = core.create_at_path("document2.md").await.unwrap();
     core.write_document(document2.id, &content).await.unwrap();
 
-    let result = core.sync(None).await;
+    let result = core.sync().await;
 
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
@@ -215,7 +215,7 @@ async fn upsert_meta_over_data_cap() {
 
     core.write_document(document.id, &content).await.unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let hmac = {
         core.ro_tx()
@@ -238,14 +238,14 @@ async fn upsert_meta_over_data_cap() {
         core.create_at_path(format!("document{i}.md").as_str())
             .await
             .unwrap();
-        core.sync(None).await.unwrap();
+        core.sync().await.unwrap();
     }
 
     core.create_at_path("the_file_that_broke_the_camel's_back.md")
         .await
         .unwrap();
 
-    let result = core.sync(None).await;
+    let result = core.sync().await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
 
@@ -273,7 +273,7 @@ async fn upsert_meta_empty_folder_over_data_cap() {
             .await
             .unwrap();
     }
-    let result = core.sync(None);
+    let result = core.sync();
 
     assert_eq!(result.await.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
@@ -297,15 +297,15 @@ async fn shared_docs_excluded() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert_eq!(cores[1].get_usage().await.unwrap().usages.len(), 2);
 }

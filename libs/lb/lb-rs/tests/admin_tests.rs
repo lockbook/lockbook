@@ -14,7 +14,7 @@ async fn admin_disappear_test() {
     let customer_core = test_core_with_account().await;
     let test1 = customer_core.create_at_path("test1.md").await.unwrap();
     let test2 = customer_core.create_at_path("test2.md").await.unwrap();
-    customer_core.sync(None).await.unwrap();
+    customer_core.sync().await.unwrap();
 
     let account_string = customer_core.export_account_private_key().unwrap();
     let customer_core_2 = test_core().await;
@@ -49,7 +49,7 @@ async fn admin_disappear_test() {
             .len(),
         2
     );
-    customer_core_2.sync(None).await.unwrap();
+    customer_core_2.sync().await.unwrap();
 
     assert!(
         customer_core_2
@@ -94,8 +94,8 @@ async fn disappear_file_shared_with_disappeared_account() {
         .share_file(doc.id, &customer2.get_account().unwrap().username, ShareMode::Read)
         .await
         .unwrap();
-    customer1.sync(None).await.unwrap();
-    customer2.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
+    customer2.sync().await.unwrap();
 
     assert!(
         admin_core
@@ -112,7 +112,7 @@ async fn disappear_file_shared_with_disappeared_account() {
         .unwrap();
     admin_core.disappear_file(doc.id).await.unwrap();
 
-    customer1.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
     assert!(
         admin_core
             .validate_server()
@@ -144,8 +144,8 @@ async fn admin_disappear_folder_shared_with_disappeared_account() {
         .share_file(folder.id, &customer2.get_account().unwrap().username, ShareMode::Read)
         .await
         .unwrap();
-    customer1.sync(None).await.unwrap();
-    customer2.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
+    customer2.sync().await.unwrap();
 
     assert!(
         admin_core
@@ -162,7 +162,7 @@ async fn admin_disappear_folder_shared_with_disappeared_account() {
         .unwrap();
     admin_core.disappear_file(folder.id).await.unwrap();
 
-    customer1.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
     assert!(
         admin_core
             .validate_server()
@@ -193,8 +193,8 @@ async fn admin_rebuild_owned_files_index_test() {
         .share_file(doc.id, &customer2.get_account().unwrap().username, ShareMode::Read)
         .await
         .unwrap();
-    customer1.sync(None).await.unwrap();
-    customer2.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
+    customer2.sync().await.unwrap();
 
     assert!(
         admin_core
@@ -254,8 +254,8 @@ async fn admin_rebuild_shared_files_index_test() {
         .share_file(doc.id, &customer2.get_account().unwrap().username, ShareMode::Read)
         .await
         .unwrap();
-    customer1.sync(None).await.unwrap();
-    customer2.sync(None).await.unwrap();
+    customer1.sync().await.unwrap();
+    customer2.sync().await.unwrap();
 
     assert!(
         admin_core

@@ -34,7 +34,7 @@ pub async fn test_core_from(core: &Lb) -> Lb {
     core.import_account(&account_string, Some(&url()))
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core
 }
 

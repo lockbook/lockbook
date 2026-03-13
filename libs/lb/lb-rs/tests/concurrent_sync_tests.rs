@@ -15,7 +15,7 @@ async fn test_sync_concurrently() {
             .await
             .unwrap();
     }
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     // 1779, 1942
     let core1 = Lb::init(test_config()).await.unwrap();
@@ -27,7 +27,7 @@ async fn test_sync_concurrently() {
     let th1 = tokio::spawn(async move {
         println!("in th1");
         let start = SystemTime::now();
-        core1.sync(None).await.unwrap();
+        core1.sync().await.unwrap();
         SystemTime::now().duration_since(start).unwrap().as_millis()
     });
 
@@ -50,7 +50,7 @@ async fn test_sync_concurrently2() {
     core.write_document(file.id, "t".repeat(1000).as_bytes())
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     let mut threads = vec![];
 
@@ -61,7 +61,7 @@ async fn test_sync_concurrently2() {
             let start = SystemTime::now();
             for _ in 0..10 {
                 println!("sync began");
-                if let Err(e) = core1.sync(None).await {
+                if let Err(e) = core1.sync().await {
                     eprintln!("ERROR FOUND: {e}");
                 }
                 println!("sync end");

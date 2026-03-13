@@ -35,8 +35,8 @@ async fn get_path_document_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", document.id)
@@ -62,8 +62,8 @@ async fn get_path_folder_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)
@@ -90,8 +90,8 @@ async fn create_path_doc_under_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)
@@ -119,8 +119,8 @@ async fn create_path_folder_under_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)
@@ -148,8 +148,8 @@ async fn list_metadatas_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", document.id)
@@ -181,8 +181,8 @@ async fn list_metadatas_linked_folder() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let _link = cores[1]
         .create_link_at_path("link", folder.id)
@@ -225,8 +225,8 @@ async fn list_metadatas_linked_nested_folder() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder1.id)
@@ -275,8 +275,8 @@ async fn list_metadatas_linked_folder_shared_from_folder() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder2.id)
@@ -315,8 +315,8 @@ async fn list_metadatas_folder_linked_into_folder() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let folder2 = cores[1].create_at_path("folder/").await.unwrap();
     cores[1]
@@ -372,8 +372,8 @@ async fn list_metadatas_nested_linked_folders() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link1", folder1.id)
@@ -433,9 +433,9 @@ async fn inconsistent_share_finalization() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
-    cores[2].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[2].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)
@@ -475,8 +475,8 @@ async fn link_resolving() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("link", folder.id)

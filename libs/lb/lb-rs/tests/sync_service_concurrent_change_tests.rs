@@ -6,10 +6,10 @@ use test_utils::*;
 /// Tests that setup two synced devices, operate on both devices, then sync both twice (work
 /// should be none, devices dbs should be equal, deleted files should be pruned).
 async fn sync_and_assert(c1: &Lb, c2: &Lb) {
-    c1.sync(None).await.unwrap();
-    c2.sync(None).await.unwrap();
-    c1.sync(None).await.unwrap();
-    c2.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.test_repo_integrity(true).await.unwrap();
     assert::cores_equal(c1, c2).await;
@@ -23,10 +23,10 @@ async fn identical_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document", "/parent/").await.unwrap();
     move_by_path(&c2, "/document", "/parent/").await.unwrap();
@@ -42,10 +42,10 @@ async fn different_move() {
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document", "/parent/").await.unwrap();
     move_by_path(&c2, "/document", "/parent2/").await.unwrap();
@@ -59,10 +59,10 @@ async fn different_move() {
 async fn identical_rename() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/document", "document2").await.unwrap();
     rename_path(&c2, "/document", "document2").await.unwrap();
@@ -76,10 +76,10 @@ async fn identical_rename() {
 async fn different_rename() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/document", "document2").await.unwrap();
     rename_path(&c2, "/document", "document3").await.unwrap();
@@ -94,10 +94,10 @@ async fn move_then_rename() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document", "/parent/").await.unwrap();
     rename_path(&c2, "/document", "document2").await.unwrap();
@@ -112,10 +112,10 @@ async fn rename_then_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/document", "document2").await.unwrap();
     move_by_path(&c2, "/document", "/parent/").await.unwrap();
@@ -129,10 +129,10 @@ async fn rename_then_move() {
 async fn identical_delete() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/document").await.unwrap();
     delete_path(&c2, "/document").await.unwrap();
@@ -146,10 +146,10 @@ async fn identical_delete() {
 async fn identical_delete_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     delete_path(&c2, "/parent/").await.unwrap();
@@ -163,10 +163,10 @@ async fn identical_delete_parent() {
 async fn delete_parent_then_direct() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     delete_path(&c2, "/parent/document").await.unwrap();
@@ -180,10 +180,10 @@ async fn delete_parent_then_direct() {
 async fn delete_direct_then_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/document").await.unwrap();
     delete_path(&c2, "/parent/").await.unwrap();
@@ -199,10 +199,10 @@ async fn identical_delete_grandparent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
     delete_path(&c2, "/grandparent/").await.unwrap();
@@ -218,10 +218,10 @@ async fn delete_grandparent_then_direct() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
     delete_path(&c2, "/grandparent/parent/document")
@@ -239,10 +239,10 @@ async fn delete_direct_then_grandparent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/parent/document")
         .await
@@ -260,10 +260,10 @@ async fn delete_grandparent_then_parent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
     delete_path(&c2, "/grandparent/parent/").await.unwrap();
@@ -279,10 +279,10 @@ async fn delete_parent_then_grandparent() {
     c1.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/parent/").await.unwrap();
     delete_path(&c2, "/grandparent/").await.unwrap();
@@ -297,10 +297,10 @@ async fn move_then_delete() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document", "/parent/").await.unwrap();
     delete_path(&c2, "/document").await.unwrap();
@@ -315,10 +315,10 @@ async fn delete_then_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/document").await.unwrap();
     move_by_path(&c2, "/document", "/parent/").await.unwrap();
@@ -333,10 +333,10 @@ async fn move_then_delete_new_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document", "/parent/").await.unwrap();
     delete_path(&c2, "/parent/").await.unwrap();
@@ -351,10 +351,10 @@ async fn delete_new_parent_then_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     move_by_path(&c2, "/document", "/parent/").await.unwrap();
@@ -368,10 +368,10 @@ async fn delete_new_parent_then_move() {
 async fn move_then_delete_old_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/parent/document", "").await.unwrap();
     delete_path(&c2, "/parent/").await.unwrap();
@@ -385,10 +385,10 @@ async fn move_then_delete_old_parent() {
 async fn delete_old_parent_then_move() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     move_by_path(&c2, "/parent/document", "").await.unwrap();
@@ -402,10 +402,10 @@ async fn delete_old_parent_then_move() {
 async fn rename_then_delete() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/document", "document2").await.unwrap();
     delete_path(&c2, "/document").await.unwrap();
@@ -419,10 +419,10 @@ async fn rename_then_delete() {
 async fn delete_then_rename() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/document").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/document").await.unwrap();
     rename_path(&c2, "/document", "document2").await.unwrap();
@@ -437,10 +437,10 @@ async fn create_then_move_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
     move_by_path(&c2, "/parent/", "/parent2/").await.unwrap();
@@ -456,10 +456,10 @@ async fn move_parent_then_create() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
     c1.create_at_path("/parent2/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/parent/", "/parent2/").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
@@ -474,10 +474,10 @@ async fn move_parent_then_create() {
 async fn create_then_rename_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
     rename_path(&c2, "/parent/", "parent2").await.unwrap();
@@ -491,10 +491,10 @@ async fn create_then_rename_parent() {
 async fn rename_parent_then_create() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/parent/", "parent2").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
@@ -508,10 +508,10 @@ async fn rename_parent_then_create() {
 async fn create_then_delete_parent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/parent/document").await.unwrap();
     delete_path(&c2, "/parent/").await.unwrap();
@@ -525,10 +525,10 @@ async fn create_then_delete_parent() {
 async fn delete_parent_then_create() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     c2.create_at_path("/parent/document").await.unwrap();
@@ -542,10 +542,10 @@ async fn delete_parent_then_create() {
 async fn create_then_delete_grandparent() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     c1.create_at_path("/grandparent/parent/document")
         .await
@@ -561,10 +561,10 @@ async fn create_then_delete_grandparent() {
 async fn delete_grandparent_then_create() {
     let c1 = test_core_with_account().await;
     c1.create_at_path("/grandparent/parent/").await.unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
     c2.create_at_path("/grandparent/parent/document")
@@ -583,10 +583,10 @@ async fn identical_content_edit_not_mergable() {
     write_path(&c1, "/document.draw", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.draw", b"document content 2")
         .await
@@ -607,10 +607,10 @@ async fn identical_content_edit_mergable() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document content 2")
         .await
@@ -631,10 +631,10 @@ async fn different_content_edit_not_mergable() {
     write_path(&c1, "/document.draw", b"document\n\ncontent\n")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.draw", b"document 2\n\ncontent\n")
         .await
@@ -662,10 +662,10 @@ async fn different_content_edit_mergable() {
     write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
@@ -687,10 +687,10 @@ async fn different_content_edit_mergable_with_move_in_first_sync() {
     write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
@@ -714,10 +714,10 @@ async fn different_content_edit_mergable_with_move_in_second_sync() {
     write_path(&c1, "/document.md", b"document\n\ncontent\n")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document 2\n\ncontent\n")
         .await
@@ -741,10 +741,10 @@ async fn move_then_edit_content() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     move_by_path(&c1, "/document.md", "/parent/").await.unwrap();
     write_path(&c2, "/document.md", b"document content 2")
@@ -764,10 +764,10 @@ async fn edit_content_then_move() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document content 2")
         .await
@@ -786,10 +786,10 @@ async fn rename_then_edit_content() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     rename_path(&c1, "/document.md", "document2.md")
         .await
@@ -810,10 +810,10 @@ async fn edit_content_then_rename() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document content 2")
         .await
@@ -834,10 +834,10 @@ async fn delete_then_edit_content() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/document.md").await.unwrap();
     write_path(&c2, "/document.md", b"document content 2")
@@ -856,10 +856,10 @@ async fn edit_content_then_delete() {
     write_path(&c1, "/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/document.md", b"document content 2")
         .await
@@ -878,10 +878,10 @@ async fn delete_parent_then_edit_content() {
     write_path(&c1, "/parent/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/parent/").await.unwrap();
     write_path(&c2, "/parent/document.md", b"document content 2")
@@ -900,10 +900,10 @@ async fn edit_content_then_delete_parent() {
     write_path(&c1, "/parent/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/parent/document.md", b"document content 2")
         .await
@@ -924,10 +924,10 @@ async fn delete_grandparent_then_edit_content() {
     write_path(&c1, "/grandparent/parent/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     delete_path(&c1, "/grandparent/").await.unwrap();
     write_path(&c2, "/grandparent/parent/document.md", b"document content 2")
@@ -948,10 +948,10 @@ async fn edit_content_then_delete_grandparent() {
     write_path(&c1, "/grandparent/parent/document.md", b"document content")
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
 
     let c2 = another_client(&c1).await;
-    c2.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
 
     write_path(&c1, "/grandparent/parent/document.md", b"document content 2")
         .await
@@ -978,15 +978,15 @@ async fn create_two_links() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link1", document.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .create_link_at_path("/link2", document.id)
         .await
@@ -1011,16 +1011,16 @@ async fn share_then_create_link_in_folder() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
     let folder = cores[1][0].create_at_path("/folder/").await.unwrap();
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .share_file(folder.id, &accounts[0].username, ShareMode::Read)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .create_link_at_path("/folder/link", document.id)
         .await
@@ -1045,16 +1045,16 @@ async fn create_link_in_folder_then_share() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
     let folder = cores[1][0].create_at_path("/folder/").await.unwrap();
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .share_file(folder.id, &accounts[0].username, ShareMode::Read)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .create_link_at_path("/folder/link", document.id)
         .await
@@ -1087,15 +1087,15 @@ async fn create_link_then_move_to_owned_folder() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", document.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .move_file(&document.id, &cores[1][1].root().await.unwrap().id)
         .await
@@ -1133,15 +1133,15 @@ async fn create_link_then_move_to_owned_folder_and_move_prior_parent_into_it() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", folder.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .move_file(&folder.id, &cores[1][1].root().await.unwrap().id)
         .await
@@ -1181,15 +1181,15 @@ async fn create_link_then_move_to_owned_folder_and_create_file_with_conflicting_
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", folder.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .move_file(&folder.id, &cores[1][1].root().await.unwrap().id)
         .await
@@ -1232,15 +1232,15 @@ async fn move_to_owned_folder_then_create_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", document.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1]
         .move_file(&document.id, &cores[1][1].root().await.unwrap().id)
         .await
@@ -1273,15 +1273,15 @@ async fn create_link_then_delete() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", document.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1].delete(&document.id).await.unwrap();
 
     sync_and_assert(&cores[1][0], &cores[1][1]).await;
@@ -1312,15 +1312,15 @@ async fn delete_then_create_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .create_link_at_path("/link", document.id)
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1].delete(&document.id).await.unwrap();
 
     sync_and_assert(&cores[1][1], &cores[1][0]).await; // note: order reversed from above test
@@ -1339,27 +1339,27 @@ async fn share_from_two_clients() {
         .collect::<Vec<_>>();
 
     let document = cores[0][0].create_at_path("/document").await.unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
     cores[0][0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
 
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][1].sync().await.unwrap();
     cores[0][1]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
 
-    cores[0][0].sync(None).await.unwrap();
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
+    cores[0][1].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -1373,27 +1373,27 @@ async fn share_from_two_clients_read_then_write() {
         .collect::<Vec<_>>();
 
     let document = cores[0][0].create_at_path("/document").await.unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
     cores[0][0]
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
 
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][1].sync().await.unwrap();
     cores[0][1]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
 
-    cores[0][0].sync(None).await.unwrap();
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
+    cores[0][1].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -1407,27 +1407,27 @@ async fn share_from_two_clients_write_then_read() {
         .collect::<Vec<_>>();
 
     let document = cores[0][0].create_at_path("/document").await.unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
     cores[0][0]
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
 
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][1].sync().await.unwrap();
     cores[0][1]
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
 
-    cores[0][0].sync(None).await.unwrap();
-    cores[0][1].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
+    cores[0][1].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -1443,9 +1443,9 @@ async fn share_delete_then_upgrade_to_write() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&document.id).await.unwrap();
 
     cores[0]
@@ -1453,15 +1453,15 @@ async fn share_delete_then_upgrade_to_write() {
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -1477,9 +1477,9 @@ async fn share_upgrade_to_write_then_delete() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&document.id).await.unwrap();
 
     cores[0]
@@ -1488,10 +1488,10 @@ async fn share_upgrade_to_write_then_delete() {
         .unwrap();
 
     // note: sync order reversed from above test
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
@@ -1517,15 +1517,15 @@ async fn deleted_share_of_file_with_local_change() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0][0].sync(None).await.unwrap();
+    cores[0][0].sync().await.unwrap();
 
-    cores[1][0].sync(None).await.unwrap();
+    cores[1][0].sync().await.unwrap();
     cores[1][0]
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
 
-    cores[1][1].sync(None).await.unwrap();
+    cores[1][1].sync().await.unwrap();
     cores[1][1].reject_share(&document.id).await.unwrap();
 
     sync_and_assert(&cores[1][0], &cores[1][1]).await;

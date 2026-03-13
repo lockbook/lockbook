@@ -44,27 +44,6 @@ where
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.
     /// Inserts all of these values into their respective keys along with the default free account tier size
-    pub async fn new_account(
-        &self, context: RequestContext<NewAccountRequest>,
-    ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
-        let request = context.request;
-        let request = NewAccountRequestV2 {
-            username: request.username.to_lowercase(),
-            public_key: request.public_key,
-            root_folder: SignedMeta::from(request.root_folder),
-        };
-
-        self.new_account_v2(RequestContext {
-            request,
-            public_key: context.public_key,
-            ip: context.ip,
-        })
-        .await
-    }
-
-    /// Create a new account given a username, public_key, and root folder.
-    /// Checks that username is valid, and that username, public_key and root_folder are new.
-    /// Inserts all of these values into their respective keys along with the default free account tier size
     pub async fn new_account_v2(
         &self, mut context: RequestContext<NewAccountRequestV2>,
     ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
