@@ -143,7 +143,6 @@ pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 use std::time::Instant;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;

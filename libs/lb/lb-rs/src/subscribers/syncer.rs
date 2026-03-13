@@ -21,7 +21,6 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertRequestV2,
         },
-        clock,
         crypto::EncryptedDocument,
         errors::Unexpected,
         file::ShareMode,
