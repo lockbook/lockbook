@@ -374,10 +374,19 @@ pub fn update_flatpak() -> CliResult<()> {
         ])
         .assert_success()?;
 
+    Command::new("git")
+        .args([
+            "clone",
+            "--depth=1",
+            "--branch",
+            "https://github.com/lockbook/net.lockbook.Lockbook.git",
+        ])
+        .assert_success()?;
+
     Command::new("curl")
         .args([
             "-fL",
-            &format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz"),
+            &format!("https://github.com/lockbook/lockbook/archive/refs/tags/26.3.11.tar.gz"),
             "-o",
             &tarball,
         ])
