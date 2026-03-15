@@ -1,6 +1,8 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{TextFormat, Ui, UiBuilder};
+use egui::{Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use super::Editor;
 use super::bounds::RangesExt as _;
@@ -14,13 +16,13 @@ pub(crate) mod utils;
 pub const MARGIN: f32 = 45.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 1000.0; // the maximum width of the editor before it starts adding padding
 
-pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
-pub const ROW_HEIGHT: f32 = 20.0; // ...at default font size
+pub const INLINE_PADDING: f32 = 2.0; // the extra space granted to inline code for a border (all sides)
+pub const ROW_HEIGHT: f32 = 16.0; // ...at default font size
 pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
-pub const INDENT: f32 = 30.0; // enough space for two digits in a numbered list
+pub const INDENT: f32 = 26.0; // enough space for two digits in a numbered list
 pub const BULLET_RADIUS: f32 = 2.0;
-pub const ROW_SPACING: f32 = 5.0; // must be large enough to accommodate bordered elements e.g. inline code
-pub const BLOCK_SPACING: f32 = 10.0;
+pub const ROW_SPACING: f32 = 6.0; // must be large enough to accommodate bordered elements e.g. inline code
+pub const BLOCK_SPACING: f32 = 14.0;
 
 impl<'ast> Editor {
     /// Returns the range for the node.
@@ -154,7 +156,7 @@ impl<'ast> Editor {
         (start_line_idx, end_line_idx)
     }
 
-    pub fn text_format(&self, node: &AstNode<'_>) -> TextFormat {
+    pub fn text_format(&self, node: &AstNode<'_>) -> Format {
         let parent = || node.parent().unwrap();
         let parent_text_format = || self.text_format(parent());
 
@@ -205,9 +207,7 @@ impl<'ast> Editor {
             NodeValue::CodeBlock(_) => self.text_format_code_block(parent()),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(NodeHeading { level, .. }) => {
-                self.text_format_heading(parent(), *level)
-            }
+            NodeValue::Heading(_) => parent_text_format(),
             NodeValue::HtmlBlock(_) => self.text_format_html_block(parent()),
             NodeValue::Paragraph => parent_text_format(),
             NodeValue::TableCell => parent_text_format(),
@@ -216,26 +216,30 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn text_format_syntax(&self, node: &'ast AstNode<'ast>) -> TextFormat {
-        let mono = self.text_format_code(node);
-
-        TextFormat {
+    pub fn text_format_syntax(&self) -> Format {
+        Format {
+            family: FontFamily::Mono,
+            bold: false,
+            italic: false,
             color: if self.plaintext_mode {
                 self.theme.fg().neutral_primary
             } else {
                 self.theme.fg().neutral_quarternary
             },
-            background: Default::default(),
-            underline: Default::default(),
-            strikethrough: Default::default(),
-            italics: Default::default(),
-            ..mono
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
         }
     }
 
-    fn row_height(&self, node: &AstNode<'_>) -> f32 {
-        let text_format = self.text_format(node).font_id;
-        self.ctx.fonts(|fonts| fonts.row_height(&text_format))
+    pub fn row_height(&self, node: &AstNode<'_>) -> f32 {
+        match &node.data.borrow().value {
+            NodeValue::Heading(NodeHeading { level, .. }) => self.heading_row_height(*level),
+            _ => ROW_HEIGHT,
+        }
     }
 
     pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {

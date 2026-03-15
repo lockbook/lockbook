@@ -5,12 +5,13 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
+use glyphon::FontSystem;
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -49,7 +50,7 @@ pub struct AccountScreen {
     full_search_doc: FullDocSearch,
     sync: SyncPanel,
     lb_status: Status,
-    workspace: Workspace,
+    pub workspace: Workspace,
     modals: Modals,
     shutdown: Option<AccountShutdownProgress>,
 }
@@ -57,7 +58,7 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
-        is_new_user: bool,
+        font_system: Arc<Mutex<FontSystem>>, is_new_user: bool,
     ) -> Self {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
@@ -82,7 +83,7 @@ impl AccountScreen {
             ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), font_system, true),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
@@ -141,7 +142,7 @@ impl AccountScreen {
 
         egui::SidePanel::left("sidebar_panel")
             // get rid of the space, keep the colors normal
-            .frame(egui::Frame::none().fill(ctx.style().visuals.panel_fill))
+            .frame(egui::Frame::new().fill(ctx.style().visuals.panel_fill))
             .min_width(300.0)
             .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
@@ -152,7 +153,7 @@ impl AccountScreen {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
                     egui::Frame::default()
-                        .inner_margin(egui::Margin::symmetric(20.0, 20.0))
+                        .inner_margin(egui::Margin::symmetric(20, 20))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
                             self.show_sync_btn(ui);
@@ -218,7 +219,7 @@ impl AccountScreen {
                     let max = ui.clip_rect().left_bottom();
 
                     let rect = egui::Rect { min, max };
-                    ui.allocate_new_ui(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         let zen_mode_btn = Button::default()
                             .icon(&Icon::TOGGLE_SIDEBAR)
                             .frame(true)
@@ -438,7 +439,7 @@ impl AccountScreen {
         let resp = ScrollArea::vertical()
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
-                    Frame::none()
+                    Frame::new()
                         .inner_margin(0.)
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {

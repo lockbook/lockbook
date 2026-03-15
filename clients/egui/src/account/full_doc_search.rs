@@ -36,12 +36,12 @@ impl FullDocSearch {
     const ICON_WIDTH: f32 = 15.0;
 
     fn set_style(&self, ui: &mut egui::Ui) {
-        let rounding = 5.0.into();
-        ui.visuals_mut().widgets.active.rounding = rounding;
-        ui.visuals_mut().widgets.hovered.rounding = rounding;
-        ui.visuals_mut().widgets.inactive.rounding = rounding;
-        ui.visuals_mut().widgets.noninteractive.rounding = rounding;
-        ui.visuals_mut().widgets.open.rounding = rounding;
+        let corner_radius: egui::CornerRadius = 5.0.into();
+        ui.visuals_mut().widgets.active.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.hovered.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.inactive.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.noninteractive.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.open.corner_radius = corner_radius;
 
         ui.visuals_mut().widgets.hovered.bg_stroke =
             egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
@@ -87,7 +87,7 @@ impl FullDocSearch {
     pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Response {
         let mut resp = Response::default();
         let results_resp = egui::Frame::default()
-            .inner_margin(egui::Margin::symmetric(10.0, 10.0))
+            .inner_margin(egui::Margin::symmetric(10, 10))
             .show(ui, |ui| {
                 self.set_style(ui);
                 // draw the UI, get the query, possibly clear the query & search results
@@ -110,7 +110,7 @@ impl FullDocSearch {
                     .id(id)
                     .desired_width(ui.available_size_before_wrap().x - icon_shelf_width)
                     .hint_text("Search")
-                    .margin(egui::Margin::symmetric(x_margin_with_icon, 6.0))
+                    .margin(egui::Margin::symmetric(x_margin_with_icon as i8, 6))
                     .show(ui);
 
                 resp.search_box_rect = Some(output.response.interact_rect);

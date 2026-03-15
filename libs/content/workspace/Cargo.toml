@@ -1,6 +1,6 @@
 [package]
 name = "workspace"
-version = "26.2.23"
+version = "26.3.11"
 edition = "2021"
 
 [lib]
@@ -16,11 +16,13 @@ colors-transform = "0.2.11"
 comrak = { version = "0.50", default-features = false, features = [
     "shortcodes",
 ] }
-egui = { version = "0.30.0", features = ["serde"] }
-egui_animation = "0.7.0"
-epaint = { version = "0.30", features = ["color-hex"] }
+egui = { version = "0.32.3", features = ["serde"] }
+egui_animation = "0.9.0"
+egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }
+epaint = { version = "0.32", features = ["color-hex"] }
 futures = "0.3.30"
 glam = "0.22.0"
+glyphon = "0.9.0"
 hayro = "0.4.0"
 # Annoyingly egui depends on a version match here for feature toggling reasons
 image = "0.25.9"

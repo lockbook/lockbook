@@ -1,6 +1,7 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
+use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -14,7 +15,7 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
@@ -24,7 +25,7 @@ use crate::landing::LandingPage;
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
+use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -62,6 +63,8 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
+    pub font_system: Arc<Mutex<FontSystem>>,
+
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -71,13 +74,16 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
+    pub fn new(
+        core: &Lb, ctx: &Context, font_system: Arc<Mutex<FontSystem>>, show_tabs: bool,
+    ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files = FileCache::new(core).log_and_ignore();
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+        ctx.set_zoom_factor(cfg.get_zoom_factor());
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -97,6 +103,8 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             core: core.clone(),
+            font_system,
+
             show_tabs,
             focused_parent: Default::default(),
 
@@ -318,7 +326,7 @@ impl Workspace {
         self.tabs.remove(i);
         self.out.tabs_changed = true;
 
-        if !self.tabs.is_empty() && self.current_tab >= self.tabs.len() {
+        if !self.tabs.is_empty() && (self.current_tab >= self.tabs.len() || i < self.current_tab) {
             self.current_tab -= 1;
         }
         self.current_tab_changed = true;
@@ -475,12 +483,15 @@ impl Workspace {
                             if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
-                                        self.ctx.clone(),
-                                        core.clone(),
-                                        self.cfg.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
+                                        MdResources {
+                                            ctx: self.ctx.clone(),
+                                            core: core.clone(),
+                                            persistence: self.cfg.clone(),
+                                            font_system: self.font_system.clone(),
+                                        },
                                         MdConfig {
                                             plaintext_mode: ext != "md",
                                             readonly: tab.read_only,
@@ -868,6 +879,7 @@ pub struct WsPresistentData {
     auto_save: bool,
     auto_sync: bool,
     landing_page: LandingPage,
+    zoom_factor: f32,
 }
 
 impl Default for WsPresistentData {
@@ -880,6 +892,7 @@ impl Default for WsPresistentData {
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
+            zoom_factor: 1.,
         }
     }
 }
@@ -971,6 +984,16 @@ impl WsPersistentStore {
     pub fn set_landing_page(&mut self, landing_page: LandingPage) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.landing_page = landing_page;
+        self.write_to_file();
+    }
+
+    pub fn get_zoom_factor(&self) -> f32 {
+        self.data.read().unwrap().zoom_factor
+    }
+
+    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.zoom_factor = zoom_factor;
         self.write_to_file();
     }
 

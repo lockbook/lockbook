@@ -1,5 +1,6 @@
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
-use egui::{Pos2, Rect, Sense, Stroke, TextFormat, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
+use egui::{Pos2, Rect, Sense, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -10,9 +11,9 @@ use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT};
 use crate::theme::icons::Icon;
 
 impl<'ast> Editor {
-    pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> TextFormat {
+    pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat {
+        Format {
             color: match node_alert.alert_type {
                 AlertType::Note => self.theme.fg().blue,
                 AlertType::Tip => self.theme.fg().green,
@@ -42,7 +43,7 @@ impl<'ast> Editor {
                     result += self.height_section(
                         &mut Wrap::new(self.width(node)),
                         line_content,
-                        self.text_format_syntax(node),
+                        self.text_format_syntax(),
                     );
                 }
             }
@@ -91,8 +92,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         line_content,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                     top_left.y += wrap.height();
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -112,7 +112,7 @@ impl<'ast> Editor {
             result += self.height_section(
                 &mut Wrap::new(self.width(node) - INDENT),
                 line_content,
-                self.text_format_syntax(node),
+                self.text_format_syntax(),
             );
         } else {
             let title_width = self.width(node) - INDENT - ROW_HEIGHT - INDENT;
@@ -149,14 +149,7 @@ impl<'ast> Editor {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             let mut wrap = Wrap::new(self.width(node) - INDENT);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                line_content,
-                self.text_format_syntax(node),
-                false,
-            );
+            self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         } else {
             let icon_space = Rect::from_min_size(top_left, Vec2::splat(ROW_HEIGHT));
@@ -191,7 +184,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     title,
                     self.text_format(node),
-                    false,
                 );
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
@@ -208,9 +200,8 @@ impl<'ast> Editor {
                     &mut Wrap::new(title_width),
                     (line_content.end() - 1).into_range(),
                     self.text_format(node),
-                    false,
                     Some(type_display_text),
-                    Sense { click: false, drag: false, focusable: false },
+                    Sense::hover(),
                 );
             }
         }

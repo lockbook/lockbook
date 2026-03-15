@@ -57,8 +57,13 @@ impl IconButton {
         );
 
         if resp.hovered() && !self.disabled {
-            ui.painter()
-                .rect(rect, 2., ui.visuals().code_bg_color, egui::Stroke::NONE);
+            ui.painter().rect(
+                rect,
+                2.,
+                ui.visuals().code_bg_color,
+                egui::Stroke::NONE,
+                egui::epaint::StrokeKind::Inside,
+            );
             ui.output_mut(|o: &mut egui::PlatformOutput| {
                 o.cursor_icon = egui::CursorIcon::PointingHand
             });
@@ -88,7 +93,7 @@ impl IconButton {
 
         if let Some(tooltip) = &self.tooltip {
             ui.ctx()
-                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
+                .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
             resp = resp.on_hover_ui(|ui| {
                 let text: WidgetText = (tooltip).into();
                 let text = text.clone().into_galley(

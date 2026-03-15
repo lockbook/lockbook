@@ -1,4 +1,4 @@
-use egui::{PlatformOutput, ViewportCommand};
+use egui::{OutputCommand, PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
@@ -8,6 +8,7 @@ use raw_window_handle::{
 use std::ffi::c_void;
 use std::num::NonZeroU32;
 use std::ptr::NonNull;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use x11rb::connection::Connection;
@@ -196,7 +197,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // only draw frames if we got events (including repaint requests)
             let Output {
-                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                platform: PlatformOutput { cursor_icon, commands, .. },
                 viewport,
                 app: lbeguiapp::Response { close },
             } = lb.frame();
@@ -230,14 +231,22 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => 1.0,
             };
-            lb.renderer.screen.pixels_per_point = scale_factor;
-            lb.renderer.context.set_pixels_per_point(scale_factor);
+            lb.renderer.set_native_pixels_per_point(scale_factor);
 
             if close {
                 output::close();
             }
             output::window_title::handle(conn, window_id, &atoms, window_title)?;
             cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
+            let open_url = commands.iter().find_map(|c| {
+                if let OutputCommand::OpenUrl(u) = c { Some(u.clone()) } else { None }
+            });
+            let copied_text = commands
+                .iter()
+                .find_map(
+                    |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
+                )
+                .unwrap_or_default();
             output::open_url::handle(open_url);
             output::clipboard_copy::handle_copy(
                 conn,
@@ -263,15 +272,9 @@ fn handle(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
-        Event::ButtonPress(event) => {
-            input::pointer::handle_press(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::ButtonRelease(event) => {
-            input::pointer::handle_release(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::MotionNotify(event) => {
-            input::pointer::handle_motion(lb, event, lb.renderer.screen.pixels_per_point)
-        }
+        Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
+        Event::ButtonRelease(event) => input::pointer::handle_release(lb, event),
+        Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
 
         // keyboard
         Event::KeymapNotify(_) => {
@@ -369,12 +372,22 @@ impl HasDisplayHandle for AppWindowHandle {
 pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle + Sync>(
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
-    let renderer = RendererState::init_window(window);
-    renderer
-        .context
-        .set_lb_theme(Theme::default(if dark_mode { Mode::Dark } else { Mode::Light }));
+    let mut renderer = RendererState::init_window(window);
+    let font_system = std::sync::Arc::new(Mutex::new(workspace_rs::make_font_system()));
+    workspace_rs::register_render_callback_resources(
+        &renderer.device,
+        &renderer.queue,
+        RendererState::text_format(&renderer.adapter, &renderer.surface),
+        &mut renderer.renderer,
+        font_system.clone(),
+        renderer.sample_count,
+    );
 
-    let app = lbeguiapp::Lockbook::new(&renderer.context);
+    workspace_rs::theme::visuals::init(&renderer.context);
+    let mode = if dark_mode { Mode::Dark } else { Mode::Light };
+    renderer.context.set_lb_theme(Theme::default(mode));
+
+    let app = lbeguiapp::Lockbook::new(&renderer.context, font_system);
     app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {

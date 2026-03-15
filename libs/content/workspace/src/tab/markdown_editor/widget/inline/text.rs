@@ -1,5 +1,5 @@
-use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Ui};
+use comrak::nodes::AstNode;
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
 use crate::tab::markdown_editor::Editor;
@@ -13,14 +13,14 @@ impl<'ast> Editor {
         let node_range = self.node_range(node);
         let text_format = self.text_format(node);
 
-        let pre_span = self.text_pre_span(wrap, text_format.clone());
+        let pre_span = self.text_pre_span(wrap, &text_format);
         let mid_span = self.text_mid_span(
             wrap,
             pre_span,
             &self.buffer[node_range.trim(&range)],
             text_format.clone(),
         );
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, text_format);
+        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
 
         pre_span + mid_span + post_span
     }
@@ -31,10 +31,7 @@ impl<'ast> Editor {
     ) -> Response {
         let node_range = self.node_range(node).trim(&range);
         let text_format = self.text_format(node);
-        let spoiler = node
-            .ancestors()
-            .any(|node| matches!(node.data.borrow().value, NodeValue::SpoileredText));
-        let sense = self.sense_inline(ui, node);
+        let sense = if self.inline_clickable(ui, node) { Sense::click() } else { Sense::hover() };
 
         if !node_range.is_empty() {
             self.show_override_section(
@@ -43,7 +40,6 @@ impl<'ast> Editor {
                 wrap,
                 node_range.trim(&range),
                 text_format,
-                spoiler,
                 None,
                 sense,
             )

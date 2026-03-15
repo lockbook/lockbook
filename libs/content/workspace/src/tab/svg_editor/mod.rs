@@ -437,8 +437,8 @@ impl SVGEditor {
 }
 
 fn set_style(ui: &mut egui::Ui) {
-    let toolbar_margin = egui::Margin::symmetric(15.0, 7.0);
-    ui.visuals_mut().window_rounding = egui::Rounding::same(30.0);
+    let toolbar_margin = egui::Margin::symmetric(15, 7);
+    ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(30);
     ui.style_mut().spacing.window_margin = toolbar_margin;
     ui.style_mut()
         .text_styles
@@ -459,9 +459,9 @@ fn set_style(ui: &mut egui::Ui) {
         ui.visuals_mut().window_stroke =
             egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
         ui.visuals_mut().window_shadow = egui::Shadow {
-            offset: egui::vec2(1.0, 8.0),
-            blur: 20.0,
-            spread: 0.0,
+            offset: [1, 8],
+            blur: 20,
+            spread: 0,
             color: egui::Color32::from_black_alpha(10),
         };
         ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;

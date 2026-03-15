@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::{Pos2, Sense, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
@@ -190,19 +190,18 @@ impl<'ast> Editor {
     }
 
     #[allow(clippy::only_used_in_recursion)]
-    pub fn sense_inline(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> Sense {
+    pub fn inline_clickable(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> bool {
         match &node.data.borrow().value {
             NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
                 let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
                     || ui.ctx().os() == egui::os::OperatingSystem::IOS;
-                let clickable = if is_mobile { false } else { ui.input(|i| i.modifiers.command) };
-                Sense { click: clickable, drag: false, focusable: false }
+                if is_mobile { false } else { ui.input(|i| i.modifiers.command) }
             }
             _ => {
                 if let Some(parent) = node.parent() {
-                    self.sense_inline(ui, parent)
+                    self.inline_clickable(ui, parent)
                 } else {
-                    Sense { click: false, drag: false, focusable: false }
+                    false
                 }
             }
         }
@@ -245,7 +244,7 @@ impl<'ast> Editor {
 
     pub fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(prefix_range) = self.prefix_range(node) {
-            self.span_section(wrap, prefix_range, self.text_format_syntax(node))
+            self.span_section(wrap, prefix_range, self.text_format_syntax())
         } else {
             0.
         }
@@ -274,7 +273,7 @@ impl<'ast> Editor {
 
     pub fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
         if let Some(postfix_range) = self.postfix_range(node) {
-            self.span_section(wrap, postfix_range, self.text_format_syntax(node))
+            self.span_section(wrap, postfix_range, self.text_format_syntax())
         } else {
             0.
         }
@@ -331,8 +330,7 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if !node_range.trim(&range).is_empty() {
-                tmp_wrap.offset +=
-                    self.span_section(wrap, node_range, self.text_format_syntax(node))
+                tmp_wrap.offset += self.span_section(wrap, node_range, self.text_format_syntax())
             }
         }
 
@@ -355,8 +353,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             prefix_range,
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     } else {
                         // when syntax is captured, show an empty range
@@ -368,8 +365,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             prefix_range.start().into_range(),
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -387,8 +383,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             postfix_range,
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     } else {
                         // when syntax is captured, show an empty range
@@ -400,8 +395,7 @@ impl<'ast> Editor {
                             top_left,
                             wrap,
                             postfix_range.end().into_range(),
-                            self.text_format_syntax(node),
-                            false,
+                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -409,14 +403,8 @@ impl<'ast> Editor {
         } else {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    node_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, node_range, self.text_format_syntax());
             }
         }
 

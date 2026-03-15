@@ -1,4 +1,7 @@
-use egui::{Context, CursorIcon, PlatformOutput, ViewportCommand, ViewportIdMap, ViewportOutput};
+use egui::{
+    Context, CursorIcon, OutputCommand, PlatformOutput, ViewportCommand, ViewportIdMap,
+    ViewportOutput,
+};
 use workspace_rs::tab::ExtendedOutput;
 
 // This general purpose workspace-ffi response captures the workspace widget response and platform response, but each
@@ -44,8 +47,16 @@ impl Response {
         Self {
             workspace,
             redraw_in,
-            copied_text: platform.copied_text,
-            url_opened: platform.open_url.map(|u| u.url), // todo: expose "new_tab" field
+            copied_text: platform
+                .commands
+                .iter()
+                .find_map(
+                    |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
+                )
+                .unwrap_or_default(),
+            url_opened: platform.commands.iter().find_map(|c| {
+                if let OutputCommand::OpenUrl(u) = c { Some(u.url.clone()) } else { None }
+            }), // todo: expose "new_tab" field
             cursor: platform.cursor_icon,
             virtual_keyboard_shown: context.pop_virtual_keyboard_shown(),
             window_title,

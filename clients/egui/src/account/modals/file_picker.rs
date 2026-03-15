@@ -111,7 +111,7 @@ impl super::Modal for FilePicker {
         ui.separator();
 
         egui::Frame::default()
-            .inner_margin(egui::Margin::symmetric(20.0, 10.0))
+            .inner_margin(egui::Margin::symmetric(20, 10))
             .show(ui, |ui| show_bottom_bar(ui, self))
             .inner
     }

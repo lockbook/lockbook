@@ -2,11 +2,11 @@ pub fn init(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
 
     style.spacing.button_padding = egui::vec2(7.0, 7.0);
-    style.spacing.menu_margin = egui::Margin::same(10.0);
+    style.spacing.menu_margin = egui::Margin::same(10);
     style.spacing.combo_width = 50.0;
 
-    style.visuals.menu_rounding = egui::Rounding::same(10.0);
-    style.visuals.window_rounding = egui::Rounding::same(10.0);
+    style.visuals.menu_corner_radius = egui::CornerRadius::same(10);
+    style.visuals.window_corner_radius = egui::CornerRadius::same(10);
 
     style
         .text_styles

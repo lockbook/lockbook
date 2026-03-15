@@ -3,6 +3,7 @@ use egui::FontDefinitions;
 use egui_wgpu_renderer::RendererState;
 use lb_c::Lb;
 use std::ffi::c_void;
+use std::sync::{Arc, Mutex};
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::register_fonts;
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
@@ -15,14 +16,23 @@ pub unsafe extern "C" fn init_ws(
     core: *mut c_void, metal_layer: *mut c_void, dark_mode: bool, show_tabs: bool,
 ) -> *mut c_void {
     let core = unsafe { &mut *(core as *mut Lb) };
-    let renderer =
+    let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::CoreAnimationLayer(metal_layer));
+    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
+    workspace_rs::register_render_callback_resources(
+        &renderer.device,
+        &renderer.queue,
+        RendererState::text_format(&renderer.adapter, &renderer.surface),
+        &mut renderer.renderer,
+        font_system.clone(),
+        renderer.sample_count,
+    );
 
     visuals::init(&renderer.context);
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let workspace = Workspace::new(core, &renderer.context, show_tabs);
+    let workspace = Workspace::new(core, &renderer.context, font_system, show_tabs);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);
@@ -38,5 +48,5 @@ pub extern "C" fn resize_editor(obj: *mut c_void, width: f32, height: f32, scale
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.screen.size_in_pixels[0] = width as u32;
     obj.renderer.screen.size_in_pixels[1] = height as u32;
-    obj.renderer.screen.pixels_per_point = scale;
+    obj.renderer.set_native_pixels_per_point(scale);
 }

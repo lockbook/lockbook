@@ -4,8 +4,8 @@ use crate::widgets::Button;
 use color_art;
 use colors_transform::{self, Color};
 use egui::{
-    self, Color32, Context, Id, LayerId, Pos2, Rect, Rounding, Sense, Stroke, TextWrapMode, Ui,
-    UiBuilder, menu,
+    self, Color32, Context, Id, LayerId, MenuBar, Pos2, Rect, Sense, Stroke, TextWrapMode, Ui,
+    UiBuilder,
 };
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbErr;
@@ -88,7 +88,7 @@ impl SpaceInspector {
         if self.data == Default::default() {
             match &*self.state.lock().unwrap() {
                 AppState::Loading => {
-                    ui.allocate_new_ui(
+                    ui.scope_builder(
                         UiBuilder::new().max_rect(Rect {
                             min: Pos2 { x: window.center().x - 30.0, y: window.center().y - 30.0 },
                             max: Pos2 { x: window.center().x + 30.0, y: window.center().y + 30.0 },
@@ -172,8 +172,8 @@ impl SpaceInspector {
             UiBuilder::new().layer_id(LayerId { order: egui::Order::Foreground, id: Id::new(1) }),
             |ui| {
                 let top_left_rect = Rect { min: window.left_top(), max: window.center_top() };
-                ui.allocate_new_ui(UiBuilder::new().max_rect(top_left_rect), |ui| {
-                    menu::bar(ui, |ui| {
+                ui.scope_builder(UiBuilder::new().max_rect(top_left_rect), |ui| {
+                    MenuBar::new().ui(ui, |ui| {
                         if ui.button("Reset Root").clicked() {
                             self.reset_root();
                             self.paint_order = vec![];
@@ -424,9 +424,10 @@ impl SpaceInspector {
                 // painting info
                 painter.clone().rect(
                     paint_rect,
-                    Rounding::ZERO,
+                    egui::CornerRadius::ZERO,
                     current_color,
                     Stroke { width: 0.5, color: ui.visuals().extreme_bg_color },
+                    egui::epaint::StrokeKind::Inside,
                 );
 
                 if paint_rect.width() >= 50.0 {
@@ -464,11 +465,11 @@ impl SpaceInspector {
                     ui.separator();
 
                     if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-                        ui.close_menu();
+                        ui.close();
                     }
                     if item_filerow.file.is_folder() && ui.button("Focus File").clicked() {
                         changed_focused_folder = Some(item.id);
-                        ui.close_menu();
+                        ui.close();
                     }
 
                     if ui.button("Delete").clicked() {

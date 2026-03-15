@@ -132,6 +132,7 @@ impl<'ast> Editor {
                         2.,
                         self.theme.bg().neutral_secondary,
                         egui::Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                        egui::epaint::StrokeKind::Inside,
                     );
                 }
             }
