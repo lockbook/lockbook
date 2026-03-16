@@ -71,7 +71,7 @@ impl Editor {
     }
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
-        let color = self.theme.fg().accent_secondary;
+        let color = self.theme.fg().accent_primary;
         let selection = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);

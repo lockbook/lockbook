@@ -9,7 +9,7 @@ use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT};
 impl<'ast> Editor {
     pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        Format { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
+        Format { color: self.theme.fg().neutral_secondary, ..parent_text_format }
     }
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {

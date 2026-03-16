@@ -56,7 +56,7 @@ impl<'ast> Editor {
             let row_rect = Rect::from_min_size(top_left, Vec2::new(width, height));
             if is_header_row {
                 ui.painter()
-                    .rect_filled(row_rect, 0., self.theme.bg().neutral_secondary);
+                    .rect_filled(row_rect, 1., self.theme.bg().neutral_secondary);
             }
 
             // draw interior decorations

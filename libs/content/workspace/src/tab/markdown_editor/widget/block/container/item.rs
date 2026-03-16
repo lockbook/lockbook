@@ -40,7 +40,7 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let annotation_color = self.theme.fg().neutral_tertiary;
+        let annotation_color = self.theme.fg().neutral_secondary;
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(

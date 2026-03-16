@@ -70,8 +70,7 @@ pub struct Editor {
     dark_mode: bool, // supports change detection
     theme: Theme,
     syntax_set: SyntaxSet,
-    syntax_light_theme: syntect::highlighting::Theme,
-    syntax_dark_theme: syntect::highlighting::Theme,
+    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
@@ -173,15 +172,10 @@ impl Editor {
         let highlighting_assets = HighlightingAssets::from_binary();
         let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
 
-        let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
-        let cursor = Cursor::new(light_theme_bytes);
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
         let mut buffer = BufReader::new(cursor);
-        let syntax_light_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
-        let dark_theme_bytes = include_bytes!("assets/mnemonic-dark.tmTheme").as_ref();
-        let cursor = Cursor::new(dark_theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
@@ -195,8 +189,7 @@ impl Editor {
             dark_mode,
             theme,
             syntax_set,
-            syntax_light_theme,
-            syntax_dark_theme,
+            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -764,7 +757,7 @@ impl Editor {
                     let selection = self
                         .in_progress_selection
                         .unwrap_or(self.buffer.current.selection);
-                    let color = self.theme.fg().accent_secondary;
+                    let color = self.theme.fg().accent_primary;
                     self.show_range(ui, selection, color);
                     self.show_offset(ui, selection.1, color);
                 }

@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
-use egui::{Color32, TextWrapMode};
+use egui::TextWrapMode;
 use lb::model::usage::bytes_to_human;
 use lb::service::usage::UsageMetrics;
 use workspace_rs::theme::icons::Icon;
@@ -89,26 +89,12 @@ impl super::AccountScreen {
     pub fn show_sync_btn(&mut self, ui: &mut egui::Ui) {
         let visuals_before_button = ui.style().clone();
         if self.lb_status.offline {
-            ui.visuals_mut().widgets.active.bg_fill = Color32::GRAY;
+            // no-op
         } else if self.lb_status.update_required || self.lb_status.out_of_space {
-            ui.visuals_mut().widgets.active.bg_fill = ui.visuals().warn_fg_color;
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().warn_fg_color;
         } else if self.lb_status.unexpected_sync_problem.is_some() {
-            ui.visuals_mut().widgets.active.bg_fill = ui.visuals().error_fg_color;
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().error_fg_color;
         };
-
-        // let text_stroke =
-        //     egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-
-        // ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-        // ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-        // ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-
-        ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-        // ui.visuals_mut().widgets.hovered.bg_fill =
-        //     ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
-
-        // ui.visuals_mut().widgets.active.bg_fill =
-        //    ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
 
         let icon = if self.lb_status.offline {
             Icon::OFFLINE

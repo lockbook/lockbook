@@ -77,14 +77,14 @@ impl<'ast> Editor {
                             Align2::CENTER_CENTER,
                             icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.theme.fg().neutral_tertiary,
+                            self.theme.fg().neutral_secondary,
                         );
                         ui.painter().text(
                             rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
                             Align2::CENTER_BOTTOM,
                             caption,
                             FontId::default(),
-                            self.theme.fg().neutral_tertiary,
+                            self.theme.fg().neutral_secondary,
                         );
                         ui.painter().rect_stroke(
                             rect,
@@ -136,14 +136,14 @@ impl<'ast> Editor {
                             Align2::CENTER_CENTER,
                             icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.theme.fg().neutral_tertiary,
+                            self.theme.fg().neutral_secondary,
                         );
                         ui.painter().text(
                             rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
                             Align2::CENTER_BOTTOM,
                             caption,
                             FontId::default(),
-                            self.theme.fg().neutral_tertiary,
+                            self.theme.fg().neutral_secondary,
                         );
                         ui.painter().rect_stroke(
                             rect,

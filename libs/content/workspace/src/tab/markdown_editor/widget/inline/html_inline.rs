@@ -11,7 +11,7 @@ pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 impl<'ast> Editor {
     pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> Format {
         Format {
-            color: self.theme.fg().neutral_tertiary,
+            color: self.theme.fg().neutral_secondary,
             background: self.theme.bg().neutral_secondary,
             ..self.text_format_code_block(parent)
         }

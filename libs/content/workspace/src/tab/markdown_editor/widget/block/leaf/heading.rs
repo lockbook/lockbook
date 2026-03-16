@@ -346,7 +346,7 @@ impl<'ast> Editor {
         ui.painter().hline(
             line_break_rect.x_range(),
             line_break_rect.center().y,
-            Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
+            Stroke { width: 1.0, color: self.theme.fg().neutral_tertiary },
         );
     }
 
@@ -518,9 +518,9 @@ impl<'ast> Editor {
         if self.fold(node).is_some() {
             ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
-                    self.theme.fg().neutral_quarternary
+                    self.theme.fg().neutral_secondary
                 } else {
-                    self.theme.fg().accent_secondary
+                    self.theme.fg().accent_primary
                 });
                 if IconButton::new(icon)
                     .size(size)
@@ -535,7 +535,7 @@ impl<'ast> Editor {
             ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
-                    .color(self.theme.fg().neutral_quarternary);
+                    .color(self.theme.fg().neutral_secondary);
                 if IconButton::new(icon)
                     .size(size)
                     .tooltip("Hide Contents")

@@ -19,7 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
+use workspace_rs::theme::palette_v2::ThemeExt as _;
 use workspace_rs::widgets::Button;
 
 #[derive(Debug, Default)]
@@ -1071,11 +1071,10 @@ impl FileTree {
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = theme
+            ui.visuals_mut().widgets.hovered.bg_fill = theme
                 .bg()
                 .get_color(theme.prefs().primary)
                 .gamma_multiply(0.4);
-            ui.visuals_mut().widgets.hovered.bg_fill = default_fill;
         } else {
             ui.visuals_mut().widgets.hovered.bg_fill = theme
                 .bg()
@@ -1102,10 +1101,7 @@ impl FileTree {
             let icon = doc_type.to_icon().size(icon_size);
             let file_resp = button
                 .icon(&icon)
-                .icon_color(theme.fg().grey.lerp_to_gamma(
-                    if theme.current == Mode::Light { theme.fg().white } else { theme.fg().black },
-                    0.5,
-                ))
+                .icon_color(theme.neutral_fg_secondary())
                 .show(ui);
 
             file_resp
@@ -1127,10 +1123,12 @@ impl FileTree {
 
             let file_resp = button
                 .icon(&icon)
-                .icon_color(if is_shared || file.id == self.pending_shares_id {
-                    theme.bg().get_color(theme.prefs().secondary)
+                .icon_color(if file.id == self.suggested_docs_folder_id {
+                    theme.fg().get_color(theme.prefs().tertiary)
+                } else if is_shared || file.id == self.pending_shares_id {
+                    theme.fg().get_color(theme.prefs().secondary)
                 } else {
-                    theme.bg().get_color(theme.prefs().primary)
+                    theme.fg().get_color(theme.prefs().primary)
                 })
                 .show(ui);
 

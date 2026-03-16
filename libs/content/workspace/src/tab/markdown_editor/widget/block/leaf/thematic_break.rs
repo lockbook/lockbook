@@ -24,7 +24,7 @@ impl<'ast> Editor {
             ui.painter().hline(
                 rect.x_range(),
                 rect.center().y,
-                Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
+                Stroke { width: 1.0, color: self.theme.fg().neutral_tertiary },
             );
 
             // show empty row with mapped text range

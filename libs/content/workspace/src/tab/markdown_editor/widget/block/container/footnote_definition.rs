@@ -10,7 +10,7 @@ use crate::tab::markdown_editor::widget::{INDENT, ROW_HEIGHT};
 impl<'ast> Editor {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        Format { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
+        Format { color: self.theme.fg().neutral_secondary, ..parent_text_format }
     }
 
     pub fn height_footnote_definition(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -23,7 +23,7 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let color = self.theme.fg().neutral_quarternary;
+        let color = self.theme.fg().neutral_secondary;
         let text = format!("{}.", self.definition_number(node));
         let layout_job = LayoutJob::single_section(
             text,

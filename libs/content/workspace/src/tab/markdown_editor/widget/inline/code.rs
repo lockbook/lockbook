@@ -9,8 +9,9 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 impl<'ast> Editor {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> Format {
         Format {
-            color: self.theme.fg().accent_secondary,
+            color: self.theme.fg().accent_primary,
             background: self.theme.bg().neutral_secondary,
+            border: self.theme.bg().neutral_tertiary,
             ..self.text_format_code_block(parent)
         }
     }

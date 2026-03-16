@@ -21,24 +21,22 @@ impl Theme {
 
         match theme.current {
             Mode::Light => ColorSet {
-                neutral_primary: theme.bg().white,
-                neutral_secondary: theme.bg().grey,
-                neutral_tertiary: theme.bg().grey.lerp_to_gamma(theme.bg().black, 0.25),
-                neutral_quarternary: theme.bg().grey.lerp_to_gamma(theme.bg().black, 0.50),
+                neutral_primary: theme.neutral_bg(),
+                neutral_secondary: theme.neutral_bg_secondary(),
+                neutral_tertiary: theme.neutral(),
                 red: theme.bg().red,
                 green: theme.bg().green,
                 yellow: theme.bg().yellow,
                 blue: theme.bg().blue,
                 magenta: theme.bg().magenta,
-                accent_primary: theme.bg().get_color(theme.prefs().secondary),
-                accent_secondary: theme.bg().get_color(theme.prefs().primary),
+                accent_primary: theme.bg().get_color(theme.prefs().primary),
+                accent_secondary: theme.bg().get_color(theme.prefs().secondary),
                 accent_tertiary: theme.bg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
-                neutral_primary: theme.bg().black,
-                neutral_secondary: theme.bg().grey,
-                neutral_tertiary: theme.bg().grey.lerp_to_gamma(theme.bg().white, 0.25),
-                neutral_quarternary: theme.bg().grey.lerp_to_gamma(theme.bg().white, 0.50),
+                neutral_primary: theme.neutral_bg(),
+                neutral_secondary: theme.neutral_bg_secondary(),
+                neutral_tertiary: theme.neutral(),
                 red: theme.bg().red,
                 green: theme.bg().green,
                 yellow: theme.bg().yellow,
@@ -59,24 +57,22 @@ impl Theme {
 
         match theme.current {
             Mode::Light => ColorSet {
-                neutral_primary: theme.fg().black,
-                neutral_secondary: theme.fg().grey,
-                neutral_tertiary: theme.fg().grey.lerp_to_gamma(theme.fg().white, 0.25),
-                neutral_quarternary: theme.fg().grey.lerp_to_gamma(theme.fg().white, 0.50),
+                neutral_primary: theme.neutral_fg(),
+                neutral_secondary: theme.neutral_fg_secondary(),
+                neutral_tertiary: theme.neutral(),
                 red: theme.fg().red,
                 green: theme.fg().green,
                 yellow: theme.fg().yellow,
                 blue: theme.fg().blue,
                 magenta: theme.fg().magenta,
-                accent_primary: theme.fg().get_color(theme.prefs().secondary),
-                accent_secondary: theme.fg().get_color(theme.prefs().primary),
+                accent_primary: theme.fg().get_color(theme.prefs().primary),
+                accent_secondary: theme.fg().get_color(theme.prefs().secondary),
                 accent_tertiary: theme.fg().get_color(theme.prefs().tertiary),
             },
             Mode::Dark => ColorSet {
-                neutral_primary: theme.fg().white,
-                neutral_secondary: theme.fg().grey,
-                neutral_tertiary: theme.fg().grey.lerp_to_gamma(theme.fg().black, 0.25),
-                neutral_quarternary: theme.fg().grey.lerp_to_gamma(theme.fg().black, 0.50),
+                neutral_primary: theme.neutral_fg(),
+                neutral_secondary: theme.neutral_fg_secondary(),
+                neutral_tertiary: theme.neutral(),
                 red: theme.fg().red,
                 green: theme.fg().green,
                 yellow: theme.fg().yellow,
@@ -94,7 +90,7 @@ impl Theme {
         let rounding = egui::CornerRadius::same(2);
         let expansion = 0.0;
         let bg_stroke = Stroke::new(1.0, self.bg().neutral_tertiary);
-        let fg_stroke = Stroke::new(1.5, self.fg().neutral_secondary);
+        let fg_stroke = Stroke::new(1.5, self.fg().neutral_primary);
         ui.visuals_mut().widgets = Widgets {
             noninteractive: WidgetVisuals {
                 weak_bg_fill: self.bg().neutral_tertiary,
@@ -141,12 +137,10 @@ impl Theme {
 }
 
 #[derive(Clone, Copy)]
-#[expect(dead_code)]
 pub struct ColorSet {
     pub neutral_primary: Color32,
     pub neutral_secondary: Color32,
     pub neutral_tertiary: Color32,
-    pub neutral_quarternary: Color32,
 
     pub red: Color32,
     pub green: Color32,

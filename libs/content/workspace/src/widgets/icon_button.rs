@@ -40,6 +40,7 @@ impl IconButton {
 
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
+        let theme = ui.ctx().get_lb_theme();
 
         let icon_text: WidgetText = (&self.icon).into();
         let galley =
@@ -60,7 +61,7 @@ impl IconButton {
             ui.painter().rect(
                 rect,
                 2.,
-                ui.visuals().code_bg_color,
+                theme.neutral_bg_secondary(),
                 egui::Stroke::NONE,
                 egui::epaint::StrokeKind::Inside,
             );
@@ -69,19 +70,13 @@ impl IconButton {
             });
         }
 
-        let mut icon_color = if self.colored || resp.is_pointer_button_down_on() {
-            ui.visuals().widgets.active.bg_fill
+        let icon_color = if self.colored || resp.is_pointer_button_down_on() {
+            theme.fg().get_color(theme.prefs().primary)
+        } else if !self.disabled {
+            theme.neutral_fg()
         } else {
-            ui.visuals().text_color()
+            theme.neutral()
         };
-
-        if self.disabled {
-            let theme = ui.ctx().get_lb_theme();
-            icon_color = icon_color.lerp_to_gamma(
-                if theme.light() { theme.fg().white } else { theme.fg().black },
-                0.75,
-            );
-        }
 
         ui.painter().galley(
             ((rect.min - galley.mesh_bounds.min)

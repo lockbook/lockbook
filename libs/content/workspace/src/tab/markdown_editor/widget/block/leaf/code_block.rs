@@ -284,12 +284,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
@@ -315,10 +313,9 @@ impl<'ast> Editor {
                 regions
             };
 
-            let mut text_format = self.text_format(node);
-            for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+            let text_format = self.text_format(node);
+            for (_, region) in regions {
+                // color doesn't matter for layout, just how the regions are divided
                 wrap.offset += self.span_section(&wrap, region, text_format.clone());
             }
         } else {
@@ -365,12 +362,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
@@ -407,8 +402,19 @@ impl<'ast> Editor {
                 );
             }
             for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                // theme file contains placeholder colors that we map here based on our theme
+                let hex =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
+                        .to_hex();
+                let hex = hex.strip_suffix("ff").unwrap(); // all colors reported with 100% transparency
+                text_format.color = match hex {
+                    "#000000" => self.theme.fg().neutral_primary,
+                    "#111111" => self.theme.fg().neutral_secondary,
+                    "#222222" => self.theme.fg().accent_primary,
+                    "#333333" => self.theme.fg().accent_secondary,
+                    "#444444" => self.theme.fg().accent_tertiary,
+                    _ => self.theme.fg().neutral_primary,
+                };
 
                 self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
             }
