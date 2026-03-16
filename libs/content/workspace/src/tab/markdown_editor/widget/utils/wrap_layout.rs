@@ -318,7 +318,14 @@ impl Editor {
                     ui.ctx(),
                     ui.clip_rect(),
                 ));
-                draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
+                self.draw_decorations(
+                    ui,
+                    row.pos,
+                    row.size,
+                    font_size,
+                    &text_format,
+                    response.hovered,
+                );
             }
         }
 
@@ -430,34 +437,39 @@ impl Editor {
             0.
         }
     }
-}
 
-fn draw_decorations(
-    ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
-) {
-    if text_format.background != egui::Color32::TRANSPARENT {
-        let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(INLINE_PADDING, 2.));
-        if text_format.spoiler && hovered {
-            ui.painter().rect_stroke(
-                bg_rect,
-                2.0,
-                Stroke::new(1.0, text_format.background),
-                egui::epaint::StrokeKind::Inside,
-            );
-        } else {
-            ui.painter()
-                .rect_filled(bg_rect, 2.0, text_format.background);
+    fn draw_decorations(
+        &self, ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
+    ) {
+        if text_format.background != egui::Color32::TRANSPARENT {
+            let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::splat(INLINE_PADDING));
+            if text_format.spoiler && hovered {
+                ui.painter().rect_stroke(
+                    bg_rect,
+                    2.0,
+                    Stroke::new(1.0, text_format.background),
+                    egui::epaint::StrokeKind::Inside,
+                );
+            } else {
+                ui.painter().rect(
+                    bg_rect,
+                    2.0,
+                    text_format.background,
+                    Stroke::new(1.0, text_format.border),
+                    egui::epaint::StrokeKind::Inside,
+                );
+            }
         }
-    }
-    let stroke = Stroke::new(1.0, text_format.color);
-    let x_range = pos.x..=(pos.x + size.x);
-    if text_format.strikethrough {
-        ui.painter()
-            .hline(x_range.clone(), pos.y + font_size * 0.55, stroke);
-    }
-    if text_format.underline {
-        ui.painter()
-            .hline(x_range, pos.y + font_size * 0.95, stroke);
+        let stroke = Stroke::new(1.0, text_format.color);
+        let x_range = pos.x..=(pos.x + size.x);
+        if text_format.strikethrough {
+            ui.painter()
+                .hline(x_range.clone(), pos.y + font_size * 0.55, stroke);
+        }
+        if text_format.underline {
+            ui.painter()
+                .hline(x_range, pos.y + font_size * 0.95, stroke);
+        }
     }
 }
 
@@ -495,6 +507,7 @@ pub struct Format {
     pub underline: bool,
     pub strikethrough: bool,
     pub background: egui::Color32,
+    pub border: egui::Color32,
     pub spoiler: bool,
     pub superscript: bool,
     pub subscript: bool,

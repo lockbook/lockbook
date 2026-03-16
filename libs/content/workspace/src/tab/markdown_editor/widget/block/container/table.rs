@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_SPACING;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -56,7 +57,7 @@ impl<'ast> Editor {
             ui.painter().rect_stroke(
                 table,
                 2.,
-                Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() },
                 egui::epaint::StrokeKind::Inside,
             );
         }

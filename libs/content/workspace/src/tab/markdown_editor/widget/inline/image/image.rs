@@ -14,6 +14,7 @@ use crate::tab::markdown_editor::widget::MARGIN;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 
 use super::cache::ImageState;
 
@@ -77,19 +78,22 @@ impl<'ast> Editor {
                             Align2::CENTER_CENTER,
                             icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.theme.fg().neutral_tertiary,
+                            self.ctx.get_lb_theme().neutral_fg_secondary(),
                         );
                         ui.painter().text(
                             rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
                             Align2::CENTER_BOTTOM,
                             caption,
                             FontId::default(),
-                            self.theme.fg().neutral_tertiary,
+                            self.ctx.get_lb_theme().neutral_fg_secondary(),
                         );
                         ui.painter().rect_stroke(
                             rect,
                             2.,
-                            Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                            Stroke {
+                                width: 1.,
+                                color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
+                            },
                             egui::epaint::StrokeKind::Inside,
                         );
                     });
@@ -136,19 +140,22 @@ impl<'ast> Editor {
                             Align2::CENTER_CENTER,
                             icon.icon,
                             FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.theme.fg().neutral_tertiary,
+                            self.ctx.get_lb_theme().neutral_fg_secondary(),
                         );
                         ui.painter().text(
                             rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
                             Align2::CENTER_BOTTOM,
                             caption,
                             FontId::default(),
-                            self.theme.fg().neutral_tertiary,
+                            self.ctx.get_lb_theme().neutral_fg_secondary(),
                         );
                         ui.painter().rect_stroke(
                             rect,
                             2.,
-                            Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                            Stroke {
+                                width: 1.,
+                                color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
+                            },
                             egui::epaint::StrokeKind::Inside,
                         );
                     });

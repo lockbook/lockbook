@@ -368,7 +368,7 @@ impl Workspace {
         let sep_stroke = ui.visuals().widgets.noninteractive.bg_stroke;
         let theme = self.ctx.get_lb_theme();
 
-        let bg_color = theme.bg().grey;
+        let bg_color = theme.neutral_bg_secondary();
         ui.painter().rect_filled(remaining_rect, 0.0, bg_color);
 
         ui.painter()
@@ -569,9 +569,9 @@ impl Workspace {
             .insert(egui::TextStyle::Body, egui::FontId::new(14.0, egui::FontFamily::Proportional));
 
         let tab_bg = if is_active {
-            ui.style().visuals.extreme_bg_color
+            self.ctx.get_lb_theme().neutral_bg()
         } else {
-            self.ctx.get_lb_theme().bg().grey
+            self.ctx.get_lb_theme().neutral_bg_secondary()
         };
 
         let tab_padding = egui::Margin::symmetric(10, 10);

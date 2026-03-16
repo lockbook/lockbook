@@ -68,6 +68,63 @@ impl Theme {
     pub fn dark(&self) -> bool {
         !self.light()
     }
+
+    /// Returns the foreground neutral color i.e. black in light mode, white in
+    /// dark mode. Used for text and icons.
+    pub fn neutral_fg(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.black,
+            Mode::Dark => self.dark.white,
+        }
+    }
+
+    /// Returns the secondary foreground neutral color i.e. off-black in light
+    /// mode, off-white in dark mode. Used for de-emphasized foreground elements
+    /// like markdown list markers and file tree icons.
+    pub fn neutral_fg_secondary(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.black.lerp_to_gamma(self.light.grey, 0.5),
+            Mode::Dark => self.dark.white.lerp_to_gamma(self.dark.grey, 0.5),
+        }
+    }
+
+    /// Returns the true neutral color i.e. grey in either mode. Used for
+    /// greyed-out text, borders and strokes, and hovered widget backgrounds.
+    pub fn neutral(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.grey,
+            Mode::Dark => self.dark.grey,
+        }
+    }
+
+    /// Returns the tertiary foreground neutral color i.e. off-white in light
+    /// mode, off-black in dark mode. Used for buttons and other widgets that
+    /// need a background distinct from the UI background.
+    pub fn neutral_bg_tertiary(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.8),
+            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.8),
+        }
+    }
+
+    /// Returns the secondary foreground neutral color i.e. off-white in light
+    /// mode, off-black in dark mode. Used for UI background in most places.
+    pub fn neutral_bg_secondary(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.2),
+            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.2),
+        }
+    }
+
+    /// Returns the background neutral color i.e. white in light mode,
+    /// near-black in dark mode. Used for areas with editable content, similar
+    /// to egui's `extreme_bg_color`.
+    pub fn neutral_bg(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.light.white,
+            Mode::Dark => self.dark.black,
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -105,32 +162,32 @@ impl ThemeVariant {
 
 impl Theme {
     pub fn default(current: Mode) -> Self {
-        Self::travis_prophecy(current)
+        Self::travis(current)
     }
 
-    pub fn travis_prophecy(current: Mode) -> Self {
+    pub fn travis(current: Mode) -> Self {
         Self {
             current,
             light: ThemeVariant {
-                black: hex_color!("#101010"),
+                black: hex_color!("#000000"),
                 red: hex_color!("#DF2040"),
-                green: hex_color!("#2DD296"),
-                yellow: hex_color!("#FFBF00"),
+                green: hex_color!("#00B371"),
+                yellow: hex_color!("#E6AC00"),
                 blue: hex_color!("#207FDF"),
                 magenta: hex_color!("#7855AA"),
-                cyan: hex_color!("#13DAEC"),
+                cyan: hex_color!("#00BBCC"),
                 white: hex_color!("#FFFFFF"),
-                grey: hex_color!("#1B1B1B"),
+                grey: hex_color!("#D0D0D0"),
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
                 secondary: Palette::Green,
-                tertiary: Palette::Cyan,
-                quaternary: Palette::Magenta,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
             },
             dark: ThemeVariant {
                 black: hex_color!("#101010"),
-                grey: hex_color!("#F0F0F0"),
+                grey: hex_color!("#505050"),
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
                 yellow: hex_color!("#FFDB70"),
@@ -142,8 +199,8 @@ impl Theme {
             dark_prefs: Preferences {
                 primary: Palette::Blue,
                 secondary: Palette::Green,
-                tertiary: Palette::Cyan,
-                quaternary: Palette::Magenta,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
             },
         }
     }
@@ -208,55 +265,48 @@ impl ThemeExt for egui::Context {
 
 impl Theme {
     fn base_visuals(&self) -> egui::Visuals {
-        let (fg, bg) = if self.current == Mode::Light {
-            (self.fg().black, self.bg().white)
-        } else {
-            (self.bg().white, self.bg().black)
-        };
-
         let mut base = egui::Visuals {
             dark_mode: self.current == Mode::Dark,
             override_text_color: None,
-            window_fill: self.bg().grey,
-            extreme_bg_color: bg, // will need light mode
-            // switch
+            window_fill: self.neutral_bg_secondary(),
+            extreme_bg_color: self.neutral_bg(),
             selection: style::Selection {
                 bg_fill: self.bg().get_color(self.prefs().primary),
                 ..Default::default()
             },
             hyperlink_color: self.fg().get_color(self.prefs().secondary),
-            faint_bg_color: bg.gamma_multiply(0.9),
-            code_bg_color: self.bg().grey,
+            faint_bg_color: self.neutral_bg_secondary(),
+            code_bg_color: self.neutral_bg_secondary(),
             warn_fg_color: self.fg().yellow,
             error_fg_color: self.fg().red,
-            panel_fill: self.bg().grey,
+            panel_fill: self.neutral_bg_secondary(),
             ..if self.current == Mode::Light { Visuals::light() } else { Visuals::dark() }
         };
 
-        base.widgets.noninteractive.bg_fill = self.bg().grey;
-        base.widgets.noninteractive.weak_bg_fill = self.bg().grey;
-        base.widgets.noninteractive.fg_stroke.color = fg;
-        base.widgets.noninteractive.bg_stroke.color = self.bg().grey;
+        base.widgets.noninteractive.bg_fill = self.neutral_bg_tertiary();
+        base.widgets.noninteractive.weak_bg_fill = self.neutral_bg_tertiary();
+        base.widgets.noninteractive.fg_stroke.color = self.neutral_fg();
+        base.widgets.noninteractive.bg_stroke.color = self.neutral();
 
-        base.widgets.inactive.bg_fill = self.bg().grey;
-        base.widgets.inactive.weak_bg_fill = self.bg().grey;
-        base.widgets.inactive.fg_stroke.color = fg;
-        base.widgets.inactive.bg_stroke.color = self.bg().grey;
+        base.widgets.inactive.bg_fill = self.neutral_bg_tertiary();
+        base.widgets.inactive.weak_bg_fill = self.neutral_bg_tertiary();
+        base.widgets.inactive.fg_stroke.color = self.neutral_fg();
+        base.widgets.inactive.bg_stroke.color = self.neutral();
 
-        base.widgets.hovered.bg_fill = self.bg().grey.lerp_to_gamma(bg, 0.5);
-        base.widgets.hovered.weak_bg_fill = self.bg().grey.lerp_to_gamma(bg, 0.5);
-        base.widgets.hovered.fg_stroke.color = fg;
-        base.widgets.hovered.bg_stroke.color = self.bg().grey.lerp_to_gamma(bg, 0.5);
+        base.widgets.hovered.bg_fill = self.neutral();
+        base.widgets.hovered.weak_bg_fill = self.neutral();
+        base.widgets.hovered.fg_stroke.color = self.neutral_fg();
+        base.widgets.hovered.bg_stroke.color = self.neutral();
 
         base.widgets.active.bg_fill = self.bg().get_color(self.prefs().primary);
-        base.widgets.active.weak_bg_fill = self.bg().grey;
-        base.widgets.active.fg_stroke.color = fg;
-        base.widgets.active.bg_stroke.color = self.bg().grey;
+        base.widgets.active.weak_bg_fill = self.neutral_bg_tertiary();
+        base.widgets.active.fg_stroke.color = self.neutral_fg();
+        base.widgets.active.bg_stroke.color = self.neutral();
 
-        base.widgets.open.bg_fill = self.bg().grey;
-        base.widgets.open.weak_bg_fill = self.bg().grey;
-        base.widgets.open.fg_stroke.color = fg;
-        base.widgets.open.bg_stroke.color = self.bg().grey;
+        base.widgets.open.bg_fill = self.neutral_bg_tertiary();
+        base.widgets.open.weak_bg_fill = self.neutral_bg_tertiary();
+        base.widgets.open.fg_stroke.color = self.neutral_fg();
+        base.widgets.open.bg_stroke.color = self.neutral();
 
         base
     }

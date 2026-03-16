@@ -28,7 +28,6 @@ use serde::{Deserialize, Serialize};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
-use theme::Theme;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
@@ -47,6 +46,7 @@ pub use input::Event;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::workspace::WsPersistentStore;
 
 #[derive(Debug, Default)]
@@ -68,10 +68,8 @@ pub struct Editor {
 
     // theme
     dark_mode: bool, // supports change detection
-    theme: Theme,
     syntax_set: SyntaxSet,
-    syntax_light_theme: syntect::highlighting::Theme,
-    syntax_dark_theme: syntect::highlighting::Theme,
+    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
@@ -167,21 +165,14 @@ impl Editor {
     ) -> Self {
         let MdResources { ctx, core, persistence, font_system } = res;
 
-        let theme = Theme::new(ctx.clone());
-
         let dark_mode = ctx.style().visuals.dark_mode;
         let highlighting_assets = HighlightingAssets::from_binary();
         let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
 
-        let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
-        let cursor = Cursor::new(light_theme_bytes);
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
         let mut buffer = BufReader::new(cursor);
-        let syntax_light_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
-        let dark_theme_bytes = include_bytes!("assets/mnemonic-dark.tmTheme").as_ref();
-        let cursor = Cursor::new(dark_theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
 
@@ -193,10 +184,8 @@ impl Editor {
             font_system,
 
             dark_mode,
-            theme,
             syntax_set,
-            syntax_light_theme,
-            syntax_dark_theme,
+            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -411,8 +400,8 @@ impl Editor {
         );
 
         ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
-        self.theme.apply(ui);
+            .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
+        self.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
         let scroll_area_id = ui
@@ -764,7 +753,8 @@ impl Editor {
                     let selection = self
                         .in_progress_selection
                         .unwrap_or(self.buffer.current.selection);
-                    let color = self.theme.fg().accent_secondary;
+                    let theme = self.ctx.get_lb_theme();
+                    let color = theme.fg().get_color(theme.prefs().primary);
                     self.show_range(ui, selection, color);
                     self.show_offset(ui, selection.1, color);
                 }

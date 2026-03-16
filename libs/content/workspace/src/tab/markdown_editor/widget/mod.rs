@@ -3,6 +3,7 @@ use egui::{Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::ThemeExt as _;
 
 use super::Editor;
 use super::bounds::RangesExt as _;
@@ -16,7 +17,7 @@ pub(crate) mod utils;
 pub const MARGIN: f32 = 45.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
 pub const MAX_WIDTH: f32 = 1000.0; // the maximum width of the editor before it starts adding padding
 
-pub const INLINE_PADDING: f32 = 2.0; // the extra space granted to inline code for a border (all sides)
+pub const INLINE_PADDING: f32 = 3.0; // the extra space granted to inline code for a border (all sides)
 pub const ROW_HEIGHT: f32 = 16.0; // ...at default font size
 pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
 pub const INDENT: f32 = 26.0; // enough space for two digits in a numbered list
@@ -222,13 +223,14 @@ impl<'ast> Editor {
             bold: false,
             italic: false,
             color: if self.plaintext_mode {
-                self.theme.fg().neutral_primary
+                self.ctx.get_lb_theme().neutral_fg()
             } else {
-                self.theme.fg().neutral_quarternary
+                self.ctx.get_lb_theme().neutral_fg_secondary()
             },
             underline: false,
             strikethrough: false,
             background: egui::Color32::TRANSPARENT,
+            border: egui::Color32::TRANSPARENT,
             spoiler: false,
             superscript: false,
             subscript: false,

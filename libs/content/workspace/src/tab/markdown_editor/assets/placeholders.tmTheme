@@ -1,13 +1,14 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 	<key>author</key>
 	<string>Travis Vanderstad</string>
 	<key>comment</key>
-	<string>A vibrant, purposeful light theme.</string>
+	<string>A theme with identifiable placeholder colors</string>
 	<key>name</key>
-	<string>Mnemonic Light Innovation</string>
+	<string>Placeholders</string>
 	<key>settings</key>
 	<array>
 		<dict>
@@ -25,7 +26,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -36,7 +37,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -47,7 +48,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -58,7 +59,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -69,7 +70,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -80,7 +81,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -91,7 +92,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -102,7 +103,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#0D7FF2</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
@@ -113,18 +114,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>Exceptions</string>
-			<key>scope</key>
-			<string>entity.name.exception</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#DF2040</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -144,7 +134,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -155,7 +145,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#39C692</string>
+				<string>#333333</string>
 			</dict>
 		</dict>
 		<dict>
@@ -166,7 +156,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -177,7 +167,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#39C692</string>
+				<string>#333333</string>
 			</dict>
 		</dict>
 		<dict>
@@ -188,7 +178,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -199,35 +189,37 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>-----------------------------------</string>
 			<key>settings</key>
-			<dict/>
+			<dict />
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>HTML: Doctype Declaration</string>
 			<key>scope</key>
-			<string>meta.tag.sgml.doctype, meta.tag.sgml.doctype string, meta.tag.sgml.doctype entity.name.tag, meta.tag.sgml punctuation.definition.tag.html</string>
+			<string
+                >meta.tag.sgml.doctype, meta.tag.sgml.doctype string, meta.tag.sgml.doctype entity.name.tag, meta.tag.sgml punctuation.definition.tag.html</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>HTML: Tags</string>
 			<key>scope</key>
-			<string>meta.tag, punctuation.definition.tag.html, punctuation.definition.tag.begin.html, punctuation.definition.tag.end.html</string>
+			<string
+                >meta.tag, punctuation.definition.tag.html, punctuation.definition.tag.begin.html, punctuation.definition.tag.end.html</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -238,18 +230,19 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>HTML: Attribute Names</string>
 			<key>scope</key>
-			<string>meta.tag entity.other.attribute-name, entity.other.attribute-name.html</string>
+			<string
+                >meta.tag entity.other.attribute-name, entity.other.attribute-name.html</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#0D7FF2</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
@@ -260,24 +253,25 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>-----------------------------------</string>
 			<key>settings</key>
-			<dict/>
+			<dict />
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>CSS: Selectors</string>
 			<key>scope</key>
-			<string>meta.selector, meta.selector entity, meta.selector entity punctuation, entity.name.tag.css</string>
+			<string
+                >meta.selector, meta.selector entity, meta.selector entity punctuation, entity.name.tag.css</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
@@ -288,14 +282,15 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#7855AA</string>
+				<string>#444444</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>CSS: Property Values</string>
 			<key>scope</key>
-			<string>meta.property-value, meta.property-value constant.other, support.constant.property-value</string>
+			<string
+                >meta.property-value, meta.property-value constant.other, support.constant.property-value</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
@@ -315,18 +310,7 @@
 			<key>name</key>
 			<string>-----------------------------------</string>
 			<key>settings</key>
-			<dict/>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>Markup: Error</string>
-			<key>scope</key>
-			<string>markup.error, markup.traceback</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#DF2040</string>
-			</dict>
+			<dict />
 		</dict>
 		<dict>
 			<key>name</key>
@@ -336,14 +320,14 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#0D7FF2</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
 			<key>name</key>
 			<string>-----------------------------------</string>
 			<key>settings</key>
-			<dict/>
+			<dict />
 		</dict>
 		<dict>
 			<key>name</key>
@@ -353,7 +337,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -364,7 +348,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -375,7 +359,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#777777</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 	</array>

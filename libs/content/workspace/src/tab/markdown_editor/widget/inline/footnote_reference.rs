@@ -5,10 +5,14 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeEx
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> Format {
-        Format { color: self.theme.fg().neutral_tertiary, ..self.text_format_superscript(parent) }
+        Format {
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
+            ..self.text_format_superscript(parent)
+        }
     }
 
     pub fn span_footnote_reference(

@@ -9,6 +9,7 @@ use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT, ROW_SPACING};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
 impl<'ast> Editor {
@@ -346,7 +347,7 @@ impl<'ast> Editor {
         ui.painter().hline(
             line_break_rect.x_range(),
             line_break_rect.center().y,
-            Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
+            Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() },
         );
     }
 
@@ -517,10 +518,11 @@ impl<'ast> Editor {
 
         if self.fold(node).is_some() {
             ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
+                let theme = self.ctx.get_lb_theme();
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
-                    self.theme.fg().neutral_quarternary
+                    theme.neutral_fg_secondary()
                 } else {
-                    self.theme.fg().accent_secondary
+                    theme.fg().get_color(theme.prefs().primary)
                 });
                 if IconButton::new(icon)
                     .size(size)
@@ -535,7 +537,7 @@ impl<'ast> Editor {
             ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
-                    .color(self.theme.fg().neutral_quarternary);
+                    .color(self.ctx.get_lb_theme().neutral_fg_secondary());
                 if IconButton::new(icon)
                     .size(size)
                     .tooltip("Hide Contents")

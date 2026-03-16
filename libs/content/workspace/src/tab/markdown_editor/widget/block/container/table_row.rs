@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::RangeExt;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::BLOCK_PADDING;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> Format {
@@ -55,12 +56,15 @@ impl<'ast> Editor {
             // draw row backgrounds
             let row_rect = Rect::from_min_size(top_left, Vec2::new(width, height));
             if is_header_row {
-                ui.painter()
-                    .rect_filled(row_rect, 0., self.theme.bg().neutral_secondary);
+                ui.painter().rect_filled(
+                    row_rect,
+                    1.,
+                    self.ctx.get_lb_theme().neutral_bg_secondary(),
+                );
             }
 
             // draw interior decorations
-            let stroke = Stroke { width: 1., color: self.theme.bg().neutral_tertiary };
+            let stroke = Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() };
             if !is_header_row {
                 ui.painter()
                     .hline(Rangef::new(top_left.x, top_left.x + width), top_left.y, stroke);
