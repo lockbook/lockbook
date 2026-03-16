@@ -351,16 +351,6 @@ pub fn update_flatpak() -> CliResult<()> {
     if std::path::Path::new(&clone_dir).exists() {
         std::fs::remove_dir_all(&clone_dir).unwrap();
     }
-    Command::new("git")
-        .args([
-            "clone",
-            "--depth=1",
-            "--branch",
-            &version,
-            "https://github.com/lockbook/lockbook.git",
-            &clone_dir,
-        ])
-        .assert_success()?;
 
     Command::new("git")
         .args([
@@ -386,7 +376,7 @@ pub fn update_flatpak() -> CliResult<()> {
     Command::new("curl")
         .args([
             "-fL",
-            &format!("https://github.com/lockbook/lockbook/archive/refs/tags/26.3.11.tar.gz"),
+            "https://github.com/lockbook/lockbook/archive/refs/tags/26.3.11.tar.gz",
             "-o",
             &tarball,
         ])
