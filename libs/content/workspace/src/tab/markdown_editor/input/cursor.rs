@@ -6,6 +6,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_SPACING};
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
+use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Location, Region};
 
@@ -71,7 +72,8 @@ impl Editor {
     }
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
-        let color = self.theme.fg().accent_primary;
+        let theme = self.ctx.get_lb_theme();
+        let color = theme.fg().get_color(theme.prefs().primary);
         let selection = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);

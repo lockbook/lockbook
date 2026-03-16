@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::IconButton;
 
 use crate::tab::markdown_editor::{self, Editor};
@@ -76,7 +77,7 @@ impl<'ast> Editor {
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+                    ui.visuals_mut().widgets.active.bg_fill = self.ctx.get_lb_theme().fg().blue;
 
                     let is_ios = cfg!(target_os = "ios");
                     let is_mobile = is_ios || cfg!(target_os = "android");
@@ -459,10 +460,11 @@ impl<'ast> Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
+                        .fill(self.ctx.get_lb_theme().neutral_bg())
                         .show(ui, |ui| {
                             // setup
-                            ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+                            ui.visuals_mut().widgets.active.bg_fill =
+                                self.ctx.get_lb_theme().fg().blue;
 
                             let is_ios = cfg!(target_os = "ios");
 

@@ -3,6 +3,7 @@ use egui::{Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::ThemeExt as _;
 
 use super::Editor;
 use super::bounds::RangesExt as _;
@@ -222,9 +223,9 @@ impl<'ast> Editor {
             bold: false,
             italic: false,
             color: if self.plaintext_mode {
-                self.theme.fg().neutral_primary
+                self.ctx.get_lb_theme().neutral_fg()
             } else {
-                self.theme.fg().neutral_secondary
+                self.ctx.get_lb_theme().neutral_fg_secondary()
             },
             underline: false,
             strikethrough: false,

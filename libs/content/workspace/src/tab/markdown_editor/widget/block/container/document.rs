@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::RangeIterExt as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::ROW_SPACING;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_document(&self) -> Format {
@@ -12,7 +13,7 @@ impl<'ast> Editor {
             family: FontFamily::Sans,
             bold: false,
             italic: false,
-            color: self.theme.fg().neutral_primary,
+            color: self.ctx.get_lb_theme().neutral_fg(),
             underline: false,
             strikethrough: false,
             background: egui::Color32::TRANSPARENT,

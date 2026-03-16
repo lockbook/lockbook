@@ -6,11 +6,12 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_link(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        Format { color: self.theme.fg().blue, underline: true, ..parent_text_format }
+        Format { color: self.ctx.get_lb_theme().fg().blue, underline: true, ..parent_text_format }
     }
 
     pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {

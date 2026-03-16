@@ -5,6 +5,7 @@ use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _};
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::ROW_HEIGHT;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn height_thematic_break(&self) -> f32 {
@@ -24,7 +25,7 @@ impl<'ast> Editor {
             ui.painter().hline(
                 rect.x_range(),
                 rect.center().y,
-                Stroke { width: 1.0, color: self.theme.fg().neutral_tertiary },
+                Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() },
             );
 
             // show empty row with mapped text range

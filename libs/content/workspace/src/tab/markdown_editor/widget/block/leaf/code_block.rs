@@ -10,6 +10,7 @@ use syntect::highlighting::Style;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
@@ -87,7 +88,7 @@ impl<'ast> Editor {
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., self.theme.bg().neutral_tertiary),
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -192,7 +193,7 @@ impl<'ast> Editor {
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., self.theme.bg().neutral_tertiary),
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -402,18 +403,20 @@ impl<'ast> Editor {
                 );
             }
             for (style, region) in regions {
+                let theme = self.ctx.get_lb_theme();
+
                 // theme file contains placeholder colors that we map here based on our theme
                 let hex =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
                         .to_hex();
                 let hex = hex.strip_suffix("ff").unwrap(); // all colors reported with 100% transparency
                 text_format.color = match hex {
-                    "#000000" => self.theme.fg().neutral_primary,
-                    "#111111" => self.theme.fg().neutral_secondary,
-                    "#222222" => self.theme.fg().accent_primary,
-                    "#333333" => self.theme.fg().accent_secondary,
-                    "#444444" => self.theme.fg().accent_tertiary,
-                    _ => self.theme.fg().neutral_primary,
+                    "#000000" => theme.neutral_fg(),
+                    "#111111" => theme.neutral_fg_secondary(),
+                    "#222222" => theme.fg().get_color(theme.prefs().primary),
+                    "#333333" => theme.fg().get_color(theme.prefs().secondary),
+                    "#444444" => theme.fg().get_color(theme.prefs().tertiary),
+                    _ => theme.neutral_fg(),
                 };
 
                 self.show_section(ui, top_left, &mut wrap, region, text_format.clone());

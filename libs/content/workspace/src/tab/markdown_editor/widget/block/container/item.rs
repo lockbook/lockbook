@@ -8,6 +8,7 @@ use lb_rs::model::text::offset_types::{
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
+use crate::theme::palette_v2::ThemeExt as _;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -40,7 +41,7 @@ impl<'ast> Editor {
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let annotation_color = self.theme.fg().neutral_secondary;
+        let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(
