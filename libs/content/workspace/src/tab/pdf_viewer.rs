@@ -246,7 +246,7 @@ impl PdfViewer {
         };
 
         if let Some(sidebar) = &mut self.sidebar {
-            ui.allocate_new_ui(UiBuilder::new().max_rect(end_of_line_rect), |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(end_of_line_rect), |ui| {
                 let icon = Icon::TOGGLE_SIDEBAR;
                 if Button::default().icon(&icon).show(ui).clicked() {
                     sidebar.is_visible = !sidebar.is_visible;
@@ -254,7 +254,7 @@ impl PdfViewer {
             });
         }
 
-        ui.allocate_new_ui(UiBuilder::new().max_rect(centered_rect), |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(centered_rect), |ui| {
             ui.columns(5, |cols| {
                 cols[0].vertical_centered(|ui| {
                     if Button::default().icon(&Icon::ZOOM_OUT).show(ui).clicked() {

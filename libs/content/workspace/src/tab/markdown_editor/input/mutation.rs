@@ -376,7 +376,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
@@ -386,7 +386,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
             }
             Event::ToggleDebug => {
                 self.debug = !self.debug;
@@ -1014,7 +1014,7 @@ impl<'ast> Editor {
                 // click an override galley to select the whole thing
                 galley.range
             } else {
-                self.galley_offset(galley, pos).into_range()
+                self.galley_offset(galley_idx, pos).into_range()
             }
         }
     }

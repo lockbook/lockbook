@@ -101,7 +101,7 @@ impl super::SettingsModal {
                             .ui(ui)
                             .clicked()
                         {
-                            ui.output_mut(|out| out.copied_text = key.to_owned());
+                            ui.ctx().copy_text(key.to_owned());
                         }
 
                         let text = if self.account.generating_qr {

@@ -655,7 +655,7 @@ impl Editor {
                 b.set_text(
                     &mut self.font_system.lock().unwrap(),
                     text,
-                    attrs,
+                    &attrs,
                     glyphon::Shaping::Advanced,
                 );
                 b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);

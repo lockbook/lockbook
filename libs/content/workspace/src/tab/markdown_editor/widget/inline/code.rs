@@ -5,12 +5,15 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeEx
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> Format {
+        let theme = self.ctx.get_lb_theme();
         Format {
-            color: self.theme.fg().accent_secondary,
-            background: self.theme.bg().neutral_secondary,
+            color: theme.fg().get_color(theme.prefs().primary),
+            background: theme.neutral_bg_secondary(),
+            border: theme.neutral_bg_tertiary(),
             ..self.text_format_code_block(parent)
         }
     }
@@ -86,7 +89,11 @@ impl<'ast> Editor {
             }
         }
         if !infix_range.is_empty() {
-            let sense = self.sense_inline(ui, node);
+            let sense = if self.inline_clickable(ui, node) {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            };
             response |= self.show_override_section(
                 ui,
                 top_left,

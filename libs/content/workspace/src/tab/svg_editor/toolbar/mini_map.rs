@@ -41,9 +41,9 @@ impl Toolbar {
         self.layout.mini_map = Some(mini_map_rect);
 
         let shadow: egui::Shape = egui::Shadow {
-            offset: egui::vec2(0.0, 0.0),
-            blur: 40.0,
-            spread: 0.0,
+            offset: [0, 0],
+            blur: 40,
+            spread: 0,
             color: ui.visuals().window_shadow.color,
         }
         .as_shape(mini_map_rect, 0.0)
@@ -109,6 +109,7 @@ impl Toolbar {
             0.0,
             blue.linear_multiply(0.2),
             egui::Stroke { width: 0.5, color: blue },
+            egui::epaint::StrokeKind::Inside,
         );
 
         self.show_scroll_bar(ui, tlbr_ctx, mini_map_rect);
@@ -202,7 +203,7 @@ impl Toolbar {
             egui::vec2(scrollarea_size.x / 3.0, container_rect.height() * scale_down_factor),
         );
         let blue = ui.visuals().widgets.active.bg_fill;
-        painter.rect_filled(scrollbar_rect, ui.visuals().window_rounding, blue);
+        painter.rect_filled(scrollbar_rect, ui.visuals().window_corner_radius, blue);
 
         let scrollarea_res = ui.interact(
             scrollarea_rect,

@@ -1,4 +1,5 @@
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
+use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
 use egui::{Pos2, Rect, Sense, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
@@ -15,11 +16,11 @@ impl<'ast> Editor {
         let parent_text_format = self.text_format(parent);
         Format {
             color: match node_alert.alert_type {
-                AlertType::Note => self.theme.fg().blue,
-                AlertType::Tip => self.theme.fg().green,
-                AlertType::Important => self.theme.fg().magenta,
-                AlertType::Warning => self.theme.fg().yellow,
-                AlertType::Caution => self.theme.fg().red,
+                AlertType::Note => self.ctx.get_lb_theme().fg().blue,
+                AlertType::Tip => self.ctx.get_lb_theme().fg().green,
+                AlertType::Important => self.ctx.get_lb_theme().fg().magenta,
+                AlertType::Warning => self.ctx.get_lb_theme().fg().yellow,
+                AlertType::Caution => self.ctx.get_lb_theme().fg().red,
             },
             ..parent_text_format
         }
@@ -201,7 +202,7 @@ impl<'ast> Editor {
                     (line_content.end() - 1).into_range(),
                     self.text_format(node),
                     Some(type_display_text),
-                    Sense { click: false, drag: false, focusable: false },
+                    Sense::hover(),
                 );
             }
         }

@@ -4,7 +4,7 @@ use web_time::{Duration, Instant};
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeList, NodeValue};
-use egui::scroll_area::ScrollBarVisibility;
+use egui::scroll_area::{ScrollBarVisibility, ScrollSource};
 use egui::{
     FontId, Frame, Label, Layout, Margin, Pos2, Rect, Response, RichText, ScrollArea, Separator,
     Stroke, Ui, UiBuilder, Vec2, Widget,
@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::IconButton;
 
 use crate::tab::markdown_editor::{self, Editor};
@@ -65,7 +66,7 @@ impl<'ast> Editor {
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         Frame::canvas(ui.style())
             .stroke(Stroke::NONE)
-            .inner_margin(Margin::symmetric(10., 10.))
+            .inner_margin(Margin::symmetric(10, 10))
             .show(ui, |ui| self.show_toolbar_inner(root, ui))
             .inner
     }
@@ -76,7 +77,7 @@ impl<'ast> Editor {
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+                    ui.visuals_mut().widgets.active.bg_fill = self.ctx.get_lb_theme().fg().blue;
 
                     let is_ios = cfg!(target_os = "ios");
                     let is_mobile = is_ios || cfg!(target_os = "android");
@@ -449,9 +450,9 @@ impl<'ast> Editor {
 
     pub fn show_toolbar_menu(&mut self, ui: &mut Ui) {
         let margin: Margin =
-            if cfg!(target_os = "android") { Margin::symmetric(0.0, 60.0) } else { Margin::ZERO };
+            if cfg!(target_os = "android") { Margin::symmetric(0, 60) } else { Margin::ZERO };
         ScrollArea::vertical()
-            .drag_to_scroll(true)
+            .scroll_source(ScrollSource::ALL)
             .id_salt("toolbar_settings")
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
@@ -459,10 +460,11 @@ impl<'ast> Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
+                        .fill(self.ctx.get_lb_theme().neutral_bg())
                         .show(ui, |ui| {
                             // setup
-                            ui.visuals_mut().widgets.active.bg_fill = self.theme.fg().blue;
+                            ui.visuals_mut().widgets.active.bg_fill =
+                                self.ctx.get_lb_theme().fg().blue;
 
                             let is_ios = cfg!(target_os = "ios");
 

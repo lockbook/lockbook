@@ -23,14 +23,13 @@ impl<'ast> Editor {
     ) -> Response {
         let response = self.show_circumfix(ui, node, top_left, wrap, range);
 
-        if response.hovered && self.sense_inline(ui, node).click {
+        if response.hovered && self.inline_clickable(ui, node) {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            ui.output_mut(|o| {
-                o.open_url = Some(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd })
-            });
+            ui.ctx()
+                .open_url(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd });
         }
 
         response

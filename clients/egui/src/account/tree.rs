@@ -19,7 +19,7 @@ use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
+use workspace_rs::theme::palette_v2::ThemeExt as _;
 use workspace_rs::widgets::Button;
 
 #[derive(Debug, Default)]
@@ -666,12 +666,12 @@ impl FileTree {
 
         suggested_docs_btn.context_menu(|ui| {
             if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-                ui.close_menu();
+                ui.close();
             }
 
             if ui.button("Clear All").clicked() {
                 resp.clear_suggested = true;
-                ui.close_menu();
+                ui.close();
             }
         });
 
@@ -697,7 +697,7 @@ impl FileTree {
                 file_resp.context_menu(|ui| {
                     if ui.button("Remove Suggestion").clicked() {
                         resp.clear_suggested_id = Some(id);
-                        ui.close_menu();
+                        ui.close();
                     }
                 });
 
@@ -748,6 +748,7 @@ impl FileTree {
                 rename_resp.rect.expand(5.0),
                 Self::BTN_ROUNDING,
                 egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill),
+                egui::epaint::StrokeKind::Inside,
             );
 
             if !rename_resp.has_focus() && !rename_resp.lost_focus() {
@@ -938,8 +939,13 @@ impl FileTree {
                             Id::from("file_tree_drop_indicator"),
                         )),
                         |ui| {
-                            ui.painter()
-                                .rect(file_resp.rect, 2., Color32::TRANSPARENT, stroke);
+                            ui.painter().rect(
+                                file_resp.rect,
+                                2.,
+                                Color32::TRANSPARENT,
+                                stroke,
+                                egui::epaint::StrokeKind::Inside,
+                            );
                         },
                     );
 
@@ -1065,11 +1071,10 @@ impl FileTree {
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
-            default_fill = theme
+            ui.visuals_mut().widgets.hovered.bg_fill = theme
                 .bg()
                 .get_color(theme.prefs().primary)
                 .gamma_multiply(0.4);
-            ui.visuals_mut().widgets.hovered.bg_fill = default_fill;
         } else {
             ui.visuals_mut().widgets.hovered.bg_fill = theme
                 .bg()
@@ -1096,10 +1101,7 @@ impl FileTree {
             let icon = doc_type.to_icon().size(icon_size);
             let file_resp = button
                 .icon(&icon)
-                .icon_color(theme.fg().grey.lerp_to_gamma(
-                    if theme.current == Mode::Light { theme.fg().white } else { theme.fg().black },
-                    0.5,
-                ))
+                .icon_color(theme.neutral_fg_secondary())
                 .show(ui);
 
             file_resp
@@ -1121,10 +1123,12 @@ impl FileTree {
 
             let file_resp = button
                 .icon(&icon)
-                .icon_color(if is_shared || file.id == self.pending_shares_id {
-                    theme.bg().get_color(theme.prefs().secondary)
+                .icon_color(if file.id == self.suggested_docs_folder_id {
+                    theme.fg().get_color(theme.prefs().tertiary)
+                } else if is_shared || file.id == self.pending_shares_id {
+                    theme.fg().get_color(theme.prefs().secondary)
                 } else {
-                    theme.bg().get_color(theme.prefs().primary)
+                    theme.fg().get_color(theme.prefs().primary)
                 })
                 .show(ui);
 
@@ -1169,8 +1173,13 @@ impl FileTree {
                         Id::from("file_tree_drop_indicator"),
                     )),
                     |ui| {
-                        ui.painter()
-                            .rect(padding_resp.rect, 2., Color32::TRANSPARENT, stroke);
+                        ui.painter().rect(
+                            padding_resp.rect,
+                            2.,
+                            Color32::TRANSPARENT,
+                            stroke,
+                            egui::epaint::StrokeKind::Inside,
+                        );
                     },
                 );
             }
@@ -1194,18 +1203,18 @@ impl FileTree {
         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
 
         if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-            ui.close_menu();
+            ui.close();
         }
 
         if let Some(file) = file {
             if ui.button("Open").clicked() {
                 resp.open_requests.insert(file.id, OpenRequest::same_tab());
-                ui.close_menu();
+                ui.close();
             }
 
             if ui.button("Open In New Tab").clicked() {
                 resp.open_requests.insert(file.id, OpenRequest::new_tab());
-                ui.close_menu();
+                ui.close();
             }
 
             ui.separator();
@@ -1213,18 +1222,18 @@ impl FileTree {
 
         if ui.button("New Document").clicked() {
             resp.new_file = Some(true);
-            ui.close_menu();
+            ui.close();
         }
 
         if ui.button("New Drawing").clicked() {
             resp.new_drawing = Some(true);
-            ui.close_menu();
+            ui.close();
         }
 
         if ui.button("New Folder").clicked() {
             let file = if let Some(file) = file { file.id } else { self.files.root().id };
             resp.new_folder_modal = Some(self.files.get_by_id(file).unwrap().clone());
-            ui.close_menu();
+            ui.close();
         }
 
         if let Some(file) = file {
@@ -1232,7 +1241,7 @@ impl FileTree {
 
             if ui.button("Rename").clicked() {
                 self.init_rename(ui.ctx(), file);
-                ui.close_menu();
+                ui.close();
             }
 
             if ui.button("Delete").clicked() {
@@ -1241,7 +1250,7 @@ impl FileTree {
                 } else {
                     resp.delete_requests.insert(file.id);
                 }
-                ui.close_menu();
+                ui.close();
             }
 
             ui.separator();
@@ -1258,28 +1267,27 @@ impl FileTree {
                     }
                     ctx.request_repaint();
                 });
-                ui.close_menu();
+                ui.close();
             }
 
             if self.descends_from_root(file.id) && ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file.id).unwrap().clone();
                 resp.create_share_modal = Some(file);
-                ui.close_menu();
+                ui.close();
             }
 
             if ui.button("Copy Link").clicked() {
                 let id = file.id;
-                ui.ctx()
-                    .output_mut(|o| o.copied_text = format!("lb://{id}"));
+                ui.ctx().copy_text(format!("lb://{id}"));
                 toasts.success("Copied link!");
-                ui.close_menu();
+                ui.close();
             }
 
             if self.descends_from_root(file.id) && file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
                     resp.space_inspector_root = Some(file.clone());
-                    ui.close_menu();
+                    ui.close();
                 }
             }
 
@@ -1291,12 +1299,12 @@ impl FileTree {
                 ui.separator();
                 if ui.button("Accept Share").clicked() {
                     resp.accepted_share = Some(file.clone());
-                    ui.close_menu();
+                    ui.close();
                 }
 
                 if ui.button("Reject Share").clicked() {
                     resp.rejected_share = Some(file.clone());
-                    ui.close_menu();
+                    ui.close();
                 }
             }
         }
@@ -1316,6 +1324,7 @@ impl FileTree {
             .set_char_range(Some(egui::text::CCursorRange {
                 primary: egui::text::CCursor::new(end_pos),
                 secondary: egui::text::CCursor::new(0),
+                h_pos: None,
             }));
         TextEdit::store_state(ctx, Id::new("rename_file"), rename_edit_state);
     }

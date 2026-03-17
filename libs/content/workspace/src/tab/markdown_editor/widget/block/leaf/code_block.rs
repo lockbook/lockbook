@@ -10,6 +10,7 @@ use syntect::highlighting::Style;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
@@ -84,8 +85,12 @@ impl<'ast> Editor {
         let height = self.height_fenced_code_block(node, node_code_block);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            egui::epaint::StrokeKind::Inside,
+        );
 
         width -= 2. * BLOCK_PADDING;
         top_left.x += BLOCK_PADDING;
@@ -185,8 +190,12 @@ impl<'ast> Editor {
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            egui::epaint::StrokeKind::Inside,
+        );
 
         top_left.x += BLOCK_PADDING;
         top_left.y += BLOCK_PADDING;
@@ -276,12 +285,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
@@ -307,10 +314,9 @@ impl<'ast> Editor {
                 regions
             };
 
-            let mut text_format = self.text_format(node);
-            for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+            let text_format = self.text_format(node);
+            for (_, region) in regions {
+                // color doesn't matter for layout, just how the regions are divided
                 wrap.offset += self.span_section(&wrap, region, text_format.clone());
             }
         } else {
@@ -357,12 +363,10 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
         let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
 
@@ -399,8 +403,21 @@ impl<'ast> Editor {
                 );
             }
             for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                let theme = self.ctx.get_lb_theme();
+
+                // theme file contains placeholder colors that we map here based on our theme
+                let hex =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
+                        .to_hex();
+                let hex = hex.strip_suffix("ff").unwrap(); // all colors reported with 100% transparency
+                text_format.color = match hex {
+                    "#000000" => theme.neutral_fg(),
+                    "#111111" => theme.neutral_fg_secondary(),
+                    "#222222" => theme.fg().get_color(theme.prefs().primary),
+                    "#333333" => theme.fg().get_color(theme.prefs().secondary),
+                    "#444444" => theme.fg().get_color(theme.prefs().tertiary),
+                    _ => theme.neutral_fg(),
+                };
 
                 self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
             }

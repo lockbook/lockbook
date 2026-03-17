@@ -180,8 +180,8 @@ fn show_modal<M: Modal>(
     let title = d.title();
 
     let frame = egui::Frame::window(&ctx.style()).inner_margin(egui::Margin {
-        left: 0.0,
-        bottom: 0.0,
+        left: 0,
+        bottom: 0,
         ..ctx.style().spacing.window_margin
     });
 

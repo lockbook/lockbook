@@ -46,9 +46,8 @@ impl<'w> RendererState<'w> {
     }
 
     fn instance() -> wgpu::Instance {
-        let backends = wgpu::util::backend_bits_from_env().unwrap_or_else(wgpu::Backends::all);
-        let instance_desc = wgpu::InstanceDescriptor { backends, ..Default::default() };
-        wgpu::Instance::new(instance_desc)
+        let instance_desc = wgpu::InstanceDescriptor::from_env_or_default();
+        wgpu::Instance::new(&instance_desc)
     }
 
     fn init(instance: Instance, surface: Surface<'w>) -> Self {
@@ -74,6 +73,22 @@ impl<'w> RendererState<'w> {
             raw_input: Default::default(),
             start_time: Instant::now(),
         }
+    }
+
+    /// Call to update the screen ppp based on an up-to-date native ppp. This is
+    /// how the app responds to native ppp changes, such as when the app is
+    /// moved to a display with a different pixel density.
+    pub fn set_native_pixels_per_point(&mut self, native: f32) {
+        self.screen.pixels_per_point = native * self.context.zoom_factor();
+    }
+
+    pub fn pos_from_pixels(&self, x: f32, y: f32) -> egui::Pos2 {
+        egui::Pos2 { x: x / self.screen.pixels_per_point, y: y / self.screen.pixels_per_point }
+    }
+
+    pub fn pos_from_points(&self, x: f32, y: f32) -> egui::Pos2 {
+        let z = self.context.zoom_factor();
+        egui::Pos2 { x: x / z, y: y / z }
     }
 
     pub fn begin_frame(&mut self) {
@@ -117,6 +132,14 @@ impl<'w> RendererState<'w> {
 
         let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
         let full_output = self.context.end_pass();
+
+        // Update the screen ppp based on an up-to-date screen ppp from egui.
+        // This is how the app responds to zoom factor changes, such as cmd+-,
+        // cmd+=, or cmd+0. If the zoom factor changed this frame, the new zoom
+        // factor was already used, so this value must be updated before using
+        // self.screen for tesselation & render.
+        self.screen.pixels_per_point = full_output.pixels_per_point;
+
         self.context.tessellation_options_mut(|w| {
             w.feathering = false;
         });
@@ -237,8 +260,14 @@ impl<'w> RendererState<'w> {
                 self.screen.size_in_pixels[1] as f32 / self.screen.pixels_per_point,
             ),
         });
-        self.context
-            .set_pixels_per_point(self.screen.pixels_per_point);
+        if let Some(viewport) = self
+            .raw_input
+            .viewports
+            .get_mut(&self.raw_input.viewport_id)
+        {
+            viewport.native_pixels_per_point =
+                Some(self.screen.pixels_per_point / self.context.zoom_factor());
+        }
     }
 
     async fn request_device(
@@ -248,15 +277,13 @@ impl<'w> RendererState<'w> {
             .await
             .expect("No suitable GPU adapters found on the system!");
         let res = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: None,
-                    required_features: adapter.features(),
-                    required_limits: adapter.limits(),
-                    memory_hints: Default::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: None,
+                required_features: adapter.features(),
+                required_limits: adapter.limits(),
+                memory_hints: Default::default(),
+                trace: Default::default(),
+            })
             .await;
         match res {
             Err(err) => {

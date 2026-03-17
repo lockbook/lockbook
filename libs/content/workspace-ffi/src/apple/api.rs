@@ -1,5 +1,5 @@
 use crate::WgpuWorkspace;
-use egui::{Event, MouseWheelUnit, Pos2, vec2};
+use egui::{Event, MouseWheelUnit, vec2};
 use lb_c::Uuid;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
@@ -54,7 +54,7 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.renderer.screen.pixels_per_point = scale;
+    obj.renderer.set_native_pixels_per_point(scale);
 }
 
 /// # Safety
@@ -168,10 +168,8 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer
-        .raw_input
-        .events
-        .push(Event::PointerMoved(Pos2 { x, y }))
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.renderer.raw_input.events.push(Event::PointerMoved(pos))
 }
 
 /// # Safety

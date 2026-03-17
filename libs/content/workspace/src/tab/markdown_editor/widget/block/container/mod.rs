@@ -6,6 +6,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::{INDENT, MARGIN};
+use crate::theme::palette_v2::ThemeExt as _;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -130,8 +131,12 @@ impl<'ast> Editor {
                     ui.painter().rect(
                         child_rect,
                         2.,
-                        self.theme.bg().neutral_secondary,
-                        egui::Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                        self.ctx.get_lb_theme().neutral_bg_secondary(),
+                        egui::Stroke {
+                            width: 1.,
+                            color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
+                        },
+                        egui::epaint::StrokeKind::Inside,
                     );
                 }
             }

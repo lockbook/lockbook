@@ -1,4 +1,4 @@
-use egui::{PlatformOutput, ViewportCommand};
+use egui::{OutputCommand, PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use raw_window_handle::{
@@ -197,7 +197,7 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // only draw frames if we got events (including repaint requests)
             let Output {
-                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                platform: PlatformOutput { cursor_icon, commands, .. },
                 viewport,
                 app: lbeguiapp::Response { close },
             } = lb.frame();
@@ -231,14 +231,22 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 None => 1.0,
             };
-            lb.renderer.screen.pixels_per_point = scale_factor;
-            lb.renderer.context.set_pixels_per_point(scale_factor);
+            lb.renderer.set_native_pixels_per_point(scale_factor);
 
             if close {
                 output::close();
             }
             output::window_title::handle(conn, window_id, &atoms, window_title)?;
             cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
+            let open_url = commands.iter().find_map(|c| {
+                if let OutputCommand::OpenUrl(u) = c { Some(u.clone()) } else { None }
+            });
+            let copied_text = commands
+                .iter()
+                .find_map(
+                    |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
+                )
+                .unwrap_or_default();
             output::open_url::handle(open_url);
             output::clipboard_copy::handle_copy(
                 conn,
@@ -264,15 +272,9 @@ fn handle(
 ) -> Result<(), Box<dyn std::error::Error>> {
     match event {
         // pointer
-        Event::ButtonPress(event) => {
-            input::pointer::handle_press(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::ButtonRelease(event) => {
-            input::pointer::handle_release(lb, event, lb.renderer.screen.pixels_per_point)
-        }
-        Event::MotionNotify(event) => {
-            input::pointer::handle_motion(lb, event, lb.renderer.screen.pixels_per_point)
-        }
+        Event::ButtonPress(event) => input::pointer::handle_press(lb, event),
+        Event::ButtonRelease(event) => input::pointer::handle_release(lb, event),
+        Event::MotionNotify(event) => input::pointer::handle_motion(lb, event),
 
         // keyboard
         Event::KeymapNotify(_) => {

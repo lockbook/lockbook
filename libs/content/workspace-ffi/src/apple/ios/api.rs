@@ -1,4 +1,4 @@
-use egui::{Key, Modifiers, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{Key, Modifiers, PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
@@ -259,11 +259,12 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
+    let pos = obj.renderer.pos_from_points(x, y);
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Start,
-        pos: Pos2 { x, y },
+        pos,
         force,
     });
 
@@ -271,7 +272,7 @@ pub unsafe extern "C" fn touches_began(obj: *mut c_void, id: u64, x: f32, y: f32
         .raw_input
         .events
         .push(egui::Event::PointerButton {
-            pos: Pos2 { x, y },
+            pos,
             button: PointerButton::Primary,
             pressed: true,
             modifiers: Default::default(),
@@ -286,19 +287,20 @@ pub unsafe extern "C" fn touches_moved(obj: *mut c_void, id: u64, x: f32, y: f32
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
+    let pos = obj.renderer.pos_from_points(x, y);
 
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Move,
-        pos: Pos2 { x, y },
+        pos,
         force,
     });
 
     obj.renderer
         .raw_input
         .events
-        .push(egui::Event::PointerMoved(Pos2 { x, y }));
+        .push(egui::Event::PointerMoved(pos));
 }
 
 /// # Safety
@@ -311,12 +313,13 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     let force = if force == 0.0 { None } else { Some(force) };
+    let pos = obj.renderer.pos_from_points(x, y);
 
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::End,
-        pos: Pos2 { x, y },
+        pos,
         force,
     });
 
@@ -324,7 +327,7 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
         .raw_input
         .events
         .push(egui::Event::PointerButton {
-            pos: Pos2 { x, y },
+            pos,
             button: PointerButton::Primary,
             pressed: false,
             modifiers: Default::default(),
@@ -342,12 +345,13 @@ pub unsafe extern "C" fn touches_ended(obj: *mut c_void, id: u64, x: f32, y: f32
 pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };
+    let pos = obj.renderer.pos_from_points(x, y);
 
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id),
         phase: TouchPhase::Cancel,
-        pos: Pos2 { x, y },
+        pos,
         force,
     });
 
@@ -362,14 +366,11 @@ pub unsafe extern "C" fn touches_cancelled(obj: *mut c_void, id: u64, x: f32, y:
 pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y: f32, force: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let force = if force == 0.0 { None } else { Some(force) };
+    let pos = obj.renderer.pos_from_points(x, y);
 
     obj.renderer
         .context
-        .push_event(workspace_rs::Event::PredictedTouch {
-            id: TouchId(id),
-            force,
-            pos: Pos2 { x, y },
-        });
+        .push_event(workspace_rs::Event::PredictedTouch { id: TouchId(id), force, pos });
 }
 
 /// # Safety
@@ -389,11 +390,12 @@ pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
 pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
+    let pos = obj.renderer.pos_from_points(x, y);
     if let Some(tab) = obj.workspace.current_tab() {
         if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
-            svg.detect_islands_interaction(egui::pos2(x, y))
+            svg.detect_islands_interaction(pos)
         } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.will_consume_touch(egui::pos2(x, y))
+            md.will_consume_touch(pos)
         } else {
             false
         }
@@ -662,7 +664,8 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let offset = markdown.pos_to_char_offset(Pos2 { x: point.x as f32, y: point.y as f32 });
+    let offset =
+        markdown.pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
 
     CTextPosition { none: false, pos: offset.0 }
 }

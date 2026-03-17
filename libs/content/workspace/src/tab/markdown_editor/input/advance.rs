@@ -72,7 +72,7 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_offset = self.galley_offset(new_galley_idx, target_pos);
                     let new_x = self.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target
@@ -112,7 +112,7 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = self.galley_offset(new_galley, target_pos);
+                    let new_offset = self.galley_offset(new_galley_idx, target_pos);
                     let new_x = self.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target

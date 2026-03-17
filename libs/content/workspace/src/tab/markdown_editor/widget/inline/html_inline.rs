@@ -5,14 +5,15 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
 impl<'ast> Editor {
     pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> Format {
         Format {
-            color: self.theme.fg().neutral_tertiary,
-            background: self.theme.bg().neutral_secondary,
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
+            background: self.ctx.get_lb_theme().neutral_bg_secondary(),
             ..self.text_format_code_block(parent)
         }
     }
@@ -56,7 +57,11 @@ impl<'ast> Editor {
         let mut response = Default::default();
 
         if !node_range.is_empty() {
-            let sense = self.sense_inline(ui, node);
+            let sense = if self.inline_clickable(ui, node) {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            };
             let text_format =
                 if reveal { self.text_format_syntax() } else { self.text_format(node) };
             let override_text = if reveal { None } else { Some("") };

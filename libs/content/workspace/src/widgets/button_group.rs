@@ -59,12 +59,13 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
             where_to_put_background,
             epaint::RectShape {
                 rect: resp.rect,
-                rounding: egui::Rounding::same(5.0),
+                corner_radius: egui::CornerRadius::same(5),
                 fill: ui.visuals().extreme_bg_color,
                 stroke: ui.visuals().widgets.noninteractive.fg_stroke,
-                fill_texture_id: egui::TextureId::default(),
-                uv: egui::Rect::ZERO,
+                stroke_kind: epaint::StrokeKind::Inside,
+                round_to_pixels: None,
                 blur_width: 0.,
+                brush: None,
             },
         );
 
@@ -107,7 +108,12 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
             let west = if is_first { 5.0 } else { 0.0 };
             let east = if is_last { 5.0 } else { 0.0 };
 
-            let rounding = egui::Rounding { nw: west, ne: east, sw: west, se: east };
+            let rounding = egui::CornerRadius {
+                nw: west as u8,
+                ne: east as u8,
+                sw: west as u8,
+                se: east as u8,
+            };
 
             let fill = if self.value_is(btn.0) {
                 ui.style().visuals.widgets.active.bg_fill
@@ -117,7 +123,13 @@ impl<T: Copy + PartialEq> ButtonGroup<T> {
                 ui.style().visuals.widgets.inactive.bg_fill
             };
 
-            ui.painter().rect(rect, rounding, fill, egui::Stroke::NONE);
+            ui.painter().rect(
+                rect,
+                rounding,
+                fill,
+                egui::Stroke::NONE,
+                egui::epaint::StrokeKind::Inside,
+            );
 
             match &btn.1 {
                 ButtonContent::Text(wtxt) => {

@@ -43,7 +43,7 @@ impl Toolbar {
             ),
         };
 
-        let res = ui.allocate_new_ui(UiBuilder::new().max_rect(tools_island_rect), |ui| {
+        let res = ui.scope_builder(UiBuilder::new().max_rect(tools_island_rect), |ui| {
             egui::Frame::window(ui.style()).show(ui, |ui| {
                 ui.horizontal(|ui| {
                     let tool_icon_size = 20.0;
@@ -236,7 +236,7 @@ impl Toolbar {
                 .layout(egui::Layout::default()),
         );
         let out = ui.scope(|ui| {
-            ui.allocate_new_ui(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
                 egui::Frame::window(ui.style()).show(ui, |ui| match self.active_tool {
                     Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
                     Tool::Eraser => self.show_eraser_popover(ui),
@@ -278,7 +278,7 @@ impl Toolbar {
         };
         if self.show_tool_popover {
             let tool_popover =
-                ui.allocate_new_ui(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
+                ui.scope_builder(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
                     egui::Frame::window(ui.style()).show(ui, |ui| {
                         match self.active_tool {
                             Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
@@ -584,5 +584,5 @@ fn show_stroke_preview(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarC
         texture_id: Default::default(),
     };
 
-    painter.add(egui::Shape::Mesh(mesh));
+    painter.add(egui::Shape::Mesh(std::sync::Arc::new(mesh)));
 }

@@ -1,7 +1,7 @@
 use crate::input::file_drop::FileDropHandler;
 use crate::input::message::{Message, MessageAppDep, MessageNoDeps, MessageWindowDep};
 use crate::{input, output};
-use egui::{PlatformOutput, ViewportCommand};
+use egui::{OutputCommand, PlatformOutput, ViewportCommand};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, Response, WgpuLockbook};
 use raw_window_handle::{
@@ -150,7 +150,6 @@ pub fn main() -> Result<()> {
     window.maybe_app = {
         let scale_factor = dpi_to_scale_factor(unsafe { GetDpiForWindow(hwnd) } as _);
         let app = init(maybe_window_handle.as_ref().unwrap(), false);
-        app.renderer.context.set_pixels_per_point(scale_factor);
         window.dpi_scale = scale_factor;
 
         app.renderer
@@ -300,8 +299,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
             if let Some(ref mut window) = maybe_window {
                 if let Some(ref mut app) = window.maybe_app {
                     // events sent to app every frame
-                    app.renderer.context.set_pixels_per_point(window.dpi_scale);
-                    app.renderer.screen.pixels_per_point = window.dpi_scale;
+                    app.renderer.set_native_pixels_per_point(window.dpi_scale);
                     app.renderer.screen.size_in_pixels[0] = window.width as _;
                     app.renderer.screen.size_in_pixels[1] = window.height as _;
                     app.renderer.raw_input.modifiers = modifiers;
@@ -315,17 +313,13 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                         | MessageAppDep::RButtonDown { pos }
                         | MessageAppDep::RButtonUp { pos }
                         | MessageAppDep::MouseMove { pos } => {
-                            input::mouse::handle(app, message, pos, modifiers, window.dpi_scale)
+                            input::mouse::handle(app, message, pos, modifiers)
                         }
                         MessageAppDep::PointerDown { pointer_id }
                         | MessageAppDep::PointerUpdate { pointer_id }
-                        | MessageAppDep::PointerUp { pointer_id } => window.pointer_manager.handle(
-                            app,
-                            hwnd,
-                            modifiers,
-                            window.dpi_scale,
-                            pointer_id,
-                        ),
+                        | MessageAppDep::PointerUp { pointer_id } => window
+                            .pointer_manager
+                            .handle(app, hwnd, modifiers, pointer_id),
                         MessageAppDep::MouseWheel { delta }
                         | MessageAppDep::MouseHWheel { delta } => {
                             input::mouse::handle_wheel(app, message, delta, modifiers)
@@ -340,10 +334,27 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             unsafe { BeginPaint(hwnd, std::ptr::null_mut()) };
 
                             let Output {
-                                platform: PlatformOutput { cursor_icon, open_url, copied_text, .. },
+                                platform: PlatformOutput { cursor_icon, commands, .. },
                                 viewport,
                                 app: Response { close },
                             } = app.frame();
+                            let open_url = commands.iter().find_map(|c| {
+                                if let OutputCommand::OpenUrl(u) = c {
+                                    Some(u.clone())
+                                } else {
+                                    None
+                                }
+                            });
+                            let copied_text = commands
+                                .iter()
+                                .find_map(|c| {
+                                    if let OutputCommand::CopyText(t) = c {
+                                        Some(t.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .unwrap_or_default();
 
                             let mut redraw_in = None;
                             let mut window_title = None;
@@ -366,9 +377,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
 
                             if output::clipboard_copy::handle(copied_text.clone()).is_err() {
                                 // windows clipboard sometimes has transient errors
-                                app.renderer
-                                    .context
-                                    .output_mut(|o| o.copied_text = copied_text);
+                                app.renderer.context.copy_text(copied_text);
                             }
                             if request_paste {
                                 input::clipboard_paste::handle(app);

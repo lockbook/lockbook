@@ -61,6 +61,17 @@ impl Wrap {
             line.1 = line.1.max(range.1);
         } else {
             self.row_ranges.push(range);
+
+            // prefer next row
+            if row > 0 {
+                if let Some(prev_line) = self.row_ranges.get_mut(row - 1) {
+                    // when two rows' ranges touch, shorten the earlier so that
+                    // the boundary belongs to the later
+                    if prev_line.end() == range.start() {
+                        prev_line.1 -= 1;
+                    }
+                }
+            }
         }
     }
 }
@@ -90,15 +101,7 @@ impl Editor {
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), text_format: Format,
     ) -> Response {
-        self.show_override_section(
-            ui,
-            top_left,
-            wrap,
-            range,
-            text_format,
-            None,
-            Sense { click: false, drag: false, focusable: false },
-        )
+        self.show_override_section(ui, top_left, wrap, range, text_format, None, Sense::hover())
     }
 
     /// Returns the height of a single section that's not from the document's
@@ -193,7 +196,6 @@ impl Editor {
             buffer: std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>,
             size: Vec2,
             pos: Pos2,
-            range: (DocCharOffset, DocCharOffset),
         }
         let mut rows: Vec<RowData> = Vec::new();
 
@@ -212,14 +214,21 @@ impl Editor {
                     wrap.row_offset(),
                     wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
                 );
+            let rect = Rect::from_min_size(pos, size);
+
+            let row_range = if override_text.is_some() { range } else { first_row_range };
             let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
-            rows.push(RowData {
-                buffer: row,
-                size,
-                pos,
-                range: if override_text.is_some() { range } else { first_row_range },
-            });
+
+            wrap.add_range(row_range);
             wrap.offset += advance;
+            self.galleys.push(GalleyInfo {
+                is_override: override_text.is_some(),
+                range: row_range,
+                buffer: row.clone(),
+                rect,
+                padded,
+            });
+            rows.push(RowData { buffer: row, size, pos });
         }
 
         if !remaining_text.is_empty() {
@@ -257,15 +266,27 @@ impl Editor {
                     wrap.width,
                     &text_format,
                 );
+
                 let size = row.read().unwrap().shaped_size(ppi);
                 let pos = top_left
                     + Vec2::new(
                         wrap.row_offset(),
                         wrap.row() as f32 * (font_size + ROW_SPACING) + y_offset,
                     );
+                let rect = Rect::from_min_size(pos, size);
+
                 let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
-                rows.push(RowData { buffer: row, size, pos, range: row_range });
+
+                wrap.add_range(row_range);
                 wrap.offset += advance;
+                self.galleys.push(GalleyInfo {
+                    is_override: override_text.is_some(),
+                    range: row_range,
+                    buffer: row.clone(),
+                    rect,
+                    padded,
+                });
+                rows.push(RowData { buffer: row, size, pos });
             }
         }
 
@@ -297,16 +318,15 @@ impl Editor {
                     ui.ctx(),
                     ui.clip_rect(),
                 ));
-                draw_decorations(ui, row.pos, row.size, font_size, &text_format, response.hovered);
+                self.draw_decorations(
+                    ui,
+                    row.pos,
+                    row.size,
+                    font_size,
+                    &text_format,
+                    response.hovered,
+                );
             }
-            self.galleys.push(GalleyInfo {
-                is_override: override_text.is_some(),
-                range: row.range,
-                buffer: row.buffer,
-                rect,
-                padded,
-            });
-            wrap.add_range(row.range);
         }
 
         wrap.offset += post_span;
@@ -417,30 +437,39 @@ impl Editor {
             0.
         }
     }
-}
 
-fn draw_decorations(
-    ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
-) {
-    if text_format.background != egui::Color32::TRANSPARENT {
-        let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::new(INLINE_PADDING, 2.));
-        if text_format.spoiler && hovered {
-            ui.painter()
-                .rect_stroke(bg_rect, 2.0, Stroke::new(1.0, text_format.background));
-        } else {
-            ui.painter()
-                .rect_filled(bg_rect, 2.0, text_format.background);
+    fn draw_decorations(
+        &self, ui: &Ui, pos: Pos2, size: Vec2, font_size: f32, text_format: &Format, hovered: bool,
+    ) {
+        if text_format.background != egui::Color32::TRANSPARENT {
+            let bg_rect = Rect::from_min_size(pos, size).expand2(Vec2::splat(INLINE_PADDING));
+            if text_format.spoiler && hovered {
+                ui.painter().rect_stroke(
+                    bg_rect,
+                    2.0,
+                    Stroke::new(1.0, text_format.background),
+                    egui::epaint::StrokeKind::Inside,
+                );
+            } else {
+                ui.painter().rect(
+                    bg_rect,
+                    2.0,
+                    text_format.background,
+                    Stroke::new(1.0, text_format.border),
+                    egui::epaint::StrokeKind::Inside,
+                );
+            }
         }
-    }
-    let stroke = Stroke::new(1.0, text_format.color);
-    let x_range = pos.x..=(pos.x + size.x);
-    if text_format.strikethrough {
-        ui.painter()
-            .hline(x_range.clone(), pos.y + font_size * 0.55, stroke);
-    }
-    if text_format.underline {
-        ui.painter()
-            .hline(x_range, pos.y + font_size * 0.95, stroke);
+        let stroke = Stroke::new(1.0, text_format.color);
+        let x_range = pos.x..=(pos.x + size.x);
+        if text_format.strikethrough {
+            ui.painter()
+                .hline(x_range.clone(), pos.y + font_size * 0.55, stroke);
+        }
+        if text_format.underline {
+            ui.painter()
+                .hline(x_range, pos.y + font_size * 0.95, stroke);
+        }
     }
 }
 
@@ -478,6 +507,7 @@ pub struct Format {
     pub underline: bool,
     pub strikethrough: bool,
     pub background: egui::Color32,
+    pub border: egui::Color32,
     pub spoiler: bool,
     pub superscript: bool,
     pub subscript: bool,
