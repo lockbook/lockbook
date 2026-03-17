@@ -1,10 +1,11 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
-use egui::{Checkbox, Pos2, Rect, Ui, UiBuilder, Vec2};
+use egui::{CursorIcon, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_editor::widget::INDENT;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::{INDENT, ROW_SPACING};
 use crate::tab::markdown_editor::{Editor, Event};
+use crate::theme::palette_v2::ThemeExt;
 
 impl<'ast> Editor {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -15,29 +16,68 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_task_item: &NodeTaskItem,
     ) {
+        let theme = self.ctx.get_lb_theme();
         let maybe_check = node_task_item.symbol;
+        let checked = maybe_check.is_some();
 
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
         let annotation_size = Vec2 { x: INDENT, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        self.touch_consuming_rects.push(annotation_space);
+        let checkbox_space = Rect::from_center_size(
+            annotation_space.center(),
+            Vec2::splat(annotation_space.size().min_elem()),
+        );
 
-        ui.scope_builder(UiBuilder::new().max_rect(annotation_space), |ui| {
-            let mut checked = maybe_check.is_some();
-            ui.add_enabled(!self.readonly, Checkbox::new(&mut checked, ""));
-            if checked != maybe_check.is_some() {
-                let check_offset = self.check_offset(node);
-                let check = if checked { 'x' } else { ' ' };
+        // allocate a slightly larger clickable space that makes the checkbox
+        // easier to tap without overflowing the annotation space horizontally
+        // or overlapping with another row vertically.
+        let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
+        let extra_height = ROW_SPACING / 2.;
+        let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
-                self.event.internal_events.push(Event::Replace {
-                    region: (check_offset, check_offset + 1).into(),
-                    text: check.into(),
-                    advance_cursor: false,
-                });
-            }
-        });
+        let checkbox_response =
+            ui.interact(clickable_space, Id::new(self.node_range(node)), Sense::click());
+        if checkbox_response.clicked() {
+            let check_offset = self.check_offset(node);
+            let new_check = if checked { ' ' } else { 'x' };
+            self.event.internal_events.push(Event::Replace {
+                region: (check_offset, check_offset + 1).into(),
+                text: new_check.into(),
+                advance_cursor: false,
+            });
+        }
+        if checkbox_response.hovered() {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        self.touch_consuming_rects.push(clickable_space);
+
+        // draw checkbox
+        ui.painter().rect(
+            checkbox_space,
+            2,
+            if checkbox_response.hovered() {
+                theme.neutral()
+            } else {
+                theme.neutral_bg_secondary()
+            },
+            Stroke::new(1., theme.neutral()),
+            StrokeKind::Inside,
+        );
+
+        // draw check
+        if checked {
+            let check_space = checkbox_space.shrink(3.);
+            ui.painter().add(Shape::line(
+                vec![
+                    egui::pos2(check_space.left(), check_space.center().y),
+                    egui::pos2(check_space.center().x, check_space.bottom()),
+                    egui::pos2(check_space.right(), check_space.top()),
+                ],
+                Stroke::new(1.5, theme.neutral_fg_secondary()),
+            ));
+        }
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
