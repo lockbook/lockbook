@@ -170,12 +170,11 @@ impl<'ast> Editor {
                     AlertType::Warning => Icon::WARNING_2,
                     AlertType::Caution => Icon::REPORT,
                 };
-                let draw_pos =
-                    icon_space.center() - Vec2::splat(icon.size) / 2. + Vec2::new(0., 1.5);
 
                 let icon_text: WidgetText = icon.into();
                 let galley =
                     icon_text.into_galley(ui, Some(TextWrapMode::Extend), 0., TextStyle::Body);
+                let draw_pos = icon_space.center() - galley.size() / 2.;
                 ui.painter()
                     .galley(draw_pos, galley, self.text_format(node).color);
             }
