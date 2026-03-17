@@ -158,32 +158,4 @@ impl Lb {
 
         Ok(())
     }
-
-    /// This fn is what will fetch the document remotely if it's not present locally
-    /// todo: no it will not, and callers need to manage pre-fetching their documents themselves 
-    /// realistically this should just be used by syncer and should just move there
-    pub(crate) async fn read_document_helper<T>(
-        &self, id: Uuid, tree: &mut LazyTree<T>,
-    ) -> LbResult<DecryptedDocument>
-    where
-        T: TreeLike<F = SignedMeta>,
-    {
-        let file = tree.find(&id)?;
-        validate::is_document(file)?;
-        let hmac = file.document_hmac().copied();
-
-        if tree.calculate_deleted(&id)? {
-            return Err(LbErrKind::FileNonexistent.into());
-        }
-
-        let doc = match hmac {
-            Some(hmac) => {
-                let doc = self.docs.get(id, Some(hmac)).await?;
-                tree.decrypt_document(&id, &doc, &self.keychain)?
-            }
-            None => vec![],
-        };
-
-        Ok(doc)
-    }
 }

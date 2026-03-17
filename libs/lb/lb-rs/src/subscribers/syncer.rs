@@ -12,28 +12,12 @@ use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
-    Lb, LbErrKind, LbResult,
-    io::network::ApiError,
-    model::{
-        ValidationFailure,
-        access_info::UserAccessMode,
-        api::{
+    io::network::ApiError, model::{
+        access_info::UserAccessMode, api::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertRequestV2,
-        },
-        crypto::EncryptedDocument,
-        errors::Unexpected,
-        file::ShareMode,
-        file_like::FileLike,
-        file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
-        filename::{DocumentType, NameComponents},
-        signed_meta::SignedMeta,
-        staged::StagedTreeLikeMut,
-        svg::{self, buffer::u_transform_to_bezier, element::Element},
-        symkey, text,
-        tree_like::TreeLike,
-    },
-    service::events::{Actor, Event, SyncIncrement},
+        }, crypto::{DecryptedDocument, EncryptedDocument}, errors::Unexpected, file::ShareMode, file_like::FileLike, file_metadata::{DocumentHmac, FileDiff, FileType, Owner}, filename::{DocumentType, NameComponents}, lazy::LazyTree, signed_meta::SignedMeta, staged::StagedTreeLikeMut, svg::{self, buffer::u_transform_to_bezier, element::Element}, symkey, text, tree_like::TreeLike, validate, ValidationFailure
+    }, service::events::{Actor, Event, SyncIncrement}, Lb, LbErrKind, LbResult
 };
 
 pub type Syncer = Arc<Mutex<SyncState>>;
@@ -1234,5 +1218,30 @@ impl Lb {
             .await?;
 
         Ok(id)
+    }
+
+    async fn read_document_helper<T>(
+        &self, id: Uuid, tree: &mut LazyTree<T>,
+    ) -> LbResult<DecryptedDocument>
+    where
+        T: TreeLike<F = SignedMeta>,
+    {
+        let file = tree.find(&id)?;
+        validate::is_document(file)?;
+        let hmac = file.document_hmac().copied();
+
+        if tree.calculate_deleted(&id)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
+
+        let doc = match hmac {
+            Some(hmac) => {
+                let doc = self.docs.get(id, Some(hmac)).await?;
+                tree.decrypt_document(&id, &doc, &self.keychain)?
+            }
+            None => vec![],
+        };
+
+        Ok(doc)
     }
 }
