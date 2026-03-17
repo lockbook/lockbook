@@ -219,4 +219,3 @@ pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
         obj.workspace.close_tab(tab_id);
     }
 }
-

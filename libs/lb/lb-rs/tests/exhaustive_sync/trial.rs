@@ -97,9 +97,7 @@ impl Trial {
                     device
                         .import_account(account_string, Some(&url()))
                         .map_err(|err| Failed(format!("{:#?}", err)))?;
-                    device
-                        .sync()
-                        .map_err(|err| Failed(format!("{:#?}", err)))?;
+                    device.sync().map_err(|err| Failed(format!("{:#?}", err)))?;
                 } else {
                     device
                         .create_account(&usernames[user_index], &url(), false)

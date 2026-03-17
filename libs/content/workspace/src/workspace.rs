@@ -22,7 +22,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 
-use crate::output::{Response};
+use crate::output::Response;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
@@ -376,8 +376,7 @@ impl Workspace {
 
     // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves } =
-            self.tasks.update();
+        let task_manager::Response { completed_loads, completed_saves } = self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {

@@ -23,4 +23,3 @@ pub struct Response {
 
     pub open_camera: bool,
 }
-

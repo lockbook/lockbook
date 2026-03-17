@@ -12,12 +12,30 @@ use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
-    io::network::ApiError, model::{
-        access_info::UserAccessMode, api::{
+    Lb, LbErrKind, LbResult,
+    io::network::ApiError,
+    model::{
+        ValidationFailure,
+        access_info::UserAccessMode,
+        api::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertRequestV2,
-        }, crypto::{DecryptedDocument, EncryptedDocument}, errors::Unexpected, file::ShareMode, file_like::FileLike, file_metadata::{DocumentHmac, FileDiff, FileType, Owner}, filename::{DocumentType, NameComponents}, lazy::LazyTree, signed_meta::SignedMeta, staged::StagedTreeLikeMut, svg::{self, buffer::u_transform_to_bezier, element::Element}, symkey, text, tree_like::TreeLike, validate, ValidationFailure
-    }, service::events::{Actor, Event, SyncIncrement}, Lb, LbErrKind, LbResult
+        },
+        crypto::{DecryptedDocument, EncryptedDocument},
+        errors::Unexpected,
+        file::ShareMode,
+        file_like::FileLike,
+        file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
+        filename::{DocumentType, NameComponents},
+        lazy::LazyTree,
+        signed_meta::SignedMeta,
+        staged::StagedTreeLikeMut,
+        svg::{self, buffer::u_transform_to_bezier, element::Element},
+        symkey, text,
+        tree_like::TreeLike,
+        validate,
+    },
+    service::events::{Actor, Event, SyncIncrement},
 };
 
 pub type Syncer = Arc<Mutex<SyncState>>;

@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use basic_human_duration::ChronoHumanDuration;
+use std::sync::Arc;
 use time::Duration;
 
 use tokio::sync::{Mutex, RwLock};

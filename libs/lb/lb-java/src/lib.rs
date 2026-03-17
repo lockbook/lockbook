@@ -535,7 +535,6 @@ pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
     }
 }
 
-
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jdest: JString<'local>,

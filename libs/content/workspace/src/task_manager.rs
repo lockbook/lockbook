@@ -331,8 +331,7 @@ impl TaskManager {
             }
         }
 
-        let any_to_launch =
-            !loads_to_launch.is_empty() || !saves_to_launch.is_empty() ;
+        let any_to_launch = !loads_to_launch.is_empty() || !saves_to_launch.is_empty();
 
         // Launch the things
         for queued_load in loads_to_launch.into_values() {
@@ -393,7 +392,7 @@ impl TaskManager {
             let self_clone = self.clone();
             spawn!(self_clone.background_save(request, old_hmac, seq, content));
         }
-        
+
         if any_to_launch {
             self.ctx.request_repaint();
         }
