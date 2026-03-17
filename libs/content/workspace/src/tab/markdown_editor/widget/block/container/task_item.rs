@@ -2,8 +2,6 @@ use comrak::nodes::{AstNode, NodeTaskItem};
 use egui::{CursorIcon, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{INDENT, ROW_SPACING};
 use crate::tab::markdown_editor::{Editor, Event};
 use crate::theme::palette_v2::ThemeExt;
 
@@ -23,7 +21,7 @@ impl<'ast> Editor {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         let checkbox_space = Rect::from_center_size(
             annotation_space.center(),
@@ -34,7 +32,7 @@ impl<'ast> Editor {
         // easier to tap without overflowing the annotation space horizontally
         // or overlapping with another row vertically.
         let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
-        let extra_height = ROW_SPACING / 2.;
+        let extra_height = self.layout.row_spacing / 2.;
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
         let checkbox_response =
@@ -81,7 +79,7 @@ impl<'ast> Editor {
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+            self.show_block_children(ui, node, top_left + self.layout.indent * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let children_height = self.block_children_height(node);
@@ -92,10 +90,10 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            let mut wrap = Wrap::new(self.width(node));
+            let mut wrap = self.new_wrap(self.width(node));
             let resp = self.show_section(
                 ui,
-                top_left + INDENT * Vec2::X,
+                top_left + self.layout.indent * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_document(),
@@ -110,7 +108,7 @@ impl<'ast> Editor {
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)

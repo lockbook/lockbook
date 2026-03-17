@@ -10,7 +10,7 @@ use epaint::RectShape;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::MARGIN;
+
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::icons::Icon;
@@ -167,7 +167,8 @@ impl<'ast> Editor {
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {
         // make sure images can be viewed in full by capping their height and width to the viewport
         // todo: though great on mobile, images look too big on desktop
-        let image_max_size = { Vec2::new(self.width, self.height) - Vec2::splat(MARGIN) };
+        let image_max_size =
+            { Vec2::new(self.width, self.height) - Vec2::splat(self.layout.margin) };
 
         let width_capped_size = Vec2::new(width, texture_size.y * width / texture_size.x);
         let height_capped_size =

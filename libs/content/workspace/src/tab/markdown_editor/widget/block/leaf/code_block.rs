@@ -8,8 +8,8 @@ use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
@@ -42,10 +42,10 @@ impl<'ast> Editor {
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
-        let width = self.width(node) - 2. * BLOCK_PADDING;
+        let width = self.width(node) - 2. * self.layout.block_padding;
 
-        let mut result = BLOCK_PADDING;
-        result -= ROW_SPACING;
+        let mut result = self.layout.block_padding;
+        result -= self.layout.row_spacing;
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -61,20 +61,20 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    result += ROW_SPACING;
+                    result += self.layout.row_spacing;
                     result += self.height_section(
-                        &mut Wrap::new(width),
+                        &mut self.new_wrap(width),
                         node_line,
                         self.text_format_syntax(),
                     );
                 }
             } else {
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
                 result += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
 
-        result + BLOCK_PADDING
+        result + self.layout.block_padding
     }
 
     pub fn show_fenced_code_block(
@@ -92,10 +92,10 @@ impl<'ast> Editor {
             egui::epaint::StrokeKind::Inside,
         );
 
-        width -= 2. * BLOCK_PADDING;
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
-        top_left.y -= ROW_SPACING; // makes spacing logic simpler
+        width -= 2. * self.layout.block_padding;
+        top_left.x += self.layout.block_padding;
+        top_left.y += self.layout.block_padding;
+        top_left.y -= self.layout.row_spacing; // makes spacing logic simpler
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -111,8 +111,8 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    top_left.y += ROW_SPACING;
-                    let mut wrap = Wrap::new(width);
+                    top_left.y += self.layout.row_spacing;
+                    let mut wrap = self.new_wrap(width);
                     self.show_section(
                         ui,
                         top_left,
@@ -124,7 +124,7 @@ impl<'ast> Editor {
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             } else {
-                top_left.y += ROW_SPACING;
+                top_left.y += self.layout.row_spacing;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
                 top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
@@ -163,7 +163,7 @@ impl<'ast> Editor {
             if reveal {
                 let node_line = self.node_line(node, line);
                 result += self.height_section(
-                    &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
+                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
                     node_line,
                     self.text_format_syntax(),
                 );
@@ -172,11 +172,11 @@ impl<'ast> Editor {
             }
 
             if line_idx != last_line_idx {
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
             }
         }
 
-        result + 2. * BLOCK_PADDING
+        result + 2. * self.layout.block_padding
     }
 
     // indented code blocks don't have an info string; the `info` parameter is
@@ -197,8 +197,8 @@ impl<'ast> Editor {
             egui::epaint::StrokeKind::Inside,
         );
 
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
+        top_left.x += self.layout.block_padding;
+        top_left.y += self.layout.block_padding;
 
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
@@ -208,7 +208,7 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                let mut wrap = Wrap::new(width);
+                let mut wrap = self.new_wrap(width);
                 self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -217,7 +217,7 @@ impl<'ast> Editor {
                 top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
-            top_left.y += ROW_SPACING;
+            top_left.y += self.layout.row_spacing;
         }
     }
 
@@ -290,7 +290,7 @@ impl<'ast> Editor {
             .find_syntax_by_token(info)
             .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
@@ -368,7 +368,7 @@ impl<'ast> Editor {
             .find_syntax_by_token(info)
             .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {

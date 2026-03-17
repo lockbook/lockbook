@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::{INDENT, MARGIN};
+
 use crate::theme::palette_v2::ThemeExt as _;
 
 pub(crate) mod alert;
@@ -27,18 +27,18 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(_) => INDENT,
-            NodeValue::BlockQuote => INDENT,
+            NodeValue::Alert(_) => self.layout.indent,
+            NodeValue::BlockQuote => self.layout.indent,
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => 0.,
-            NodeValue::FootnoteDefinition(_) => INDENT,
-            NodeValue::Item(_) => INDENT,
+            NodeValue::FootnoteDefinition(_) => self.layout.indent,
+            NodeValue::Item(_) => self.layout.indent,
             NodeValue::List(_) => 0., // indentation handled by items
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => 0.,
             NodeValue::TableRow(_) => 0.,
-            NodeValue::TaskItem(_) => INDENT,
+            NodeValue::TaskItem(_) => self.layout.indent,
 
             // inline
             NodeValue::Image(_)
@@ -108,8 +108,10 @@ impl<'ast> Editor {
 
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            let pre_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + pre_spacing;
-            let pre_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let pre_spacing_above_viewport =
+                2. * self.layout.margin > tolerance + top_left.y + pre_spacing;
+            let pre_spacing_below_viewport =
+                2. * self.layout.margin + self.height + tolerance < top_left.y;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
             if !OPTIMIZATION || pre_spacing_visible || self.scroll_to_cursor {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
@@ -141,8 +143,10 @@ impl<'ast> Editor {
                 }
             }
 
-            let block_above_viewport = 2. * MARGIN > tolerance + top_left.y + child_height;
-            let block_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let block_above_viewport =
+                2. * self.layout.margin > tolerance + top_left.y + child_height;
+            let block_below_viewport =
+                2. * self.layout.margin + self.height + tolerance < top_left.y;
             let block_visible = !block_above_viewport && !block_below_viewport;
             if !OPTIMIZATION || block_visible || self.scroll_to_cursor {
                 self.show_block(ui, child, top_left);
@@ -154,8 +158,10 @@ impl<'ast> Editor {
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            let post_spacing_above_viewport = 2. * MARGIN > tolerance + top_left.y + post_spacing;
-            let post_spacing_below_viewport = 2. * MARGIN + self.height + tolerance < top_left.y;
+            let post_spacing_above_viewport =
+                2. * self.layout.margin > tolerance + top_left.y + post_spacing;
+            let post_spacing_below_viewport =
+                2. * self.layout.margin + self.height + tolerance < top_left.y;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
             if !OPTIMIZATION || post_spacing_visible || self.scroll_to_cursor {
                 self.show_block_post_spacing(ui, child, top_left, &children);
