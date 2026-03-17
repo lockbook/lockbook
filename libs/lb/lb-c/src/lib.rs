@@ -15,7 +15,6 @@ use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
-use lb_work::LbSyncRes;
 use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
@@ -519,22 +518,17 @@ pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_c
     cstring(lb.debug_info(os_info).to_string())
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
-    let lb = rlb(lb);
-    lb.calculate_work().into()
-}
-
 pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);
 
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn lb_sync(
-    lb: *mut Lb, _update_status_obj: *const c_void, _update_status: *const UpdateSyncStatus,
-) -> LbSyncRes {
+pub unsafe extern "C" fn lb_sync(lb: *mut Lb) -> *mut LbFfiErr {
     let lb = rlb(lb);
 
-    lb.sync().into()
+    match lb.sync() {
+        Ok(_) => null_mut(),
+        Err(err) => lb_err(err),
+    }
 }
 
 #[repr(C)]
@@ -656,31 +650,6 @@ pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
                 server_cap_exact: 0,
                 server_cap_human: null_mut(),
             },
-        },
-    }
-}
-
-#[repr(C)]
-pub struct LbUncompressedRes {
-    err: *mut LbFfiErr,
-    uncompressed_exact: u64,
-    uncompressed_human: *mut c_char,
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
-    let lb = rlb(lb);
-
-    match lb.get_uncompressed_usage() {
-        Ok(usage) => LbUncompressedRes {
-            err: null_mut(),
-            uncompressed_exact: usage.exact,
-            uncompressed_human: cstring(usage.readable),
-        },
-        Err(err) => LbUncompressedRes {
-            err: lb_err(err),
-            uncompressed_exact: 0,
-            uncompressed_human: null_mut(),
         },
     }
 }
@@ -1068,5 +1037,4 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;
-mod lb_work;
 mod mem_cleanup;

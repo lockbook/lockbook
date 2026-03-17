@@ -6,7 +6,6 @@ use cli_rs::cli_error::{CliError, CliResult};
 use is_terminal::IsTerminal;
 use lb_rs::DEFAULT_API_LOCATION;
 use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
-use lb_rs::model::work_unit::WorkUnit;
 
 use crate::{core, ensure_account, input};
 
@@ -131,25 +130,7 @@ pub async fn status() -> Result<(), CliError> {
     let last_synced = lb.get_last_synced_human().await?;
     println!("files last synced: {last_synced}");
 
-    let lb_status = lb.calculate_work().await?;
-    let local = lb_status
-        .work_units
-        .iter()
-        .filter_map(|wu| match wu {
-            WorkUnit::LocalChange(id) => Some(id),
-            WorkUnit::ServerChange(_) => None,
-        })
-        .count();
-    let server = lb_status
-        .work_units
-        .iter()
-        .filter_map(|wu| match wu {
-            WorkUnit::ServerChange(id) => Some(id),
-            WorkUnit::LocalChange(_) => None,
-        })
-        .count();
-    println!("files ready to push: {local}");
-    println!("files ready to pull: {server}");
+    // todo: consider having some way to communicate the status of files on the server
 
     let cap = lb.get_usage().await?;
     let pct = (cap.server_usage.exact * 100) / cap.data_cap.exact;

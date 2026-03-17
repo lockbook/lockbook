@@ -1,4 +1,4 @@
-use std::{collections::HashMap, future::Future, path::PathBuf};
+use std::{future::Future, path::PathBuf};
 
 use tokio::sync::broadcast::Receiver;
 use uuid::Uuid;
@@ -18,7 +18,7 @@ use crate::service::activity::RankingWeights;
 
 use crate::service::events::Event;
 use crate::service::import_export::{ExportFileInfo, ImportStatus};
-use crate::service::usage::{UsageItemMetric, UsageMetrics};
+use crate::service::usage::UsageMetrics;
 use crate::subscribers::status::Status;
 
 #[cfg(not(target_family = "wasm"))]
@@ -228,14 +228,6 @@ impl Lb {
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.block_on(self.lb.get_usage())
-    }
-
-    pub fn get_uncompressed_usage_breakdown(&self) -> LbResult<HashMap<Uuid, usize>> {
-        self.block_on(self.lb.get_uncompressed_usage_breakdown())
-    }
-
-    pub fn get_uncompressed_usage(&self) -> LbResult<UsageItemMetric> {
-        self.block_on(self.lb.get_uncompressed_usage())
     }
 
     pub fn import_files<F: Fn(ImportStatus)>(
