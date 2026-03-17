@@ -312,7 +312,6 @@ impl Editor {
             color
         };
         for row in rows {
-            // todo: some of these can be the same thing
             let rect = Rect::from_min_size(row.pos, row.size);
             if ui.clip_rect().intersects(rect) {
                 self.text_areas.push(TextBufferArea::new(
@@ -322,14 +321,16 @@ impl Editor {
                     ui.ctx(),
                     ui.clip_rect(),
                 ));
-                self.draw_decorations(
-                    ui,
-                    row.pos,
-                    row.size,
-                    font_size,
-                    &text_format,
-                    response.hovered,
-                );
+                if row.size.x > 0.001 {
+                    self.draw_decorations(
+                        ui,
+                        row.pos,
+                        row.size,
+                        font_size,
+                        &text_format,
+                        response.hovered,
+                    );
+                }
             }
         }
 
