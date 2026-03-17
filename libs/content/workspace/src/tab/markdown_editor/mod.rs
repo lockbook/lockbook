@@ -33,7 +33,6 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
-use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
 mod galleys;
@@ -65,6 +64,7 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
+    pub layout: MdLayout,
 
     // theme
     dark_mode: bool, // supports change detection
@@ -153,6 +153,48 @@ pub struct MdConfig {
     pub readonly: bool,
 }
 
+pub struct MdLayout {
+    pub margin: f32,
+    pub max_width: f32,
+    pub inline_padding: f32,
+    pub row_height: f32,
+    pub block_padding: f32,
+    pub indent: f32,
+    pub bullet_radius: f32,
+    pub row_spacing: f32,
+    pub block_spacing: f32,
+}
+
+impl MdLayout {
+    pub fn mobile() -> Self {
+        Self {
+            margin: 45.0,
+            max_width: 1000.0,
+            inline_padding: 3.0,
+            row_height: 16.0,
+            block_padding: 10.0,
+            indent: 26.0,
+            bullet_radius: 2.0,
+            row_spacing: 6.0,
+            block_spacing: 14.0,
+        }
+    }
+
+    pub fn desktop() -> Self {
+        Self {
+            margin: 45.0,
+            max_width: 1000.0,
+            inline_padding: 3.0,
+            row_height: 16.0,
+            block_padding: 10.0,
+            indent: 26.0,
+            bullet_radius: 2.0,
+            row_spacing: 6.0,
+            block_spacing: 14.0,
+        }
+    }
+}
+
 #[cfg(target_arch = "wasm32")]
 pub type HttpClient = reqwest::Client;
 
@@ -164,6 +206,7 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, font_system } = res;
+        let MdConfig { plaintext_mode, readonly } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let highlighting_assets = HighlightingAssets::from_binary();
@@ -175,6 +218,7 @@ impl Editor {
         let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         Self {
             core,
@@ -190,12 +234,13 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
 
-            readonly: cfg.readonly,
+            readonly,
             file_id,
             hmac,
             initialized: Default::default(),
-            plaintext_mode: cfg.plaintext_mode,
+            plaintext_mode,
             touch_mode,
+            layout,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -318,7 +363,7 @@ impl Editor {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(MAX_WIDTH);
+        let width = ui.max_rect().width().min(self.layout.max_width);
         let height_updated = self.height != height;
         let width_updated = self.width != width;
         self.height = height.round();
@@ -701,7 +746,8 @@ impl Editor {
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
+                            self.top_left =
+                                ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -715,7 +761,7 @@ impl Editor {
                             };
                             let rect = Rect::from_min_size(
                                 self.top_left,
-                                Vec2::new(self.width - 2. * MARGIN, height),
+                                Vec2::new(self.width - 2. * self.layout.margin, height),
                             );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame

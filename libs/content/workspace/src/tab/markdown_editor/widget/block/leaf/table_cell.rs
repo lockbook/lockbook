@@ -2,13 +2,11 @@ use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui, Vec2};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, BLOCK_SPACING};
 
 impl<'ast> Editor {
     pub fn height_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let width = self.width(node) - 2.0 * BLOCK_PADDING;
-        let mut wrap = Wrap::new(width);
+        let width = self.width(node) - 2.0 * self.layout.block_padding;
+        let mut wrap = self.new_wrap(width);
         let node_line = self.node_range(node); // table cells are always single-line
 
         let mut images_height = 0.;
@@ -16,13 +14,13 @@ impl<'ast> Editor {
             if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                 let NodeLink { url, .. } = &**node_link;
                 images_height += self.height_image(node, url);
-                images_height += BLOCK_SPACING;
+                images_height += self.layout.block_spacing;
             }
         }
 
         wrap.offset += self.inline_children_span(node, &wrap, node_line);
 
-        BLOCK_PADDING + images_height + wrap.height() + BLOCK_PADDING
+        self.layout.block_padding + images_height + wrap.height() + self.layout.block_padding
     }
 
     pub fn width_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -31,9 +29,9 @@ impl<'ast> Editor {
     }
 
     pub fn show_table_cell(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
-        top_left += Vec2::splat(BLOCK_PADDING);
-        let width = self.width(node) - 2.0 * BLOCK_PADDING;
-        let mut wrap = Wrap::new(width);
+        top_left += Vec2::splat(self.layout.block_padding);
+        let width = self.width(node) - 2.0 * self.layout.block_padding;
+        let mut wrap = self.new_wrap(width);
         let node_line = self.node_range(node); // table cells are always single-line
 
         for descendant in node.descendants() {
@@ -41,7 +39,7 @@ impl<'ast> Editor {
                 let NodeLink { url, .. } = &**node_link;
                 self.show_image_block(ui, node, top_left, url);
                 top_left.y += self.height_image(node, url);
-                top_left.y += BLOCK_SPACING;
+                top_left.y += self.layout.block_spacing;
             }
         }
 

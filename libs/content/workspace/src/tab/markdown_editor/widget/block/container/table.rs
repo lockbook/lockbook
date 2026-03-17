@@ -3,8 +3,7 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
@@ -17,14 +16,14 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 height += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.new_wrap(self.width(node)),
                     node_line,
                     self.text_format_syntax(),
                 );
-                height += BLOCK_SPACING;
+                height += self.layout.block_spacing;
             }
             if height > 0. {
-                height -= BLOCK_SPACING;
+                height -= self.layout.block_spacing;
             }
 
             height
@@ -41,11 +40,11 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = Wrap::new(self.width(node));
+                let mut wrap = self.new_wrap(self.width(node));
                 self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
 
                 top_left.y += wrap.height();
-                top_left.y += BLOCK_SPACING;
+                top_left.y += self.layout.block_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         } else {

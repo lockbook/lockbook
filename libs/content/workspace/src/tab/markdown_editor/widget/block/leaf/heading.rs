@@ -6,15 +6,14 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_HEIGHT, ROW_SPACING};
+
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
 impl<'ast> Editor {
     pub fn heading_row_height(&self, level: u8) -> f32 {
-        ROW_HEIGHT
+        self.layout.row_height
             * match level {
                 6 => 1.2,
                 5 => 1.4,
@@ -28,7 +27,7 @@ impl<'ast> Editor {
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level <= 2 { BLOCK_SPACING } else { 0. }
+        text_height + if level <= 2 { self.layout.block_spacing } else { 0. }
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -46,28 +45,28 @@ impl<'ast> Editor {
             if line_idx < last_line_idx {
                 // non-underline content
                 result += self.height_setext_heading_line(node, node_line, reveal);
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
             } else {
                 // setext heading underline
                 if reveal {
-                    let mut wrap = Wrap::new(width);
+                    let mut wrap = self.new_wrap(width);
                     wrap.row_height = self.row_height(node);
                     wrap.offset = self.span_section(&wrap, node_line, self.text_format_syntax());
 
                     result += wrap.height();
-                    result += ROW_SPACING;
+                    result += self.layout.row_spacing;
                 }
             }
         }
 
-        result - ROW_SPACING
+        result - self.layout.row_spacing
     }
 
     pub fn height_setext_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _, postfix_whitespace, _)) =
@@ -105,7 +104,7 @@ impl<'ast> Editor {
     // https://github.github.com/gfm/#atx-headings
     fn height_atx_heading(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
@@ -162,7 +161,7 @@ impl<'ast> Editor {
         let row_height = self.node_line_row_height(node, first_line);
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)
@@ -201,11 +200,11 @@ impl<'ast> Editor {
                 resp |= self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
 
                 top_left.y += self.height_setext_heading_line(node, node_line, reveal);
-                top_left.y += ROW_SPACING;
+                top_left.y += self.layout.row_spacing;
             } else {
                 // setext heading underline
                 if reveal {
-                    let mut wrap = Wrap::new(width);
+                    let mut wrap = self.new_wrap(width);
                     wrap.row_height = self.row_height(node);
 
                     self.show_section(
@@ -217,13 +216,13 @@ impl<'ast> Editor {
                     );
 
                     top_left.y += wrap.height();
-                    top_left.y += ROW_SPACING;
+                    top_left.y += self.layout.row_spacing;
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             }
         }
 
-        top_left.y -= ROW_SPACING;
+        top_left.y -= self.layout.row_spacing;
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
@@ -239,7 +238,7 @@ impl<'ast> Editor {
         let mut resp = Default::default();
 
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _children, postfix_whitespace, _)) =
@@ -283,7 +282,7 @@ impl<'ast> Editor {
         let mut resp = Default::default();
 
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
@@ -342,7 +341,8 @@ impl<'ast> Editor {
     }
 
     fn show_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
-        let line_break_rect = Rect::from_min_size(top_left, Vec2::new(width, BLOCK_SPACING));
+        let line_break_rect =
+            Rect::from_min_size(top_left, Vec2::new(width, self.layout.block_spacing));
 
         ui.painter().hline(
             line_break_rect.x_range(),
@@ -499,11 +499,13 @@ impl<'ast> Editor {
         contents
     }
 
-    pub fn fold_button_size_icon_size_space(top_left: Pos2, row_height: f32) -> (f32, f32, Rect) {
-        let fold_button_size = INDENT * 0.8;
+    pub fn fold_button_size_icon_size_space(
+        top_left: Pos2, row_height: f32, indent: f32,
+    ) -> (f32, f32, Rect) {
+        let fold_button_size = indent * 0.8;
         let fold_button_icon_size = fold_button_size * 0.6;
         let fold_button_space = Rect::from_min_size(
-            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
+            top_left + Vec2::new(-indent, (row_height - fold_button_size) / 2.),
             Vec2::splat(fold_button_size),
         );
         (fold_button_size, fold_button_icon_size, fold_button_space)
