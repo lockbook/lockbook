@@ -1,6 +1,7 @@
 use crate::WgpuWorkspace;
 use egui::{Event, MouseWheelUnit, vec2};
 use lb_c::Uuid;
+use lb_c::model::errors::Unexpected;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
@@ -46,9 +47,11 @@ pub extern "C" fn create_doc_at(obj: *mut c_void, parent: CUuid, is_drawing: boo
     obj.workspace.create_doc_at(is_drawing, parent);
 }
 
+// todo, should we deprecate this in favor of the one in lb? Better error handling.
 #[no_mangle]
 pub extern "C" fn request_sync(obj: *mut c_void) {
-    todo!()
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.core.sync().log_and_ignore();
 }
 
 #[no_mangle]

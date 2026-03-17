@@ -40,8 +40,7 @@ public protocol LbAPI {
     func listFolderPaths() -> Result<[String], LbError>
     func getLocalChanges() -> Result<[UUID], LbError>
     func debugInfo() -> String
-    func calculateWork() -> Result<SyncStatus, LbError>
-    func sync(updateStatus: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError>
+    func sync() -> Result<Void, LbError>
     func getLastSynced() -> Result<Int64, LbError>
     func getLastSyncedHumanString() -> Result<String, LbError>
     func getTimestampHumanString(timestamp: Int64) -> String
@@ -49,7 +48,6 @@ public protocol LbAPI {
     func clearSuggestedId(id: UUID) -> Result<Void, LbError>
     func clearSuggestedDocs() -> Result<Void, LbError>
     func getUsage() -> Result<UsageMetrics, LbError>
-    func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError>
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
     func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError>
@@ -435,18 +433,7 @@ public class Lb: LbAPI {
         
         return String(cString: debugInfo!)
     }
-    
-    public func calculateWork() -> Result<SyncStatus, LbError> {
-        let res = lb_calculate_work(lb)
-        defer { lb_free_sync_res(res) }
-        
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
 
-        return .success(SyncStatus(res))
-    }
-    
     class UpdateSyncStatus {
         let closure: ((UInt, UInt, UUID, String) -> Void)?
 
@@ -463,26 +450,16 @@ public class Lb: LbAPI {
         }
     }
             
-    public func sync(updateStatus: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
-        var lbUpdateStatusFunc: (@convention(c) (UnsafeRawPointer?, UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)? = nil
-        var updateStatusObj: UpdateSyncStatus? = nil
+    public func sync() -> Result<Void, LbError> {
         
-        if updateStatus != nil {
-            lbUpdateStatusFunc = { (obj: UnsafeRawPointer?, total: UInt, progress: UInt, id: LbUuid, msg: UnsafePointer<CChar>?) in
-                UpdateSyncStatus.fromPtr(obj!).closure!(total, progress, id.toUUID(), String(cString: msg!))
-            }
-            
-            updateStatusObj = UpdateSyncStatus(updateStatus)
-        }
+        let err = lb_sync(lb)
         
-        let res = lb_sync(lb, updateStatusObj?.toPointer(), &lbUpdateStatusFunc)
-        defer { lb_free_sync_res(res) }
-        
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
+        if let err = err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
         }
 
-        return .success(SyncStatus(res))
+        return .success(())
     }
     
     public func getLastSynced() -> Result<Int64, LbError> {
@@ -561,17 +538,6 @@ public class Lb: LbAPI {
         }
 
         return .success(UsageMetrics(res.usages))
-    }
-    
-    public func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError> {
-        let res = lb_get_uncompressed_usage(lb)
-        defer { lb_free_uncompressed_usage(res) }
-        
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(UncompressedUsageMetric(res))
     }
     
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> {
@@ -709,8 +675,6 @@ public class MockLb: LbAPI {
     public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
     public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
     public let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"
-
-    public let syncStatus = SyncStatus(latestServerTS: 1735857215, work: [])
     
     public let rootId: UUID
     public let file0: File
@@ -763,8 +727,7 @@ public class MockLb: LbAPI {
     public func listFolderPaths() -> Result<[String], LbError> { .success(["/"]) }
     public func getLocalChanges() -> Result<[UUID], LbError> { .success([UUID(), UUID()]) }
     public func debugInfo() -> String { "No debug info. This is a preview." }
-    public func calculateWork() -> Result<SyncStatus, LbError> { .success(syncStatus) }
-    public func sync(updateStatus: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> { .success(syncStatus) }
+    public func sync() -> Result<Void, LbError> { .success(()) }
     public func getLastSynced() -> Result<Int64, LbError> { .success(1735857215) }
     public func getLastSyncedHumanString() -> Result<String, LbError> { .success("You synced a second ago.") }
     public func getTimestampHumanString(timestamp: Int64) -> String { "1 second ago." }
@@ -772,7 +735,6 @@ public class MockLb: LbAPI {
     public func clearSuggestedId(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func clearSuggestedDocs() -> Result<Void, LbError> { .success(()) }
     public func getUsage() -> Result<UsageMetrics, LbError> { .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B")) }
-    public func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError> { .success(UncompressedUsageMetric(exact: 100, humanMsg: "100B")) }
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> { .success(()) }
     public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> { .success([]) }

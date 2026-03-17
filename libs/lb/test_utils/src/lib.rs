@@ -5,7 +5,6 @@ use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
 use lb_rs::model::crypto::EncryptedDocument;
-use lb_rs::model::work_unit::WorkUnit;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
