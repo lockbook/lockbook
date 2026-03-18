@@ -39,8 +39,10 @@ impl Workspace {
             } else {
                 self.show_mobile_landing_page(ui);
             }
+            self.landing_page_first_frame = false;
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
+            self.landing_page_first_frame = true;
         }
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tabs, self.current_tab);

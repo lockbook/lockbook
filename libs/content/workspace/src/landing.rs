@@ -1,6 +1,6 @@
 use egui::{
-    Align, Button, Color32, Direction, FontId, Frame, Key, KeyboardShortcut, Layout, Modifiers,
-    Rect, RichText, Stroke, Ui, UiBuilder, Vec2,
+    Align, Button, Color32, Direction, FontId, Frame, Key, Layout, Modifiers, Rect, RichText,
+    Stroke, Ui, UiBuilder, Vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::file_cache::{FileCache, FilesExt};
-use crate::show::{DocType, ElapsedHumanString as _};
+use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
@@ -450,9 +450,8 @@ impl Workspace {
                         );
 
                         // Check for Cmd+F (or Ctrl+F on non-Mac)
-                        let cmd_f = ui.input_mut(|i| {
-                            i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F))
-                        });
+                        let cmd_f =
+                            ui.input_mut(|i| i.consume_key_exact(Modifiers::COMMAND, Key::F));
 
                         let response =
                             egui::TextEdit::singleline(&mut self.landing_page.search_term)
@@ -472,7 +471,7 @@ impl Workspace {
                                 .response;
 
                         // Focus when Cmd+F is pressed or on first frame
-                        if cmd_f || (!response.has_focus() && !response.lost_focus()) {
+                        if cmd_f || self.landing_page_first_frame {
                             response.request_focus();
                         }
 
