@@ -24,10 +24,9 @@ async fn admin_disappear_test() {
         .unwrap();
     assert_eq!(
         customer_core_2
-            .calculate_work()
+            .server_dirty_ids()
             .await
             .unwrap()
-            .work_units
             .len(),
         3
     );
@@ -42,10 +41,9 @@ async fn admin_disappear_test() {
         .unwrap();
     assert_eq!(
         customer_core_2
-            .calculate_work()
+            .server_dirty_ids()
             .await
             .unwrap()
-            .work_units
             .len(),
         2
     );

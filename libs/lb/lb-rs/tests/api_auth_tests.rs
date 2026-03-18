@@ -3,6 +3,7 @@ use lb_rs::model::api::*;
 use lb_rs::model::crypto::AESEncrypted;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::FileDiff;
+use lb_rs::model::meta::Meta;
 use test_utils::*;
 
 #[tokio::test]
@@ -19,7 +20,7 @@ async fn upsert_id_takeover() {
 
         core1
             .client
-            .request(acc1, GetUpdatesRequest { since_metadata_version: 0 })
+            .request(acc1, GetUpdatesRequestV2 { since_metadata_version: 0 })
             .await
             .unwrap()
             .file_metadata
@@ -29,12 +30,14 @@ async fn upsert_id_takeover() {
             .clone()
     };
 
-    file1.timestamped_value.value.parent = core2.root().await.unwrap().id;
+    match file1.timestamped_value.value {
+        Meta::V1 { ref mut parent, .. } => *parent = core2.root().await.unwrap().id,
+    }
 
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(acc2, UpsertRequest { updates: vec![FileDiff::new(file1)] })
+        .request(acc2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
@@ -54,7 +57,7 @@ async fn upsert_id_takeover_change_parent() {
         core1.sync().await.unwrap();
         core1
             .client
-            .request(account1, GetUpdatesRequest { since_metadata_version: 0 })
+            .request(account1, GetUpdatesRequestV2 { since_metadata_version: 0 })
             .await
             .unwrap()
             .file_metadata
@@ -67,7 +70,7 @@ async fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result = core2
         .client
-        .request(account2, UpsertRequest { updates: vec![FileDiff::new(file1)] })
+        .request(account2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,

@@ -141,12 +141,12 @@ impl Lb {
 
             loop {
                 let event = events.recv().await.unwrap();
-                if let Event::Sync(SyncIncrement::SyncFinished(maybe_err)) = event {
-                    match maybe_err {
-                        Some(LbErrKind::ServerUnreachable) => continue,
-                        None => self.fetcher().await.unwrap(),
-                        _ => error!("unexpected sync error (post_sync_worker) {:?}", maybe_err),
-                    }
+                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
+                    self.fetcher().await.map_unexpected().log_and_ignore();
+                    self.populate_pk_cache()
+                        .await
+                        .map_unexpected()
+                        .log_and_ignore();
                 };
             }
         });
@@ -232,7 +232,10 @@ impl Lb {
         self.merge(sync_state).await?;
         self.commit_last_synced(sync_state).await?;
         self.send_pull_events(sync_state).await?;
-        self.clone().populate_pk_cache();
+
+        if !self.config.background_work {
+            self.populate_pk_cache().await?;
+        }
 
         Ok(())
     }
@@ -356,6 +359,19 @@ impl Lb {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
+        let mut files_with_local_edits = vec![];
+        let local = db.base_metadata.stage(&db.local_metadata);
+        for id in local.staged.ids() {
+            if let Some(base) = local.base.maybe_find(&id) {
+                if let Some(local_hmac) = local.find(&id)?.document_hmac() {
+                    if Some(local_hmac) != base.document_hmac() {
+                        files_with_local_edits.push(id);
+                        println!("local edits found");
+                    }
+                }
+            }
+        }
+
         let mut remote = db
             .base_metadata
             .stage(state.remote_changes.clone())
@@ -377,8 +393,27 @@ impl Lb {
             }
 
             if let Some(remote_hmac) = remote_hmac {
-                // todo: the none case here deserves some scrutiny
+                // pull a file if we have a prior base, this is our heuristic -- do they have the
+                // ability to edit this file while we release the lock and are pulling all the
+                // files
                 if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
+                    docs_to_pull.push((id, remote_hmac));
+                }
+
+                // this clause captures documents which went from being new -> multiple parties
+                // having updates. We'll still need the updates
+                if files_with_local_edits.contains(&id)
+                    && !docs_to_pull
+                        .iter()
+                        .any(|(already_pulling, _)| already_pulling == &id)
+                {
+                    if let Some(base_hmac) = base_hmac {
+                        if !self.docs.exists(id, Some(base_hmac)) {
+                            // this scenario basically only comes up in tests
+                            // someone modifies a file directly without reading the prior version
+                            docs_to_pull.push((id, base_hmac));
+                        }
+                    }
                     docs_to_pull.push((id, remote_hmac));
                 }
             }
@@ -1023,6 +1058,8 @@ impl Lb {
     }
 
     async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
+        // todo: this thing needs to send if pending_shares changed
+
         if !state.remote_changes.is_empty() {
             self.events.meta_changed(Actor::Sync);
         }
@@ -1046,60 +1083,58 @@ impl Lb {
         Ok(())
     }
 
-    fn populate_pk_cache(self) {
-        tokio::spawn(async move {
-            // todo: is this the move?
-            let mut missing_owners = HashSet::new();
-            {
-                let tx = self.ro_tx().await;
-                let db = tx.db();
-                for file in db.base_metadata.get().values() {
-                    for user_access_key in file.user_access_keys() {
-                        let enc_by = Owner(user_access_key.encrypted_by);
-                        let enc_for = Owner(user_access_key.encrypted_for);
-
-                        if !db.pub_key_lookup.get().contains_key(&enc_by) {
-                            missing_owners.insert(enc_by);
-                        }
-
-                        if !db.pub_key_lookup.get().contains_key(&enc_for) {
-                            missing_owners.insert(enc_for);
-                        }
-                    }
-                }
-            }
-
-            let mut new_owners = HashMap::new();
-            {
-                for owner in missing_owners {
-                    let username_result = self
-                        .client
-                        .request(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
-                        .await;
-                    new_owners.insert(owner, username_result);
-                }
-            }
-
-            let mut tx = self.begin_tx().await;
+    async fn populate_pk_cache(&self) -> LbResult<()> {
+        // todo: is this the move?
+        let mut missing_owners = HashSet::new();
+        {
+            let tx = self.ro_tx().await;
             let db = tx.db();
+            for file in db.base_metadata.get().values() {
+                for user_access_key in file.user_access_keys() {
+                    let enc_by = Owner(user_access_key.encrypted_by);
+                    let enc_for = Owner(user_access_key.encrypted_for);
 
-            let have_updates = !new_owners.is_empty();
-            for (owner, username) in new_owners {
-                let username = match username {
-                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
-                        "<unknown>".to_string()
+                    if !db.pub_key_lookup.get().contains_key(&enc_by) {
+                        missing_owners.insert(enc_by);
                     }
-                    Ok(username) => username.username,
-                    _ => continue, // todo: possibly add some logging here
-                };
 
-                db.pub_key_lookup.insert(owner, username).unwrap();
+                    if !db.pub_key_lookup.get().contains_key(&enc_for) {
+                        missing_owners.insert(enc_for);
+                    }
+                }
             }
+        }
 
-            if have_updates {
-                self.events.meta_changed(Actor::Sync);
+        let mut new_owners = HashMap::new();
+        {
+            for owner in missing_owners {
+                let username_result = self
+                    .client
+                    .request(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
+                    .await;
+                new_owners.insert(owner, username_result);
             }
-        });
+        }
+
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let have_updates = !new_owners.is_empty();
+        for (owner, username) in new_owners {
+            let username = match username {
+                Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => "<unknown>".to_string(),
+                Ok(username) => username.username,
+                _ => continue, // todo: possibly add some logging here
+            };
+
+            db.pub_key_lookup.insert(owner, username).unwrap();
+        }
+
+        if have_updates {
+            self.events.meta_changed(Actor::Sync);
+        }
+
+        Ok(())
     }
 
     /// Updates remote and base metadata to local.
@@ -1261,5 +1296,18 @@ impl Lb {
         };
 
         Ok(doc)
+    }
+
+    /// for tests only
+    #[doc(hidden)]
+    pub async fn server_dirty_ids(&self) -> LbResult<Vec<Uuid>> {
+        let mut state = self.syncer.lock().await;
+        self.inital_sync_state(&mut state).await?;
+        self.process_deletions().await?;
+        self.fetch_meta(&mut state).await?;
+
+        let server_ids = state.remote_changes.iter().map(|f| *f.id()).collect();
+
+        Ok(server_ids)
     }
 }

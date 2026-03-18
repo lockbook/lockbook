@@ -6,8 +6,6 @@ use crate::model::crypto::DecryptedDocument;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
-use crate::model::lazy::LazyTree;
-use crate::model::signed_meta::SignedMeta;
 use crate::model::tree_like::TreeLike;
 use crate::model::validate;
 use uuid::Uuid;
@@ -87,7 +85,10 @@ impl Lb {
                     doc
                 }
             }
-            None => vec![],
+            None => {
+                drop(tx);
+                vec![]
+            }
         };
 
         if user_activity {

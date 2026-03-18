@@ -1,6 +1,5 @@
 pub mod assert;
 
-use itertools::Itertools as _;
 use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
@@ -97,18 +96,18 @@ fn err_to_string<E: Debug>(e: E) -> String {
 }
 
 pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
-    lb.calculate_work()
-        .await
-        .unwrap()
-        .work_units
-        .into_iter()
-        .filter_map(|wu| match wu {
-            WorkUnit::LocalChange(id) if !server => Some(id),
-            WorkUnit::ServerChange(id) if server => Some(id),
-            _ => None,
-        })
-        .unique()
-        .collect()
+    if server {
+        lb.server_dirty_ids().await.unwrap()
+    } else {
+        lb.db
+            .read()
+            .await
+            .local_metadata
+            .get()
+            .keys()
+            .copied()
+            .collect()
+    }
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
