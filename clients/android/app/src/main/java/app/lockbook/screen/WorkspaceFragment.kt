@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.PointF
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -60,6 +61,7 @@ import com.afollestad.recyclical.withItem
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
+import kotlin.collections.plus
 import kotlin.getValue
 import kotlin.math.abs
 
@@ -652,6 +654,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
         if (event != null) {
             workspaceView.forwardedTouchEvent(event, touchYOffset)
         }
+
 
         workspaceView.drawImmediately()
 

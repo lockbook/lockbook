@@ -241,32 +241,38 @@ impl Roger {
                 start_positions,
                 center_pos,
             } => {
-                // if !self.config.pencil_only_drawing && start_positions.len() == 1 {
-                //     return None;
-                // }
+                let all_touches_collide = start_positions
+                    .iter()
+                    .all(|pos| pos_collides_with_layout(*pos, ctx));
 
-                // let all_touches_collide = start_positions
-                //     .iter()
-                //     .all(|pos| pos_collides_with_layout(*pos, ctx));
+                if all_touches_collide {
+                    warn!(
+                        ?start_positions,
+                        "ignoring gesture event because all touches collide with layout"
+                    );
+                    return None;
+                }
+                let transform = Transform::identity()
+                    .post_translate(translation_delta.x, translation_delta.y)
+                    .post_scale(*zoom_factor, *zoom_factor)
+                    .post_translate(
+                        (1.0 - zoom_factor) * center_pos.x,
+                        (1.0 - zoom_factor) * center_pos.y,
+                    );
 
-                // if all_touches_collide {
-                //     warn!(
-                //         ?start_positions,
-                //         "ignoring gesture event because all touches collide with layout"
-                //     );
-                //     return None;
-                // }
+                if *zoom_factor != 1.0 && start_positions.len() == 1 && self.tool_running.is_some()
+                {
+                    self.viewport_changing = Some(Instant::now());
+                    self.tool_running = None;
+                    self.tool_start_touch = None;
+                    return Some(RogerEvent::ViewportChangeWithToolCancel);
+                }
 
-                self.viewport_changing = Some(Instant::now());
-                Some(RogerEvent::ViewportChange(
-                    Transform::identity()
-                        .post_translate(translation_delta.x, translation_delta.y)
-                        .post_scale(*zoom_factor, *zoom_factor)
-                        .post_translate(
-                            (1.0 - zoom_factor) * center_pos.x,
-                            (1.0 - zoom_factor) * center_pos.y,
-                        ),
-                ))
+                if self.tool_running.is_none() {
+                    self.viewport_changing = Some(Instant::now());
+                    return Some(RogerEvent::ViewportChange(transform));
+                }
+                None
             }
             _ => None,
         }

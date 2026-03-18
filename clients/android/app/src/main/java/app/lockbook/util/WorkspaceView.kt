@@ -9,7 +9,6 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
-import android.os.Build
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -46,7 +45,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -71,16 +69,18 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private val scroller = OverScroller(context)
 
-    private var scrollStartPositions: Array<PointF> = emptyArray()
+    private var gestureStartPositions: Array<PointF> = emptyArray()
     private val pendingDx = AtomicReference(0f)
     private val pendingDy = AtomicReference(0f)
+    private var propagateFlick = false
+
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             scroller.abortAnimation()
             pendingDx.set(0f)
             pendingDy.set(0f)
-
-            scrollStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
+            gestureStartPositions =Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
+            propagateFlick = false;
             return true
         }
 
@@ -90,34 +90,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             distanceX: Float,
             distanceY: Float
         ): Boolean {
+            if (!isPenOnlyDraw() && e2.pointerCount == 1){
+                return false
+            }
+            propagateFlick = true;
 
             pendingDx.getAndUpdate { it - distanceX }
             pendingDy.getAndUpdate { it - distanceY }
-            return true
-        }
-
-        private var doubleTapAnchorY = 0f
-
-        override fun onDoubleTapEvent(e: MotionEvent): Boolean {
-            val density = context.resources.displayMetrics.scaledDensity
-            when (e.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    doubleTapAnchorY = e.y
-                    scrollStartPositions = arrayOf(PointF(e.x / density, e.y / density))
-                    pendingZoom.set(1f)
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dy = e.y - doubleTapAnchorY
-                    doubleTapAnchorY = e.y
-                    pendingZoom.getAndUpdate { it * (1f - (dy * 0.005f)) }
-                    pendingFocusX.set(e.x / density)
-                    pendingFocusY.set(e.y / density)
-                }
-                MotionEvent.ACTION_UP -> {
-                    scrollStartPositions = emptyArray()
-                    pendingZoom.set(1f)
-                }
-            }
             return true
         }
 
@@ -127,6 +106,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             velocityX: Float,
             velocityY: Float
         ): Boolean {
+            if (!propagateFlick){
+                return false
+            }
+
+
             val density = context.resources.displayMetrics.scaledDensity
             scroller.fling(
                 0, 0,
@@ -155,35 +139,37 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             choreographer.postFrameCallback(::tick)
             return true
         }
+
     }
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
 
-    private var scaleStartPositions: Array<PointF> = emptyArray()
     private val pendingZoom = AtomicReference(1f)
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+            pendingZoom.set(1f)
             val halfSpanX = detector.currentSpanX / 2f
             val halfSpanY = detector.currentSpanY / 2f
-            scaleStartPositions = arrayOf(
+            gestureStartPositions = arrayOf(
                 PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
-                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
+//                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
             )
-            pendingZoom.set(1f)
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val density = context.resources.displayMetrics.scaledDensity
+            val density = context.resources.displayMetrics.density
             pendingZoom.getAndUpdate { it * detector.scaleFactor }
             pendingFocusX.set(detector.focusX / density)
             pendingFocusY.set(detector.focusY / density)
             drawImmediately()
             return true
         }
+
+
     }
 
     private val scaleDetector: ScaleGestureDetector = ScaleGestureDetector(context, scaleListener)
@@ -307,18 +293,19 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             val dx = pendingDx.getAndSet(0f)
             val dy = pendingDy.getAndSet(0f)
-            Workspace.scroll(WGPU_OBJ, adjustTouchPoint(dx),adjustTouchPoint(dy),
-                scrollStartPositions.map { adjustTouchPoint(it.x) }.toFloatArray(),
-                scrollStartPositions.map { adjustTouchPoint(it.y) }.toFloatArray())
-
             val zoom = pendingZoom.getAndSet(1f)
             val focusX = pendingFocusX.getAndSet(0f)
             val focusY = pendingFocusY.getAndSet(0f)
-            if (zoom != 1f) {
-                Workspace.zoom(WGPU_OBJ, zoom, focusX, focusY,
-                    scaleStartPositions.map { it.x }.toFloatArray(),
-                    scaleStartPositions.map { it.y }.toFloatArray())
+
+            if (dx != 0f || dy != 0f || zoom !=1f){
+                Workspace.multiTouch(WGPU_OBJ,
+                    adjustTouchPoint(dx),
+                    adjustTouchPoint(dy),
+                    zoom, focusX, focusY,
+                    gestureStartPositions.map { adjustTouchPoint(it.x) }.toFloatArray(),
+                    gestureStartPositions.map { adjustTouchPoint(it.y) }.toFloatArray())
             }
+
 
             // Guard again right before the native call
             if (surface?.isValid != true) {
@@ -441,6 +428,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
                     pressure
                 )
+
             }
             MotionEvent.ACTION_MOVE -> {
                 // MOVE events need to loop - all pointers moved
@@ -476,6 +464,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 )
             }
         }
+
+
+
 
         drawImmediately()
     }

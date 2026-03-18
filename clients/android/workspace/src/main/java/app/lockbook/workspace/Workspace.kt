@@ -95,8 +95,7 @@ object Workspace {
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesCancelled(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
-    external fun scroll(rustObj: Long, x: Float, y: Float, startX: FloatArray, startY: FloatArray)
-    external fun zoom(rustObj: Long, factor: Float, focusX: Float, focusY: Float, startX: FloatArray, startY: FloatArray)
+    external fun multiTouch(rustObj: Long, x: Float, y: Float, factor: Float, focusX: Float, focusY: Float, startX: FloatArray, startY: FloatArray)
 
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int

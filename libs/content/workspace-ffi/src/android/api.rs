@@ -194,9 +194,9 @@ fn get_force(pressure: f32) -> Option<f32> {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_scroll(
-    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat, start_x: JPrimitiveArray<jfloat>,
-    start_y: JPrimitiveArray<jfloat>,
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_multiTouch(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat, factor: jfloat, focus_x: jfloat,
+    focus_y: jfloat, start_x: JPrimitiveArray<jfloat>, start_y: JPrimitiveArray<jfloat>,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
@@ -207,8 +207,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_scroll(
         .push_event(workspace_rs::Event::MultiTouchGesture {
             rotation_delta: 0.0,
             translation_delta: egui::vec2(x, y),
-            zoom_factor: 1.0,
-            center_pos: egui::Pos2::ZERO,
+            zoom_factor: factor,
+            center_pos: egui::pos2(focus_x, focus_y),
             start_positions,
         });
 }
@@ -225,26 +225,6 @@ fn parse_start_positions(
         .zip(ys.iter())
         .map(|(&x, &y)| egui::pos2(x, y))
         .collect()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_zoom(
-    _env: JNIEnv, _: JClass, obj: jlong, factor: jfloat, focus_x: jfloat, focus_y: jfloat,
-    start_x: JPrimitiveArray<jfloat>, start_y: JPrimitiveArray<jfloat>,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    let start_positions = parse_start_positions(&_env, start_x, start_y);
-
-    obj.renderer
-        .context
-        .push_event(workspace_rs::Event::MultiTouchGesture {
-            rotation_delta: 0.0,
-            translation_delta: egui::Vec2::ZERO,
-            zoom_factor: factor,
-            center_pos: egui::pos2(focus_x, focus_y),
-            start_positions,
-        });
 }
 
 #[derive(Debug, Serialize)]
