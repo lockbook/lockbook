@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
-use egui::{Id, Key, Modifiers, UiBuilder};
+use egui::{Id, Key, Modifiers, UiBuilder, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -12,6 +12,7 @@ use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 
 use workspace_rs::show::DocType;
+use workspace_rs::theme::palette_v2::ThemeExt;
 
 #[derive(Default)]
 pub struct FullDocSearch {
@@ -106,16 +107,24 @@ impl FullDocSearch {
 
                 let x_margin_with_icon = Self::X_MARGIN + Self::ICON_WIDTH;
                 let icon_shelf_width = 155.0;
+
+                let margin = egui::Margin::symmetric(x_margin_with_icon as i8, 6);
                 let output = egui::TextEdit::singleline(query.deref_mut())
                     .id(id)
                     .desired_width(ui.available_size_before_wrap().x - icon_shelf_width)
                     .hint_text("Search")
-                    .margin(egui::Margin::symmetric(x_margin_with_icon as i8, 6))
+                    .margin(margin)
                     .show(ui);
 
                 resp.search_box_rect = Some(output.response.interact_rect);
 
-                self.show_search_icon(ui, output.response.rect);
+                self.show_search_icon(
+                    ui,
+                    output
+                        .response
+                        .rect
+                        .shrink2(Vec2::new(margin.leftf(), margin.topf())),
+                );
 
                 if !query.is_empty() && self.show_x_icon(ui, output.response.rect).clicked() {
                     if let Ok(mut results) = self.results.lock() {
