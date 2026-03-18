@@ -21,11 +21,10 @@ pub struct CursorState {
 impl Editor {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(
-        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
+        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), color: Color32,
     ) {
         for rect in self.range_rects(highlight_range) {
-            ui.painter()
-                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+            ui.painter().rect_filled(rect, 2., color);
         }
     }
 
