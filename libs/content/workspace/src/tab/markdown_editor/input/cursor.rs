@@ -4,7 +4,7 @@ use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::{INLINE_PADDING, ROW_SPACING};
+
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -21,11 +21,10 @@ pub struct CursorState {
 impl Editor {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(
-        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), accent: Color32,
+        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), color: Color32,
     ) {
         for rect in self.range_rects(highlight_range) {
-            ui.painter()
-                .rect_filled(rect, 2., accent.gamma_multiply(0.15));
+            ui.painter().rect_filled(rect, 2., color);
         }
     }
 
@@ -49,7 +48,7 @@ impl Editor {
             }
 
             if rect.area() > 0.001 && *padded {
-                rect = rect.expand2(INLINE_PADDING * Vec2::X);
+                rect = rect.expand2(self.layout.inline_padding * Vec2::X);
             }
 
             result.push(rect);
@@ -204,7 +203,7 @@ impl Editor {
         let galley_idx = self.galleys.galley_at_offset(offset)?;
         let galley = &self.galleys[galley_idx];
         let x = self.galley_x(galley, offset);
-        let y_range = galley.rect.y_range().expand(ROW_SPACING / 2.);
+        let y_range = galley.rect.y_range().expand(self.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }

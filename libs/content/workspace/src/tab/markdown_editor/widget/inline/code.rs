@@ -14,6 +14,7 @@ impl<'ast> Editor {
             color: theme.fg().get_color(theme.prefs().primary),
             background: theme.neutral_bg_secondary(),
             border: theme.neutral_bg_tertiary(),
+            bold: false, // SF Mono does not have bold variants for numbers (it does have italic)
             ..self.text_format_code_block(parent)
         }
     }

@@ -3,8 +3,8 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
+
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
@@ -26,10 +26,10 @@ impl<'ast> Editor {
                 let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
-                    result += BLOCK_SPACING;
+                    result += self.layout.block_spacing;
                 }
                 result += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.new_wrap(self.width(node)),
                     line_content,
                     self.text_format_syntax(),
                 );
@@ -41,7 +41,7 @@ impl<'ast> Editor {
 
     pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let height = self.height(node);
-        let annotation_size = Vec2 { x: INDENT, y: height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         ui.painter().vline(
@@ -62,10 +62,10 @@ impl<'ast> Editor {
                 let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
-                    top_left.y += BLOCK_SPACING;
+                    top_left.y += self.layout.block_spacing;
                 }
 
-                let mut wrap = Wrap::new(self.width(node));
+                let mut wrap = self.new_wrap(self.width(node));
                 self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);

@@ -68,6 +68,7 @@ pub struct Workspace {
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
+    pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
 }
@@ -106,6 +107,7 @@ impl Workspace {
             show_tabs,
             focused_parent: Default::default(),
 
+            landing_page_first_frame: true,
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
             lb_rx: core.subscribe(),

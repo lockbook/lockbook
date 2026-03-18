@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
-use crate::tab::markdown_editor::widget::{INDENT, ROW_HEIGHT};
+
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
@@ -21,7 +21,7 @@ impl<'ast> Editor {
     pub fn show_footnote_definition(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let annotation_size = Vec2 { x: INDENT, y: ROW_HEIGHT };
+        let annotation_size = Vec2 { x: self.layout.indent, y: self.layout.row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         let color = self.ctx.get_lb_theme().neutral_fg_secondary();
@@ -29,7 +29,7 @@ impl<'ast> Editor {
         let layout_job = LayoutJob::single_section(
             text,
             TextFormat {
-                font_id: FontId::new(ROW_HEIGHT, FontFamily::Monospace),
+                font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
                 color,
                 ..Default::default()
             },
