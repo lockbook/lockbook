@@ -12,7 +12,6 @@ use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 
 use workspace_rs::show::DocType;
-use workspace_rs::theme::palette_v2::ThemeExt;
 
 #[derive(Default)]
 pub struct FullDocSearch {
