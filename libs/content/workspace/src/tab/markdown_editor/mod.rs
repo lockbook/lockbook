@@ -800,8 +800,8 @@ impl Editor {
                         .in_progress_selection
                         .unwrap_or(self.buffer.current.selection);
                     let theme = self.ctx.get_lb_theme();
-                    let color = theme.fg().get_color(theme.prefs().primary);
-                    self.show_range(ui, selection, color);
+                    let color = theme.bg().get_color(theme.prefs().primary);
+                    self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
                 }
                 if ui.ctx().os() == OperatingSystem::Android {
