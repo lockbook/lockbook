@@ -298,11 +298,15 @@ impl Editor {
         let mut response = Response::default();
         for row in &rows {
             let rect = Rect::from_min_size(row.pos, row.size);
-            let interact_rect = if padded { rect.expand(self.layout.inline_padding) } else { rect };
+            let interact_rect =
+                rect.expand2(Vec2::new(self.layout.inline_padding, self.layout.row_spacing / 2.));
             let id = ui.id().with((row.pos.x.to_bits(), row.pos.y.to_bits()));
             let egui_resp = ui.interact(interact_rect, id, sense);
             response.hovered |= egui_resp.hovered();
             response.clicked |= egui_resp.clicked();
+            if sense == Sense::click() {
+                self.touch_consuming_rects.push(interact_rect);
+            }
         }
 
         // render

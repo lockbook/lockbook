@@ -23,19 +23,22 @@ impl WgpuWorkspace<'_> {
                 .style_mut(|s| s.visuals.panel_fill = s.visuals.extreme_bg_color);
         }
 
-        let workspace_frame = egui::Frame::default()
-            .fill(self.renderer.context.style().visuals.extreme_bg_color)
-            .inner_margin(egui::Margin {
-                left: 0,
-                right: 0,
-                top: 0,
-                bottom: (self.renderer.bottom_inset.unwrap_or(0) as f32
-                    / self.renderer.screen.pixels_per_point) as i8,
-            });
+        let keyboard_height =
+            self.renderer.bottom_inset.unwrap_or(0) as f32 / self.renderer.screen.pixels_per_point;
+
+        let workspace_frame =
+            egui::Frame::default().fill(self.renderer.context.style().visuals.extreme_bg_color);
 
         let workspace_response = egui::CentralPanel::default()
             .frame(workspace_frame)
-            .show(&self.renderer.context, |ui| self.workspace.show(ui))
+            .show(&self.renderer.context, |ui| {
+                let mut rect = ui.max_rect();
+                rect.max.y -= keyboard_height;
+                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
+                    self.workspace.show(ui)
+                })
+                .inner
+            })
             .inner;
 
         let (platform, viewport) = self.renderer.end_frame();

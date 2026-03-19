@@ -1272,9 +1272,9 @@
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
         }
-        
+
         func scale() -> CGFloat {
-            mtkView?.window?.screen.scale ?? CGFloat(1.0)
+            mtkView?.contentScaleFactor ?? CGFloat(1.0)
         }
     }
 

@@ -66,7 +66,7 @@ impl<'ast> Editor {
                 self.node_range(node).end().into_range(),
                 self.text_format(node.parent().unwrap()),
                 Some(" "),
-                Sense::click(),
+                Sense::focusable_noninteractive(),
             );
             response |= self.show_override_section(
                 ui,
