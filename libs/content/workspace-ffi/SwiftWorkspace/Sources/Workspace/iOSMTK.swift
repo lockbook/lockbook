@@ -1130,6 +1130,7 @@
             guard let mtkView = self.mtkView else { return }
             let wsHandle = mtkView.wsHandle
 
+            print("[resize] drawable=\(size) bounds=\(mtkView.bounds) scale=\(scale())")
             resize_editor(
                 wsHandle, Float(size.width), Float(size.height), Float(scale()))
             mtkView.setNeedsDisplay()
@@ -1150,6 +1151,11 @@
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
             let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
+            if overlap > 0 {
+                print(
+                    "[draw] bounds=\(mtkView.bounds) keyboardTop=\(keyboardTop) overlap=\(overlap) scale=\(scale()) compact=\(mtkView.isCompact()) docHeaderSize=\(mtkView.docHeaderSize)"
+                )
+            }
             set_ws_inset(wsHandle, Float(overlap * scale()))
 
             let output = ios_frame(wsHandle)
@@ -1276,9 +1282,9 @@
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
         }
-        
+
         func scale() -> CGFloat {
-            mtkView?.window?.screen.scale ?? CGFloat(1.0)
+            mtkView?.contentScaleFactor ?? CGFloat(1.0)
         }
     }
 
