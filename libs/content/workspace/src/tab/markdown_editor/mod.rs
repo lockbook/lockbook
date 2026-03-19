@@ -362,12 +362,12 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
-        let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(self.layout.max_width);
+        let height = ui.available_size().y.round();
+        let width = ui.max_rect().width().min(self.layout.max_width).round();
         let height_updated = self.height != height;
         let width_updated = self.width != width;
-        self.height = height.round();
-        self.width = width.round();
+        self.height = height;
+        self.width = width;
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
