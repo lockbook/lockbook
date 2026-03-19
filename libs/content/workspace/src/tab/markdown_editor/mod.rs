@@ -462,11 +462,16 @@ impl Editor {
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
+                    let toolbar_height = if !self.readonly && self.virtual_keyboard_shown {
+                        MOBILE_TOOL_BAR_SIZE
+                    } else {
+                        0.
+                    };
                     let scroll_area_id = ui
                         .allocate_ui(
                             egui::vec2(
                                 ui.available_width(),
-                                ui.available_height() - MOBILE_TOOL_BAR_SIZE,
+                                ui.available_height() - toolbar_height,
                             ),
                             |ui| {
                                 ui.ctx().style_mut(|style| {
@@ -506,7 +511,7 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.readonly {
+                    if !self.readonly && self.virtual_keyboard_shown {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
