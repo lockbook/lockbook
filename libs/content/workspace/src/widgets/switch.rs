@@ -22,7 +22,13 @@ pub fn switch(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
             (ui.visuals().widgets.inactive.bg_fill, ui.visuals().faint_bg_color)
         };
 
-        ui.painter().rect(rect, radius, bg_fill, visuals.bg_stroke);
+        ui.painter().rect(
+            rect,
+            radius,
+            bg_fill,
+            visuals.bg_stroke,
+            egui::epaint::StrokeKind::Inside,
+        );
 
         let circle_x = egui::lerp((rect.left() + radius)..=(rect.right() - radius), how_on);
         let center = egui::pos2(circle_x, rect.center().y);

@@ -152,8 +152,13 @@ impl SearchModal {
                 };
 
             if let Some(fill) = maybe_fill {
-                ui.painter()
-                    .rect(rect.expand(visuals.expansion), 0.0, fill, egui::Stroke::NONE);
+                ui.painter().rect(
+                    rect.expand(visuals.expansion),
+                    0.0,
+                    fill,
+                    egui::Stroke::NONE,
+                    egui::epaint::StrokeKind::Inside,
+                );
             }
 
             let text_color = visuals.text_color();

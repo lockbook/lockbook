@@ -16,6 +16,7 @@ use crate::workspace::WsPersistentStore;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
+use egui::UiBuilder;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::DynamicColor;
@@ -473,9 +474,9 @@ impl Toolbar {
                 tlbr_ctx.viewport_settings.container_rect.top() + SCREEN_PADDING.y + island_size.y,
             ),
         };
-        let overlay_toggle = ui.allocate_ui_at_rect(island_rect, |ui| {
+        let overlay_toggle = ui.scope_builder(UiBuilder::new().max_rect(island_rect), |ui| {
             egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(7.5, 3.5))
+                .inner_margin(egui::Margin::symmetric(8, 4))
                 .show(ui, |ui| {
                     let icon =
                         if self.hide_overlay { Icon::FULLSCREEN_EXIT } else { Icon::FULLSCREEN };
@@ -652,14 +653,14 @@ pub fn show_thickness_slider(
         if t.eq(&value) {
             ui.painter().rect_filled(
                 rect.expand(5.0),
-                egui::Rounding::same(8.0),
+                egui::CornerRadius::same(8),
                 egui::Color32::GRAY.linear_multiply(0.1),
             );
         }
 
         ui.painter().rect_filled(
             rect,
-            egui::Rounding::same(2.0),
+            egui::CornerRadius::same(2),
             ui.visuals().text_color().linear_multiply(0.8),
         );
 

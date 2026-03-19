@@ -1,14 +1,14 @@
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
-use crate::tab::markdown_editor::input::Event;
+use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
 };
-use egui::{Pos2, Rangef, Vec2};
+use egui::{Pos2, Rangef};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, RelCharOffset,
@@ -143,7 +143,7 @@ impl<'ast> Editor {
                     if !matches!(
                         region,
                         Region::SelectionOrAdvance {
-                            advance: Advance::Next(Bound::Char | Bound::Word),
+                            advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
                             backwards: true,
                         }
                     ) {
@@ -373,20 +373,20 @@ impl<'ast> Editor {
                 let range = if !current_selection.is_empty() {
                     current_selection
                 } else {
-                    self.clipboard_current_paragraph()
+                    self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
                 let range = if !current_selection.is_empty() {
                     current_selection
                 } else {
-                    self.clipboard_current_paragraph()
+                    self.clipboard_current_line()
                 };
 
-                ctx.output_mut(|o| o.copied_text = self.buffer[range].into());
+                ctx.copy_text(self.buffer[range].into());
             }
             Event::ToggleDebug => {
                 self.debug = !self.debug;
@@ -922,13 +922,13 @@ impl<'ast> Editor {
                 }
                 current_selection
             }
-            Region::ToAdvance { advance: offset, backwards, extend_selection } => {
+            Region::ToAdvance { advance, backwards, extend_selection } => {
                 if extend_selection
                     || current_selection.is_empty()
-                    || matches!(offset, Advance::To(..))
+                    || matches!(advance, Advance::To(..))
                 {
                     let mut selection = current_selection;
-                    selection.1 = self.advance(selection.1, offset, backwards);
+                    selection.1 = self.advance(selection.1, advance, backwards);
                     if extend_selection {
                         selection.0 = current_selection.0;
                     } else {
@@ -968,25 +968,25 @@ impl<'ast> Editor {
         self.location_to_range(location).0
     }
 
-    fn clipboard_current_paragraph(&self) -> (DocCharOffset, DocCharOffset) {
+    fn clipboard_current_line(&self) -> (DocCharOffset, DocCharOffset) {
         let current_selection = self.buffer.current.selection;
         let paragraph_idx = self
             .bounds
-            .paragraphs
+            .source_lines
             .find_containing(current_selection.1, true, true)
             .0;
 
-        let mut result = self.bounds.paragraphs[paragraph_idx];
+        let mut result = self.bounds.source_lines[paragraph_idx];
 
         // capture leading newline, if any
         if paragraph_idx != 0 {
-            let paragraph = self.bounds.paragraphs[paragraph_idx];
-            let prev_paragraph = self.bounds.paragraphs[paragraph_idx - 1];
-            let range_between_paragraphs = (prev_paragraph.1, paragraph.0);
-            let rbp_text = &self.buffer[range_between_paragraphs];
-            if rbp_text.ends_with("\r\n") {
+            let line = self.bounds.source_lines[paragraph_idx];
+            let prev_line = self.bounds.source_lines[paragraph_idx - 1];
+            let range_between_lines = (prev_line.1, line.0);
+            let rbl_text = &self.buffer[range_between_lines];
+            if rbl_text.ends_with("\r\n") {
                 result.0 -= 2;
-            } else if rbp_text.ends_with('\n') || rbp_text.ends_with('\r') {
+            } else if rbl_text.ends_with('\n') || rbl_text.ends_with('\r') {
                 result.0 -= 1;
             }
         }
@@ -999,28 +999,22 @@ impl<'ast> Editor {
         let galleys = &self.galleys;
         let galley_idx = pos_to_galley(pos, galleys);
         let galley = &galleys[galley_idx];
-        let relative_pos = pos - galley.rect.min;
 
         if galley.range.is_empty() {
             // empty galley range means every position in the galley maps to
             // that location
             let result = galley.range.start();
             result.into_range()
-        } else if galley_idx == galleys.len() - 1 && relative_pos.y > galley.rect.height() {
+        } else if galley_idx == galleys.len() - 1 && pos.y > galley.rect.max.y {
             // every position lower than the final galley's bottom maps to the last cursor position
             self.buffer.current.segs.last_cursor_position().into_range()
         } else {
-            // clamp y coordinate for forgiving cursor placement clicks
-            let relative_pos =
-                Vec2::new(relative_pos.x, relative_pos.y.clamp(0.0, galley.rect.height()));
-
+            #[allow(clippy::collapsible_else_if)]
             if galley.is_override {
                 // click an override galley to select the whole thing
                 galley.range
             } else {
-                let new_cursor = galley.galley.cursor_from_pos(relative_pos);
-                let result = galleys.offset_by_galley_and_cursor(galley, new_cursor);
-                result.into_range()
+                self.galley_offset(galley_idx, pos).into_range()
             }
         }
     }

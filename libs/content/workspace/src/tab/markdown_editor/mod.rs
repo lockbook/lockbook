@@ -1,6 +1,9 @@
+use glyphon::FontSystem;
+use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use web_time::Instant;
 
 use bounds::Bounds;
 use colored::Colorize as _;
@@ -8,10 +11,10 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility};
+use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility, ScrollSource};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, Vec2, scroll_area,
+    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -25,13 +28,11 @@ use serde::{Deserialize, Serialize};
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
-use theme::Theme;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
-use widget::{MARGIN, MAX_WIDTH};
 
 pub mod bounds;
 mod galleys;
@@ -42,7 +43,9 @@ mod widget;
 
 pub use input::Event;
 
+use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::workspace::WsPersistentStore;
 
 #[derive(Debug, Default)]
@@ -60,13 +63,13 @@ pub struct Editor {
     pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
+    pub layout: MdLayout,
 
     // theme
     dark_mode: bool, // supports change detection
-    theme: Theme,
     syntax_set: SyntaxSet,
-    syntax_light_theme: syntect::highlighting::Theme,
-    syntax_dark_theme: syntect::highlighting::Theme,
+    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
@@ -82,6 +85,8 @@ pub struct Editor {
     pub cursor: CursorState,
     pub event: EventState,
     pub galleys: Galleys,
+    pub text_areas: Vec<TextBufferArea>,
+
     pub images: ImageCache,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
@@ -93,9 +98,6 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
 
-    // persistence
-    pub persisted: MdPersistence,
-
     // selection state
     /// During drag operations, stores the selection that would be applied
     /// without actually updating the buffer selection (which would affect syntax reveal)
@@ -104,6 +106,7 @@ pub struct Editor {
     // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
+    pub unprocessed_scroll: Option<Instant>,
 
     // layout
     top_left: Pos2,
@@ -128,14 +131,68 @@ static PRINT: bool = false;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdPersistence {
+    toolbar: ToolbarPersistence,
+    file: HashMap<Uuid, MdFilePersistence>,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
+pub struct MdFilePersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
-    toolbar: ToolbarPersistence,
+}
+
+pub struct MdResources {
+    pub ctx: Context,
+    pub core: Lb,
+    pub persistence: WsPersistentStore,
+    pub font_system: Arc<Mutex<FontSystem>>,
 }
 
 pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
+}
+
+pub struct MdLayout {
+    pub margin: f32,
+    pub max_width: f32,
+    pub inline_padding: f32,
+    pub row_height: f32,
+    pub block_padding: f32,
+    pub indent: f32,
+    pub bullet_radius: f32,
+    pub row_spacing: f32,
+    pub block_spacing: f32,
+}
+
+impl MdLayout {
+    pub fn mobile() -> Self {
+        Self {
+            margin: 45.0,
+            max_width: 1000.0,
+            inline_padding: 3.0,
+            row_height: 16.0,
+            block_padding: 10.0,
+            indent: 26.0,
+            bullet_radius: 2.0,
+            row_spacing: 6.0,
+            block_spacing: 14.0,
+        }
+    }
+
+    pub fn desktop() -> Self {
+        Self {
+            margin: 45.0,
+            max_width: 1000.0,
+            inline_padding: 3.0,
+            row_height: 14.0,
+            block_padding: 10.0,
+            indent: 26.0,
+            bullet_radius: 2.0,
+            row_spacing: 6.0,
+            block_spacing: 12.0,
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -146,67 +203,64 @@ pub type HttpClient = reqwest::blocking::Client;
 
 impl Editor {
     pub fn new(
-        ctx: Context, core: Lb, persistence: WsPersistentStore, md: &str, file_id: Uuid,
-        hmac: Option<DocumentHmac>, cfg: MdConfig,
+        md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let theme = Theme::new(ctx.clone());
+        let MdResources { ctx, core, persistence, font_system } = res;
+        let MdConfig { plaintext_mode, readonly } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let highlighting_assets = HighlightingAssets::from_binary();
         let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
 
-        let light_theme_bytes = include_bytes!("assets/mnemonic-light.tmTheme").as_ref();
-        let cursor = Cursor::new(light_theme_bytes);
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
         let mut buffer = BufReader::new(cursor);
-        let syntax_light_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
-        let dark_theme_bytes = include_bytes!("assets/mnemonic-dark.tmTheme").as_ref();
-        let cursor = Cursor::new(dark_theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_dark_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
+        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
 
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         Self {
             core,
             client: Default::default(),
             ctx,
             persistence,
+            font_system,
 
             dark_mode,
-            theme,
             syntax_set,
-            syntax_light_theme,
-            syntax_dark_theme,
+            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
 
-            persisted: Default::default(), // initialized first frame
-
-            readonly: cfg.readonly,
+            readonly,
             file_id,
             hmac,
             initialized: Default::default(),
-            plaintext_mode: cfg.plaintext_mode,
+            plaintext_mode,
             touch_mode,
+            layout,
 
             bounds: Default::default(),
             buffer: md.into(),
             cursor: Default::default(),
             event: Default::default(),
             galleys: Default::default(),
+
             images: Default::default(),
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
+            text_areas: Default::default(),
 
             in_progress_selection: None,
 
             virtual_keyboard_shown: Default::default(),
             scroll_to_cursor: Default::default(),
+            unprocessed_scroll: Default::default(),
 
             top_left: Default::default(),
             width: Default::default(),
@@ -219,19 +273,25 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         Self::new(
-            Context::default(),
-            Lb::init(lb_rs::model::core_config::Config {
-                writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                logs: false,
-                stdout_logs: false,
-                colored_logs: false,
-                background_work: false,
-            })
-            .unwrap(),
-            WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into()),
             md,
             Uuid::new_v4(),
             None,
+            MdResources {
+                ctx: Context::default(),
+                core: Lb::init(lb_rs::model::core_config::Config {
+                    writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+                    logs: false,
+                    stdout_logs: false,
+                    colored_logs: false,
+                    background_work: false,
+                })
+                .unwrap(),
+                persistence: WsPersistentStore::new(
+                    false,
+                    format!("/tmp/{}", Uuid::new_v4()).into(),
+                ),
+                font_system: Arc::new(Mutex::new(crate::make_font_system())),
+            },
             MdConfig { plaintext_mode: false, readonly: false },
         )
     }
@@ -302,8 +362,8 @@ impl Editor {
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
-        let height = ui.available_size().y;
-        let width = ui.max_rect().width().min(MAX_WIDTH);
+        let height = ui.available_size().y.round();
+        let width = ui.max_rect().width().min(self.layout.max_width).round();
         let height_updated = self.height != height;
         let width_updated = self.width != width;
         self.height = height;
@@ -342,7 +402,6 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
-        let prior_toolbar_settings = self.persisted.toolbar.clone();
         let images_updated = {
             let mut images_updated = self.images.updated.lock().unwrap();
             let result = *images_updated;
@@ -360,20 +419,21 @@ impl Editor {
             let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-            self.bounds.paragraphs.clear();
             self.bounds.inline_paragraphs.clear();
             self.layout_cache.clear();
 
             self.calc_source_lines();
             self.compute_bounds(root);
-            self.bounds.paragraphs.sort();
             self.bounds.inline_paragraphs.sort();
 
             self.calc_words();
 
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection != self.buffer.current.selection;
+        resp.selection_updated = prior_selection
+            != self
+                .in_progress_selection
+                .unwrap_or(self.buffer.current.selection);
 
         self.images = widget::inline::image::cache::calc(
             root,
@@ -385,8 +445,8 @@ impl Editor {
         );
 
         ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.theme.bg().neutral_primary);
-        self.theme.apply(ui);
+            .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
+        self.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
         let scroll_area_id = ui
@@ -402,11 +462,16 @@ impl Editor {
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
+                    let toolbar_height = if !self.readonly && self.virtual_keyboard_shown {
+                        MOBILE_TOOL_BAR_SIZE
+                    } else {
+                        0.
+                    };
                     let scroll_area_id = ui
                         .allocate_ui(
                             egui::vec2(
                                 ui.available_width(),
-                                ui.available_height() - MOBILE_TOOL_BAR_SIZE,
+                                ui.available_height() - toolbar_height,
                             ),
                             |ui| {
                                 ui.ctx().style_mut(|style| {
@@ -446,10 +511,10 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.readonly {
+                    if !self.readonly && self.virtual_keyboard_shown {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
-                        ui.allocate_ui_at_rect(rect, |ui| {
+                        ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });
                     }
@@ -493,12 +558,18 @@ impl Editor {
 
                 // persistence: read
                 if !self.initialized {
+                    let persisted = self
+                        .persistence
+                        .get_markdown()
+                        .file
+                        .get(&self.file_id)
+                        .cloned()
+                        .unwrap_or_default();
                     if let Some(scroll_area_id) = scroll_area_id {
-                        self.persisted = self.persistence.get_markdown();
                         ui.data_mut(|d| {
                             let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
                             if let Some(mut state) = state {
-                                state.offset.y = self.persisted.scroll_offset;
+                                state.offset.y = persisted.scroll_offset;
                                 d.insert_temp(scroll_area_id, state);
                             }
                         });
@@ -506,7 +577,7 @@ impl Editor {
                     // set the selection using low-level API; using internal
                     // events causes touch devices to scroll to cursor on 2nd
                     // frame
-                    let (start, end) = self.persisted.selection;
+                    let (start, end) = persisted.selection;
                     let selection = (
                         start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
                         end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
@@ -521,6 +592,14 @@ impl Editor {
             })
             .inner;
 
+        let text_areas = std::mem::take(&mut self.text_areas);
+        if !text_areas.is_empty() {
+            ui.painter()
+                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                    ui.max_rect(),
+                    crate::GlyphonRendererCallback { buffers: text_areas },
+                ));
+        }
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -532,7 +611,6 @@ impl Editor {
                     .bright_black()
             );
             println!("document: {:?}", self.buffer.current.text);
-            self.print_paragraphs_bounds();
             println!(
                 "{}",
                 "--------------------------------------------------------------------------------"
@@ -564,6 +642,7 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
+            self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
         if !self.event.internal_events.is_empty() {
@@ -574,17 +653,50 @@ impl Editor {
         }
 
         // persistence: write
-        let toolbar_settings = self.persisted.toolbar.clone();
-        let toolbar_settings_changed = toolbar_settings != prior_toolbar_settings;
-        if resp.selection_updated || resp.scroll_updated || toolbar_settings_changed {
-            if let Some(scroll_area_id) = scroll_area_id {
-                let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
-                let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
-                self.persisted.scroll_offset = scroll_offset;
+        let mut persistence_updated = false;
+        if resp.selection_updated {
+            let mut persistence = self.persistence.data.write().unwrap();
+            persistence
+                .markdown
+                .file
+                .entry(self.file_id)
+                .and_modify(|f| f.selection = self.buffer.current.selection)
+                .or_insert(MdFilePersistence {
+                    scroll_offset: Default::default(),
+                    selection: self.buffer.current.selection,
+                });
+            persistence_updated = true;
+        }
+
+        let mut scroll_end_processed = false;
+        if let Some(unprocessed_scroll) = self.unprocessed_scroll {
+            if unprocessed_scroll.elapsed() > Duration::from_millis(100) {
+                if let Some(scroll_area_id) = scroll_area_id {
+                    let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
+                    let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+
+                    let mut persistence = self.persistence.data.write().unwrap();
+                    persistence
+                        .markdown
+                        .file
+                        .entry(self.file_id)
+                        .and_modify(|f| f.scroll_offset = scroll_offset)
+                        .or_insert(MdFilePersistence {
+                            scroll_offset,
+                            selection: Default::default(),
+                        });
+                    persistence_updated = true;
+
+                    scroll_end_processed = true;
+                }
             }
-            let selection = self.buffer.current.selection;
-            self.persisted.selection = selection;
-            self.persistence.set_markdown(self.persisted.clone());
+        };
+
+        if scroll_end_processed {
+            self.unprocessed_scroll = None;
+        }
+        if persistence_updated {
+            self.persistence.write_to_file();
         }
 
         // focus editor by default
@@ -612,13 +724,17 @@ impl Editor {
         &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
     ) -> ScrollAreaOutput<()> {
         let margin: Margin = if cfg!(target_os = "android") {
-            Margin::symmetric(0.0, 60.0)
+            Margin::symmetric(0, 60)
         } else {
-            Margin::symmetric(0.0, 15.0)
+            Margin::symmetric(0, 15)
         };
         ScrollArea::vertical()
-            .drag_to_scroll(self.touch_mode)
-            .id_source(self.file_id)
+            .scroll_source(if self.touch_mode {
+                ScrollSource::ALL
+            } else {
+                ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
+            })
+            .id_salt(self.file_id)
             .scroll_bar_visibility(if self.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {
@@ -629,14 +745,14 @@ impl Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.theme.bg().neutral_primary)
                         .show(ui, |ui| {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
                             let padding = (ui.available_width() - self.width) / 2.;
 
-                            self.top_left = ui.max_rect().min + (padding + MARGIN) * Vec2::X;
+                            self.top_left =
+                                ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
                             let height = {
                                 let document_height = self.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -650,7 +766,7 @@ impl Editor {
                             };
                             let rect = Rect::from_min_size(
                                 self.top_left,
-                                Vec2::new(self.width - 2. * MARGIN, height),
+                                Vec2::new(self.width - 2. * self.layout.margin, height),
                             );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
@@ -658,14 +774,18 @@ impl Editor {
                             let response = ui.interact(
                                 rect,
                                 self.id(),
-                                Sense { click: true, drag: !self.touch_mode, focusable: true },
+                                if self.touch_mode {
+                                    Sense::click()
+                                } else {
+                                    Sense::click_and_drag()
+                                },
                             );
                             if focused && !self.focused(ui.ctx()) {
                                 // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
                                 self.focus(ui.ctx());
                             }
                             let response_properly_clicked =
-                                response.clicked() && !response.fake_primary_click;
+                                response.clicked_by(egui::PointerButton::Primary);
                             if response.hovered() || response_properly_clicked {
                                 ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
                                 // overridable by widgets
@@ -673,7 +793,7 @@ impl Editor {
 
                             ui.advance_cursor_after_rect(rect);
 
-                            ui.allocate_ui_at_rect(rect, |ui| {
+                            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                                 self.show_block(ui, root, self.top_left);
                             });
                         });
@@ -684,8 +804,9 @@ impl Editor {
                     let selection = self
                         .in_progress_selection
                         .unwrap_or(self.buffer.current.selection);
-                    let color = self.theme.fg().accent_secondary;
-                    self.show_range(ui, selection, color);
+                    let theme = self.ctx.get_lb_theme();
+                    let color = theme.bg().get_color(theme.prefs().primary);
+                    self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
                 }
                 if ui.ctx().os() == OperatingSystem::Android {
@@ -767,9 +888,14 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
     let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
     } else {
-        (lb_fonts::PT_SANS_REGULAR, lb_fonts::JETBRAINS_MONO, lb_fonts::PT_SANS_BOLD, 1.)
+        (
+            lb_fonts::NOTO_SANS_REGULAR,
+            lb_fonts::NOTO_SANS_MONO_REGULAR,
+            lb_fonts::NOTO_SANS_BOLD,
+            1.,
+        )
     };
 
     let mono_scale = 0.9 * base_scale;
@@ -786,7 +912,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(sans)
-        },
+        }
+        .into(),
     );
     fonts.font_data.insert("mono".into(), {
         FontData {
@@ -798,13 +925,15 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
     fonts.font_data.insert(
         "bold".to_string(),
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
-        },
+        }
+        .into(),
     );
 
     fonts.font_data.insert("sans_super".into(), {
@@ -816,6 +945,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(sans)
         }
+        .into()
     });
     fonts.font_data.insert("bold_super".into(), {
         FontData {
@@ -826,6 +956,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(bold)
         }
+        .into()
     });
     fonts.font_data.insert("mono_super".into(), {
         FontData {
@@ -837,6 +968,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
 
     fonts.font_data.insert("sans_sub".into(), {
@@ -848,6 +980,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(sans)
         }
+        .into()
     });
     fonts.font_data.insert("bold_sub".into(), {
         FontData {
@@ -858,6 +991,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(bold)
         }
+        .into()
     });
     fonts.font_data.insert("mono_sub".into(), {
         FontData {
@@ -869,6 +1003,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             },
             ..FontData::from_static(mono)
         }
+        .into()
     });
 
     fonts.font_data.insert("icons".into(), {
@@ -876,6 +1011,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             tweak: FontTweak { y_offset: -0.1, scale: mono_scale, ..Default::default() },
             ..FontData::from_static(lb_fonts::NERD_FONTS_MONO_SYMBOLS)
         }
+        .into()
     });
 
     fonts

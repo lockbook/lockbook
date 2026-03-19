@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
-use egui::{Color32, TextWrapMode};
+use egui::TextWrapMode;
 use lb::model::usage::bytes_to_human;
 use lb::service::usage::UsageMetrics;
 use workspace_rs::theme::icons::Icon;
@@ -25,7 +25,7 @@ impl super::AccountScreen {
         if self.settings.read().unwrap().sidebar_usage {
             if let Some(usage) = &self.lb_status.space_used {
                 let usage = Usage::from(usage);
-                egui::Frame::none().show(ui, |ui| {
+                egui::Frame::new().show(ui, |ui| {
                     let is_throttled_hover =
                         if let Some(hover_origin) = self.sync.usage_msg_gained_hover {
                             let throttle_duration = Duration::from_millis(100);
@@ -89,27 +89,12 @@ impl super::AccountScreen {
     pub fn show_sync_btn(&mut self, ui: &mut egui::Ui) {
         let visuals_before_button = ui.style().clone();
         if self.lb_status.offline {
-            ui.visuals_mut().widgets.active.bg_fill = Color32::GRAY;
+            // no-op
         } else if self.lb_status.update_required || self.lb_status.out_of_space {
-            ui.visuals_mut().widgets.active.bg_fill = ui.visuals().warn_fg_color;
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().warn_fg_color;
         } else if self.lb_status.unexpected_sync_problem.is_some() {
-            ui.visuals_mut().widgets.active.bg_fill = ui.visuals().error_fg_color;
+            ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().error_fg_color;
         };
-
-        let text_stroke =
-            egui::Stroke { color: ui.visuals().widgets.active.bg_fill, ..Default::default() };
-
-        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-
-        ui.visuals_mut().widgets.inactive.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.1);
-        ui.visuals_mut().widgets.hovered.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.2);
-
-        ui.visuals_mut().widgets.active.bg_fill =
-            ui.visuals().widgets.active.bg_fill.gamma_multiply(0.3);
 
         let icon = if self.lb_status.offline {
             Icon::OFFLINE
@@ -125,7 +110,7 @@ impl super::AccountScreen {
             .icon_alignment(egui::Align::RIGHT)
             .padding(egui::vec2(20.0, 7.0))
             .frame(true)
-            .rounding(egui::Rounding::same(5.0))
+            .rounding(5.0)
             .is_loading(self.lb_status.syncing)
             .show(ui);
 

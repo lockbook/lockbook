@@ -33,4 +33,7 @@ jobs:
       - name: Publish cli
         run: |
           cargo run -p lbdev -- releaser publish-crate lockbook
+      - name: Publish server
+        run: |
+          cargo run -p lbdev -- releaser publish-crate lockbook-server
       

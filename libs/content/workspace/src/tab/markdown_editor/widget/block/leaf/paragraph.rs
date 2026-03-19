@@ -3,8 +3,6 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -13,7 +11,7 @@ impl<'ast> Editor {
             if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                 let NodeLink { url, .. } = &**node_link;
                 result += self.height_image(node, url);
-                result += BLOCK_SPACING;
+                result += self.layout.block_spacing;
             }
         }
 
@@ -25,7 +23,7 @@ impl<'ast> Editor {
             result += self.height_paragraph_line(node, node_line);
 
             if line_idx != last_line_idx {
-                result += BLOCK_SPACING;
+                result += self.layout.block_spacing;
             }
         }
 
@@ -36,7 +34,7 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
@@ -75,7 +73,7 @@ impl<'ast> Editor {
                     if node_line.contains_inclusive(self.node_range(descendant).start()) {
                         self.show_image_block(ui, node, top_left, url);
                         top_left.y += self.height_image(node, url);
-                        top_left.y += BLOCK_SPACING;
+                        top_left.y += self.layout.block_spacing;
                     }
                 }
             }
@@ -85,7 +83,7 @@ impl<'ast> Editor {
             self.show_paragraph_line(ui, node, top_left, node_line);
             top_left.y += line_height;
 
-            top_left.y += BLOCK_SPACING;
+            top_left.y += self.layout.block_spacing;
         }
     }
 
@@ -94,7 +92,7 @@ impl<'ast> Editor {
         node_line: (DocCharOffset, DocCharOffset),
     ) {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
 
         // "The paragraph's raw content is formed by concatenating the lines
         // and removing initial and final whitespace"
@@ -102,38 +100,17 @@ impl<'ast> Editor {
             self.split_range(node, node_line)
         {
             if !pre_node.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node), false);
+                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node));
             }
             if !pre_children.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    pre_children,
-                    self.text_format(node),
-                    false,
-                );
+                self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node));
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
             if !post_children.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_children,
-                    self.text_format(node),
-                    false,
-                );
+                self.show_section(ui, top_left, &mut wrap, post_children, self.text_format(node));
             }
             if !post_node.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    post_node,
-                    self.text_format(node),
-                    false,
-                );
+                self.show_section(ui, top_left, &mut wrap, post_node, self.text_format(node));
             }
         };
 
@@ -145,36 +122,7 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
 
-            self.compute_bounds_paragraph_line(node, node_line);
+            self.bounds.inline_paragraphs.push(node_line);
         }
-    }
-
-    pub fn compute_bounds_paragraph_line(
-        &mut self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
-    ) {
-        self.bounds.inline_paragraphs.push(node_line);
-
-        // "The paragraph's raw content is formed by concatenating the lines
-        // and removing initial and final whitespace"
-        if let Some((pre_node, pre_children, children, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            if !pre_node.is_empty() {
-                self.bounds.paragraphs.push(pre_node);
-            }
-            if !pre_children.is_empty() {
-                self.bounds.paragraphs.push(pre_children);
-            }
-            self.bounds.paragraphs.push(children);
-            if !post_children.is_empty() {
-                self.bounds.paragraphs.push(post_children);
-            }
-            if !post_node.is_empty() {
-                self.bounds.paragraphs.push(post_node);
-            }
-        } else {
-            // This handles empty paragraph lines such as in "- [ ] \n  x"
-            self.bounds.paragraphs.push(node_line);
-        };
     }
 }

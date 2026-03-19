@@ -1,39 +1,33 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT, ROW_SPACING};
+
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
 impl<'ast> Editor {
-    pub fn text_format_heading(&self, parent: &AstNode<'_>, level: u8) -> TextFormat {
-        let parent_text_format = self.text_format(parent);
-        TextFormat {
-            font_id: FontId {
-                size: match level {
-                    6 => 16.,
-                    5 => 19.,
-                    4 => 22.,
-                    3 => 25.,
-                    2 => 28.,
-                    _ => 32.,
-                },
-                ..parent_text_format.font_id
-            },
-            ..parent_text_format
-        }
+    pub fn heading_row_height(&self, level: u8) -> f32 {
+        self.layout.row_height
+            * match level {
+                6 => 1.2,
+                5 => 1.4,
+                4 => 1.6,
+                3 => 1.8,
+                2 => 2.0,
+                _ => 2.4,
+            }
     }
 
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level <= 2 { BLOCK_SPACING } else { 0. }
+        text_height + if level <= 2 { self.layout.block_spacing } else { 0. }
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -51,37 +45,36 @@ impl<'ast> Editor {
             if line_idx < last_line_idx {
                 // non-underline content
                 result += self.height_setext_heading_line(node, node_line, reveal);
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
             } else {
                 // setext heading underline
                 if reveal {
-                    let mut wrap = Wrap::new(width);
+                    let mut wrap = self.new_wrap(width);
                     wrap.row_height = self.row_height(node);
-                    wrap.offset =
-                        self.span_section(&wrap, node_line, self.text_format_syntax(node));
+                    wrap.offset = self.span_section(&wrap, node_line, self.text_format_syntax());
 
                     result += wrap.height();
-                    result += ROW_SPACING;
+                    result += self.layout.row_spacing;
                 }
             }
         }
 
-        result - ROW_SPACING
+        result - self.layout.row_spacing
     }
 
     pub fn height_setext_heading_line(
         &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _, postfix_whitespace, _)) =
             self.split_range(node, node_line)
         {
             if reveal {
-                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax(node));
-                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
+                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax());
             }
             wrap.offset += self.inline_children_span(node, &wrap, node_line);
             if reveal {
@@ -111,7 +104,7 @@ impl<'ast> Editor {
     // https://github.github.com/gfm/#atx-headings
     fn height_atx_heading(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
@@ -124,11 +117,9 @@ impl<'ast> Editor {
         {
             if reveal {
                 if !indentation.is_empty() {
-                    wrap.offset +=
-                        self.span_section(&wrap, indentation, self.text_format_syntax(node));
+                    wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
                 }
-                wrap.offset +=
-                    self.span_section(&wrap, prefix_range, self.text_format_syntax(node));
+                wrap.offset += self.span_section(&wrap, prefix_range, self.text_format_syntax());
             }
 
             if self.infix_range(node).is_some() {
@@ -140,7 +131,7 @@ impl<'ast> Editor {
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax(node));
+            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax());
         }
 
         wrap.height()
@@ -170,7 +161,7 @@ impl<'ast> Editor {
         let row_height = self.node_line_row_height(node, first_line);
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)
@@ -209,11 +200,11 @@ impl<'ast> Editor {
                 resp |= self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
 
                 top_left.y += self.height_setext_heading_line(node, node_line, reveal);
-                top_left.y += ROW_SPACING;
+                top_left.y += self.layout.row_spacing;
             } else {
                 // setext heading underline
                 if reveal {
-                    let mut wrap = Wrap::new(width);
+                    let mut wrap = self.new_wrap(width);
                     wrap.row_height = self.row_height(node);
 
                     self.show_section(
@@ -221,18 +212,17 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         node_line,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
 
                     top_left.y += wrap.height();
-                    top_left.y += ROW_SPACING;
+                    top_left.y += self.layout.row_spacing;
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             }
         }
 
-        top_left.y -= ROW_SPACING;
+        top_left.y -= self.layout.row_spacing;
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
@@ -248,7 +238,7 @@ impl<'ast> Editor {
         let mut resp = Default::default();
 
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         if let Some((indentation, prefix, _children, postfix_whitespace, _)) =
@@ -261,19 +251,11 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         indentation,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                 }
                 if !prefix.is_empty() {
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        prefix,
-                        self.text_format_syntax(node),
-                        false,
-                    );
+                    self.show_section(ui, top_left, &mut wrap, prefix, self.text_format_syntax());
                 }
             }
             self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
@@ -284,7 +266,6 @@ impl<'ast> Editor {
                     &mut wrap,
                     postfix_whitespace,
                     self.text_format(node),
-                    false,
                 );
             }
         } else {
@@ -301,7 +282,7 @@ impl<'ast> Editor {
         let mut resp = Default::default();
 
         let width = self.width(node);
-        let mut wrap = Wrap::new(width);
+        let mut wrap = self.new_wrap(width);
         wrap.row_height = self.row_height(node);
 
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
@@ -320,8 +301,7 @@ impl<'ast> Editor {
                         top_left,
                         &mut wrap,
                         indentation,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                 }
                 resp |= self.show_section(
@@ -329,8 +309,7 @@ impl<'ast> Editor {
                     top_left,
                     &mut wrap,
                     prefix_range,
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             }
             if self.infix_range(node).is_some() {
@@ -344,19 +323,12 @@ impl<'ast> Editor {
                     &mut wrap,
                     postfix_range,
                     self.text_format(node),
-                    false,
                 );
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            resp |= self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_syntax(node),
-                false,
-            );
+            resp |=
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
         }
 
         top_left.y += height;
@@ -369,12 +341,13 @@ impl<'ast> Editor {
     }
 
     fn show_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
-        let line_break_rect = Rect::from_min_size(top_left, Vec2::new(width, BLOCK_SPACING));
+        let line_break_rect =
+            Rect::from_min_size(top_left, Vec2::new(width, self.layout.block_spacing));
 
         ui.painter().hline(
             line_break_rect.x_range(),
             line_break_rect.center().y,
-            Stroke { width: 1.0, color: self.theme.bg().neutral_tertiary },
+            Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() },
         );
     }
 
@@ -396,10 +369,6 @@ impl<'ast> Editor {
             if line_idx < last_line_idx {
                 // non-underline content
                 self.compute_bounds_setext_heading_line(node, line, reveal);
-            } else {
-                // underline
-                let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
             }
         }
     }
@@ -410,23 +379,13 @@ impl<'ast> Editor {
         let node_line = self.node_line(node, line);
 
         if reveal {
-            let Some((indentation, prefix, children, postfix_whitespace, _)) =
-                self.split_range(node, node_line)
+            let Some((_, _, children, postfix_whitespace, _)) = self.split_range(node, node_line)
             else {
-                self.bounds.paragraphs.push(node_line);
                 self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            if !prefix.is_empty() {
-                self.bounds.paragraphs.push(prefix);
-            }
-            self.bounds.paragraphs.push(children);
             if !postfix_whitespace.is_empty() {
-                self.bounds.paragraphs.push(postfix_whitespace);
                 self.bounds
                     .inline_paragraphs
                     .push((children.start(), postfix_whitespace.end()));
@@ -437,12 +396,10 @@ impl<'ast> Editor {
             let Some((_indentation, _prefix, children, _postfix_whitespace, _)) =
                 self.split_range(node, node_line)
             else {
-                self.bounds.paragraphs.push(node_line);
                 self.bounds.inline_paragraphs.push(node_line);
                 return;
             };
 
-            self.bounds.paragraphs.push(children);
             self.bounds.inline_paragraphs.push(children);
         }
     }
@@ -451,19 +408,9 @@ impl<'ast> Editor {
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
-        if let Some((indentation, prefix_range, _infix_range, postfix_range, _)) =
-            self.split_range(node, node_line)
-        {
-            if !indentation.is_empty() {
-                self.bounds.paragraphs.push(indentation);
-            }
-            self.bounds.paragraphs.push(prefix_range);
-
+        if let Some((_, _, _infix_range, postfix_range, _)) = self.split_range(node, node_line) {
             if let Some(infix_range) = self.infix_range(node) {
-                self.bounds.paragraphs.push(infix_range);
-
                 if !postfix_range.is_empty() {
-                    self.bounds.paragraphs.push(postfix_range);
                     self.bounds
                         .inline_paragraphs
                         .push((infix_range.start(), postfix_range.end()));
@@ -471,12 +418,10 @@ impl<'ast> Editor {
                     self.bounds.inline_paragraphs.push(infix_range);
                 }
             } else if !postfix_range.is_empty() {
-                self.bounds.paragraphs.push(postfix_range);
                 self.bounds.inline_paragraphs.push(postfix_range);
             }
         } else {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }
@@ -554,11 +499,13 @@ impl<'ast> Editor {
         contents
     }
 
-    pub fn fold_button_size_icon_size_space(top_left: Pos2, row_height: f32) -> (f32, f32, Rect) {
-        let fold_button_size = INDENT * 0.8;
+    pub fn fold_button_size_icon_size_space(
+        top_left: Pos2, row_height: f32, indent: f32,
+    ) -> (f32, f32, Rect) {
+        let fold_button_size = indent * 0.8;
         let fold_button_icon_size = fold_button_size * 0.6;
         let fold_button_space = Rect::from_min_size(
-            top_left + Vec2::new(-INDENT, (row_height - fold_button_size) / 2.),
+            top_left + Vec2::new(-indent, (row_height - fold_button_size) / 2.),
             Vec2::splat(fold_button_size),
         );
         (fold_button_size, fold_button_icon_size, fold_button_space)
@@ -572,11 +519,12 @@ impl<'ast> Editor {
         self.touch_consuming_rects.push(space);
 
         if self.fold(node).is_some() {
-            ui.allocate_ui_at_rect(space, |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
+                let theme = self.ctx.get_lb_theme();
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
-                    self.theme.fg().neutral_quarternary
+                    theme.neutral_fg_secondary()
                 } else {
-                    self.theme.fg().accent_secondary
+                    theme.fg().get_color(theme.prefs().primary)
                 });
                 if IconButton::new(icon)
                     .size(size)
@@ -588,10 +536,10 @@ impl<'ast> Editor {
                 }
             });
         } else if self.foldable(node).is_some() {
-            ui.allocate_ui_at_rect(space, |ui| {
+            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
-                    .color(self.theme.fg().neutral_quarternary);
+                    .color(self.ctx.get_lb_theme().neutral_fg_secondary());
                 if IconButton::new(icon)
                     .size(size)
                     .tooltip("Hide Contents")

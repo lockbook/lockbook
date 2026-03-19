@@ -1,12 +1,9 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
-use egui::{Checkbox, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
-};
+use egui::{CursorIcon, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_editor::widget::INDENT;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::tab::markdown_editor::{Editor, Event};
+use crate::theme::palette_v2::ThemeExt;
 
 impl<'ast> Editor {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -17,33 +14,72 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_task_item: &NodeTaskItem,
     ) {
+        let theme = self.ctx.get_lb_theme();
         let maybe_check = node_task_item.symbol;
+        let checked = maybe_check.is_some();
 
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        self.touch_consuming_rects.push(annotation_space);
+        let checkbox_space = Rect::from_center_size(
+            annotation_space.center(),
+            Vec2::splat(annotation_space.size().min_elem()),
+        );
 
-        ui.allocate_ui_at_rect(annotation_space, |ui| {
-            let mut checked = maybe_check.is_some();
-            ui.add_enabled(!self.readonly, Checkbox::new(&mut checked, ""));
-            if checked != maybe_check.is_some() {
-                let check_offset = self.check_offset(node);
-                let check = if checked { 'x' } else { ' ' };
+        // allocate a slightly larger clickable space that makes the checkbox
+        // easier to tap without overflowing the annotation space horizontally
+        // or overlapping with another row vertically.
+        let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
+        let extra_height = self.layout.row_spacing / 2.;
+        let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
-                self.event.internal_events.push(Event::Replace {
-                    region: (check_offset, check_offset + 1).into(),
-                    text: check.into(),
-                    advance_cursor: false,
-                });
-            }
-        });
+        let checkbox_response =
+            ui.interact(clickable_space, Id::new(self.node_range(node)), Sense::click());
+        if checkbox_response.clicked() {
+            let check_offset = self.check_offset(node);
+            let new_check = if checked { ' ' } else { 'x' };
+            self.event.internal_events.push(Event::Replace {
+                region: (check_offset, check_offset + 1).into(),
+                text: new_check.into(),
+                advance_cursor: false,
+            });
+        }
+        if checkbox_response.hovered() {
+            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+        }
+        self.touch_consuming_rects.push(clickable_space);
+
+        // draw checkbox
+        ui.painter().rect(
+            checkbox_space,
+            2,
+            if checkbox_response.hovered() {
+                theme.neutral()
+            } else {
+                theme.neutral_bg_secondary()
+            },
+            Stroke::new(1., theme.neutral()),
+            StrokeKind::Inside,
+        );
+
+        // draw check
+        if checked {
+            let check_space = checkbox_space.shrink(3.);
+            ui.painter().add(Shape::line(
+                vec![
+                    egui::pos2(check_space.left(), check_space.center().y),
+                    egui::pos2(check_space.center().x, check_space.bottom()),
+                    egui::pos2(check_space.right(), check_space.top()),
+                ],
+                Stroke::new(1.5, theme.neutral_fg_secondary()),
+            ));
+        }
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+            self.show_block_children(ui, node, top_left + self.layout.indent * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let children_height = self.block_children_height(node);
@@ -54,14 +90,13 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            let mut wrap = Wrap::new(self.width(node));
+            let mut wrap = self.new_wrap(self.width(node));
             let resp = self.show_section(
                 ui,
-                top_left + INDENT * Vec2::X,
+                top_left + self.layout.indent * Vec2::X,
                 &mut wrap,
                 line_content,
                 self.text_format_document(),
-                false,
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
 
@@ -73,7 +108,7 @@ impl<'ast> Editor {
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)
@@ -178,22 +213,12 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_task_item(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
-        }
-
-        // Handle children or line content
         let any_children = node.children().next().is_some();
         if any_children {
             self.compute_bounds_block_children(node);
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-            self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
     }

@@ -1,9 +1,12 @@
+use std::sync::{Arc, Mutex};
+
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
     tab::{
-        markdown_editor::{Editor, MdConfig},
+        markdown_editor::{Editor, MdConfig, MdResources},
         svg_editor::SVGEditor,
     },
+    theme::palette_v2::{Mode, Theme, ThemeExt as _},
     workspace::Workspace,
 };
 
@@ -41,10 +44,25 @@ impl LbWebApp {
         ctx.set_fonts(fonts);
         ctx.set_zoom_factor(0.9);
 
+        ctx.set_lb_theme(Theme::default(Mode::Dark));
         ctx.set_visuals(generate_visuals());
 
+        let Some(ref wgpu) = cc.wgpu_render_state else {
+            panic!("must use wgpu as graphics target")
+        };
+
+        let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
+        workspace_rs::register_render_callback_resources(
+            &wgpu.device,
+            &wgpu.queue,
+            wgpu.target_format,
+            &mut wgpu.renderer.write(),
+            font_system.clone(),
+            1,
+        );
+
         Self {
-            workspace: Workspace::new(&lb, &ctx, false),
+            workspace: Workspace::new(&lb, &ctx, font_system, false),
             editor: None,
             canvas: None,
             initial_screen,
@@ -54,28 +72,29 @@ impl LbWebApp {
 
 fn generate_visuals() -> egui::Visuals {
     let mut visuals = egui::Visuals::dark();
-    visuals.extreme_bg_color = egui::Color32::from_hex("#1a1a1a").unwrap();
-    visuals.code_bg_color = egui::Color32::from_hex("#67e4b6").unwrap();
-    visuals.faint_bg_color = egui::Color32::BLUE;
-    visuals.widgets.noninteractive.bg_fill = visuals.extreme_bg_color;
 
+    visuals.dark_mode = true;
     visuals
 }
 
 impl eframe::App for LbWebApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        ctx.set_visuals(egui::Visuals::dark());
         egui::CentralPanel::default()
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
                     self.editor = Some(Editor::new(
-                        ctx.clone(),
-                        self.workspace.core.clone(),
-                        self.workspace.cfg.clone(),
                         include_str!("../resources/editor-demo.md"),
                         Uuid::new_v4(),
                         None,
+                        MdResources {
+                            ctx: ctx.clone(),
+                            core: self.workspace.core.clone(),
+                            persistence: self.workspace.cfg.clone(),
+                            font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
+                        },
                         MdConfig { plaintext_mode: false, readonly: false },
                     ));
                 }

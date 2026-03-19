@@ -1,30 +1,47 @@
 use comrak::nodes::AstNode;
-use egui::{FontId, Pos2, TextFormat};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::RangeIterExt as _;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{ROW_HEIGHT, ROW_SPACING};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
-    pub fn text_format_document(&self) -> TextFormat {
-        let parent_text_format = TextFormat::default();
-        TextFormat {
-            color: self.theme.fg().neutral_secondary,
-            font_id: FontId {
-                size: parent_text_format.font_id.size * ROW_HEIGHT
-                    / self
-                        .ctx
-                        .fonts(|fonts| fonts.row_height(&parent_text_format.font_id)),
-                ..parent_text_format.font_id
-            },
-            ..parent_text_format
+    pub fn text_format_document(&self) -> Format {
+        Format {
+            family: FontFamily::Sans,
+            bold: false,
+            italic: false,
+            color: self.ctx.get_lb_theme().neutral_fg(),
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            border: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
         }
     }
 
-    pub fn show_document(
-        &mut self, ui: &mut egui::Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-    ) {
+    pub fn height_document(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let width = self.width(node);
+
+        let any_children = node.children().next().is_some();
+        if any_children && !self.plaintext_mode {
+            self.block_children_height(node)
+        } else {
+            let mut result = 0.;
+            for line_idx in self.node_lines(node).iter() {
+                let line = self.bounds.source_lines[line_idx];
+                result +=
+                    self.height_section(&mut self.new_wrap(width), line, self.text_format_syntax());
+                result += self.layout.row_spacing;
+            }
+            result
+        }
+    }
+
+    pub fn show_document(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
@@ -34,17 +51,10 @@ impl<'ast> Editor {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
 
-                let mut wrap = Wrap::new(width);
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    line,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                let mut wrap = self.new_wrap(width);
+                self.show_section(ui, top_left, &mut wrap, line, self.text_format_syntax());
                 top_left.y += wrap.height();
-                top_left.y += ROW_SPACING;
+                top_left.y += self.layout.row_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
@@ -57,7 +67,6 @@ impl<'ast> Editor {
         } else {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
-                self.bounds.paragraphs.push(line);
                 self.bounds.inline_paragraphs.push(line);
             }
         }

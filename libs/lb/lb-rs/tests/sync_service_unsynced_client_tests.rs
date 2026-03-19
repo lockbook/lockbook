@@ -9,7 +9,7 @@ async fn unmodified() {
     assert::all_document_contents(&core, &[]).await;
     assert::local_work_paths(&core, &[]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -20,7 +20,7 @@ async fn new_file() {
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert::local_work_paths(&core, &["/document"]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -31,7 +31,7 @@ async fn new_files() {
     assert::all_document_contents(&core, &[("/a/b/c/d", b"")]).await;
     assert::local_work_paths(&core, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -45,7 +45,7 @@ async fn edited_document() {
     assert::all_document_contents(&core, &[("/document", b"document content")]).await;
     assert::local_work_paths(&core, &["/document"]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -58,7 +58,7 @@ async fn mv() {
     assert::all_document_contents(&core, &[("/folder/document", b"")]).await;
     assert::local_work_paths(&core, &["/folder/", "/folder/document"]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -70,7 +70,7 @@ async fn rename() {
     assert::all_document_contents(&core, &[("/document2", b"")]).await;
     assert::local_work_paths(&core, &["/document2"]).await;
     assert::server_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 // the idea of the next three tests is to assert that new+deleted content isn't sent to the server
@@ -87,7 +87,7 @@ async fn delete() {
     assert::all_document_contents(&core, &[]).await;
     let summary = core.sync(None).await.unwrap();
     assert!(summary.work_units.is_empty());
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -99,7 +99,7 @@ async fn delete_parent() {
     assert::all_document_contents(&core, &[]).await;
     let summary = core.sync(None).await.unwrap();
     assert!(summary.work_units.is_empty());
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }
 
 #[tokio::test]
@@ -113,5 +113,5 @@ async fn delete_grandparent() {
     assert::all_document_contents(&core, &[]).await;
     let summary = core.sync(None).await.unwrap();
     assert!(summary.work_units.is_empty());
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
 }

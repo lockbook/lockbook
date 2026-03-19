@@ -1,8 +1,9 @@
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread;
 
 use egui::text::LayoutJob;
-use egui::{Image, ScrollArea};
+use egui::{Image, ScrollArea, UiBuilder};
+use glyphon::FontSystem;
 use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
@@ -41,7 +42,8 @@ impl Router {
 }
 
 pub struct OnboardScreen {
-    settings: Arc<RwLock<Settings>>,
+    pub settings: Arc<RwLock<Settings>>,
+    pub font_system: Arc<Mutex<FontSystem>>,
     pub core: Lb,
 
     update_tx: mpsc::Sender<Update>,
@@ -65,11 +67,14 @@ pub struct OnboardScreen {
 }
 
 impl OnboardScreen {
-    pub fn new(settings: Arc<RwLock<Settings>>, core: Lb) -> Self {
+    pub fn new(
+        settings: Arc<RwLock<Settings>>, font_system: Arc<Mutex<FontSystem>>, core: Lb,
+    ) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
         Self {
             settings,
+            font_system,
             core,
             update_tx,
             update_rx,
@@ -151,7 +156,7 @@ impl OnboardScreen {
                 ui.vertical_centered(|ui| {
                     let how_on = ui.ctx().animate_bool_with_time_and_easing(
                         "welcome_route_fade_in".into(),
-                        ui.ctx().frame_nr() > 1,
+                        true, // todo: false if first frame
                         1.0,
                         egui::emath::ease_in_ease_out,
                     );
@@ -195,7 +200,7 @@ impl OnboardScreen {
                                                 set_button_style(ui);
                                                 if Button::default()
                                                     .text("Create an account")
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .frame(true)
                                                     .show(ui)
                                                     .clicked()
@@ -218,7 +223,7 @@ impl OnboardScreen {
                                                     text_stroke;
                                                 if Button::default()
                                                     .text("I have an account")
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .show(ui)
                                                     .clicked()
                                                 {
@@ -253,7 +258,7 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Create account")
-                                                        .rounding(egui::Rounding::same(3.0))
+                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -296,7 +301,7 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Import account")
-                                                        .rounding(egui::Rounding::same(3.0))
+                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -349,8 +354,8 @@ impl OnboardScreen {
 
                                             egui::Frame::default()
                                                 .fill(ui.visuals().code_bg_color)
-                                                .inner_margin(egui::Margin::symmetric(50.0, 40.0))
-                                                .rounding(3.0)
+                                                .inner_margin(egui::Margin::symmetric(50, 40))
+                                                .corner_radius(3.0)
                                                 .show(ui, |ui| {
                                                     ui.horizontal(|ui| {
                                                         ui.label(col1);
@@ -368,7 +373,7 @@ impl OnboardScreen {
                                                 if Button::default()
                                                     .text("Create account")
                                                     .frame(true)
-                                                    .rounding(egui::Rounding::same(3.0))
+                                                    .rounding(3.0)
                                                     .show(ui)
                                                     .clicked()
                                                 {
@@ -478,12 +483,12 @@ You can view your key again in the settings."#
         let error_rect =
             egui::Rect::from_min_size(resp_bottom_left, ui.available_size_before_wrap());
 
-        let mut ui = ui.child_ui(
-            ui.available_rect_before_wrap(),
-            egui::Layout::top_down(egui::Align::LEFT),
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(ui.available_rect_before_wrap())
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
         );
-        ui.allocate_ui_at_rect(error_rect, |ui| {
+        ui.scope_builder(UiBuilder::new().max_rect(error_rect), |ui| {
             if let Some(err) = &maybe_err {
                 egui::ScrollArea::vertical()
                     .max_height(100.0)
@@ -548,7 +553,10 @@ You can view your key again in the settings."#
         let ctx = ctx.clone();
 
         thread::spawn(move || {
-            if let Err(err) = core.import_account(&key, None) {
+            let api_url =
+                std::env::var("API_URL").unwrap_or_else(|_| DEFAULT_API_LOCATION.to_string());
+
+            if let Err(err) = core.import_account(&key, Some(&api_url)) {
                 tx.send(Update::AccountImported(Some(err))).unwrap();
                 ctx.request_repaint();
                 return;

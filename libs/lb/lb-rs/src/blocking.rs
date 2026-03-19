@@ -267,7 +267,7 @@ impl Lb {
     }
 
     pub fn validate(&self) -> LbResult<Vec<Warning>> {
-        self.block_on(self.lb.test_repo_integrity())
+        self.block_on(self.lb.test_repo_integrity(true))
     }
 
     pub fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
@@ -350,7 +350,7 @@ impl Lb {
 
     #[cfg(not(target_family = "wasm"))]
     pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
-        self.rt.block_on(self.lb.debug_info(os_info))
+        self.rt.block_on(self.lb.debug_info(os_info, true))
     }
 
     pub fn recent_panic(&self) -> LbResult<bool> {

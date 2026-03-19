@@ -193,7 +193,7 @@ pub struct CPoint {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum CTextGranularity {
     Character = 0,
     Word = 1,
@@ -206,7 +206,7 @@ pub enum CTextGranularity {
 impl From<CTextGranularity> for Bound {
     fn from(val: CTextGranularity) -> Bound {
         match val {
-            CTextGranularity::Character => Bound::Char,
+            CTextGranularity::Character => unimplemented!(),
             CTextGranularity::Word => Bound::Word,
             CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
             CTextGranularity::Paragraph => Bound::Paragraph,

@@ -1,30 +1,15 @@
-use std::sync::Arc;
-
 use comrak::nodes::AstNode;
-use egui::{FontFamily, FontId, Pos2, TextFormat, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_subscript(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_subscript(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        let parent_row_height = self.row_height(parent);
-
-        let family = if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Bold")) {
-            FontFamily::Name(Arc::from("BoldSub"))
-        } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("Mono")) {
-            FontFamily::Name(Arc::from("MonoSub"))
-        } else {
-            FontFamily::Name(Arc::from("SansSub"))
-        };
-        TextFormat {
-            font_id: FontId { family, ..parent_text_format.font_id },
-            line_height: Some(parent_row_height),
-            ..parent_text_format
-        }
+        Format { subscript: true, ..parent_text_format }
     }
 
     pub fn span_subscript(
@@ -37,8 +22,7 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let mut text_format_syntax = self.text_format_syntax(node);
-        text_format_syntax.font_id.size = self.text_format(node.parent().unwrap()).font_id.size;
+        let text_format_syntax = self.text_format_syntax();
 
         let mut response = Default::default();
 
@@ -51,7 +35,6 @@ impl<'ast> Editor {
                         wrap,
                         prefix_range,
                         text_format_syntax.clone(),
-                        false,
                     );
                 }
             }
@@ -62,14 +45,8 @@ impl<'ast> Editor {
         if self.node_intersects_selection(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
-                    response |= self.show_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        postfix_range,
-                        text_format_syntax,
-                        false,
-                    );
+                    response |=
+                        self.show_section(ui, top_left, wrap, postfix_range, text_format_syntax);
                 }
             }
         }

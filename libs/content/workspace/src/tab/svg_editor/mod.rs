@@ -9,6 +9,8 @@ mod roger;
 mod toolbar;
 mod tools;
 mod util;
+
+use egui::UiBuilder;
 use web_time::Instant;
 
 use self::history::History;
@@ -67,7 +69,7 @@ pub struct ViewportSettings {
     /// the drawable rect in the viewport-transformed plane.
     /// **only defined if there's a lock**
     pub bounded_rect: Option<egui::Rect>,
-    /// the intersection of the bounded rect and the current screen rect  
+    /// the intersection of the bounded rect and the current screen rect
     pub working_rect: egui::Rect,
     pub viewport_transform: Option<Transform>,
     pub master_transform: Transform,
@@ -214,6 +216,9 @@ impl SVGEditor {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
 
+        let span = span!(Level::TRACE, "showing canvas widget");
+        let _ = span.enter();
+
         self.viewport_settings.container_rect = ui.available_rect_before_wrap();
         self.input_ctx.update(ui);
         self.buffer.weak_viewport_settings = self.viewport_settings.into();
@@ -289,12 +294,17 @@ impl SVGEditor {
             read_only: self.read_only,
         };
 
-        ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Middle, id: egui::Id::from("canvas_ui_overlay") },
+        ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Middle,
+                id: egui::Id::from("canvas_ui_overlay"),
+            }),
             |ui| {
-                let mut ui =
-                    ui.child_ui(ui.available_rect_before_wrap(), egui::Layout::default(), None);
-
+                let mut ui = ui.new_child(
+                    UiBuilder::new()
+                        .max_rect(ui.available_rect_before_wrap())
+                        .layout(egui::Layout::default()),
+                );
                 self.toolbar
                     .show(&mut ui, &mut toolbar_context, &mut self.has_islands_interaction)
             },
@@ -420,8 +430,8 @@ impl SVGEditor {
 }
 
 fn set_style(ui: &mut egui::Ui) {
-    let toolbar_margin = egui::Margin::symmetric(15.0, 7.0);
-    ui.visuals_mut().window_rounding = egui::Rounding::same(30.0);
+    let toolbar_margin = egui::Margin::symmetric(15, 7);
+    ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(30);
     ui.style_mut().spacing.window_margin = toolbar_margin;
     ui.style_mut()
         .text_styles
@@ -442,9 +452,9 @@ fn set_style(ui: &mut egui::Ui) {
         ui.visuals_mut().window_stroke =
             egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
         ui.visuals_mut().window_shadow = egui::Shadow {
-            offset: egui::vec2(1.0, 8.0),
-            blur: 20.0,
-            spread: 0.0,
+            offset: [1, 8],
+            blur: 20,
+            spread: 0,
             color: egui::Color32::from_black_alpha(10),
         };
         ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;

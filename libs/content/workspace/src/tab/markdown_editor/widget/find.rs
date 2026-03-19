@@ -30,7 +30,7 @@ impl Find {
         let resp = if self.term.is_some() {
             Frame::canvas(ui.style())
                 .stroke(Stroke::NONE)
-                .inner_margin(Margin::symmetric(10., 10.))
+                .inner_margin(Margin::symmetric(10, 10))
                 .show(ui, |ui| self.show_inner(&buffer.current.text, ui))
                 .inner
         } else {

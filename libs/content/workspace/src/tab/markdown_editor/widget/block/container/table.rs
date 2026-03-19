@@ -3,8 +3,8 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -16,14 +16,14 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 height += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.new_wrap(self.width(node)),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
-                height += BLOCK_SPACING;
+                height += self.layout.block_spacing;
             }
             if height > 0. {
-                height -= BLOCK_SPACING;
+                height -= self.layout.block_spacing;
             }
 
             height
@@ -40,18 +40,11 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = Wrap::new(self.width(node));
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    node_line,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                let mut wrap = self.new_wrap(self.width(node));
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
 
                 top_left.y += wrap.height();
-                top_left.y += BLOCK_SPACING;
+                top_left.y += self.layout.block_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         } else {
@@ -63,25 +56,9 @@ impl<'ast> Editor {
             ui.painter().rect_stroke(
                 table,
                 2.,
-                Stroke { width: 1., color: self.theme.bg().neutral_tertiary },
+                Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() },
+                egui::epaint::StrokeKind::Inside,
             );
-        }
-    }
-
-    pub fn compute_bounds_table(&mut self, node: &'ast AstNode<'ast>) {
-        if self.reveal_table(node) {
-            for line_idx in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
-            }
-        } else {
-            let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
-            let delimiter_row_line = self.bounds.source_lines[delimiter_row_line_idx];
-            let delimiter_row_node_line = self.node_line(node, delimiter_row_line);
-            self.bounds.paragraphs.push(delimiter_row_node_line);
-
-            self.compute_bounds_block_children(node);
         }
     }
 

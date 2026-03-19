@@ -1,5 +1,5 @@
 use crate::tab::markdown_editor::{self, Editor};
-use comrak::nodes::{ListType, NodeHeading, NodeLink, NodeList, NodeValue};
+use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
 use markdown_editor::input::{Advance, Bound, Event, Increment, Region};
@@ -18,15 +18,17 @@ impl From<Modifiers> for Advance {
         } else if should_jump_word {
             Advance::Next(Bound::Word)
         } else {
-            Advance::Next(Bound::Char)
+            Advance::By(Increment::Char)
         }
     }
 }
 
 const PAGE_LINES: usize = 50;
 
-impl Editor {
-    pub fn translate_egui_keyboard_event(&self, event: egui::Event) -> Option<Event> {
+impl<'ast> Editor {
+    pub fn translate_egui_keyboard_event(
+        &self, event: egui::Event, root: &'ast AstNode<'ast>,
+    ) -> Option<Event> {
         match event {
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown) =>
@@ -68,8 +70,10 @@ impl Editor {
                     return None;
                 }
 
+                let text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
+
                 // with text selected, pasting a link turns selected text into a
-                // markdown link
+                // markdown link...
                 let mut link_paste = false;
                 if !self.buffer.current.selection.is_empty() {
                     // use comrak's auto-link detector
@@ -88,19 +92,26 @@ impl Editor {
                         }
                     }
                 }
+
+                // ...unless we're already in a link
+                for descendant in root.descendants() {
+                    if matches!(descendant.data().value, NodeValue::Link(_))
+                        && self
+                            .node_range(descendant)
+                            .intersects(&self.buffer.current.selection, false)
+                    {
+                        link_paste = false;
+                        break;
+                    }
+                }
+
                 if link_paste {
                     Some(Event::ToggleStyle {
                         region: Region::Selection,
-                        style: NodeValue::Link(
-                            NodeLink { url: text.clone(), ..Default::default() }.into(),
-                        ),
+                        style: NodeValue::Link(NodeLink { url: text, ..Default::default() }.into()),
                     })
                 } else {
-                    Some(Event::Replace {
-                        region: Region::Selection,
-                        text: text.clone(),
-                        advance_cursor: true,
-                    })
+                    Some(Event::Replace { region: Region::Selection, text, advance_cursor: true })
                 }
             }
             egui::Event::Text(text) => {
@@ -445,4 +456,3 @@ impl Editor {
         }
     }
 }
-impl Event {}

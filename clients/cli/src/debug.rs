@@ -10,7 +10,7 @@ pub async fn validate() -> CliResult<()> {
     ensure_account(&lb)?;
 
     let warnings = lb
-        .test_repo_integrity()
+        .test_repo_integrity(true)
         .await
         .map_err(|err| CliError::from(format!("validating: {err:?}")))?;
     if warnings.is_empty() {
@@ -56,6 +56,11 @@ pub async fn whereami() -> Result<(), CliError> {
 #[tokio::main]
 pub async fn debug_info() -> Result<(), CliError> {
     let lb = &core().await?;
-    println!("{}", lb.debug_info("None Provided".to_string()).await.to_string());
+    println!(
+        "{}",
+        lb.debug_info("None Provided".to_string(), true)
+            .await
+            .to_string()
+    );
     Ok(())
 }

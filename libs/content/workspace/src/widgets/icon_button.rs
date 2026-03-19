@@ -1,6 +1,6 @@
 use egui::{Response, Sense, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 
-use crate::theme::icons::Icon;
+use crate::theme::{icons::Icon, palette_v2::ThemeExt};
 
 /// A button with only an icon. Has a background when hovered. Colored when clicked.
 /// Supports an optional tooltip.
@@ -40,6 +40,7 @@ impl IconButton {
 
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
+        let theme = ui.ctx().get_lb_theme();
 
         let icon_text: WidgetText = (&self.icon).into();
         let galley =
@@ -56,23 +57,26 @@ impl IconButton {
             if self.disabled { Sense::hover() } else { Sense::click() },
         );
 
-        if resp.hovered() {
-            ui.painter()
-                .rect(rect, 2., ui.visuals().code_bg_color, egui::Stroke::NONE);
+        if resp.hovered() && !self.disabled {
+            ui.painter().rect(
+                rect,
+                2.,
+                theme.neutral_bg_secondary(),
+                egui::Stroke::NONE,
+                egui::epaint::StrokeKind::Inside,
+            );
             ui.output_mut(|o: &mut egui::PlatformOutput| {
                 o.cursor_icon = egui::CursorIcon::PointingHand
             });
         }
 
-        let mut icon_color = if self.colored || resp.is_pointer_button_down_on() {
-            ui.visuals().widgets.active.bg_fill
+        let icon_color = if self.colored || resp.is_pointer_button_down_on() {
+            theme.fg().get_color(theme.prefs().primary)
+        } else if !self.disabled {
+            theme.neutral_fg()
         } else {
-            ui.visuals().text_color()
+            theme.neutral()
         };
-
-        if self.disabled {
-            icon_color = icon_color.gamma_multiply(0.5);
-        }
 
         ui.painter().galley(
             ((rect.min - galley.mesh_bounds.min)
@@ -84,7 +88,7 @@ impl IconButton {
 
         if let Some(tooltip) = &self.tooltip {
             ui.ctx()
-                .style_mut(|s| s.visuals.menu_rounding = (2.).into());
+                .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
             resp = resp.on_hover_ui(|ui| {
                 let text: WidgetText = (tooltip).into();
                 let text = text.clone().into_galley(

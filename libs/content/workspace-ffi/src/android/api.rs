@@ -1,4 +1,4 @@
-use egui::{PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase};
+use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
 use jni::sys::{jboolean, jfloat, jfloatArray, jint, jlong, jobjectArray, jstring};
@@ -106,11 +106,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
 ) {
     let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Start,
-        pos: Pos2 { x, y },
+        pos,
         force: get_force(pressure),
     });
 
@@ -118,7 +119,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
         .raw_input
         .events
         .push(egui::Event::PointerButton {
-            pos: Pos2 { x, y },
+            pos,
             button: PointerButton::Primary,
             pressed: true,
             modifiers: Default::default(),
@@ -131,18 +132,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Move,
-        pos: Pos2 { x, y },
+        pos,
         force: get_force(pressure),
     });
 
     obj.renderer
         .raw_input
         .events
-        .push(egui::Event::PointerMoved(Pos2 { x, y }));
+        .push(egui::Event::PointerMoved(pos));
 }
 
 #[no_mangle]
@@ -151,11 +153,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::End,
-        pos: Pos2 { x, y },
+        pos,
         force: get_force(pressure),
     });
 
@@ -163,7 +166,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
         .raw_input
         .events
         .push(egui::Event::PointerButton {
-            pos: Pos2 { x, y },
+            pos,
             button: PointerButton::Primary,
             pressed: false,
             modifiers: Default::default(),
@@ -178,11 +181,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
         phase: TouchPhase::Cancel,
-        pos: Pos2 { x, y },
+        pos,
         force: get_force(pressure),
     });
 

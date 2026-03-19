@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use egui::TextStyle;
 use egui_extras::{Size, StripBuilder};
 use lb::blocking::Lb;
-use lb::service::debug::DebugInfoDisplay;
+use lb::service::debug::DebugInfoDisplay as _;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::separator;
 use workspace_rs::workspace::WsPersistentStore;
@@ -99,10 +99,10 @@ impl SettingsModal {
     }
 
     fn show_tab_labels(&mut self, ui: &mut egui::Ui) {
-        egui::Frame::none()
+        egui::Frame::new()
             .fill(ui.visuals().faint_bg_color)
-            .rounding(egui::Rounding {
-                sw: ui.style().visuals.window_rounding.sw,
+            .corner_radius(egui::CornerRadius {
+                sw: ui.style().visuals.window_corner_radius.sw,
                 ..Default::default()
             })
             .show(ui, |ui| {

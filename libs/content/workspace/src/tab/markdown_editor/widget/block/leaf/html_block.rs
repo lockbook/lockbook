@@ -1,10 +1,11 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Pos2, TextFormat, Ui};
+use egui::{Pos2, Ui};
 
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 impl<'ast> Editor {
-    pub fn text_format_html_block(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_html_block(&self, parent: &AstNode<'_>) -> Format {
         self.text_format_code_block(parent)
     }
 
@@ -24,9 +25,5 @@ impl<'ast> Editor {
             &NodeCodeBlock { info: "html".into(), ..Default::default() },
             true,
         );
-    }
-
-    pub fn compute_bounds_html_block(&mut self, node: &'ast AstNode<'ast>) {
-        self.compute_bounds_indented_code_block(node, true);
     }
 }

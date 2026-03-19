@@ -10,7 +10,7 @@ async fn new_file() {
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert::local_work_paths(&core, &["/document"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -22,7 +22,7 @@ async fn new_files() {
     assert::all_paths(&core, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]).await;
     assert::all_document_contents(&core, &[("/a/b/c/d", b"")]).await;
     assert::local_work_paths(&core, &["/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -37,7 +37,7 @@ async fn edited_document() {
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"document content")]).await;
     assert::local_work_paths(&core, &["/document"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -54,7 +54,7 @@ async fn edit_unedit() {
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert::local_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -68,7 +68,7 @@ async fn mv() {
     assert::all_paths(&core, &["/", "/folder/", "/folder/document"]).await;
     assert::all_document_contents(&core, &[("/folder/document", b"")]).await;
     assert::local_work_paths(&core, &["/folder/document"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -85,7 +85,7 @@ async fn move_unmove() {
     assert::all_paths(&core, &["/", "/folder/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert::local_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -98,7 +98,7 @@ async fn rename() {
     assert::all_paths(&core, &["/", "/document2"]).await;
     assert::all_document_contents(&core, &[("/document2", b"")]).await;
     assert::local_work_paths(&core, &["/document2"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -112,7 +112,7 @@ async fn rename_unrename() {
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
     assert::local_work_paths(&core, &[]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -125,7 +125,7 @@ async fn delete() {
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert::local_work_paths(&core, &["/document"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -138,7 +138,7 @@ async fn delete_parent() {
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert::local_work_paths(&core, &["/parent/"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }
 
@@ -153,6 +153,6 @@ async fn delete_grandparent() {
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
     assert::local_work_paths(&core, &["/grandparent/"]).await;
-    core.test_repo_integrity().await.unwrap();
+    core.test_repo_integrity(true).await.unwrap();
     assert::server_work_paths(&core, &[]).await;
 }

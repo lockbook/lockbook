@@ -18,7 +18,7 @@ pub const MAX_USERNAME_LENGTH: usize = 32;
 pub const BETA_USERS: &[&str] = &[
     "parth",
     "travis",
-    "smailbarkouch",
+    "smail",
     "adam",
     "krish",
     "aravd",
@@ -29,6 +29,7 @@ pub const BETA_USERS: &[&str] = &[
     "chetna",
     "chefbowyer",
     "raayan",
+    "praful",
 ];
 
 pub type Username = String;

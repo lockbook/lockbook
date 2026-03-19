@@ -30,16 +30,12 @@
 
   <screenshots>
       <screenshot type="default">
-          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/linux-screenshot1.png</image>
-          <caption>linux</caption>
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-dark-theme-screenshot.png</image>
+          <caption>dark theme</caption>
       </screenshot>
       <screenshot>
-          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/ios-screenshot.png</image>
-          <caption>ios</caption>
-      </screenshot>
-      <screenshot>
-          <image type="source">https://raw.githubusercontent.com/lockbook/net.lockbook.Lockbook/master/screenshots/android-screenshot.png</image>
-          <caption>android</caption>
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-light-theme-screenshot.png</image>
+          <caption>light theme</caption>
       </screenshot>
   </screenshots>
 

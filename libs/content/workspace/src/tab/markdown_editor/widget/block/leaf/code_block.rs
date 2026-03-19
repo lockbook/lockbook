@@ -1,43 +1,21 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::sync::Arc;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
-use egui::{Color32, FontFamily, FontId, Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_PADDING, ROW_SPACING};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
-    pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        let parent_row_height = self
-            .ctx
-            .fonts(|fonts| fonts.row_height(&parent_text_format.font_id));
-
-        let family =
-            if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSuper")) {
-                FontFamily::Name(Arc::from("MonoSuper"))
-            } else if parent_text_format.font_id.family == FontFamily::Name(Arc::from("SansSub")) {
-                FontFamily::Name(Arc::from("MonoSub"))
-            } else {
-                FontFamily::Monospace
-            };
-
-        let monospace_row_height = self.ctx.fonts(|fonts| {
-            fonts.row_height(&FontId { family: family.clone(), ..parent_text_format.font_id })
-        });
-        let monospace_row_height_preserving_size =
-            parent_text_format.font_id.size * parent_row_height / monospace_row_height;
-        TextFormat {
-            font_id: FontId { size: monospace_row_height_preserving_size, family },
-            line_height: Some(parent_row_height),
-            ..parent_text_format
-        }
+        Format { family: FontFamily::Mono, ..parent_text_format }
     }
 
     pub fn height_code_block(
@@ -64,10 +42,10 @@ impl<'ast> Editor {
     pub fn height_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
-        let width = self.width(node) - 2. * BLOCK_PADDING;
+        let width = self.width(node) - 2. * self.layout.block_padding;
 
-        let mut result = BLOCK_PADDING;
-        result -= ROW_SPACING;
+        let mut result = self.layout.block_padding;
+        result -= self.layout.row_spacing;
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -83,20 +61,20 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    result += ROW_SPACING;
+                    result += self.layout.row_spacing;
                     result += self.height_section(
-                        &mut Wrap::new(width),
+                        &mut self.new_wrap(width),
                         node_line,
-                        self.text_format_syntax(node),
+                        self.text_format_syntax(),
                     );
                 }
             } else {
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
                 result += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
 
-        result + BLOCK_PADDING
+        result + self.layout.block_padding
     }
 
     pub fn show_fenced_code_block(
@@ -107,13 +85,17 @@ impl<'ast> Editor {
         let height = self.height_fenced_code_block(node, node_code_block);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            egui::epaint::StrokeKind::Inside,
+        );
 
-        width -= 2. * BLOCK_PADDING;
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
-        top_left.y -= ROW_SPACING; // makes spacing logic simpler
+        width -= 2. * self.layout.block_padding;
+        top_left.x += self.layout.block_padding;
+        top_left.y += self.layout.block_padding;
+        top_left.y -= self.layout.row_spacing; // makes spacing logic simpler
 
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
@@ -129,21 +111,20 @@ impl<'ast> Editor {
 
             if is_opening_fence || is_closing_fence {
                 if reveal {
-                    top_left.y += ROW_SPACING;
-                    let mut wrap = Wrap::new(width);
+                    top_left.y += self.layout.row_spacing;
+                    let mut wrap = self.new_wrap(width);
                     self.show_section(
                         ui,
                         top_left,
                         &mut wrap,
                         node_line,
-                        self.text_format_syntax(node),
-                        false,
+                        self.text_format_syntax(),
                     );
                     top_left.y += wrap.height();
                     self.bounds.wrap_lines.extend(wrap.row_ranges);
                 }
             } else {
-                top_left.y += ROW_SPACING;
+                top_left.y += self.layout.row_spacing;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
                 top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
@@ -182,20 +163,20 @@ impl<'ast> Editor {
             if reveal {
                 let node_line = self.node_line(node, line);
                 result += self.height_section(
-                    &mut Wrap::new(self.width(node) - 2. * BLOCK_PADDING),
+                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
             } else {
                 result += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
             if line_idx != last_line_idx {
-                result += ROW_SPACING;
+                result += self.layout.row_spacing;
             }
         }
 
-        result + 2. * BLOCK_PADDING
+        result + 2. * self.layout.block_padding
     }
 
     // indented code blocks don't have an info string; the `info` parameter is
@@ -209,11 +190,15 @@ impl<'ast> Editor {
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter()
-            .rect_stroke(rect, 2., Stroke::new(1., self.theme.bg().neutral_tertiary));
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            egui::epaint::StrokeKind::Inside,
+        );
 
-        top_left.x += BLOCK_PADDING;
-        top_left.y += BLOCK_PADDING;
+        top_left.x += self.layout.block_padding;
+        top_left.y += self.layout.block_padding;
 
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
@@ -223,15 +208,8 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                let mut wrap = Wrap::new(width);
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    node_line,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                let mut wrap = self.new_wrap(width);
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
@@ -239,7 +217,7 @@ impl<'ast> Editor {
                 top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
-            top_left.y += ROW_SPACING;
+            top_left.y += self.layout.row_spacing;
         }
     }
 
@@ -307,14 +285,12 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
@@ -338,10 +314,9 @@ impl<'ast> Editor {
                 regions
             };
 
-            let mut text_format = self.text_format(node);
-            for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+            let text_format = self.text_format(node);
+            for (_, region) in regions {
+                // color doesn't matter for layout, just how the regions are divided
                 wrap.offset += self.span_section(&wrap, region, text_format.clone());
             }
         } else {
@@ -388,14 +363,12 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let syntax_theme =
-            if self.dark_mode { &self.syntax_dark_theme } else { &self.syntax_light_theme };
         let mut highlighter = self
             .syntax_set
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
 
-        let mut wrap = Wrap::new(self.width(node) - 2. * BLOCK_PADDING);
+        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         if let Some(highlighter) = highlighter.as_mut() {
             let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
@@ -427,18 +400,30 @@ impl<'ast> Editor {
                     &mut wrap,
                     code_line.start().into_range(),
                     text_format.clone(),
-                    false,
                 );
             }
             for (style, region) in regions {
-                text_format.color =
-                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b);
+                let theme = self.ctx.get_lb_theme();
 
-                self.show_section(ui, top_left, &mut wrap, region, text_format.clone(), false);
+                // theme file contains placeholder colors that we map here based on our theme
+                let hex =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
+                        .to_hex();
+                let hex = hex.strip_suffix("ff").unwrap(); // all colors reported with 100% transparency
+                text_format.color = match hex {
+                    "#000000" => theme.neutral_fg(),
+                    "#111111" => theme.neutral_fg_secondary(),
+                    "#222222" => theme.fg().get_color(theme.prefs().primary),
+                    "#333333" => theme.fg().get_color(theme.prefs().secondary),
+                    "#444444" => theme.fg().get_color(theme.prefs().tertiary),
+                    _ => theme.neutral_fg(),
+                };
+
+                self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
             }
         } else {
             // no syntax highlighting
-            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node), false);
+            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node));
         }
 
         self.bounds.wrap_lines.extend(wrap.row_ranges);
@@ -543,71 +528,5 @@ impl SyntaxHighlightCache {
     pub fn clear(&self) {
         self.map.borrow_mut().clear();
         self.used_this_frame.borrow_mut().clear();
-    }
-}
-
-impl<'ast> Editor {
-    pub fn compute_bounds_code_block(
-        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-    ) {
-        if node_code_block.fenced {
-            self.compute_bounds_fenced_code_block(node, node_code_block)
-        } else {
-            self.compute_bounds_indented_code_block(node, false)
-        }
-    }
-
-    pub fn compute_bounds_fenced_code_block(
-        &mut self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-    ) {
-        let reveal = self.reveal_fenced_code_block(node, node_code_block);
-        let first_line_idx = self.node_first_line_idx(node);
-        let last_line_idx = self.node_last_line_idx(node);
-
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            let node_line = self.node_line(node, line);
-
-            let is_opening_fence = line_idx == first_line_idx;
-            let is_closing_fence = line_idx == last_line_idx;
-
-            if is_opening_fence || is_closing_fence || reveal {
-                self.bounds.paragraphs.push(node_line);
-            } else {
-                self.compute_bounds_code_block_line(node, line);
-            }
-        }
-    }
-
-    pub fn compute_bounds_indented_code_block(
-        &mut self, node: &'ast AstNode<'ast>, synthetic: bool,
-    ) {
-        let reveal = self.reveal_indented_code_block(node, synthetic);
-
-        for line in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line];
-            if reveal {
-                let node_line = self.node_line(node, line);
-                self.bounds.paragraphs.push(node_line);
-            } else {
-                self.compute_bounds_code_block_line(node, line);
-            }
-        }
-    }
-
-    // todo: wrong for indented code blocks
-    fn compute_bounds_code_block_line(
-        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) {
-        let node_line = self.node_line(node, line);
-        let code_line = self.line_content(node.parent().unwrap(), line);
-
-        // Push bounds for indentation prefix
-        if code_line.start() > node_line.start() {
-            self.bounds
-                .paragraphs
-                .push((node_line.start(), code_line.start()));
-        }
-        self.bounds.paragraphs.push(code_line);
     }
 }

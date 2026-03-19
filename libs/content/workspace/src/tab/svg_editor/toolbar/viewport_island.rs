@@ -1,4 +1,4 @@
-use egui::Response;
+use egui::{Response, UiBuilder};
 use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
@@ -69,9 +69,9 @@ impl Toolbar {
         };
 
         let mut island_res = ui
-            .allocate_ui_at_rect(viewport_rect, |ui| {
+            .scope_builder(UiBuilder::new().max_rect(viewport_rect), |ui| {
                 egui::Frame::window(ui.style())
-                    .inner_margin(egui::Margin::symmetric(7.5, 3.5))
+                    .inner_margin(egui::Margin::symmetric(8, 4))
                     .show(ui, |ui| self.show_inner_island(ui, tlbr_ctx))
             })
             .inner
@@ -195,7 +195,7 @@ impl Toolbar {
                     }
                     ViewportPopover::ZoomStops => {
                         let parent_container = self.layout.zoom_pct_btn.unwrap_or(egui::Rect::ZERO);
-                        ui.visuals_mut().window_rounding /= 2.0;
+                        ui.visuals_mut().window_corner_radius /= 2.0;
                         let min = egui::pos2(
                             parent_container.center().x
                                 - self
@@ -219,12 +219,12 @@ impl Toolbar {
                 };
 
                 let popover_res = ui
-                    .allocate_ui_at_rect(popover_rect, |ui| {
+                    .scope_builder(UiBuilder::new().max_rect(popover_rect), |ui| {
                         egui::Frame::window(ui.style()).show(ui, |ui| {
                             ui.set_min_width(
                                 popover_rect.width()
-                                    - ui.style().spacing.window_margin.left
-                                    - ui.style().spacing.window_margin.right,
+                                    - ui.style().spacing.window_margin.left as f32
+                                    - ui.style().spacing.window_margin.right as f32,
                             );
 
                             match popover {
@@ -292,9 +292,9 @@ impl Toolbar {
                 tlbr_ctx.settings.background_color,
                 ui.visuals().dark_mode,
             ))
-            .inner_margin(egui::Margin::same(30.0))
-            .outer_margin(egui::Margin::symmetric(0.0, 5.0))
-            .rounding(ui.visuals().window_rounding / 2.0)
+            .inner_margin(egui::Margin::same(30))
+            .outer_margin(egui::Margin::symmetric(0, 5))
+            .corner_radius(ui.visuals().window_corner_radius / 2.0)
             .show(ui, |ui| {
                 // let's take the full width
                 ui.set_width(ui.available_width());
@@ -335,9 +335,9 @@ impl Toolbar {
                 // Draw the shadows
 
                 let shadow = egui::Shadow {
-                    offset: egui::vec2(0.0, 0.0),
-                    blur: 40.0,
-                    spread: 0.5,
+                    offset: [0, 0],
+                    blur: 40,
+                    spread: 0,
                     color: tlbr_ctx.settings.get_secondary_background_color(ui),
                 }
                 .as_shape(preview_rect, 0.0);
@@ -362,9 +362,21 @@ impl Toolbar {
                     preview_rect.max + egui::vec2(-preview_rect.width(), 100.0),
                 );
 
-                show_side_controls(ui, Side::Left, left_bound_rect, shadow.into(), tlbr_ctx);
-                show_side_controls(ui, Side::Right, right_bound_rect, shadow.into(), tlbr_ctx);
-                show_side_controls(ui, Side::Top, top_bound_rect, shadow.into(), tlbr_ctx);
+                show_side_controls(
+                    ui,
+                    Side::Left,
+                    left_bound_rect,
+                    shadow.clone().into(),
+                    tlbr_ctx,
+                );
+                show_side_controls(
+                    ui,
+                    Side::Right,
+                    right_bound_rect,
+                    shadow.clone().into(),
+                    tlbr_ctx,
+                );
+                show_side_controls(ui, Side::Top, top_bound_rect, shadow.clone().into(), tlbr_ctx);
                 show_side_controls(ui, Side::Bottom, bottom_bound_rect, shadow.into(), tlbr_ctx);
             });
 
@@ -471,6 +483,7 @@ fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarConte
                 } else {
                     egui::Stroke { width: 0.5, color: stroke_color }
                 },
+                egui::epaint::StrokeKind::Inside,
             );
             ui.add_space(5.0);
         }
@@ -516,8 +529,13 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
         if is_active {
             stroke.width = 2.0
         }
-        ui.painter()
-            .rect(dot_res.rect, 3.0, background_color, stroke);
+        ui.painter().rect(
+            dot_res.rect,
+            3.0,
+            background_color,
+            stroke,
+            egui::epaint::StrokeKind::Inside,
+        );
 
         show_dot_grid(dot_res.rect, transform, &ui.painter_at(dot_res.rect), Some(1.5));
 
@@ -538,8 +556,13 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
             stroke.width = 2.0
         };
 
-        ui.painter()
-            .rect(notebook_res.rect, 3.0, background_color, stroke);
+        ui.painter().rect(
+            notebook_res.rect,
+            3.0,
+            background_color,
+            stroke,
+            egui::epaint::StrokeKind::Inside,
+        );
 
         show_lines_background(
             false,
@@ -567,8 +590,13 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
             stroke.width = 2.0
         };
 
-        ui.painter()
-            .rect(grid_res.rect, 3.0, background_color, stroke);
+        ui.painter().rect(
+            grid_res.rect,
+            3.0,
+            background_color,
+            stroke,
+            egui::epaint::StrokeKind::Inside,
+        );
 
         show_lines_background(
             true,
@@ -596,8 +624,13 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
             stroke.width = 2.0
         };
 
-        ui.painter()
-            .rect(blank_res.rect, 3.0, background_color, stroke);
+        ui.painter().rect(
+            blank_res.rect,
+            3.0,
+            background_color,
+            stroke,
+            egui::epaint::StrokeKind::Inside,
+        );
 
         if blank_res.clicked() {
             tlbr_ctx.settings.background_type = BackgroundOverlay::Blank;
@@ -635,9 +668,9 @@ fn show_bring_back_btn(
             max: egui::Pos2 { x: bring_home_x_start, y: viewport_island_rect.bottom() },
         };
 
-        let res = ui.allocate_ui_at_rect(bring_home_rect, |ui| {
+        let res = ui.scope_builder(UiBuilder::new().max_rect(bring_home_rect), |ui| {
             egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(7.5, 3.5))
+                .inner_margin(egui::Margin::symmetric(8, 4))
                 .show(ui, |ui| {
                     ui.horizontal(|ui| {
                         let text_stroke = egui::Stroke {
@@ -741,7 +774,7 @@ fn show_side_controls(
     let mut locked_stroke = unlocked_stroke;
     locked_stroke.width = 1.4;
 
-    let child_ui = &mut ui.child_ui(rect, layout, None);
+    let child_ui = &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(layout));
 
     if !*is_locked {
         child_ui.set_clip_rect(rect);

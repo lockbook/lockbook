@@ -13,7 +13,9 @@ use raw_window_handle::{
     HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 use std::ptr::NonNull;
+use std::sync::{Arc, Mutex};
 use wgpu::SurfaceTargetUnsafe;
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
@@ -76,11 +78,23 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
 ) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
-    let renderer =
+    let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
-    visuals::init(&renderer.context, dark_mode);
+    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
+    workspace_rs::register_render_callback_resources(
+        &renderer.device,
+        &renderer.queue,
+        RendererState::text_format(&renderer.adapter, &renderer.surface),
+        &mut renderer.renderer,
+        font_system.clone(),
+        renderer.sample_count,
+    );
 
-    let workspace = Workspace::new(core, &renderer.context, false);
+    visuals::init(&renderer.context);
+    let mode = if dark_mode { Mode::Dark } else { Mode::Light };
+    renderer.context.set_lb_theme(Theme::default(mode));
+
+    let workspace = Workspace::new(core, &renderer.context, font_system, false);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
@@ -101,7 +115,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
 
     obj.renderer.screen.size_in_pixels[0] = native_window.get_width();
     obj.renderer.screen.size_in_pixels[1] = native_window.get_height();
-    obj.renderer.screen.pixels_per_point = scale_factor;
+    obj.renderer.set_native_pixels_per_point(scale_factor);
 }
 
 #[no_mangle]

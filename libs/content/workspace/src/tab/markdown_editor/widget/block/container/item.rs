@@ -1,13 +1,13 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::text::LayoutJob;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BULLET_RADIUS, INDENT, ROW_HEIGHT};
+
+use crate::theme::palette_v2::ThemeExt as _;
 
 // https://github.github.com/gfm/#list-items
 impl<'ast> Editor {
@@ -20,9 +20,9 @@ impl<'ast> Editor {
             let line_content = self.line_content(node, line);
 
             self.height_section(
-                &mut Wrap::new(self.width(node) - INDENT),
+                &mut self.new_wrap(self.width(node) - self.layout.indent),
                 line_content,
-                self.text_format_syntax(node),
+                self.text_format_syntax(),
             )
         }
     }
@@ -37,17 +37,16 @@ impl<'ast> Editor {
         };
         let NodeList { list_type, start, .. } = node_list;
 
-        let annotation_size = Vec2 { x: INDENT, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let mut annotation_text_format = self.text_format_syntax(node);
-        annotation_text_format.color = self.theme.fg().neutral_tertiary;
+        let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(
                     annotation_space.center(),
-                    BULLET_RADIUS * row_height / ROW_HEIGHT,
-                    annotation_text_format.color,
+                    self.layout.bullet_radius * row_height / self.layout.row_height,
+                    annotation_color,
                 );
             }
             ListType::Ordered => {
@@ -56,7 +55,14 @@ impl<'ast> Editor {
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
-                let layout_job = LayoutJob::single_section(text, annotation_text_format);
+                let layout_job = LayoutJob::single_section(
+                    text,
+                    TextFormat {
+                        font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
+                        color: annotation_color,
+                        ..Default::default()
+                    },
+                );
                 let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
                 ui.painter()
                     .galley(annotation_space.left_top(), galley, Default::default());
@@ -65,7 +71,7 @@ impl<'ast> Editor {
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
-            self.show_block_children(ui, node, top_left + INDENT * Vec2::X);
+            self.show_block_children(ui, node, top_left + self.layout.indent * Vec2::X);
 
             // todo: proper hit-testing (this ignores anything covering the space)
             let children_height = self.block_children_height(node);
@@ -76,14 +82,13 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            let mut wrap = Wrap::new(self.width(node) - INDENT);
+            let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);
             let resp = self.show_section(
                 ui,
-                top_left + INDENT * Vec2::X,
+                top_left + self.layout.indent * Vec2::X,
                 &mut wrap,
                 line_content,
-                self.text_format_syntax(node),
-                false,
+                self.text_format_syntax(),
             );
             self.bounds.wrap_lines.extend(wrap.row_ranges);
 
@@ -95,7 +100,7 @@ impl<'ast> Editor {
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
-            Self::fold_button_size_icon_size_space(top_left, row_height);
+            Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.touch_mode
             || hovered
             || fold_button_space.contains(pointer)
@@ -181,15 +186,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_item(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix (bullet/number annotation)
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            let line_own_prefix = self.line_own_prefix(node, line);
-
-            self.bounds.paragraphs.push(line_own_prefix);
-        }
-
-        // Handle children or line content
         let any_children = node.children().next().is_some();
         if any_children {
             self.compute_bounds_block_children(node);
@@ -197,7 +193,6 @@ impl<'ast> Editor {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
 
-            self.bounds.paragraphs.push(line_content);
             self.bounds.inline_paragraphs.push(line_content);
         }
     }

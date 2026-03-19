@@ -1,15 +1,16 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Rect, Stroke, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, INDENT};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
+
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
-    pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_block_quote(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
-        TextFormat { color: self.theme.fg().neutral_tertiary, ..parent_text_format }
+        Format { color: self.ctx.get_lb_theme().neutral_fg_secondary(), ..parent_text_format }
     }
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -25,12 +26,12 @@ impl<'ast> Editor {
                 let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
-                    result += BLOCK_SPACING;
+                    result += self.layout.block_spacing;
                 }
                 result += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.new_wrap(self.width(node)),
                     line_content,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
             }
         }
@@ -40,13 +41,13 @@ impl<'ast> Editor {
 
     pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let height = self.height(node);
-        let annotation_size = Vec2 { x: INDENT, y: height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         ui.painter().vline(
             annotation_space.center().x,
             annotation_space.y_range(),
-            Stroke::new(3., self.theme.bg().neutral_tertiary),
+            Stroke::new(3., self.ctx.get_lb_theme().neutral_bg_tertiary()),
         );
 
         top_left.x += annotation_space.width();
@@ -61,18 +62,11 @@ impl<'ast> Editor {
                 let line_content = self.line_content(node, line);
 
                 if line_idx != first_line_idx {
-                    top_left.y += BLOCK_SPACING;
+                    top_left.y += self.layout.block_spacing;
                 }
 
-                let mut wrap = Wrap::new(self.width(node));
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    line_content,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                let mut wrap = self.new_wrap(self.width(node));
+                self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
@@ -80,14 +74,6 @@ impl<'ast> Editor {
     }
 
     pub fn compute_bounds_block_quote(&mut self, node: &'ast AstNode<'ast>) {
-        // Push bounds for line prefix (vertical line annotation)
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            self.bounds
-                .paragraphs
-                .push(self.line_own_prefix(node, line));
-        }
-
         // Handle children or remaining lines
         let any_children = node.children().next().is_some();
         if any_children {
@@ -96,7 +82,6 @@ impl<'ast> Editor {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let line_content = self.line_content(node, line);
-                self.bounds.paragraphs.push(line_content);
                 self.bounds.inline_paragraphs.push(line_content);
             }
         }

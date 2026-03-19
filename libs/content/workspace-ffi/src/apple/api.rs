@@ -1,10 +1,10 @@
 use crate::WgpuWorkspace;
-use egui::{Event, MouseWheelUnit, Pos2, vec2};
+use egui::{Event, MouseWheelUnit, vec2};
 use lb_c::Uuid;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
-use workspace_rs::theme::visuals;
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 
 use super::response::*;
 
@@ -55,14 +55,21 @@ pub extern "C" fn request_sync(obj: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.renderer.screen.pixels_per_point = scale;
+    obj.renderer.set_native_pixels_per_point(scale);
 }
 
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    visuals::init(&obj.renderer.context, dark);
+    let mut theme = obj.renderer.context.get_lb_theme();
+    if dark {
+        theme.current = Mode::Dark;
+    } else {
+        theme.current = Mode::Light;
+    }
+
+    obj.renderer.context.set_lb_theme(theme);
 }
 
 /// # Safety
@@ -162,10 +169,8 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer
-        .raw_input
-        .events
-        .push(Event::PointerMoved(Pos2 { x, y }))
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.renderer.raw_input.events.push(Event::PointerMoved(pos))
 }
 
 /// # Safety

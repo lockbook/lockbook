@@ -1,0 +1,12 @@
+name: Deploy Flatpak
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Hello, world!"

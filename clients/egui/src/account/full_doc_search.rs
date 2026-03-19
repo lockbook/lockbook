@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, thread};
 
-use egui::{Id, Key, Modifiers};
+use egui::{Id, Key, Modifiers, UiBuilder, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -36,13 +36,12 @@ impl FullDocSearch {
     const ICON_WIDTH: f32 = 15.0;
 
     fn set_style(&self, ui: &mut egui::Ui) {
-        ui.visuals_mut().extreme_bg_color = ui.visuals().code_bg_color;
-        let rounding = 5.0.into();
-        ui.visuals_mut().widgets.active.rounding = rounding;
-        ui.visuals_mut().widgets.hovered.rounding = rounding;
-        ui.visuals_mut().widgets.inactive.rounding = rounding;
-        ui.visuals_mut().widgets.noninteractive.rounding = rounding;
-        ui.visuals_mut().widgets.open.rounding = rounding;
+        let corner_radius: egui::CornerRadius = 5.0.into();
+        ui.visuals_mut().widgets.active.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.hovered.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.inactive.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.noninteractive.corner_radius = corner_radius;
+        ui.visuals_mut().widgets.open.corner_radius = corner_radius;
 
         ui.visuals_mut().widgets.hovered.bg_stroke =
             egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
@@ -53,10 +52,10 @@ impl FullDocSearch {
 
     fn show_search_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) {
         let search_icon_width = Self::ICON_WIDTH + 7.0; // account for margin
-        let mut ui = ui.child_ui(
-            text_edit_rect.translate(egui::vec2(-(search_icon_width), 0.0)),
-            egui::Layout::default(),
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(text_edit_rect.translate(egui::vec2(-(search_icon_width), 0.0)))
+                .layout(egui::Layout::default()),
         );
         ui.visuals_mut().override_text_color = Some(ui.visuals().weak_text_color());
         Icon::SEARCH.show(&mut ui);
@@ -65,17 +64,19 @@ impl FullDocSearch {
     fn show_x_icon(&self, ui: &mut egui::Ui, text_edit_rect: egui::Rect) -> egui::Response {
         let x_margin = 7.0; // account for margin
 
-        let mut ui = ui.child_ui(
-            text_edit_rect.translate(egui::vec2(text_edit_rect.width() + x_margin, 0.0)),
-            egui::Layout {
-                main_dir: egui::Direction::LeftToRight,
-                main_wrap: false,
-                main_align: egui::Align::LEFT,
-                main_justify: false,
-                cross_align: egui::Align::Center,
-                cross_justify: true,
-            },
-            None,
+        let mut ui = ui.new_child(
+            UiBuilder::new()
+                .max_rect(
+                    text_edit_rect.translate(egui::vec2(text_edit_rect.width() + x_margin, 0.0)),
+                )
+                .layout(egui::Layout {
+                    main_dir: egui::Direction::LeftToRight,
+                    main_wrap: false,
+                    main_align: egui::Align::LEFT,
+                    main_justify: false,
+                    cross_align: egui::Align::Center,
+                    cross_justify: true,
+                }),
         );
         ui.visuals_mut().override_text_color = Some(ui.visuals().widgets.active.bg_fill);
         ui.visuals_mut().widgets.active.bg_fill = ui.visuals().widgets.hovered.bg_fill;
@@ -86,7 +87,7 @@ impl FullDocSearch {
     pub fn show(&mut self, ui: &mut egui::Ui, core: &Lb) -> Response {
         let mut resp = Response::default();
         let results_resp = egui::Frame::default()
-            .inner_margin(egui::Margin::symmetric(10.0, 10.0))
+            .inner_margin(egui::Margin::symmetric(10, 10))
             .show(ui, |ui| {
                 self.set_style(ui);
                 // draw the UI, get the query, possibly clear the query & search results
@@ -105,16 +106,24 @@ impl FullDocSearch {
 
                 let x_margin_with_icon = Self::X_MARGIN + Self::ICON_WIDTH;
                 let icon_shelf_width = 155.0;
+
+                let margin = egui::Margin::symmetric(x_margin_with_icon as i8, 6);
                 let output = egui::TextEdit::singleline(query.deref_mut())
                     .id(id)
                     .desired_width(ui.available_size_before_wrap().x - icon_shelf_width)
                     .hint_text("Search")
-                    .margin(egui::Margin::symmetric(x_margin_with_icon, 6.0))
+                    .margin(margin)
                     .show(ui);
 
                 resp.search_box_rect = Some(output.response.interact_rect);
 
-                self.show_search_icon(ui, output.response.rect);
+                self.show_search_icon(
+                    ui,
+                    output
+                        .response
+                        .rect
+                        .shrink2(Vec2::new(margin.leftf(), margin.topf())),
+                );
 
                 if !query.is_empty() && self.show_x_icon(ui, output.response.rect).clicked() {
                     if let Ok(mut results) = self.results.lock() {

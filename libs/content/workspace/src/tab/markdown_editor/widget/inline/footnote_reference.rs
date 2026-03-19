@@ -1,15 +1,16 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Sense, TextFormat, Ui};
+use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
-    pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> TextFormat {
-        TextFormat {
-            color: self.theme.fg().neutral_tertiary,
+    pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> Format {
+        Format {
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
             ..self.text_format_superscript(parent)
         }
     }
@@ -28,13 +29,13 @@ impl<'ast> Editor {
             let mut span = 0.0;
 
             if range.contains_range(&prefix_range, true, true) {
-                span += self.span_section(wrap, prefix_range, self.text_format_syntax(node));
+                span += self.span_section(wrap, prefix_range, self.text_format_syntax());
             }
             if range.contains_range(&infix_range, true, true) {
                 span += self.span_section(wrap, infix_range, self.text_format(node));
             }
             if range.contains_range(&postfix_range, true, true) {
-                span += self.span_section(wrap, postfix_range, self.text_format_syntax(node));
+                span += self.span_section(wrap, postfix_range, self.text_format_syntax());
             }
 
             span
@@ -42,7 +43,7 @@ impl<'ast> Editor {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
                 let text = format!("{ix}");
-                self.text_mid_span(wrap, Default::default(), &text, self.text_format(node))
+                self.text_mid_span(wrap, 0., &text, self.text_format(node))
             } else {
                 0.0
             }
@@ -64,34 +65,16 @@ impl<'ast> Editor {
 
         if self.node_intersects_selection(node) {
             if range.contains_range(&prefix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
             }
             if range.contains_range(&infix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    infix_range,
-                    self.text_format(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, infix_range, self.text_format(node));
             }
             if range.contains_range(&postfix_range, true, true) {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    postfix_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, postfix_range, self.text_format_syntax());
             }
         } else {
             let node_range = self.node_range(node);
@@ -103,9 +86,8 @@ impl<'ast> Editor {
                     wrap,
                     (node_range.end() - 1).into_range(),
                     self.text_format(node),
-                    false,
                     Some(&text),
-                    Sense { click: false, drag: false, focusable: false },
+                    Sense::hover(),
                 );
             }
         }

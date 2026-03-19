@@ -12,7 +12,7 @@ public class Lb {
     public static native String writePanicToFile(String errorHeader, String backtrace) throws LbError;
 
     public static native Account createAccount(String username, String apiUrl, boolean welcomeDoc) throws LbError;
-    public static native Account importAccount(String key) throws LbError;
+    public static native Account importAccount(String key, String apiUrl) throws LbError;
     public static native Account getAccount() throws LbError;
     public static native String exportAccountPrivateKey() throws LbError;
     public static native String exportAccountPhrase() throws LbError;

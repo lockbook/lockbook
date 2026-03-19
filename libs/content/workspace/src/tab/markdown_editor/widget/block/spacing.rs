@@ -2,8 +2,6 @@ use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 
 use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::BLOCK_SPACING;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 impl<'ast> Editor {
     pub fn block_pre_spacing_height(
@@ -41,7 +39,7 @@ impl<'ast> Editor {
             spacing_first_line
         } else {
             // prev sibling bottom -> spacing -> (empty row -> spacing)* -> first sibling top
-            result += BLOCK_SPACING;
+            result += self.layout.block_spacing;
 
             let prev_sibling = siblings[sibling_index - 1];
             self.node_last_line_idx(prev_sibling) + 1
@@ -53,9 +51,12 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            result +=
-                self.height_section(&mut Wrap::new(width), node_line, self.text_format_document());
-            result += BLOCK_SPACING;
+            result += self.height_section(
+                &mut self.new_wrap(width),
+                node_line,
+                self.text_format_document(),
+            );
+            result += self.layout.block_spacing;
         }
 
         result
@@ -94,7 +95,7 @@ impl<'ast> Editor {
             spacing_first_line
         } else {
             // prev sibling bottom -> spacing -> (empty row -> spacing)* -> first sibling top
-            top_left.y += BLOCK_SPACING;
+            top_left.y += self.layout.block_spacing;
 
             let prev_sibling = siblings[sibling_index - 1];
             self.node_last_line_idx(prev_sibling) + 1
@@ -106,17 +107,10 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            let mut wrap = Wrap::new(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_document(),
-                false,
-            );
+            let mut wrap = self.new_wrap(width);
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
             top_left.y += wrap.height();
-            top_left.y += BLOCK_SPACING;
+            top_left.y += self.layout.block_spacing;
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
@@ -151,10 +145,13 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            result += BLOCK_SPACING;
+            result += self.layout.block_spacing;
 
-            result +=
-                self.height_section(&mut Wrap::new(width), node_line, self.text_format_document());
+            result += self.height_section(
+                &mut self.new_wrap(width),
+                node_line,
+                self.text_format_document(),
+            );
         }
 
         result
@@ -189,17 +186,10 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
-            top_left.y += BLOCK_SPACING;
+            top_left.y += self.layout.block_spacing;
 
-            let mut wrap = Wrap::new(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line,
-                self.text_format_document(),
-                false,
-            );
+            let mut wrap = self.new_wrap(width);
+            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
             top_left.y += wrap.height();
             self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
@@ -241,7 +231,6 @@ impl<'ast> Editor {
         for line_idx in spacing_first_line..node_first_line {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }
@@ -271,7 +260,6 @@ impl<'ast> Editor {
         for line_idx in (node_last_line + 1)..=parent_last_line {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-            self.bounds.paragraphs.push(node_line);
             self.bounds.inline_paragraphs.push(node_line);
         }
     }

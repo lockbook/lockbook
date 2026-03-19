@@ -6,9 +6,8 @@ use super::message::{MessageAppDep, Point};
 
 pub fn handle(
     app: &mut WgpuLockbook, message: MessageAppDep, pos: Point<u16>, modifiers: egui::Modifiers,
-    dpi_scale: f32,
 ) -> bool {
-    let pos = egui::Pos2 { x: pos.x as f32 / dpi_scale, y: pos.y as f32 / dpi_scale };
+    let pos = app.renderer.pos_from_pixels(pos.x as f32, pos.y as f32);
 
     if matches!(message, MessageAppDep::MouseMove { .. }) {
         app.renderer

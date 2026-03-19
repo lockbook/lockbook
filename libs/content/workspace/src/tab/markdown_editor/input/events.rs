@@ -23,7 +23,7 @@ impl<'ast> Editor {
         for event in self.get_workspace_events(ctx) {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
-        for event in self.get_key_events(ctx) {
+        for event in self.get_key_events(ctx, root) {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_pointer_events(ctx) {
@@ -76,7 +76,7 @@ impl<'ast> Editor {
         result
     }
 
-    fn get_key_events(&self, ctx: &Context) -> Vec<Event> {
+    fn get_key_events(&self, ctx: &Context, root: &'ast AstNode<'ast>) -> Vec<Event> {
         if self.focused(ctx) {
             ctx.input(|r| {
                 r.filtered_events(&EventFilter {
@@ -87,7 +87,7 @@ impl<'ast> Editor {
                 })
             })
             .into_iter()
-            .filter_map(|e| self.translate_egui_keyboard_event(e))
+            .filter_map(|e| self.translate_egui_keyboard_event(e, root))
             .collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -105,7 +105,7 @@ impl<'ast> Editor {
             }
 
             ctx.style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
-            ctx.style_mut(|s| s.visuals.menu_rounding = (2.).into());
+            ctx.style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
             ctx.style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
             ctx.style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
             if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
@@ -122,7 +122,7 @@ impl<'ast> Editor {
                             .clicked()
                         {
                             context_menu_events.push(Event::Cut);
-                            ui.close_menu();
+                            ui.close();
                         }
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_COPY)
@@ -131,7 +131,7 @@ impl<'ast> Editor {
                             .clicked()
                         {
                             context_menu_events.push(Event::Copy);
-                            ui.close_menu();
+                            ui.close();
                         }
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_PASTE)
@@ -142,7 +142,7 @@ impl<'ast> Editor {
                         {
                             // paste must go through the window because we don't yet have the clipboard content
                             ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
-                            ui.close_menu();
+                            ui.close();
                         }
                     });
                 });
@@ -209,10 +209,18 @@ impl<'ast> Editor {
                     Some(self.region_to_range(Region::ToLocation(location)));
                 return Vec::new();
             } else if response.dragged() {
-                let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
-                let region =
-                    Region::BetweenLocations { start: Location::Pos(drag_origin), end: location };
-                self.in_progress_selection = Some(self.region_to_range(region));
+                if response.drag_started() {
+                    // convert drag origin on first frame so it doesn't update as we auto-scroll
+                    let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
+                    self.in_progress_selection =
+                        Some(self.region_to_range(Region::Location(Location::Pos(drag_origin))));
+                }
+
+                let offset = self.location_to_char_offset(location);
+                if let Some(in_progress_selection) = &mut self.in_progress_selection {
+                    in_progress_selection.1 = offset;
+                }
+
                 return Vec::new();
             } else {
                 // can't yet tell if drag

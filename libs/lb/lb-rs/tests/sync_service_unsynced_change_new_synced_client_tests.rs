@@ -4,7 +4,7 @@ use test_utils::*;
 /// Tests that setup two synced clients, operate on one client, and sync it without syncing the
 /// other client.
 async fn assert_stuff(c: &Lb) {
-    c.test_repo_integrity().await.unwrap();
+    c.test_repo_integrity(true).await.unwrap();
     assert::local_work_paths(c, &[]).await;
 }
 

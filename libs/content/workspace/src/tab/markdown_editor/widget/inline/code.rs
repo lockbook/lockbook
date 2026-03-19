@@ -1,16 +1,20 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, TextFormat, Ui};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> Editor {
-    pub fn text_format_code(&self, parent: &AstNode<'_>) -> TextFormat {
-        TextFormat {
-            color: self.theme.fg().accent_secondary,
-            background: self.theme.bg().neutral_secondary,
+    pub fn text_format_code(&self, parent: &AstNode<'_>) -> Format {
+        let theme = self.ctx.get_lb_theme();
+        Format {
+            color: theme.fg().get_color(theme.prefs().primary),
+            background: theme.neutral_bg_secondary(),
+            border: theme.neutral_bg_tertiary(),
+            bold: false, // SF Mono does not have bold variants for numbers (it does have italic)
             ..self.text_format_code_block(parent)
         }
     }
@@ -30,23 +34,23 @@ impl<'ast> Editor {
 
         if !prefix_range.is_empty() && reveal {
             tmp_wrap.offset +=
-                self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax(node));
+                self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax());
         }
         if !infix_range.is_empty() {
-            let pre_span = self.text_pre_span(&tmp_wrap, text_format.clone());
+            let pre_span = self.text_pre_span(&tmp_wrap, &text_format);
             let mid_span = self.text_mid_span(
                 &tmp_wrap,
                 pre_span,
                 &self.buffer[infix_range],
                 text_format.clone(),
             );
-            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, text_format);
+            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, &text_format);
 
             tmp_wrap.offset += pre_span + mid_span + post_span;
         }
         if !postfix_range.is_empty() && reveal {
             tmp_wrap.offset +=
-                self.span_section(&tmp_wrap, postfix_range, self.text_format_syntax(node));
+                self.span_section(&tmp_wrap, postfix_range, self.text_format_syntax());
         }
 
         tmp_wrap.offset - wrap.offset
@@ -69,14 +73,8 @@ impl<'ast> Editor {
             // prefix range is empty when it's trimmed to 0 because we're not
             // rendering the line containing the prefix
             if reveal {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                response |=
+                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
             } else {
                 // when syntax is captured, show an empty range
                 // representing the beginning of the prefix, so that clicking
@@ -87,20 +85,22 @@ impl<'ast> Editor {
                     top_left,
                     wrap,
                     prefix_range.start().into_range(),
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             }
         }
         if !infix_range.is_empty() {
-            let sense = self.sense_inline(ui, node);
+            let sense = if self.inline_clickable(ui, node) {
+                egui::Sense::click()
+            } else {
+                egui::Sense::hover()
+            };
             response |= self.show_override_section(
                 ui,
                 top_left,
                 wrap,
                 infix_range,
                 self.text_format(node),
-                false,
                 None,
                 sense,
             );
@@ -114,8 +114,7 @@ impl<'ast> Editor {
                     top_left,
                     wrap,
                     postfix_range.trim(&range),
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             } else {
                 // when syntax is captured, show an empty range
@@ -127,8 +126,7 @@ impl<'ast> Editor {
                     top_left,
                     wrap,
                     postfix_range.end().into_range(),
-                    self.text_format_syntax(node),
-                    false,
+                    self.text_format_syntax(),
                 );
             }
         }

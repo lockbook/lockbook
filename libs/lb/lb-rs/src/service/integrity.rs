@@ -12,7 +12,7 @@ use crate::model::errors::{LbErrKind, LbResult, Warning};
 
 impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub async fn test_repo_integrity(&self) -> LbResult<Vec<Warning>> {
+    pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
@@ -35,6 +35,10 @@ impl Lb {
         }
 
         drop(tx);
+
+        if !check_docs {
+            return Ok(vec![]);
+        }
 
         let mut warnings = Vec::new();
         let mut tasks = vec![];

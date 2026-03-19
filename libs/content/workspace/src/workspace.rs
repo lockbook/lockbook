@@ -1,8 +1,7 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
-use crate::file_cache::{FileCache, FilesExt};
-use crate::landing::LandingPage;
+use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -16,14 +15,14 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use tracing::{debug, error, info, instrument, trace, warn};
 use web_time::{Duration, Instant};
 
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence};
+use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -61,22 +60,28 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
+    pub font_system: Arc<Mutex<FontSystem>>,
+
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
+    pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
+    pub fn new(
+        core: &Lb, ctx: &Context, font_system: Arc<Mutex<FontSystem>>, show_tabs: bool,
+    ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files = FileCache::new(core).log_and_ignore();
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+        ctx.set_zoom_factor(cfg.get_zoom_factor());
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -96,9 +101,12 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             core: core.clone(),
+            font_system,
+
             show_tabs,
             focused_parent: Default::default(),
 
+            landing_page_first_frame: true,
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
             lb_rx: core.subscribe(),
@@ -317,7 +325,7 @@ impl Workspace {
         self.tabs.remove(i);
         self.out.tabs_changed = true;
 
-        if !self.tabs.is_empty() && self.current_tab >= self.tabs.len() {
+        if !self.tabs.is_empty() && (self.current_tab >= self.tabs.len() || i < self.current_tab) {
             self.current_tab -= 1;
         }
         self.current_tab_changed = true;
@@ -474,12 +482,15 @@ impl Workspace {
                             if !reload {
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
-                                        self.ctx.clone(),
-                                        core.clone(),
-                                        self.cfg.clone(),
                                         &String::from_utf8_lossy(&bytes),
                                         id,
                                         maybe_hmac,
+                                        MdResources {
+                                            ctx: self.ctx.clone(),
+                                            core: core.clone(),
+                                            persistence: self.cfg.clone(),
+                                            font_system: self.font_system.clone(),
+                                        },
                                         MdConfig {
                                             plaintext_mode: ext != "md",
                                             readonly: tab.read_only,
@@ -855,18 +866,19 @@ impl Workspace {
 #[derive(Clone)]
 pub struct WsPersistentStore {
     pub path: PathBuf,
-    data: Arc<RwLock<WsPresistentData>>,
+    pub data: Arc<RwLock<WsPresistentData>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
-struct WsPresistentData {
+pub struct WsPresistentData {
     open_tabs: Vec<Uuid>,
     current_tab: Option<Uuid>,
     canvas: CanvasSettings,
-    markdown: MdPersistence,
+    pub markdown: MdPersistence,
     auto_save: bool,
     auto_sync: bool,
     landing_page: LandingPage,
+    zoom_factor: f32,
 }
 
 impl Default for WsPresistentData {
@@ -879,6 +891,7 @@ impl Default for WsPresistentData {
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
+            zoom_factor: 1.,
         }
     }
 }
@@ -973,12 +986,22 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    fn write_to_file(&self) {
+    pub fn get_zoom_factor(&self) -> f32 {
+        self.data.read().unwrap().zoom_factor
+    }
+
+    pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.zoom_factor = zoom_factor;
+        self.write_to_file();
+    }
+
+    pub fn write_to_file(&self) {
         let data = self.data.clone();
         let path = self.path.clone();
         spawn!({
-            let data = data.read().unwrap();
-            let content = serde_json::to_string(&*data).unwrap();
+            let data = data.read().unwrap().clone(); // clone to avoid holding lock during serialization or file write
+            let content = serde_json::to_string(&data).unwrap();
             let _ = fs::write(path, content);
         });
     }

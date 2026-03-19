@@ -9,6 +9,7 @@ mod theme;
 mod util;
 
 pub use crate::settings::Settings;
+use glyphon::FontSystem;
 pub use workspace_rs::Event;
 
 #[cfg(feature = "egui_wgpu_renderer")]
@@ -17,7 +18,7 @@ pub use lb_wgpu::*;
 use crate::account::AccountScreen;
 use crate::onboard::{OnboardHandOff, OnboardScreen};
 use crate::splash::{SplashHandOff, SplashScreen};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[allow(clippy::large_enum_variant)]
 pub enum Lockbook {
@@ -39,23 +40,44 @@ pub struct Response {
 }
 
 impl Lockbook {
-    pub fn new(ctx: &egui::Context) -> Self {
+    pub fn new(ctx: &egui::Context, font_system: Arc<Mutex<FontSystem>>) -> Self {
         let (settings, maybe_settings_err) = match Settings::read_from_file() {
             Ok(s) => (s, None),
             Err(err) => (Default::default(), Some(err.to_string())),
         };
         let settings = Arc::new(RwLock::new(settings));
 
+        let splash = SplashScreen::new(settings, font_system, maybe_settings_err);
+        splash.start_loading_core(ctx);
+        Lockbook::Splash(splash)
+    }
+
+    // Since updating from egui 0.28 to 0.30, visuals are for some reason reset
+    // between init and first frame. This fn is called during first update for
+    // deferred initialization.
+    pub fn deferred_init(&self, ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         workspace_rs::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
         egui_extras::install_image_loaders(ctx);
 
-        theme::init(&settings, ctx);
+        theme::init(&self.settings(), ctx);
+    }
 
-        let splash = SplashScreen::new(settings, maybe_settings_err);
-        splash.start_loading_core(ctx);
-        Lockbook::Splash(splash)
+    fn settings(&self) -> Arc<RwLock<Settings>> {
+        match self {
+            Lockbook::Splash(screen) => screen.settings.clone(),
+            Lockbook::Onboard(screen) => screen.settings.clone(),
+            Lockbook::Account(screen) => screen.settings.clone(),
+        }
+    }
+
+    pub fn font_system(&self) -> &Arc<Mutex<FontSystem>> {
+        match self {
+            Lockbook::Splash(screen) => &screen.font_system,
+            Lockbook::Onboard(screen) => &screen.font_system,
+            Lockbook::Account(screen) => &screen.workspace.font_system,
+        }
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
@@ -71,11 +93,21 @@ impl Lockbook {
                     *self = match maybe_acct_data {
                         Some(files) => {
                             let is_new_user = false;
-                            let acct_scr =
-                                AccountScreen::new(settings, &core, files, ctx, is_new_user);
+                            let acct_scr = AccountScreen::new(
+                                settings,
+                                &core,
+                                files,
+                                ctx,
+                                self.font_system().clone(),
+                                is_new_user,
+                            );
                             Self::Account(acct_scr)
                         }
-                        None => Self::Onboard(OnboardScreen::new(settings, core)),
+                        None => Self::Onboard(OnboardScreen::new(
+                            settings,
+                            self.font_system().clone(),
+                            core,
+                        )),
                     };
 
                     ctx.request_repaint();
@@ -88,7 +120,14 @@ impl Lockbook {
                     let OnboardHandOff { settings, core, acct_data } = handoff;
 
                     let is_new_user = true;
-                    let acct_scr = AccountScreen::new(settings, &core, acct_data, ctx, is_new_user);
+                    let acct_scr = AccountScreen::new(
+                        settings,
+                        &core,
+                        acct_data,
+                        ctx,
+                        self.font_system().clone(),
+                        is_new_user,
+                    );
                     *self = Self::Account(acct_scr);
 
                     ctx.request_repaint();

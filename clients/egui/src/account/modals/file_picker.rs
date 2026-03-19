@@ -111,7 +111,7 @@ impl super::Modal for FilePicker {
         ui.separator();
 
         egui::Frame::default()
-            .inner_margin(egui::Margin::symmetric(20.0, 10.0))
+            .inner_margin(egui::Margin::symmetric(20, 10))
             .show(ui, |ui| show_bottom_bar(ui, self))
             .inner
     }
@@ -121,7 +121,7 @@ fn show_file_panel(
     ui: &mut egui::Ui, file_picker: &mut FilePicker, panel: &Panel, file_panel_index: usize,
 ) {
     egui::ScrollArea::vertical()
-        .id_source(format!("{}{}", panel.root.name.clone(), file_panel_index))
+        .id_salt(format!("{}{}", panel.root.name.clone(), file_panel_index))
         .show(ui, |ui| {
             ui.set_width(235.0);
             ui.add_space(15.0);

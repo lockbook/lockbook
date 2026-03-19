@@ -1,6 +1,9 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Id, TextFormat, Ui};
+use egui::{Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::theme::palette_v2::ThemeExt as _;
 
 use super::Editor;
 use super::bounds::RangesExt as _;
@@ -10,17 +13,6 @@ pub(crate) mod find;
 pub(crate) mod inline;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
-
-pub const MARGIN: f32 = 45.0; // space between the editor and window border; must be large enough to accommodate bordered elements e.g. code blocks
-pub const MAX_WIDTH: f32 = 800.0; // the maximum width of the editor before it starts adding padding
-
-pub const INLINE_PADDING: f32 = 5.0; // the extra space granted to inline code for a border (both sides)
-pub const ROW_HEIGHT: f32 = 20.0; // ...at default font size
-pub const BLOCK_PADDING: f32 = 10.0; // between a table cell / code block and its contents (all sides)
-pub const INDENT: f32 = 30.0; // enough space for two digits in a numbered list
-pub const BULLET_RADIUS: f32 = 2.0;
-pub const ROW_SPACING: f32 = 5.0; // must be large enough to accommodate bordered elements e.g. inline code
-pub const BLOCK_SPACING: f32 = 10.0;
 
 impl<'ast> Editor {
     /// Returns the range for the node.
@@ -125,16 +117,12 @@ impl<'ast> Editor {
     // taps from failing. Note that this range does not and need not survive
     // edits to the document itself.
     pub fn node_ui(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>) -> Ui {
-        let mut result = Ui::new(
-            ui.ctx().clone(),
-            ui.layer_id(),
-            Id::new(self.node_range(node)), // <- the magic
-            ui.max_rect(),
-            ui.painter().clip_rect(),
-            Default::default(),
-        );
-        result.set_style(ui.style().clone());
-        result
+        ui.new_child(
+            UiBuilder::new()
+                .id_salt(self.node_range(node)) // <- the magic
+                .layer_id(ui.layer_id())
+                .max_rect(ui.max_rect()),
+        )
     }
 
     /// Returns the lines spanned by the given range.
@@ -158,7 +146,7 @@ impl<'ast> Editor {
         (start_line_idx, end_line_idx)
     }
 
-    pub fn text_format(&self, node: &AstNode<'_>) -> TextFormat {
+    pub fn text_format(&self, node: &AstNode<'_>) -> Format {
         let parent = || node.parent().unwrap();
         let parent_text_format = || self.text_format(parent());
 
@@ -209,9 +197,7 @@ impl<'ast> Editor {
             NodeValue::CodeBlock(_) => self.text_format_code_block(parent()),
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(NodeHeading { level, .. }) => {
-                self.text_format_heading(parent(), *level)
-            }
+            NodeValue::Heading(_) => parent_text_format(),
             NodeValue::HtmlBlock(_) => self.text_format_html_block(parent()),
             NodeValue::Paragraph => parent_text_format(),
             NodeValue::TableCell => parent_text_format(),
@@ -220,26 +206,31 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn text_format_syntax(&self, node: &'ast AstNode<'ast>) -> TextFormat {
-        let mono = self.text_format_code(node);
-
-        TextFormat {
+    pub fn text_format_syntax(&self) -> Format {
+        Format {
+            family: FontFamily::Mono,
+            bold: false,
+            italic: false,
             color: if self.plaintext_mode {
-                self.theme.fg().neutral_primary
+                self.ctx.get_lb_theme().neutral_fg()
             } else {
-                self.theme.fg().neutral_quarternary
+                self.ctx.get_lb_theme().neutral_fg_secondary()
             },
-            background: Default::default(),
-            underline: Default::default(),
-            strikethrough: Default::default(),
-            italics: Default::default(),
-            ..mono
+            underline: false,
+            strikethrough: false,
+            background: egui::Color32::TRANSPARENT,
+            border: egui::Color32::TRANSPARENT,
+            spoiler: false,
+            superscript: false,
+            subscript: false,
         }
     }
 
-    fn row_height(&self, node: &AstNode<'_>) -> f32 {
-        let text_format = self.text_format(node).font_id;
-        self.ctx.fonts(|fonts| fonts.row_height(&text_format))
+    pub fn row_height(&self, node: &AstNode<'_>) -> f32 {
+        match &node.data.borrow().value {
+            NodeValue::Heading(NodeHeading { level, .. }) => self.heading_row_height(*level),
+            _ => self.layout.row_height,
+        }
     }
 
     pub fn compute_bounds(&mut self, node: &'ast AstNode<'ast>) {
@@ -256,10 +247,10 @@ impl<'ast> Editor {
             NodeValue::Document => self.compute_bounds_document(node),
             NodeValue::FootnoteDefinition(_) => self.compute_bounds_footnote_definition(node),
             NodeValue::Item(_) => self.compute_bounds_item(node),
-            NodeValue::List(_) => self.compute_bounds_list(node),
+            NodeValue::List(_) => self.compute_bounds_block_children(node),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => self.compute_bounds_table(node),
-            NodeValue::TableRow(_) => self.compute_bounds_table_row(node),
+            NodeValue::Table(_) => self.compute_bounds_block_children(node),
+            NodeValue::TableRow(_) => self.compute_bounds_block_children(node),
             NodeValue::TaskItem(_) => self.compute_bounds_task_item(node),
 
             // inline
@@ -287,18 +278,16 @@ impl<'ast> Editor {
             NodeValue::WikiLink(_) => {}
 
             // leaf_block
-            NodeValue::CodeBlock(node_code_block) => {
-                self.compute_bounds_code_block(node, node_code_block)
-            }
+            NodeValue::CodeBlock(_) => {}
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
                 self.compute_bounds_heading(node, *level, *setext)
             }
-            NodeValue::HtmlBlock(_) => self.compute_bounds_html_block(node),
+            NodeValue::HtmlBlock(_) => {}
             NodeValue::Paragraph => self.compute_bounds_paragraph(node),
             NodeValue::TableCell => self.compute_bounds_table_cell(node),
-            NodeValue::ThematicBreak => self.compute_bounds_thematic_break(node),
+            NodeValue::ThematicBreak => {}
         }
     }
 }

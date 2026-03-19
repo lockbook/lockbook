@@ -1,3 +1,4 @@
+use crate::set_android_version_code;
 use crate::utils::CommandRunner;
 
 use super::secrets::*;
@@ -6,6 +7,7 @@ use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
 use google_androidpublisher3::api::{AppEdit, LocalizedText, Track, TrackRelease};
 use google_androidpublisher3::{AndroidPublisher, hyper, hyper_rustls, oauth2};
+use std::fmt::Display;
 use std::fs::File;
 use std::process::Command;
 use tokio::runtime::Runtime;
@@ -18,19 +20,38 @@ const RELEASE: &str = "release/app-release";
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
-const TRACK: &str = "production";
 const STATUS: &str = "completed";
 const DEFAULT_LOC: &str = "en-US";
 const MIME: &str = "application/octet-stream";
 
-pub fn release(play_store: bool, gh: bool) -> CliResult<()> {
+pub enum AndroidTrack {
+    Internal,
+    #[allow(dead_code)]
+    Alpha,
+    #[allow(dead_code)]
+    Beta,
+    Production,
+}
+
+impl Display for AndroidTrack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            AndroidTrack::Internal => "internal",
+            AndroidTrack::Alpha => "alpha",
+            AndroidTrack::Beta => "beta",
+            AndroidTrack::Production => "production",
+        };
+        write!(f, "{str}")
+    }
+}
+
+pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()> {
     ws::build()?;
-    build_android()?;
     if gh {
-        release_gh();
+        release_gh()?;
     }
     if play_store {
-        release_play_store()?;
+        release_play_store(track)?;
     }
     Ok(())
 }
@@ -49,7 +70,8 @@ fn build_android() -> CliResult<()> {
     Ok(())
 }
 
-fn release_gh() {
+fn release_gh() -> CliResult<()> {
+    build_android()?;
     let gh = Github::env();
     let client = ReleaseClient::new(gh.0).unwrap();
     let release = client
@@ -67,9 +89,10 @@ fn release_gh() {
             None,
         )
         .unwrap();
+    Ok(())
 }
 
-fn release_play_store() -> CliResult<()> {
+fn release_play_store(track: AndroidTrack) -> CliResult<()> {
     let ps = PlayStore::env();
     let service_account_key: oauth2::ServiceAccountKey =
         oauth2::parse_service_account_key(ps.service_account_key).unwrap();
@@ -101,6 +124,27 @@ fn release_play_store() -> CliResult<()> {
 
         let id = app_edit.id.unwrap();
 
+        let tracks = publisher
+            .edits()
+            .tracks_list(PACKAGE, &id)
+            .doit()
+            .await
+            .unwrap()
+            .1;
+
+        let max_version_code = tracks
+            .tracks
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|t| t.releases.iter().flatten())
+            .flat_map(|r| r.version_codes.iter().flatten())
+            .max()
+            .copied()
+            .unwrap_or(0);
+        let next_version_code = max_version_code + 1;
+        set_android_version_code(next_version_code);
+        build_android().unwrap();
+
         publisher
             .edits()
             .bundles_upload(PACKAGE, &id)
@@ -127,11 +171,11 @@ fn release_play_store() -> CliResult<()> {
                         user_fraction: None,
                         version_codes: Some(vec![android_version_code().unwrap()]),
                     }]),
-                    track: Some(TRACK.to_string()),
+                    track: Some(track.to_string()),
                 },
                 PACKAGE,
                 &id,
-                TRACK,
+                &track.to_string(),
             )
             .doit()
             .await

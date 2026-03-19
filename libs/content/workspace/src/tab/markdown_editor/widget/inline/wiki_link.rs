@@ -1,13 +1,13 @@
 use comrak::nodes::{AstNode, NodeWikiLink};
-use egui::{OpenUrl, Pos2, TextFormat, Ui};
+use egui::{OpenUrl, Pos2, Ui};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
 impl<'ast> Editor {
-    pub fn text_format_wiki_link(&self, parent: &AstNode<'_>) -> TextFormat {
+    pub fn text_format_wiki_link(&self, parent: &AstNode<'_>) -> Format {
         self.text_format_link(parent)
     }
 
@@ -23,14 +23,13 @@ impl<'ast> Editor {
     ) -> Response {
         let response = self.show_circumfix(ui, node, top_left, wrap, range);
 
-        if response.hovered && self.sense_inline(ui, node).click {
+        if response.hovered && self.inline_clickable(ui, node) {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            ui.output_mut(|o| {
-                o.open_url = Some(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd })
-            });
+            ui.ctx()
+                .open_url(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd });
         }
 
         response

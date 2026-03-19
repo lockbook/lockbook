@@ -9,6 +9,9 @@ use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use releaser::version::BumpType;
 
+use crate::releaser::android::AndroidTrack;
+pub use releaser::version::set_android_version_code;
+
 fn main() {
     Command::name("lbdev")
         .description("Tool for maintainers to dev, check and release Lockbook.")
@@ -58,9 +61,9 @@ fn main() {
                     .subcommand(Command::name("mac-gh").handler(|| releaser::apple::mac::release(true, true, false)))
                 )
                 .subcommand(Command::name("android")
-                    .subcommand(Command::name("all").handler(|| releaser::android::release(true, true)))
-                    .subcommand(Command::name("play-store").handler(|| releaser::android::release(true, false)))
-                    .subcommand(Command::name("gh").handler(|| releaser::android::release(false, true)))
+                    .subcommand(Command::name("all").handler(|| releaser::android::release(true, true, AndroidTrack::Production)))
+                    .subcommand(Command::name("prod-play-store").handler(|| releaser::android::release(true, false, AndroidTrack::Production)))
+                    .subcommand(Command::name("internal-play-store").handler(|| releaser::android::release(true, false, AndroidTrack::Internal)))
                 )
                 .subcommand(
                     Command::name("windows")

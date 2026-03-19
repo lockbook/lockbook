@@ -1,4 +1,7 @@
 use std::cell::RefCell;
+use std::sync::{Arc, RwLock};
+
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
@@ -11,8 +14,6 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::tab::markdown_editor::widget::{BLOCK_SPACING, MARGIN};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
@@ -36,7 +37,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width - 2. * MARGIN,
+            NodeValue::Document => self.width - 2. * self.layout.margin,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items
@@ -98,14 +99,14 @@ impl<'ast> Editor {
                 let node_line = self.node_line(node, line);
 
                 height += self.height_section(
-                    &mut Wrap::new(self.width(node)),
+                    &mut self.new_wrap(self.width(node)),
                     node_line,
-                    self.text_format_syntax(node),
+                    self.text_format_syntax(),
                 );
-                height += BLOCK_SPACING;
+                height += self.layout.block_spacing;
             }
             if height > 0. {
-                height -= BLOCK_SPACING;
+                height -= self.layout.block_spacing;
             }
 
             return height;
@@ -127,7 +128,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => self.height_block_quote(node),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.block_children_height(node),
+            NodeValue::Document => self.height_document(node),
             NodeValue::FootnoteDefinition(_) => self.height_footnote_definition(node),
             NodeValue::Item(_) => self.height_item(node),
             NodeValue::List(_) => self.block_children_height(node),
@@ -195,18 +196,11 @@ impl<'ast> Editor {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = Wrap::new(self.width(node));
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    node_line,
-                    self.text_format_syntax(node),
-                    false,
-                );
+                let mut wrap = self.new_wrap(self.width(node));
+                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
 
                 top_left.y += wrap.height();
-                top_left.y += BLOCK_SPACING;
+                top_left.y += self.layout.block_spacing;
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 
@@ -464,6 +458,16 @@ impl<'ast> Editor {
     }
 
     pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+        if let Some(cached) = self.get_cached_hidden_by_fold(node) {
+            return cached;
+        }
+
+        let result = self.compute_hidden_by_fold(node);
+        self.set_cached_hidden_by_fold(node, result);
+        result
+    }
+
+    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
@@ -573,6 +577,35 @@ pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
+    pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
+    pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
+}
+
+#[derive(Hash, PartialEq, Eq)]
+pub struct GlyphonBufferKey {
+    pub text: String,
+    pub font_size_bits: u32,
+    pub line_height_bits: u32,
+    pub width_bits: u32,
+    pub family: FontFamily,
+    pub bold: bool,
+    pub italic: bool,
+    pub color: [u8; 4],
+}
+
+impl GlyphonBufferKey {
+    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32, format: &Format) -> Self {
+        Self {
+            text: text.to_string(),
+            font_size_bits: font_size.to_bits(),
+            line_height_bits: line_height.to_bits(),
+            width_bits: width.to_bits(),
+            family: format.family.clone(),
+            bold: format.bold,
+            italic: format.italic,
+            color: format.color.to_array(),
+        }
+    }
 }
 
 impl LayoutCache {
@@ -580,6 +613,53 @@ impl LayoutCache {
         self.height.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+        self.hidden_by_fold.borrow_mut().clear();
+        self.glyphon_buffers.borrow_mut().clear();
+    }
+}
+
+impl Editor {
+    pub fn upsert_glyphon_buffer(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        let ppi = self.ctx.pixels_per_point();
+        let font_size = font_size * ppi;
+        let line_height = line_height * ppi;
+        let width = width * ppi;
+        let key = GlyphonBufferKey::new(text, font_size, line_height, width, format);
+        let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
+        cache
+            .entry(key)
+            .or_insert_with(|| {
+                let attrs = glyphon::Attrs::new()
+                    .family(match format.family {
+                        FontFamily::Sans => glyphon::Family::SansSerif,
+                        FontFamily::Mono => glyphon::Family::Monospace,
+                        FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
+                    })
+                    .weight(if format.bold {
+                        glyphon::Weight::BOLD
+                    } else {
+                        glyphon::Weight::NORMAL
+                    })
+                    .style(if format.italic {
+                        glyphon::Style::Italic
+                    } else {
+                        glyphon::Style::Normal
+                    });
+                let metrics = glyphon::Metrics::new(font_size, line_height);
+                let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
+                b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
+                b.set_text(
+                    &mut self.font_system.lock().unwrap(),
+                    text,
+                    &attrs,
+                    glyphon::Shaping::Advanced,
+                );
+                b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
+                Arc::new(RwLock::new(b))
+            })
+            .clone()
     }
 }
 
@@ -658,6 +738,25 @@ impl<'ast> Editor {
             .node_range
             .borrow_mut()
             .insert(key_hash, range);
+    }
+
+    pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
+        let range = self.node_range(node);
+        self.layout_cache
+            .hidden_by_fold
+            .borrow()
+            .binary_search_by(|entry| entry.range.cmp(&range))
+            .ok()
+            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+    }
+
+    pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
+        let range = self.node_range(node);
+        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
+        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
+            Ok(i) => cache[i].value = hidden,
+            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
+        }
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key

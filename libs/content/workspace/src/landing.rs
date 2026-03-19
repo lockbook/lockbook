@@ -1,6 +1,6 @@
 use egui::{
-    Align, Button, Color32, Direction, FontId, Frame, Key, KeyboardShortcut, Layout, Modifiers,
-    Rect, RichText, Stroke, Ui, Vec2,
+    Align, Button, Color32, Direction, FontId, Frame, Key, Layout, Modifiers, Rect, RichText,
+    Stroke, Ui, UiBuilder, Vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::file_cache::{FileCache, FilesExt};
-use crate::show::{DocType, ElapsedHumanString as _};
+use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
@@ -94,13 +94,13 @@ impl Workspace {
                     let top_left = ui.max_rect().min + Vec2::new(padding, 0.);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-                    ui.allocate_ui_at_rect(rect, |ui| {
+                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                         response |= self.show_heading(ui);
                         ui.add_space(40.0);
                         response |= self.show_filters(ui);
                         ui.add_space(40.0);
                         response |= self.show_files(ui);
-                    });
+                    })
                 });
         });
 
@@ -218,7 +218,7 @@ impl Workspace {
                 ui.visuals_mut().widgets.active.weak_bg_fill = fill;
                 ui.visuals_mut().widgets.open.weak_bg_fill = fill;
 
-                egui::ComboBox::from_id_source("create_combo")
+                egui::ComboBox::from_id_salt("create_combo")
                     .selected_text("Create")
                     .width(80.0)
                     .show_ui(ui, |ui| {
@@ -236,7 +236,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Note").clicked() {
                                     response.create_note = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -252,7 +252,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Drawing").clicked() {
                                     response.create_drawing = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -268,7 +268,7 @@ impl Workspace {
                             |ui| {
                                 if ui.button("Folder").clicked() {
                                     response.create_folder = true;
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             },
                         );
@@ -277,7 +277,7 @@ impl Workspace {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
                 // Collaborators filter
-                egui::ComboBox::from_id_source(ui.next_auto_id())
+                egui::ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(if self.landing_page.only_me {
                         "Collaborators: Only Me".to_string()
                     } else if self.landing_page.collaborators.is_empty() {
@@ -358,7 +358,7 @@ impl Workspace {
                     });
 
                 // File type filter
-                egui::ComboBox::from_id_source(ui.next_auto_id())
+                egui::ComboBox::from_id_salt(ui.next_auto_id())
                     .selected_text(if self.landing_page.doc_types.is_empty() {
                         "Types: Any".to_string()
                     } else {
@@ -438,6 +438,7 @@ impl Workspace {
                             filters_height / 2.,
                             ui.visuals().extreme_bg_color,
                             ui.visuals().widgets.noninteractive.bg_stroke,
+                            egui::epaint::StrokeKind::Inside,
                         );
 
                         ui.add_space(15.0); // margin
@@ -449,9 +450,8 @@ impl Workspace {
                         );
 
                         // Check for Cmd+F (or Ctrl+F on non-Mac)
-                        let cmd_f = ui.input_mut(|i| {
-                            i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::F))
-                        });
+                        let cmd_f =
+                            ui.input_mut(|i| i.consume_key_exact(Modifiers::COMMAND, Key::F));
 
                         let response =
                             egui::TextEdit::singleline(&mut self.landing_page.search_term)
@@ -470,8 +470,8 @@ impl Workspace {
                                 .show(ui)
                                 .response;
 
-                        // Focus when Cmd+F is pressed
-                        if cmd_f {
+                        // Focus when Cmd+F is pressed or on first frame
+                        if cmd_f || self.landing_page_first_frame {
                             response.request_focus();
                         }
 

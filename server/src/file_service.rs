@@ -89,6 +89,7 @@ where
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
             if new_usage > usage_cap && new_usage >= old_usage {
+                warn!("usage over cap");
                 return Err(ClientError(UpsertError::UsageIsOverDataCap));
             }
 
@@ -186,6 +187,7 @@ where
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
 
             if new_usage > usage_cap && new_usage >= old_usage {
+                warn!("user over cap");
                 return Err(ClientError(UpsertError::UsageIsOverDataCap));
             }
 
@@ -504,6 +506,7 @@ where
             debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
             if new_usage > usage_cap {
+                warn!("user over cap");
                 return Err(ClientError(UsageIsOverDataCap));
             }
 
