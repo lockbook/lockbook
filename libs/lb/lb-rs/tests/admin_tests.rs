@@ -22,14 +22,7 @@ async fn admin_disappear_test() {
         .import_account(&account_string, Some(&url()))
         .await
         .unwrap();
-    assert_eq!(
-        customer_core_2
-            .server_dirty_ids()
-            .await
-            .unwrap()
-            .len(),
-        3
-    );
+    assert_eq!(customer_core_2.server_dirty_ids().await.unwrap().len(), 3);
 
     admin_core.disappear_file(test2.id).await.unwrap();
 
@@ -39,14 +32,7 @@ async fn admin_disappear_test() {
         .import_account(&account_string, Some(&url()))
         .await
         .unwrap();
-    assert_eq!(
-        customer_core_2
-            .server_dirty_ids()
-            .await
-            .unwrap()
-            .len(),
-        2
-    );
+    assert_eq!(customer_core_2.server_dirty_ids().await.unwrap().len(), 2);
     customer_core_2.sync().await.unwrap();
 
     assert!(
