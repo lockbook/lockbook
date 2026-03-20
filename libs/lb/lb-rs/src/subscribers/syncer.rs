@@ -23,7 +23,7 @@ use crate::{
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
         crypto::{DecryptedDocument, EncryptedDocument},
-        errors::Unexpected,
+        errors::{LbErr, Unexpected},
         file::ShareMode,
         file_like::FileLike,
         file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
@@ -312,6 +312,8 @@ impl Lb {
     ) -> LbResult<EncryptedDocument> {
         // todo: in a lot of cases there is a list of ids we're trying to get, it would be better
         // if the caller managed the event updates, the status would be more meaningful for longer
+
+        // in this world, can we get stuck pushing a doc as well? Probably fine for now
         if let Ok(Some(doc)) = self.docs.maybe_get(id, Some(hmac)).await {
             return Ok(doc);
         }
@@ -1110,11 +1112,23 @@ impl Lb {
                 .into(),
         );
 
+        let mut docs_without_errors = vec![];
+        let mut last_error: Option<LbErr> = None;
+
         while let Some(fut) = stream.next().await {
-            let id = fut?;
-            self.events
-                .sync_update(SyncIncrement::PushingDocument(id, false));
+            match fut {
+                Ok(id) => {
+                    docs_without_errors.push(id);
+                    self.events
+                        .sync_update(SyncIncrement::PushingDocument(id, false));
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
+            }
         }
+
+        local_changes_digests_only.retain(|f| docs_without_errors.contains(f.id()));
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -1128,7 +1142,7 @@ impl Lb {
 
         tx.end();
 
-        Ok(())
+        if let Some(err) = last_error { Err(err) } else { Ok(()) }
     }
 
     async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
