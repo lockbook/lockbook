@@ -28,6 +28,10 @@ use lb_rs::model::path_ops::Filter;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
+use ort::session::Session;
+use ort::session::builder::GraphOptimizationLevel;
+use ort::value::Value;
+use tokenizers::Tokenizer;
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -245,104 +249,192 @@ pub async fn core() -> CliResult<Lb> {
 async fn search(query: &str) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
+    
+    let model_dir = "models/all-MiniLM-L6-v2";
+    let model_path = format!("{}/model.onnx", model_dir);
+    let tokenizer_path = format!("{}/tokenizer.json", model_dir);
+    
+    if !Path::new(&model_path).exists() || !Path::new(&tokenizer_path).exists() {
+        return Err(CliError::from("Model/Tokenizer not found in models/all-MiniLM-L6-v2"));
+    }
+    
+    println!("Loading model...");
+    
+    let mut session = Session::builder()
+        .map_err(|e| CliError::from(format!("Session error: {}", e)))?
+        .with_optimization_level(GraphOptimizationLevel::Level3)
+        .map_err(|e| CliError::from(format!("Session error: {}", e)))?
+        .with_intra_threads(4)
+        .map_err(|e| CliError::from(format!("Session error: {}", e)))?
+        .commit_from_file(&model_path)
+        .map_err(|e| CliError::from(format!("Load error: {}", e)))?;
+    
+    let tokenizer = Tokenizer::from_file(&tokenizer_path)
+        .map_err(|e| CliError::from(format!("Tokenizer error: {}", e)))?;
+    
+    // Create text splitter - chunks of ~200 tokens with 50 token overlap
+    let splitter = TextSplitter::new(200);
 
-    let time = Instant::now();
-    lb.build_index().await?;
-    let build_time = time.elapsed();
-
-    lb.reload_search_index().await?;
-
-    let time = Instant::now();
-    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
-    let search_time = time.elapsed();
-
-    for result in results {
-        match result {
-            SearchResult::DocumentMatch { id: _, path, content_matches } => {
-                println!("{}", format!("DOC: {path}").bold().blue());
-                for content in content_matches {
-                    let mut result = String::default();
-                    for (i, c) in content.paragraph.char_indices() {
-                        if content.matched_indices.contains(&i) {
-                            result = format!("{result}{}", c.to_string().underline());
-                        } else {
-                            result = format!("{result}{c}");
-                        }
-                    }
-                    println!("{result}");
-                }
-                println!();
+    
+    let create_embedding = |session: &mut Session, text: &str| -> Result<Vec<f32>, CliError> {
+        let encoding = tokenizer.encode(text, true)
+            .map_err(|e| CliError::from(format!("Tokenization failed: {}", e)))?;
+        
+        let input_ids = encoding.get_ids();
+        let attention_mask = encoding.get_attention_mask();
+        let token_type_ids = encoding.get_type_ids();
+        
+        const MAX_LENGTH: usize = 256;
+        
+        let mut padded_ids = vec![0i64; MAX_LENGTH];
+        let mut padded_mask = vec![0i64; MAX_LENGTH];
+        let mut padded_types = vec![0i64; MAX_LENGTH];
+        
+        let len = input_ids.len().min(MAX_LENGTH);
+        for i in 0..len {
+            padded_ids[i] = input_ids[i] as i64;
+            padded_mask[i] = attention_mask[i] as i64;
+            padded_types[i] = token_type_ids[i] as i64;
+        }
+        
+        let id_tensor = Value::from_array(([1, MAX_LENGTH], padded_ids))
+            .map_err(|e| CliError::from(format!("Failed to create input tensor: {}", e)))?;
+        let mask_tensor = Value::from_array(([1, MAX_LENGTH], padded_mask))
+            .map_err(|e| CliError::from(format!("Failed to create mask tensor: {}", e)))?;
+        let type_tensor = Value::from_array(([1, MAX_LENGTH], padded_types))
+            .map_err(|e| CliError::from(format!("Failed to create type tensor: {}", e)))?;
+        
+        let outputs = session.run(ort::inputs![
+            "input_ids" => id_tensor,
+            "attention_mask" => mask_tensor,
+            "token_type_ids" => type_tensor,
+        ]).map_err(|e| CliError::from(format!("Model inference failed: {}", e)))?;
+        
+        let embeddings = outputs[0].try_extract_tensor::<f32>()
+            .map_err(|e| CliError::from(format!("Failed to extract embeddings: {}", e)))?;
+        
+        let embedding_data = embeddings.1;
+        
+        const HIDDEN_SIZE: usize = 384;
+        let mut pooled = vec![0.0f32; HIDDEN_SIZE];
+        
+        // Mean pooling
+        for i in 0..len {
+            for j in 0..HIDDEN_SIZE {
+                pooled[j] += embedding_data[i * HIDDEN_SIZE + j];
             }
-            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
-                let mut result = String::default();
-                for (i, c) in path.char_indices() {
-                    if matched_indices.contains(&i) {
-                        result = format!("{result}{}", c.to_string().underline());
-                    } else {
-                        result = format!("{result}{c}");
+        }
+        
+        if len > 0 {
+            for val in &mut pooled {
+                *val /= len as f32;
+            }
+        }
+        
+        // L2 normalization
+        let norm: f32 = pooled.iter().map(|x| x * x).sum::<f32>().sqrt();
+        if norm > 0.0 {
+            for val in &mut pooled {
+                *val /= norm;
+            }
+        }
+        
+        Ok(pooled)
+    };
+    
+    println!("Encoding query: \"{}\"", query);
+    let query_embedding = create_embedding(&mut session, query)?;
+    
+    println!("Reading and chunking documents...");
+    let files = lb.get_and_get_children_recursively(&lb.root().await?.id).await?;
+    
+    let mut results: Vec<(String, f32)> = Vec::new();
+    let mut processed = 0;
+    
+    for file in files {
+        if file.is_folder() {
+            continue;
+        }
+        
+        let content = match lb.read_document(file.id, false).await {
+            Ok(c) => String::from_utf8_lossy(&c).to_string(),
+            Err(_) => continue,
+        };
+        
+        if content.trim().len() < 10 {
+            continue;
+        }
+        
+        // Split document into chunks
+        let chunks: Vec<&str> = splitter.chunks(&content).collect();
+        
+        let mut best_similarity = 0.0f32;
+        
+        // Embed each chunk and find the best match
+        for chunk in chunks {
+            if chunk.trim().is_empty() {
+                continue;
+            }
+            
+            match create_embedding(&mut session, chunk) {
+                Ok(chunk_embedding) => {
+                    // Calculate cosine similarity
+                    let similarity: f32 = query_embedding.iter()
+                        .zip(chunk_embedding.iter())
+                        .map(|(a, b)| a * b)
+                        .sum();
+                    
+                    // Keep the best similarity score for this document
+                    if similarity > best_similarity {
+                        best_similarity = similarity;
                     }
                 }
-                println!("{}", format!("PATH: {result}").bold().green());
-                println!();
+                Err(e) => {
+                    eprintln!("Warning: Failed to encode chunk in '{}': {:?}", file.name, e);
+                }
             }
+        }
+        
+        if best_similarity > 0.0 {
+            let path = lb.get_path_by_id(file.id).await
+                .unwrap_or_else(|_| file.name.clone());
+            
+            results.push((path, best_similarity));
+            processed += 1;
         }
     }
-
-    let build_time = format!("{build_time:?}").bold();
-    let search_time = format!("{search_time:?}").bold();
-    println!("Index built in {build_time}");
-    println!("Search took {search_time}");
-
-    Ok(())
-}
-
-#[tokio::main]
-async fn sync() -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account(lb)?;
-    let mut receiver = lb.subscribe();
-
-    let monitor_lb = lb.clone();
-    let monitor = tokio::spawn(async move {
-        let get_name = async |id| {
-            monitor_lb
-                .get_file_by_id(id)
-                .await
-                .map(|file| file.name)
-                .unwrap_or(format!("{id} (new file)"))
+    
+    println!("Processed {} documents", processed);
+    
+    // Sort by similarity (highest first)
+    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+    
+    // Display top 10 with colored scores
+    println!("\nTop 10 Results:");
+    println!("===============");
+    
+    if results.is_empty() {
+        println!("No documents found.");
+        return Ok(());
+    }
+    
+    for (i, (path, score)) in results.iter().take(10).enumerate() {
+        let score_str = format!("{:.4}", score);
+        let colored_score = if *score > 0.7 {
+            score_str.green()
+        } else if *score > 0.5 {
+            score_str.yellow()
+        } else {
+            score_str.red()
         };
-
-        loop {
-            let event = receiver.recv().await.unwrap();
-            if let Event::Sync(sync_increment) = event {
-                match sync_increment {
-                    SyncIncrement::SyncStarted => println!("Sync Started!"),
-                    SyncIncrement::PullingDocument(uuid, true) => {
-                        println!("Downloading {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PullingDocument(uuid, false) => {
-                        println!("Downloaded {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PushingDocument(uuid, true) => {
-                        println!("Uploading {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PushingDocument(uuid, false) => {
-                        println!("Uploaded {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::SyncFinished(lb_err_kind) => {
-                        match lb_err_kind {
-                            Some(err) => eprintln!("Sync completed with an error: {err}"),
-                            None => println!("Sync successful"),
-                        };
-                        return;
-                    }
-                }
-            }
-        }
-    });
-
-    lb.sync().await?;
-    monitor.await?;
+        
+        println!("{}. {} [{}]", i + 1, path, colored_score);
+    }
+    
+    if results.len() > 10 {
+        println!("\n{} more results not shown", results.len() - 10);
+    }
+    
     Ok(())
 }
 
