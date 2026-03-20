@@ -1145,7 +1145,7 @@ impl Lb {
         Ok(id)
     }
 
-    async fn send_debug_info(self, account: Account) {
+    fn send_debug_info(self, account: Account) {
         tokio::spawn(async move {
             self.client
                 .request(
