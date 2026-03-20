@@ -1058,10 +1058,13 @@ impl Lb {
     }
 
     async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
-        // todo: this thing needs to send if pending_shares changed
-
         if !state.remote_changes.is_empty() {
             self.events.meta_changed(Actor::Sync);
+
+            let owner = Owner(self.keychain.get_pk()?);
+            if state.remote_changes.iter().any(|f| f.owner() != owner) {
+                self.events.pending_shares_changed();
+            }
         }
 
         for &doc in &state.pulled_docs {

@@ -25,8 +25,7 @@ use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
-use lb_rs::service::events::Event;
-use lb_rs::service::sync::SyncIncrement;
+use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
 

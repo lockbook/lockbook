@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 use egui_extras::{Size, StripBuilder};
 use lb::model::api::{PaymentMethod, StripeAccountTier, SubscriptionInfo};
-use lb::service::usage::{UsageItemMetric, UsageMetrics};
+use lb::service::usage::UsageMetrics;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette::ThemePalette;
 use workspace_rs::widgets::{separator, subscription};
