@@ -3,8 +3,9 @@ use crate::releaser::utils::{lb_repo, lb_version};
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
@@ -282,7 +283,9 @@ pub fn push_aur() -> CliResult<()> {
     Ok(())
 }
 
-pub fn overwrite_flatpak_manifest(url: &str, sha256: &str) -> CliResult<()> {
+pub fn overwrite_flatpak_manifest(
+    url: &str, sha256: &str, manifest_location: &str,
+) -> CliResult<()> {
     let manifest = format!(
         r#"{{
     "app-id": "net.lockbook.Lockbook",
@@ -336,7 +339,7 @@ pub fn overwrite_flatpak_manifest(url: &str, sha256: &str) -> CliResult<()> {
         .write(true)
         .create(true)
         .truncate(true)
-        .open("../net.lockbook.Lockbook/net.lockbook.Lockbook.json")
+        .open(manifest_location)
         .unwrap();
     file.write_all(manifest.as_bytes()).unwrap();
     Ok(())
@@ -344,23 +347,23 @@ pub fn overwrite_flatpak_manifest(url: &str, sha256: &str) -> CliResult<()> {
 
 pub fn update_flatpak() -> CliResult<()> {
     let version = lb_version();
-    let clone_dir = format!("/tmp/lockbook-{version}");
-    let tarball = format!("/tmp/lockbook-{version}.tar.gz");
-    let cargo_sources_out = format!("/tmp/cargo-sources-{version}.json");
+    let flatpak_builder_tools_directory = "/tmp/flatpak_builder_tools_directory".to_string();
+    let released_lb_tarball = format!("/tmp/released_lb_tarball-{version}.tar.gz");
+    let flatpak_repo_directory = "/tmp/lb_flatpak_repo".to_string();
 
-    if std::path::Path::new(&clone_dir).exists() {
-        std::fs::remove_dir_all(&clone_dir).unwrap();
+    if Path::new(&flatpak_builder_tools_directory).exists() {
+        fs::remove_dir_all(&flatpak_builder_tools_directory).unwrap();
+    }
+    if Path::new(&flatpak_repo_directory).exists() {
+        fs::remove_dir_all(&flatpak_repo_directory).unwrap();
     }
 
     Command::new("git")
         .args([
             "clone",
             "--depth=1",
-            "--branch",
             "https://github.com/flatpak/flatpak-builder-tools.git",
-            "/Cargo.lock",
-            "-o",
-            &cargo_sources_out,
+            &flatpak_builder_tools_directory,
         ])
         .assert_success()?;
 
@@ -368,22 +371,22 @@ pub fn update_flatpak() -> CliResult<()> {
         .args([
             "clone",
             "--depth=1",
-            "--branch",
-            "https://github.com/lockbook/net.lockbook.Lockbook.git",
+            "https://github.com/lockbook/net.lockbook.Lockbook/",
+            &flatpak_repo_directory,
         ])
         .assert_success()?;
 
     Command::new("curl")
         .args([
             "-fL",
-            "https://github.com/lockbook/lockbook/archive/refs/tags/26.3.11.tar.gz",
+            "https://github.com/lockbook/lockbook/archive/refs/tags/26.2.11.tar.gz",
             "-o",
-            &tarball,
+            &released_lb_tarball,
         ])
         .assert_success()?;
 
     let sha256_output = Command::new("sh")
-        .args(["-c", &format!("sha256sum {tarball} | awk '{{print $1}}'")])
+        .args(["-c", &format!("sha256sum {released_lb_tarball} | awk '{{print $1}}'")])
         .output()
         .unwrap();
     let sha256 = String::from_utf8(sha256_output.stdout)
@@ -392,27 +395,45 @@ pub fn update_flatpak() -> CliResult<()> {
         .to_string();
 
     let url = format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
-    overwrite_flatpak_manifest(&url, &sha256)?;
+    overwrite_flatpak_manifest(
+        &url,
+        &sha256,
+        &format!("{flatpak_repo_directory}/net.lockbook.Lockbook.json"),
+    )?;
 
-    std::fs::copy(&cargo_sources_out, "../net.lockbook.Lockbook/cargo-sources.json").unwrap();
+    let lock_file_location = Path::new("Cargo.lock")
+        .canonicalize()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
 
-    push_flatpak(&version)?;
+    Command::new("python3")
+        .args([
+            "flatpak-cargo-generator.py",
+            &lock_file_location,
+            "-o",
+            &format!("{flatpak_repo_directory}/cargo-sources.json"),
+        ])
+        .current_dir(format!("{flatpak_builder_tools_directory}/cargo"))
+        .assert_success()?;
+
+    push_flatpak(&version, &flatpak_repo_directory)?;
 
     Ok(())
 }
 
-pub fn push_flatpak(version: &str) -> CliResult<()> {
+pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
-        .current_dir("../net.lockbook.Lockbook")
+        .current_dir(flatpak_repo)
         .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", &format!("release {}", version)])
-        .current_dir("../net.lockbook.Lockbook")
+        .current_dir(flatpak_repo)
         .assert_success()?;
     Command::new("git")
         .args(["push", "origin", "master"])
-        .current_dir("../net.lockbook.Lockbook")
+        .current_dir(flatpak_repo)
         .assert_success()?;
     Ok(())
 }
