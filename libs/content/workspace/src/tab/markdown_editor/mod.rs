@@ -2,9 +2,10 @@ use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use web_time::Instant;
 
+use crate::file_cache::FileCache;
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -33,6 +34,7 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
+use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
 pub mod bounds;
@@ -56,6 +58,7 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
+    pub open_file: Option<Uuid>,
 }
 
 pub struct Editor {
@@ -65,6 +68,7 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
     pub layout: MdLayout,
 
     // theme
@@ -99,6 +103,7 @@ pub struct Editor {
     pub toolbar: Toolbar,
     pub find: Find,
     pub emoji_completions: EmojiCompletions,
+    pub link_completions: LinkCompletions,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -148,6 +153,7 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
 }
 
 pub struct MdConfig {
@@ -207,7 +213,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, font_system } = res;
+        let MdResources { ctx, core, persistence, font_system, files } = res;
         let MdConfig { plaintext_mode, readonly } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -228,6 +234,7 @@ impl Editor {
             ctx,
             persistence,
             font_system,
+            files,
 
             dark_mode,
             syntax_set,
@@ -236,6 +243,7 @@ impl Editor {
             toolbar: Default::default(),
             find: Default::default(),
             emoji_completions: Default::default(),
+            link_completions: Default::default(),
 
             readonly,
             file_id,
@@ -289,6 +297,7 @@ impl Editor {
                     background_work: false,
                 })
                 .unwrap(),
+                files: Arc::new(RwLock::new(None)),
                 persistence: WsPersistentStore::new(
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
@@ -413,6 +422,7 @@ impl Editor {
         };
 
         self.emoji_completions.update_active_state(&self.buffer);
+        self.link_completions.update_active_state(&self.buffer);
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -605,6 +615,16 @@ impl Editor {
                 ));
         }
         self.show_emoji_completions(ui);
+        self.show_link_completions(ui);
+
+        if !self.readonly
+            && self.focused(ui.ctx())
+            && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command)
+        {
+            if let Some(id) = self.link_under_cursor(root, ui.ctx()) {
+                resp.open_file = Some(id);
+            }
+        }
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();

@@ -49,7 +49,7 @@ pub struct Workspace {
 
     // Files and task status
     pub tasks: TaskManager,
-    pub files: Option<FileCache>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -81,7 +81,7 @@ impl Workspace {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files = FileCache::new(core).log_and_ignore();
+        let files = Arc::new(RwLock::new(FileCache::new(core).log_and_ignore()));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
@@ -339,8 +339,10 @@ impl Workspace {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
                 Event::MetadataChanged => {
-                    self.files = FileCache::new(&self.core).log_and_ignore();
-                    if let Some(files) = &self.files {
+                    *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
+                    let files_arc = Arc::clone(&self.files);
+                    let files_guard = files_arc.read().unwrap();
+                    if let Some(files) = files_guard.as_ref() {
                         let mut tabs_to_delete = vec![];
                         for tab in &self.tabs {
                             if let Some(id) = tab.id() {
@@ -493,6 +495,7 @@ impl Workspace {
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
                                             font_system: self.font_system.clone(),
+                                            files: Arc::clone(&self.files),
                                         },
                                         MdConfig {
                                             plaintext_mode: ext != "md",
@@ -706,7 +709,9 @@ impl Workspace {
 
     pub fn effective_focused_parent(&self) -> Uuid {
         let get_by_id_cached_read_through = |id| {
-            if let Some(files) = &self.files {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            if let Some(files) = files_guard.as_ref() {
                 files.files.get_by_id(id).cloned()
             } else {
                 self.core.get_file_by_id(id).ok()
@@ -726,7 +731,9 @@ impl Workspace {
                 return current_tab;
             }
 
-            if let Some(files) = &self.files {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            if let Some(files) = files_guard.as_ref() {
                 files.root.clone()
             } else {
                 self.core.get_root().unwrap()

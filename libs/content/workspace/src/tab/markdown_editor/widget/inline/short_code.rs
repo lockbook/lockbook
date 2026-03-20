@@ -15,9 +15,7 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
         node_short_code: &NodeShortCode,
     ) -> f32 {
-        let reveal = self
-            .node_range(node)
-            .intersects(&self.buffer.current.selection, false);
+        let reveal = self.node_intersects_selection(node);
         if reveal {
             self.circumfix_span(node, wrap, range)
         } else if range.contains_range(&self.node_range(node), true, true) {
@@ -31,9 +29,7 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         range: (DocCharOffset, DocCharOffset), node_short_code: &NodeShortCode,
     ) -> Response {
-        let reveal = self
-            .node_range(node)
-            .intersects(&self.buffer.current.selection, false);
+        let reveal = self.node_intersects_selection(node);
         if reveal {
             self.show_circumfix(ui, node, top_left, wrap, range)
         } else if range.contains_range(&self.node_range(node), true, true) {

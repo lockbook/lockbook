@@ -164,6 +164,11 @@ impl Workspace {
 
                                     self.out.open_camera = resp.open_camera;
 
+                                    if let Some(id) = resp.open_file {
+                                        let new_tab = ui.input(|i| i.modifiers.command);
+                                        self.open_file(id, true, new_tab);
+                                    }
+
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
                                         self.out.markdown_editor_selection_updated = true;

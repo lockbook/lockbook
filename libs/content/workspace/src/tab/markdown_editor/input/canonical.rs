@@ -31,7 +31,7 @@ impl<'ast> Editor {
     ) -> Option<Event> {
         // When the emoji popup is open, swallow vertical navigation and Enter so
         // they are handled by show_emoji_completions instead of moving the cursor.
-        if self.emoji_completions.active {
+        if self.emoji_completions.active || self.link_completions.active {
             if let egui::Event::Key { key, pressed: true, .. } = &event {
                 if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::Enter) {
                     return None;
@@ -146,6 +146,11 @@ impl<'ast> Editor {
                         backwards: key == Key::Backspace,
                     },
                 })
+            }
+            egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
+                if modifiers.command && !cfg!(target_os = "ios") =>
+            {
+                None // Cmd+Enter is handled as "open link under cursor" in show()
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>

@@ -9,6 +9,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 
+#[derive(Clone)]
 pub struct FileCache {
     pub root: File,
     pub files: Vec<File>,
