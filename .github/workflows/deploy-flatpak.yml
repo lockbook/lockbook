@@ -12,5 +12,5 @@ jobs:
     steps:
     - uses: actions/checkout@v4 
     - name: Deploy public site
-    - run: nix-shell -p python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser desktop flatpak"
+      run: nix-shell -p python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser desktop flatpak"
 
