@@ -38,7 +38,7 @@ fn sync_benchmark(c: &mut Criterion) {
                     core.write_document(id, random_bytes.as_slice()).unwrap();
                 }
 
-                core.sync(black_box(None)).unwrap()
+                core.sync().unwrap()
             });
         });
     }
