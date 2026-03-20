@@ -88,9 +88,11 @@ impl Editor {
         // prefer next row
         let owned_glyphs = if self.galleys.len() > galley_idx + 1 {
             let next_galley = &self.galleys.galleys[galley_idx + 1];
-            if next_galley.range.start() == galley.range.end() {
-                // when galleys touch, the boundary belongs to the later galley
-                glyphs.len().saturating_sub(1)
+            if next_galley.range.start() == galley.range.end() && glyphs.len() > 1 {
+                // when galleys touch, the boundary belongs to the later galley;
+                // only reduce if there are at least 2 glyphs so we never get 0
+                // owned glyphs (which would snap the cursor to the galley start)
+                glyphs.len() - 1
             } else {
                 // doesn't touch next galley
                 glyphs.len()
@@ -108,6 +110,15 @@ impl Editor {
             rel_offset = glyph.end;
         }
 
-        self.offset_to_char(start + rel_offset)
+        // Convert the byte offset back to a char offset. For ZWJ emoji sequences
+        // the font may emit one glyph per codepoint, so glyph.end can land on a
+        // codepoint boundary that is not a grapheme boundary. Round down to the
+        // nearest grapheme boundary rather than panicking.
+        let byte_offset = start + rel_offset;
+        let segs = &self.buffer.current.segs;
+        match segs.grapheme_indexes.binary_search(&byte_offset) {
+            Ok(idx) => DocCharOffset(idx),
+            Err(idx) => DocCharOffset(idx.saturating_sub(1)),
+        }
     }
 }

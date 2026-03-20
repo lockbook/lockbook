@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 pub mod file_cache;
 mod font;
 pub mod landing;
@@ -18,10 +20,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use egui::Rect;
 use egui_wgpu_renderer::egui_wgpu::{self, Renderer, ScreenDescriptor};
 use glyphon::{
-    Buffer, Color, ColorMode, RenderError, Resolution, SwashCache, TextArea, TextAtlas, TextBounds,
+    Buffer, Color, ColorMode, Resolution, SwashCache, TextArea, TextAtlas, TextBounds,
     TextRenderer, Viewport,
 };
-use glyphon::{FontSystem, PrepareError, fontdb};
+use glyphon::{FontSystem, fontdb};
 pub use output::Response;
 pub use tab::Event;
 
@@ -40,13 +42,22 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     tab::markdown_editor::register_fonts(fonts)
 }
 
+struct GlyphonLayer {
+    renderer: TextRenderer,
+    pending: Vec<TextBufferArea>,
+}
+
 pub struct GlyphonRenderCallbackResources {
     pub font_system: Arc<Mutex<FontSystem>>,
     pub swash_cache: SwashCache,
     pub text_atlas: TextAtlas,
     pub viewport: Viewport,
-    pub text_renderer: TextRenderer,
-    pub pending_areas: Vec<TextBufferArea>,
+    msaa_samples: u32,
+    layers: Vec<GlyphonLayer>,
+    next_layer: usize,
+    /// Set by the last finish_prepare of a frame; cleared by the first prepare
+    /// of the next frame, which resets next_layer and clears pending buffers.
+    frame_reset: bool,
     pub pending_resolution: Resolution,
 }
 
@@ -57,14 +68,8 @@ pub fn register_render_callback_resources(
     let swash_cache = SwashCache::new();
     let gcache = glyphon::Cache::new(device);
     let viewport = Viewport::new(device, &gcache);
-    let mut text_atlas =
+    let text_atlas =
         TextAtlas::with_color_mode(device, queue, &gcache, texture_format, ColorMode::Web);
-    let text_renderer = TextRenderer::new(
-        &mut text_atlas,
-        device,
-        MultisampleState { count: msaa_samples, mask: !0, alpha_to_coverage_enabled: false },
-        None,
-    );
 
     renderer
         .callback_resources
@@ -73,37 +78,43 @@ pub fn register_render_callback_resources(
             swash_cache,
             viewport,
             text_atlas,
-            text_renderer,
-            pending_areas: Vec::new(),
+            msaa_samples,
+            layers: Vec::new(),
+            next_layer: 0,
+            frame_reset: true,
             pending_resolution: Resolution { width: 0, height: 0 },
         });
 }
 
 impl GlyphonRenderCallbackResources {
-    pub fn prepare<'a>(
-        &mut self, device: &wgpu::Device, queue: &wgpu::Queue, screen_resolution: Resolution,
-        text_areas: impl IntoIterator<Item = TextArea<'a>>,
-    ) -> Result<(), PrepareError> {
-        self.viewport.update(queue, screen_resolution);
-        self.text_renderer.prepare(
-            device,
-            queue,
-            self.font_system.lock().unwrap().deref_mut(),
-            &mut self.text_atlas,
-            &self.viewport,
-            text_areas,
-            &mut self.swash_cache,
-        )
-    }
-
-    pub fn render(&self, pass: &mut wgpu::RenderPass<'static>) -> Result<(), RenderError> {
-        self.text_renderer
-            .render(&self.text_atlas, &self.viewport, pass)
+    fn ensure_layer(&mut self, idx: usize, device: &wgpu::Device) {
+        if self.layers.len() <= idx {
+            let renderer = TextRenderer::new(
+                &mut self.text_atlas,
+                device,
+                MultisampleState {
+                    count: self.msaa_samples,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                None,
+            );
+            self.layers
+                .push(GlyphonLayer { renderer, pending: Vec::new() });
+        }
     }
 }
 
 pub struct GlyphonRendererCallback {
     pub buffers: Vec<TextBufferArea>,
+    /// Auto-assigned during prepare() in submission order; do not set manually.
+    layer: AtomicUsize,
+}
+
+impl GlyphonRendererCallback {
+    pub fn new(buffers: Vec<TextBufferArea>) -> Self {
+        Self { buffers, layer: AtomicUsize::new(0) }
+    }
 }
 
 #[derive(Clone)]
@@ -128,17 +139,26 @@ impl TextBufferArea {
 
 impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
     fn prepare(
-        &self, _device: &wgpu::Device, _queue: &wgpu::Queue, screen_descriptor: &ScreenDescriptor,
+        &self, device: &wgpu::Device, _queue: &wgpu::Queue, screen_descriptor: &ScreenDescriptor,
         _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
-        let glyphon_renderer: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
-        glyphon_renderer.pending_resolution = Resolution {
+        let r: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
+        r.pending_resolution = Resolution {
             width: screen_descriptor.size_in_pixels[0],
             height: screen_descriptor.size_in_pixels[1],
         };
-        glyphon_renderer
-            .pending_areas
-            .extend(self.buffers.iter().cloned());
+        if r.frame_reset {
+            for layer in &mut r.layers {
+                layer.pending.clear();
+            }
+            r.next_layer = 0;
+            r.frame_reset = false;
+        }
+        let idx = r.next_layer;
+        r.next_layer += 1;
+        self.layer.store(idx, Ordering::Relaxed);
+        r.ensure_layer(idx, device);
+        r.layers[idx].pending.extend(self.buffers.iter().cloned());
         Vec::new()
     }
 
@@ -146,14 +166,22 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
         &self, device: &wgpu::Device, queue: &wgpu::Queue,
         _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
     ) -> Vec<wgpu::CommandBuffer> {
-        let glyphon_renderer: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
-        if glyphon_renderer.pending_areas.is_empty() {
+        let r: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
+        let idx = self.layer.load(Ordering::Relaxed);
+
+        // When the last layer of this frame finishes, signal the next frame to reset.
+        if idx + 1 == r.next_layer {
+            r.frame_reset = true;
+        }
+
+        let pending = std::mem::take(&mut r.layers[idx].pending);
+        if pending.is_empty() {
             return Vec::new();
         }
-        let areas = std::mem::take(&mut glyphon_renderer.pending_areas);
-        let resolution = glyphon_renderer.pending_resolution;
-        let bufrefs: Vec<_> = areas.iter().map(|b| b.buffer.read().unwrap()).collect();
-        let text_areas: Vec<_> = areas
+
+        let resolution = r.pending_resolution;
+        let bufrefs: Vec<_> = pending.iter().map(|b| b.buffer.read().unwrap()).collect();
+        let text_areas: Vec<_> = pending
             .iter()
             .enumerate()
             .map(|(i, b)| TextArea {
@@ -171,10 +199,28 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
                 default_color: b.default_color,
             })
             .collect();
-        glyphon_renderer.text_atlas.trim();
-        glyphon_renderer
-            .prepare(device, queue, resolution, text_areas)
+
+        // Layer 0 trims the atlas before preparing; other layers may cause
+        // minor re-uploads if trim evicted their glyphs, but that's fine.
+        if idx == 0 {
+            r.text_atlas.trim();
+            r.viewport.update(queue, resolution);
+        }
+
+        let layer = r.layers.get_mut(idx).unwrap();
+        layer
+            .renderer
+            .prepare(
+                device,
+                queue,
+                r.font_system.lock().unwrap().deref_mut(),
+                &mut r.text_atlas,
+                &r.viewport,
+                text_areas,
+                &mut r.swash_cache,
+            )
             .unwrap();
+
         Vec::new()
     }
 
@@ -190,7 +236,13 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
             0.0,
             1.0,
         );
-        let glyphon_renderer: &GlyphonRenderCallbackResources = resources.get().unwrap();
-        glyphon_renderer.render(render_pass).unwrap();
+        let r: &GlyphonRenderCallbackResources = resources.get().unwrap();
+        let idx = self.layer.load(Ordering::Relaxed);
+        if let Some(layer) = r.layers.get(idx) {
+            layer
+                .renderer
+                .render(&r.text_atlas, &r.viewport, render_pass)
+                .unwrap();
+        }
     }
 }

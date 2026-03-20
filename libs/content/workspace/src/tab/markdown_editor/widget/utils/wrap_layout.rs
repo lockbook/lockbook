@@ -483,7 +483,7 @@ impl Editor {
     }
 }
 
-trait BufferExt {
+pub trait BufferExt {
     fn shaped_size(&self, ppi: f32) -> Vec2;
 }
 

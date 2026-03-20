@@ -30,6 +30,7 @@ use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
+use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
@@ -97,6 +98,7 @@ pub struct Editor {
     // widgets
     pub toolbar: Toolbar,
     pub find: Find,
+    pub emoji_completions: EmojiCompletions,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -233,6 +235,7 @@ impl Editor {
 
             toolbar: Default::default(),
             find: Default::default(),
+            emoji_completions: Default::default(),
 
             readonly,
             file_id,
@@ -409,6 +412,7 @@ impl Editor {
             result
         };
 
+        self.emoji_completions.update_active_state(&self.buffer);
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -597,9 +601,10 @@ impl Editor {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     ui.max_rect(),
-                    crate::GlyphonRendererCallback { buffers: text_areas },
+                    crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
+        self.show_emoji_completions(ui);
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();

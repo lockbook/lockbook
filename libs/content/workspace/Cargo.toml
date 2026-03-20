@@ -16,6 +16,7 @@ colors-transform = "0.2.11"
 comrak = { version = "0.50", default-features = false, features = [
     "shortcodes",
 ] }
+emojis = "0.8"
 egui = { version = "0.32.3", features = ["serde"] }
 egui_animation = "0.9.0"
 egui_wgpu_renderer = { path = "../egui_wgpu_renderer" }

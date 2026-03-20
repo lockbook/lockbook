@@ -9818,6 +9818,7 @@ dependencies = [
  "egui",
  "egui_animation",
  "egui_wgpu_renderer",
+ "emojis",
  "epaint",
  "futures",
  "glam",
