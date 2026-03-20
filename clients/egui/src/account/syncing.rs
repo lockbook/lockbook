@@ -116,7 +116,10 @@ impl super::AccountScreen {
             .show(ui);
 
         if sync_btn.clicked() {
-            self.core.sync().map_unexpected().log_and_ignore();
+            let bg_lb = self.core.clone();
+            thread::spawn(move || {
+                bg_lb.sync().map_unexpected().log_and_ignore();
+            });
         }
 
         if sync_btn.hovered() {

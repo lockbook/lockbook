@@ -215,15 +215,6 @@ where
         Ok(result)
     }
 
-    pub fn get_usage_helper_v2<T>(
-        _owner: &Owner, _tree: &mut LazyTree<T>,
-    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
-    where
-        T: TreeLike<F = ServerMeta>,
-    {
-        todo!()
-    }
-
     pub fn get_cap(
         db: &ServerDb, public_key: &PublicKey,
     ) -> Result<u64, ServerError<GetUsageHelperError>> {
