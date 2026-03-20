@@ -60,13 +60,6 @@ impl Tasks {
     fn load_or_save_in_progress(&self, id: Uuid) -> bool {
         self.load_in_progress(id) || self.save_in_progress(id)
     }
-
-    fn any_load_or_save_queued_or_in_progress(&self) -> bool {
-        !self.queued_loads.is_empty()
-            || !self.queued_saves.is_empty()
-            || !self.in_progress_loads.is_empty()
-            || !self.in_progress_saves.is_empty()
-    }
 }
 
 pub struct Response {

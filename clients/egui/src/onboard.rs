@@ -19,11 +19,11 @@ pub struct OnboardHandOff {
     pub acct_data: Vec<File>,
 }
 
-enum Update {
-    AccountCreated(Result<Vec<File>, LbErr>),
-    AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
-    AccountImported(Option<LbErr>),
-    AccountDataLoaded(Result<Vec<File>, LbErr>),
+enum AccountUpdate {
+    Created(Result<Vec<File>, LbErr>),
+    PhraseConfirmation(Result<AccountPhraseData, LbErr>),
+    Imported(Option<LbErr>),
+    DataLoaded(Result<Vec<File>, LbErr>),
 }
 
 struct Router {
@@ -43,8 +43,8 @@ pub struct OnboardScreen {
     pub font_system: Arc<Mutex<FontSystem>>,
     pub core: Lb,
 
-    update_tx: mpsc::Sender<Update>,
-    update_rx: mpsc::Receiver<Update>,
+    update_tx: mpsc::Sender<AccountUpdate>,
+    update_rx: mpsc::Receiver<AccountUpdate>,
 
     router: Router,
     logo: Image<'static>,
@@ -94,7 +94,7 @@ impl OnboardScreen {
 
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
-                Update::AccountCreated(result) => match result {
+                AccountUpdate::Created(result) => match result {
                     Ok(acct_data) => {
                         resp = Some(OnboardHandOff {
                             settings: self.settings.clone(),
@@ -108,13 +108,13 @@ impl OnboardScreen {
                         self.create_err = Some(msg);
                     }
                 },
-                Update::AccountImported(maybe_err) => {
+                AccountUpdate::Imported(maybe_err) => {
                     if let Some(msg) = maybe_err {
                         self.router = Router::new(Route::Import, false);
                         self.import_err = Some(msg);
                     }
                 }
-                Update::AccountDataLoaded(result) => match result {
+                AccountUpdate::DataLoaded(result) => match result {
                     Ok(acct_data) => {
                         resp = Some(OnboardHandOff {
                             settings: self.settings.clone(),
@@ -124,7 +124,7 @@ impl OnboardScreen {
                     }
                     Err(err) => self.import_err = Some(err),
                 },
-                Update::AccountPhraseConfirmation(account_phrase_data) => match account_phrase_data
+                AccountUpdate::PhraseConfirmation(account_phrase_data) => match account_phrase_data
                 {
                     Ok(phrase_data) => {
                         self.router = Router::new(Route::AccountPhraseConfirmation, false);
@@ -367,7 +367,7 @@ impl OnboardScreen {
                                                     thread::spawn(move || {
                                                         let result = load_account_data(&core);
                                                         update_tx
-                                                            .send(Update::AccountCreated(result))
+                                                            .send(AccountUpdate::Created(result))
                                                             .unwrap();
                                                         ctx.request_repaint();
                                                     });
@@ -504,7 +504,7 @@ You can view your key again in the settings."#
 
             if let Err(create_account_err) = create_account_result {
                 update_tx
-                    .send(Update::AccountCreated(Err(create_account_err)))
+                    .send(AccountUpdate::Created(Err(create_account_err)))
                     .unwrap();
                 ctx.request_repaint();
                 return;
@@ -515,7 +515,7 @@ You can view your key again in the settings."#
                 .map(|res| AccountPhraseData { phrase: res });
 
             update_tx
-                .send(Update::AccountPhraseConfirmation(account_phrase))
+                .send(AccountUpdate::PhraseConfirmation(account_phrase))
                 .unwrap();
             ctx.request_repaint();
         });
@@ -534,18 +534,18 @@ You can view your key again in the settings."#
                 std::env::var("API_URL").unwrap_or_else(|_| DEFAULT_API_LOCATION.to_string());
 
             if let Err(err) = core.import_account(&key, Some(&api_url)) {
-                tx.send(Update::AccountImported(Some(err))).unwrap();
+                tx.send(AccountUpdate::Imported(Some(err))).unwrap();
                 ctx.request_repaint();
                 return;
             }
 
             match core.sync() {
                 Ok(_acct) => {
-                    tx.send(Update::AccountDataLoaded(load_account_data(&core)))
+                    tx.send(AccountUpdate::DataLoaded(load_account_data(&core)))
                         .unwrap();
                 }
                 Err(err) => {
-                    tx.send(Update::AccountImported(Some(err))).unwrap();
+                    tx.send(AccountUpdate::Imported(Some(err))).unwrap();
                 }
             }
 
