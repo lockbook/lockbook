@@ -17,9 +17,10 @@ use crate::{
     model::{
         ValidationFailure,
         access_info::UserAccessMode,
+        account::Account,
         api::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-            GetUsernameError, GetUsernameRequest, UpsertRequestV2,
+            GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
         crypto::{DecryptedDocument, EncryptedDocument},
         errors::Unexpected,
@@ -65,143 +66,6 @@ pub struct SyncState {
 //     is md or svg that descends from
 
 impl Lb {
-    pub(crate) fn setup_syncer(&self) {
-        if self.config.background_work {
-            self.clone().local_change_worker();
-            self.clone().periodic_sync_worker();
-            self.clone().post_sync_worker();
-        }
-    }
-
-    fn local_change_worker(self) {
-        tokio::spawn(async move {
-            let mut events = self.subscribe();
-
-            let sync_criteria = |e: Event| {
-                matches!(
-                    e,
-                    Event::MetadataChanged(Actor::User) | Event::DocumentWritten(_, Actor::User)
-                )
-            };
-
-            loop {
-                let mut should_sync = false;
-
-                // drain the current channel, so we don't sync for each keystroke if they pile up
-                loop {
-                    let event = events.try_recv();
-                    match event {
-                        Ok(event) => {
-                            if sync_criteria(event) {
-                                should_sync = true;
-                            }
-                        }
-                        Err(TryRecvError::Empty) => break,
-                        _ => {
-                            panic!(
-                                "unexpected broadcast receive error, returning local_change_worker"
-                            );
-                        }
-                    }
-                }
-
-                // empty channel + nothing interesting has happened, sit and wait for something
-                // interesting
-                if !should_sync {
-                    let event = events.recv().await.unwrap();
-                    if sync_criteria(event) {
-                        self.sync().await.map_unexpected().log_and_ignore();
-                    } else {
-                        continue;
-                    }
-                }
-            }
-        });
-    }
-
-    fn periodic_sync_worker(self) {
-        tokio::spawn(async move {
-            self.sync().await.map_unexpected().log_and_ignore();
-            if self.user_active().await {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-            } else {
-                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
-            }
-        });
-    }
-
-    async fn user_active(&self) -> bool {
-        let last_seen = self.user_last_seen.read().await;
-        last_seen.elapsed() < Duration::from_secs(3 * 60)
-    }
-
-    fn post_sync_worker(self) {
-        tokio::spawn(async move {
-            let mut events = self.subscribe();
-
-            loop {
-                let event = events.recv().await.unwrap();
-                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
-                    self.fetcher().await.map_unexpected().log_and_ignore();
-                    self.populate_pk_cache()
-                        .await
-                        .map_unexpected()
-                        .log_and_ignore();
-                };
-            }
-        });
-    }
-
-    async fn fetcher(&self) -> LbResult<()> {
-        let mut files_to_pull = vec![];
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let Some(root) = db.root.get() else {
-            return Ok(());
-        };
-
-        // we can only fetch things we know the server knows about
-        let mut tree = db.base_metadata.stage(None).to_lazy();
-
-        for id in tree.descendants_using_links(root)? {
-            let file = tree.find(&id)?;
-            let hmac = file.document_hmac().copied();
-
-            // skip non-documents
-            if !file.is_document() {
-                continue;
-            }
-
-            // skip deleted files
-            if tree.calculate_deleted(&id)? {
-                continue;
-            }
-
-            // skip non-first-party files
-            let name = tree.name(&id, &self.keychain)?;
-            if !name.ends_with(".md") && !name.ends_with(".svg") {
-                continue;
-            }
-
-            files_to_pull.push((id, hmac));
-        }
-
-        drop(tx);
-
-        // this could all be done in parallel, but for now going to not do it that way
-        // benefits: less work, but also ensures that a file that needs to be fetched immediately
-        // can be
-        for (id, hmac) in files_to_pull {
-            if let Some(hmac) = hmac {
-                self.fetch_doc(id, hmac).await?;
-            }
-        }
-
-        Ok(())
-    }
-
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
 
@@ -219,6 +83,11 @@ impl Lb {
         self.cleanup().await?;
 
         pipeline?;
+
+        let account = self.get_account()?.clone();
+        if account.is_beta() {
+            self.clone().send_debug_info(account);
+        }
 
         Ok(())
     }
@@ -1276,6 +1145,23 @@ impl Lb {
         Ok(id)
     }
 
+    async fn send_debug_info(self, account: Account) {
+        tokio::spawn(async move {
+            self.client
+                .request(
+                    &account,
+                    UpsertDebugInfoRequest {
+                        debug_info: self
+                            .debug_info("none provided - sync".to_string(), false)
+                            .await
+                            .unwrap(),
+                    },
+                )
+                .await
+                .unwrap();
+        });
+    }
+
     async fn read_document_helper<T>(
         &self, id: Uuid, tree: &mut LazyTree<T>,
     ) -> LbResult<DecryptedDocument>
@@ -1312,5 +1198,142 @@ impl Lb {
         let server_ids = state.remote_changes.iter().map(|f| *f.id()).collect();
 
         Ok(server_ids)
+    }
+
+    pub(crate) fn setup_syncer(&self) {
+        if self.config.background_work {
+            self.clone().local_change_worker();
+            self.clone().periodic_sync_worker();
+            self.clone().post_sync_worker();
+        }
+    }
+
+    fn local_change_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            let sync_criteria = |e: Event| {
+                matches!(
+                    e,
+                    Event::MetadataChanged(Actor::User) | Event::DocumentWritten(_, Actor::User)
+                )
+            };
+
+            loop {
+                let mut should_sync = false;
+
+                // drain the current channel, so we don't sync for each keystroke if they pile up
+                loop {
+                    let event = events.try_recv();
+                    match event {
+                        Ok(event) => {
+                            if sync_criteria(event) {
+                                should_sync = true;
+                            }
+                        }
+                        Err(TryRecvError::Empty) => break,
+                        _ => {
+                            panic!(
+                                "unexpected broadcast receive error, returning local_change_worker"
+                            );
+                        }
+                    }
+                }
+
+                // empty channel + nothing interesting has happened, sit and wait for something
+                // interesting
+                if !should_sync {
+                    let event = events.recv().await.unwrap();
+                    if sync_criteria(event) {
+                        self.sync().await.map_unexpected().log_and_ignore();
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        });
+    }
+
+    fn periodic_sync_worker(self) {
+        tokio::spawn(async move {
+            self.sync().await.map_unexpected().log_and_ignore();
+            if self.user_active().await {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            } else {
+                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            }
+        });
+    }
+
+    async fn user_active(&self) -> bool {
+        let last_seen = self.user_last_seen.read().await;
+        last_seen.elapsed() < Duration::from_secs(3 * 60)
+    }
+
+    fn post_sync_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            loop {
+                let event = events.recv().await.unwrap();
+                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
+                    self.fetcher().await.map_unexpected().log_and_ignore();
+                    self.populate_pk_cache()
+                        .await
+                        .map_unexpected()
+                        .log_and_ignore();
+                };
+            }
+        });
+    }
+
+    async fn fetcher(&self) -> LbResult<()> {
+        let mut files_to_pull = vec![];
+
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let Some(root) = db.root.get() else {
+            return Ok(());
+        };
+
+        // we can only fetch things we know the server knows about
+        let mut tree = db.base_metadata.stage(None).to_lazy();
+
+        for id in tree.descendants_using_links(root)? {
+            let file = tree.find(&id)?;
+            let hmac = file.document_hmac().copied();
+
+            // skip non-documents
+            if !file.is_document() {
+                continue;
+            }
+
+            // skip deleted files
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+
+            // skip non-first-party files
+            let name = tree.name(&id, &self.keychain)?;
+            if !name.ends_with(".md") && !name.ends_with(".svg") {
+                continue;
+            }
+
+            files_to_pull.push((id, hmac));
+        }
+
+        drop(tx);
+
+        // this could all be done in parallel, but for now going to not do it that way
+        // benefits: less work, but also ensures that a file that needs to be fetched immediately
+        // can be
+        for (id, hmac) in files_to_pull {
+            if let Some(hmac) = hmac {
+                self.fetch_doc(id, hmac).await?;
+            }
+        }
+
+        Ok(())
     }
 }
