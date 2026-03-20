@@ -348,7 +348,9 @@ pub fn overwrite_flatpak_manifest(
 pub fn update_flatpak() -> CliResult<()> {
     let version = lb_version();
     let flatpak_builder_tools_directory = "/tmp/flatpak_builder_tools_directory".to_string();
-    let released_lb_tarball = format!("/tmp/released_lb_tarball-{version}.tar.gz");
+    let released_lb_tarball_url =
+        format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
+    let released_lb_tarball_dl_location = format!("/tmp/released_lb_tarball-{version}.tar.gz");
     let flatpak_repo_directory = "/tmp/lb_flatpak_repo".to_string();
 
     if Path::new(&flatpak_builder_tools_directory).exists() {
@@ -371,22 +373,18 @@ pub fn update_flatpak() -> CliResult<()> {
         .args([
             "clone",
             "--depth=1",
+            // todo: change once we have a successful release
             "https://github.com/lockbook/net.lockbook.Lockbook/",
             &flatpak_repo_directory,
         ])
         .assert_success()?;
 
     Command::new("curl")
-        .args([
-            "-fL",
-            "https://github.com/lockbook/lockbook/archive/refs/tags/26.2.11.tar.gz",
-            "-o",
-            &released_lb_tarball,
-        ])
+        .args(["-fL", &released_lb_tarball_url, "-o", &released_lb_tarball_dl_location])
         .assert_success()?;
 
     let sha256_output = Command::new("sh")
-        .args(["-c", &format!("sha256sum {released_lb_tarball} | awk '{{print $1}}'")])
+        .args(["-c", &format!("sha256sum {released_lb_tarball_dl_location} | awk '{{print $1}}'")])
         .output()
         .unwrap();
     let sha256 = String::from_utf8(sha256_output.stdout)
@@ -394,9 +392,8 @@ pub fn update_flatpak() -> CliResult<()> {
         .trim()
         .to_string();
 
-    let url = format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
     overwrite_flatpak_manifest(
-        &url,
+        &released_lb_tarball_url,
         &sha256,
         &format!("{flatpak_repo_directory}/net.lockbook.Lockbook.json"),
     )?;
