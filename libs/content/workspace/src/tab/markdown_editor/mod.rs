@@ -185,7 +185,7 @@ impl MdLayout {
             margin: 45.0,
             max_width: 1000.0,
             inline_padding: 3.0,
-            row_height: 14.0,
+            row_height: 16.0,
             block_padding: 10.0,
             indent: 26.0,
             bullet_radius: 2.0,
