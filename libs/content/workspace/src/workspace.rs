@@ -500,7 +500,11 @@ impl Workspace {
                                             font_system: self.font_system.clone(),
                                             files: Arc::clone(&self.files),
                                         },
-                                        MdConfig { plaintext_mode, readonly: tab.read_only },
+                                        MdConfig {
+                                            plaintext_mode,
+                                            readonly: tab.read_only,
+                                            ext: ext.clone(),
+                                        },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
