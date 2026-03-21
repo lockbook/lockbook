@@ -84,8 +84,10 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            ui.ctx()
-                .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
+            let url = self
+                .resolve_link(&node_link.url)
+                .unwrap_or_else(|| node_link.url.clone());
+            ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
         }
 
         response
