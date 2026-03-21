@@ -1020,8 +1020,9 @@ impl DocType {
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
-            "go" => Self::Code,
             "pdf" => Self::PDF,
+            "json" | "toml" | "yaml" | "yml" | "go" | "rs" | "py" | "js" | "ts" | "c" | "cpp"
+            | "h" | "java" | "rb" | "sh" | "html" | "xml" | "css" => Self::Code, // many such cases
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
@@ -1036,6 +1037,14 @@ impl DocType {
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn plaintext_mode(&self) -> Option<bool> {
+        match self {
+            DocType::Markdown => Some(false),
+            DocType::PlainText | DocType::Code => Some(true),
+            _ => None,
         }
     }
 

@@ -21,6 +21,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
+use crate::show::DocType;
 
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
@@ -481,7 +482,9 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
-                        } else if ext == "md" || ext == "txt" {
+                        } else if let Some(plaintext_mode) =
+                            DocType::from_name(&ext).plaintext_mode()
+                        {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
@@ -497,10 +500,7 @@ impl Workspace {
                                             font_system: self.font_system.clone(),
                                             files: Arc::clone(&self.files),
                                         },
-                                        MdConfig {
-                                            plaintext_mode: ext != "md",
-                                            readonly: tab.read_only,
-                                        },
+                                        MdConfig { plaintext_mode, readonly: tab.read_only },
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
