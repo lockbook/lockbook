@@ -816,6 +816,18 @@ impl Editor {
                     let color = theme.bg().get_color(theme.prefs().primary);
                     self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
+
+                    if self.focused(ui.ctx()) {
+                        if let Some([top, bot]) = self.cursor_line(selection.1) {
+                            let cursor_rect = egui::Rect::from_min_max(top, bot);
+                            ui.output_mut(|o| {
+                                o.ime = Some(egui::output::IMEOutput {
+                                    rect: ui.max_rect(),
+                                    cursor_rect,
+                                });
+                            });
+                        }
+                    }
                 }
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);
