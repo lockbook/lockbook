@@ -94,6 +94,7 @@ impl eframe::App for LbWebApp {
                             core: self.workspace.core.clone(),
                             persistence: self.workspace.cfg.clone(),
                             font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
+                            files: Arc::new(std::sync::RwLock::new(None)),
                         },
                         MdConfig { plaintext_mode: false, readonly: false },
                     ));

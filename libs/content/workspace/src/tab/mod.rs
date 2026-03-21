@@ -352,7 +352,9 @@ impl Workspace {
     }
 
     pub fn tab_title(&self, tab: &Tab) -> String {
-        match (tab.id(), &self.files) {
+        let files_arc = std::sync::Arc::clone(&self.files);
+        let files_guard = files_arc.read().unwrap();
+        match (tab.id(), files_guard.as_ref()) {
             (Some(id), Some(files)) => {
                 if let Some(file) = files.files.iter().chain(&files.shared).find(|f| f.id == id) {
                     file.name.clone()
