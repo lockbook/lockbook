@@ -19,6 +19,10 @@ pub struct Response {
 
     pub tabs_changed: bool,
 
+    /// Set by the landing page when the user triggers "Delete" from the context
+    /// menu. The egui client should open its ConfirmDelete modal for this file.
+    pub delete_file_request: Option<lb_rs::Uuid>,
+
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 
     pub open_camera: bool,

@@ -1,6 +1,10 @@
+use std::sync::{Arc, Mutex, RwLock};
+
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
+use glyphon::FontSystem;
 
 use crate::theme::icons::Icon;
+use crate::widgets::GlyphonLabel;
 
 #[derive(Default)]
 pub struct Button<'a> {
@@ -109,11 +113,56 @@ impl<'a> Button<'a> {
                     galley
                 });
 
-                let maybe_text_galley = self.text.map(|text| {
-                    let galley =
-                        text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
-                    width += galley.size().x;
-                    galley
+                let font_system = ui
+                    .ctx()
+                    .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL));
+
+                let font_size = ui
+                    .ctx()
+                    .style()
+                    .text_styles
+                    .get(&text_style)
+                    .map(|f| f.size)
+                    .unwrap_or(14.0);
+                let ppi = ui.ctx().pixels_per_point();
+
+                enum TextRender {
+                    Galley(Arc<egui::Galley>),
+                    Glyphon { buffer: Arc<RwLock<glyphon::Buffer>>, size: egui::Vec2 },
+                }
+
+                let maybe_text_render = self.text.map(|text| {
+                    if let Some(ref fs) = font_system {
+                        let text_str: String = match &text {
+                            WidgetText::RichText(rt) => rt.text().to_owned(),
+                            WidgetText::LayoutJob(job) => job
+                                .sections
+                                .iter()
+                                .map(|s| &job.text[s.byte_range.clone()])
+                                .collect(),
+                            WidgetText::Galley(g) => g.job.text.clone(),
+                            WidgetText::Text(s) => s.to_string(),
+                        };
+                        let (buffer, w) = GlyphonLabel::shape_and_measure(
+                            fs,
+                            &text_str,
+                            font_size,
+                            text_height,
+                            wrap_width,
+                            ppi,
+                        );
+                        width += w;
+                        TextRender::Glyphon { buffer, size: egui::vec2(w, text_height) }
+                    } else {
+                        let galley = text.into_galley(
+                            ui,
+                            Some(TextWrapMode::Extend),
+                            wrap_width,
+                            text_style,
+                        );
+                        width += galley.size().x;
+                        TextRender::Galley(galley)
+                    }
                 });
 
                 if self.hexpand {
@@ -198,9 +247,20 @@ impl<'a> Button<'a> {
                         }
                     }
 
-                    if let Some(text) = maybe_text_galley {
-                        ui.painter()
-                            .galley(text_pos, text, text_visuals.text_color())
+                    if let Some(text_render) = maybe_text_render {
+                        match text_render {
+                            TextRender::Galley(galley) => {
+                                ui.painter()
+                                    .galley(text_pos, galley, text_visuals.text_color());
+                            }
+                            TextRender::Glyphon { buffer, size } => {
+                                let text_rect = egui::Rect::from_min_size(text_pos, size);
+                                ui.put(
+                                    text_rect,
+                                    GlyphonLabel::new(buffer, text_visuals.text_color()),
+                                );
+                            }
+                        }
                     }
                 }
 

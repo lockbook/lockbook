@@ -1,6 +1,6 @@
 use egui::{
     Align, Button, Color32, Direction, FontId, Frame, Key, Layout, Modifiers, Rect, RichText,
-    Stroke, Ui, UiBuilder, Vec2,
+    Sense, Stroke, Ui, UiBuilder, Vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;
-use crate::widgets::IconButton;
+use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -59,6 +59,8 @@ pub struct Response {
     pub create_note: bool,
     pub create_drawing: bool,
     pub create_folder: bool,
+    pub rename_request: Option<(Uuid, String)>,
+    pub delete_request: Option<Uuid>,
 }
 
 impl BitOrAssign for Response {
@@ -67,6 +69,8 @@ impl BitOrAssign for Response {
         self.create_note |= rhs.create_note;
         self.create_drawing |= rhs.create_drawing;
         self.create_folder |= rhs.create_folder;
+        self.rename_request = self.rename_request.take().or(rhs.rename_request);
+        self.delete_request = self.delete_request.or(rhs.delete_request);
     }
 }
 
@@ -128,6 +132,12 @@ impl Workspace {
         if response.create_folder {
             self.create_folder();
         }
+        if let Some((id, name)) = response.rename_request {
+            self.rename_file((id, name), true);
+        }
+        if let Some(id) = response.delete_request {
+            self.out.delete_file_request = Some(id);
+        }
 
         // Persist landing page if it changed
         if self.landing_page != initial_landing_page {
@@ -169,21 +179,49 @@ impl Workspace {
 
             // Breadcrumb / Folder name
             ui.horizontal(|ui| {
+                let ppi = ui.ctx().pixels_per_point();
+                const HEADING_FONT_SIZE: f32 = 40.0;
+                const HEADING_LINE_HEIGHT: f32 = HEADING_FONT_SIZE * 1.4;
+
                 if !folder.is_root() {
                     let parent = files.files.get_by_id(folder.parent).unwrap();
-                    if ui
-                        .link(RichText::new(&parent.name).font(FontId::proportional(40.0)))
-                        .clicked()
-                    {
+                    let (buf, _) = GlyphonLabel::shape_and_measure(
+                        &self.font_system,
+                        &parent.name,
+                        HEADING_FONT_SIZE,
+                        HEADING_LINE_HEIGHT,
+                        f32::MAX,
+                        ppi,
+                    );
+                    let resp = ui.add(
+                        GlyphonLabel::new(buf, ui.visuals().text_color())
+                            .line_height(HEADING_LINE_HEIGHT)
+                            .sense(Sense::click()),
+                    );
+                    if resp.clicked() {
                         response.open_file = Some(parent.id);
                     }
+                    resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+
                     ui.label(
                         RichText::new(Icon::CHEVRON_RIGHT.icon)
                             .font(FontId::monospace(19.0))
                             .weak(),
                     );
                 }
-                ui.label(RichText::new(&folder.name).font(FontId::proportional(40.0)));
+
+                let (buf, _) = GlyphonLabel::shape_and_measure(
+                    &self.font_system,
+                    &folder.name,
+                    HEADING_FONT_SIZE,
+                    HEADING_LINE_HEIGHT,
+                    f32::MAX,
+                    ppi,
+                );
+                ui.add(
+                    GlyphonLabel::new(buf, ui.visuals().text_color())
+                        .line_height(HEADING_LINE_HEIGHT),
+                );
             });
         });
 
@@ -815,10 +853,40 @@ impl Workspace {
                                 }
                             }
 
+                            let is_renaming = self.landing_rename_target == Some(child.id);
+                            let rename_id = egui::Id::new("landing_rename");
+
+                            // Drain keyboard events before rendering so the buffer is
+                            // up-to-date when we derive the real-time icon from it.
+                            let rename_submitted = is_renaming
+                                && GlyphonTextEdit::process_events(
+                                    ui,
+                                    rename_id,
+                                    &mut self.landing_rename_buffer,
+                                );
+
                             child_idx += 1;
 
-                            // File name
-                            ui.horizontal(|ui| {
+                            // Shared metrics used by both the rename and display branches.
+                            let ppi = ui.ctx().pixels_per_point();
+                            let line_height = ui.text_style_height(&egui::TextStyle::Body);
+                            let font_size = ui
+                                .ctx()
+                                .style()
+                                .text_styles
+                                .get(&egui::TextStyle::Body)
+                                .map(|f| f.size)
+                                .unwrap_or(14.0);
+
+                            // File name — icon + link label, or icon + inline text edit when renaming
+                            let name_row = ui.horizontal(|ui| -> egui::Response {
+                                // Derive doc_type from the rename buffer for real-time icon updates.
+                                let doc_type = DocType::from_name(if is_renaming {
+                                    &self.landing_rename_buffer
+                                } else {
+                                    &child.name
+                                });
+
                                 // Icon
                                 if child.is_folder() {
                                     let folder_icon = if !child.shares.is_empty() {
@@ -835,7 +903,6 @@ impl Workspace {
                                         ui.label("Folder");
                                     });
                                 } else {
-                                    let doc_type = DocType::from_name(&child.name);
                                     ui.label(
                                         RichText::new(doc_type.to_icon().icon)
                                             .font(FontId::monospace(19.0))
@@ -846,25 +913,122 @@ impl Workspace {
                                     });
                                 }
 
-                                let doc_type = DocType::from_name(&child.name);
-                                let text = if doc_type.hide_ext() {
-                                    let wo = std::path::Path::new(&child.name)
-                                        .file_stem()
-                                        .map(|stem| stem.to_str().unwrap())
-                                        .unwrap_or(&child.name);
-                                    egui::WidgetText::from(wo)
+                                if is_renaming {
+                                    let stem_end = self
+                                        .landing_rename_buffer
+                                        .rfind('.')
+                                        .unwrap_or(self.landing_rename_buffer.len());
+
+                                    let (_, rename_w) = GlyphonLabel::shape_and_measure(
+                                        &self.font_system,
+                                        &self.landing_rename_buffer,
+                                        font_size,
+                                        line_height,
+                                        f32::MAX,
+                                        ppi,
+                                    );
+                                    let text_width = rename_w.max(ui.available_width());
+                                    let (text_rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(text_width, line_height),
+                                        egui::Sense::hover(),
+                                    );
+                                    ui.put(
+                                        text_rect,
+                                        GlyphonTextEdit::new(&mut self.landing_rename_buffer)
+                                            .id(rename_id)
+                                            .font_size(font_size)
+                                            .select_on_focus(0, stem_end),
+                                    )
                                 } else {
-                                    egui::WidgetText::from(&child.name)
-                                };
-                                let link_response = ui.link(text);
-                                if link_response.clicked() {
+                                    let display_name = if doc_type.hide_ext() {
+                                        std::path::Path::new(&child.name)
+                                            .file_stem()
+                                            .and_then(|s| s.to_str())
+                                            .unwrap_or(&child.name)
+                                    } else {
+                                        &child.name
+                                    };
+                                    let (buf, _) = GlyphonLabel::shape_and_measure(
+                                        &self.font_system,
+                                        display_name,
+                                        font_size,
+                                        line_height,
+                                        f32::MAX,
+                                        ppi,
+                                    );
+                                    ui.add(
+                                        GlyphonLabel::new(buf, ui.visuals().hyperlink_color)
+                                            .line_height(line_height)
+                                            .sense(Sense::click()),
+                                    )
+                                }
+                            });
+
+                            let inner_resp = name_row.inner;
+
+                            // Handle rename completion or file open
+                            if is_renaming {
+                                if !inner_resp.has_focus() && !inner_resp.lost_focus() {
+                                    ui.memory_mut(|m| m.request_focus(rename_id));
+                                }
+                                if rename_submitted {
+                                    response.rename_request =
+                                        Some((child.id, self.landing_rename_buffer.clone()));
+                                    self.landing_rename_target = None;
+                                } else if inner_resp.lost_focus() {
+                                    self.landing_rename_target = None;
+                                }
+                            } else {
+                                if inner_resp.clicked() {
                                     response.open_file = Some(child.id);
                                 }
+                                inner_resp
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand)
+                                    .on_hover_ui(|ui| {
+                                        ui.label(self.core.get_path_by_id(child.id).unwrap());
+                                    });
+                            }
 
-                                // Show full path on hover
-                                link_response.on_hover_ui(|ui| {
-                                    ui.label(self.core.get_path_by_id(child.id).unwrap());
-                                });
+                            // Context menu — right-click anywhere in the name cell.
+                            // ui.horizontal's response has no sense, so we explicitly
+                            // interact over its rect with Sense::click() to make
+                            // secondary_clicked() fire, which context_menu relies on.
+                            let ctx_resp = ui.interact(
+                                name_row.response.rect,
+                                egui::Id::new("landing_ctx").with(child.id),
+                                egui::Sense::click(),
+                            );
+                            ctx_resp.context_menu(|ui| {
+                                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                if !child.is_folder() && ui.button("Open").clicked() {
+                                    response.open_file = Some(child.id);
+                                    ui.close();
+                                }
+                                if !child.is_folder() {
+                                    ui.separator();
+                                }
+                                if ui.button("Rename").clicked() {
+                                    self.landing_rename_target = Some(child.id);
+                                    self.landing_rename_buffer = child.name.clone();
+                                    ui.close();
+                                }
+                                if ui.button("Delete").clicked() {
+                                    response.delete_request = Some(child.id);
+                                    ui.close();
+                                }
+                                ui.separator();
+                                if ui.button("New Document").clicked() {
+                                    response.create_note = true;
+                                    ui.close();
+                                }
+                                if ui.button("New Drawing").clicked() {
+                                    response.create_drawing = true;
+                                    ui.close();
+                                }
+                                if ui.button("New Folder").clicked() {
+                                    response.create_folder = true;
+                                    ui.close();
+                                }
                             });
 
                             // Last modified

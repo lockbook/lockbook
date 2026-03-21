@@ -43,6 +43,7 @@ impl From<crate::Response> for IOSResponse {
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera,
+                    delete_file_request: _,
                 },
             redraw_in,
             copied_text,

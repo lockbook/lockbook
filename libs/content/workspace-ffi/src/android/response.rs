@@ -41,6 +41,7 @@ impl From<crate::Response> for AndroidResponse {
                     failure_messages: _,
                     selected_folder_changed: _,
                     open_camera: _,
+                    delete_file_request: _,
                 },
             redraw_in,
             copied_text,
