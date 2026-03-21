@@ -15,7 +15,7 @@ pub struct Response {
     // platform response
     pub redraw_in: Option<u64>,
     pub copied_text: String,
-    pub url_opened: Option<String>,
+    pub urls_opened: Vec<String>,
     pub cursor: CursorIcon,
     pub virtual_keyboard_shown: Option<bool>,
     pub window_title: Option<String>,
@@ -54,9 +54,13 @@ impl Response {
                     |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
                 )
                 .unwrap_or_default(),
-            url_opened: platform.commands.iter().find_map(|c| {
-                if let OutputCommand::OpenUrl(u) = c { Some(u.url.clone()) } else { None }
-            }), // todo: expose "new_tab" field
+            urls_opened: platform
+                .commands
+                .iter()
+                .filter_map(|c| {
+                    if let OutputCommand::OpenUrl(u) = c { Some(u.url.clone()) } else { None }
+                })
+                .collect(),
             cursor: platform.cursor_icon,
             virtual_keyboard_shown: context.pop_virtual_keyboard_shown(),
             window_title,

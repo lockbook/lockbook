@@ -1238,14 +1238,18 @@
                 mtkView.workspaceOutput?.newFolderButtonPressed = ()
             }
 
-            if let openedUrl = output.url_opened {
-                let url = textFromPtr(s: openedUrl)
-
-                if let url = URL(string: url),
-                    UIApplication.shared.canOpenURL(url)
-                {
-                    mtkView.workspaceOutput?.urlOpened = url
+            if output.urls_opened.size > 0 {
+                var urls: [URL] = []
+                for i in 0..<Int(output.urls_opened.size) {
+                    if let ptr = output.urls_opened.urls[i],
+                        let url = URL(string: textFromPtr(s: ptr)),
+                        UIApplication.shared.canOpenURL(url)
+                    {
+                        urls.append(url)
+                    }
                 }
+                mtkView.workspaceOutput?.urlsOpened = urls
+                free_urls(output.urls_opened)
             }
 
             if output.open_camera {

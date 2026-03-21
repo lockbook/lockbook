@@ -138,6 +138,14 @@ impl<'ast> Editor {
                 })
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
+                if !cfg!(target_os = "ios") && modifiers.command =>
+            {
+                for open_url in self.links_in_selection(root) {
+                    self.ctx.open_url(open_url);
+                }
+                None
+            }
+            egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>
             {
                 if self.readonly {

@@ -10,7 +10,7 @@ public class WorkspaceOutputState: ObservableObject {
     @Published public var newFolderButtonPressed: () = ()
     @Published public var currentTab: WorkspaceTab = .Welcome
     @Published public var renameOpenDoc: () = ()
-    @Published public var urlOpened: URL? = nil
+    @Published public var urlsOpened: [URL] = []
     @Published public var openCamera: Bool = false
 
     // Tab count includes non-files
@@ -88,10 +88,10 @@ public class WorkspaceInputState: ObservableObject {
         close_all_tabs(wsHandle)
         redraw.send(())
     }
-    
+
     public func pasteImage(data: Data, isPaste: Bool) {
         guard let wsHandle else { return }
-        
+
         let imgPtr = data.withUnsafeBytes {
             (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
