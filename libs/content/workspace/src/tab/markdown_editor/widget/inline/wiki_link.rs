@@ -8,22 +8,6 @@ use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl Editor {
-    pub fn resolve_link(&self, url: &str) -> Option<String> {
-        let guard = self.files.read().unwrap();
-        let cache = guard.as_ref()?;
-        let from_id = cache.files.get_by_id(self.file_id)?.parent;
-        cache.files.resolve_link(url, from_id)
-    }
-
-    pub fn resolve_wikilink(&self, title: &str) -> Option<String> {
-        let guard = self.files.read().unwrap();
-        let cache = guard.as_ref()?;
-        let from_id = cache.files.get_by_id(self.file_id)?.parent;
-        cache.files.resolve_wikilink(title, from_id)
-    }
-}
-
 impl<'ast> Editor {
     pub fn text_format_wiki_link(&self, parent: &AstNode<'_>, url: &str) -> Format {
         let base = self.text_format_link(parent);
@@ -69,5 +53,12 @@ impl<'ast> Editor {
         }
 
         response
+    }
+
+    pub fn resolve_wikilink(&self, title: &str) -> Option<String> {
+        let guard = self.files.read().unwrap();
+        let cache = guard.as_ref()?;
+        let from_id = cache.files.get_by_id(self.file_id)?.parent;
+        cache.files.resolve_wikilink(title, from_id)
     }
 }
