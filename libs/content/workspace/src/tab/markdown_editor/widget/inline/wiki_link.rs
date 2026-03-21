@@ -81,9 +81,7 @@ impl<'ast> Editor {
                     let url =
                         if is_wiki { self.resolve_wikilink(&raw) } else { self.resolve_link(&raw) };
                     if let Some(url) = url {
-                        if url.starts_with("lb://") {
-                            results.push(egui::OpenUrl { url, new_tab });
-                        }
+                        results.push(egui::OpenUrl { url, new_tab });
                     }
                 }
             }
