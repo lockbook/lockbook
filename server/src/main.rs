@@ -5,7 +5,7 @@ use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
 use lockbook_server_lib::router_service::{
-    app_store_notification_webhooks, build_info, core_routes, external_link_routes, get_metrics,
+    app_store_notification_webhooks, build_info, core_routes, files_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
 use lockbook_server_lib::schema::{ServerDb, ServerV5};
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(external_link_routes());
+        .or(files_routes());
 
     let server = warp::serve(routes);
 

@@ -4,15 +4,19 @@ use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::config::Config;
 use crate::document_service::DocumentService;
-use crate::external_link::get_preview_html;
+use crate::files::get_files_preview_html;
 use crate::utils::get_build_info;
 use crate::{ServerError, ServerState, handle_version_header, router_service, verify_auth};
 use lazy_static::lazy_static;
+use warp::hyper::Body;
+
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
     CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
+use warp::http::Response;
+
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
@@ -468,26 +472,39 @@ where
         })
 }
 
-static EXTERNAL_LINK_ROUTE: &str = "external-link";
+static EXTERNAL_LINK_ROUTE: &str = "files";
+const APPLE_APP_SITE_ASSOCIATION: &str = include_str!("well-known/apple-app-site-association");
 
-pub fn external_link_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-    warp::path(EXTERNAL_LINK_ROUTE)
+pub fn files_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+    let open_route = warp::path(EXTERNAL_LINK_ROUTE)
+        .and(warp::path("open"))
         .and(warp::path::param::<String>())
         .map(|uuid: String| {
             let span = span!(
                 Level::INFO,
                 "matched_request",
                 method = "POST",
-                route = format!("/{EXTERNAL_LINK_ROUTE}").as_str()
+                route = format!("/{EXTERNAL_LINK_ROUTE}/open")
             );
             let _enter = span.enter();
-            
+
             info!("external link routed");
 
-            let redirect_html = get_preview_html(uuid.as_str());
+            let redirect_html = get_files_preview_html(uuid.as_str());
+            warp::reply::html(redirect_html)
+        });
 
-            return warp::reply::html(redirect_html);
-        })
+    let well_known_route = warp::path(EXTERNAL_LINK_ROUTE)
+        .and(warp::path(".well-known"))
+        .and(warp::path("apple-app-site-association"))
+        .map(|| {
+            Response::builder()
+                .header("Content-Type", "application/json")
+                .body(Body::from(APPLE_APP_SITE_ASSOCIATION))
+                .unwrap()
+        });
+
+    open_route.or(well_known_route)
 }
 
 pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Clone {

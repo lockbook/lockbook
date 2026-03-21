@@ -100,7 +100,6 @@ where
     )
 }
 
-pub mod external_link;
 pub mod account_service;
 pub mod billing;
 pub mod config;
@@ -109,6 +108,7 @@ pub mod defense;
 pub mod document_service;
 pub mod error_handler;
 pub mod file_service;
+pub mod files;
 pub mod garbage_worker;
 pub mod loggers;
 pub mod metrics;
