@@ -13,4 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Flatpak
-        run: nix-shell -p curl python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser linux desktop flatpak"
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          nix-shell -p curl python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser linux desktop flatpak"
