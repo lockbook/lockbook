@@ -142,8 +142,6 @@ impl Workspace {
 
             ui.centered_and_justified(|ui| {
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
-                let mut open_id = None;
-                let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -234,16 +232,12 @@ impl Workspace {
                             let Some(id_str) = resolved.strip_prefix("lb://") else { return true };
                             let Ok(file_id) = Uuid::parse_str(id_str) else { return true };
 
-                            open_id = Some(file_id);
-                            new_tab = url.new_tab;
+                            open_ids.push((file_id, url.new_tab));
                             false
                         });
                     });
                 }
                 for (id, new_tab) in open_ids {
-                    self.open_file(id, true, new_tab);
-                }
-                if let Some(id) = open_id {
                     self.open_file(id, true, new_tab);
                 }
             });
