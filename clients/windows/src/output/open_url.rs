@@ -5,8 +5,8 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::*;
 
 // https://www.betaarchive.com/wiki/index.php/Microsoft_KB_Archive/224816
-pub fn handle(open_url: Option<OpenUrl>) {
-    if let Some(OpenUrl { url, .. }) = open_url {
+pub fn handle(open_urls: Vec<OpenUrl>) {
+    for OpenUrl { url, .. } in open_urls {
         unsafe {
             ShellExecuteW(
                 HWND(0),

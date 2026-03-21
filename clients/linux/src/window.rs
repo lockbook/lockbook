@@ -238,16 +238,20 @@ pub fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             output::window_title::handle(conn, window_id, &atoms, window_title)?;
             cursor_manager.handle(conn, &db, screen_num, window_id, cursor_icon);
-            let open_url = commands.iter().find_map(|c| {
-                if let OutputCommand::OpenUrl(u) = c { Some(u.clone()) } else { None }
-            });
+            let open_urls =
+                commands
+                    .iter()
+                    .filter_map(|c| {
+                        if let OutputCommand::OpenUrl(u) = c { Some(u.clone()) } else { None }
+                    })
+                    .collect();
             let copied_text = commands
                 .iter()
                 .find_map(
                     |c| if let OutputCommand::CopyText(t) = c { Some(t.clone()) } else { None },
                 )
                 .unwrap_or_default();
-            output::open_url::handle(open_url);
+            output::open_url::handle(open_urls);
             output::clipboard_copy::handle_copy(
                 conn,
                 &atoms,
