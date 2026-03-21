@@ -36,7 +36,7 @@ use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
 use tools::pen::PenSettings;
-use tracing::{debug, info};
+use tracing::{Level, debug, info, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,

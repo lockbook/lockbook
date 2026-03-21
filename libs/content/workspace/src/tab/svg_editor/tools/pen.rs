@@ -118,7 +118,7 @@ impl RogerTool for Pen {
         let old_layer = pen_ctx.painter.layer_id();
 
         pen_ctx.painter.set_layer_id(egui::LayerId {
-            order: egui::Order::PanelResizeLine,
+            order: egui::Order::Foreground,
             id: "pen_overlay".into(),
         });
 

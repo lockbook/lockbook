@@ -153,7 +153,7 @@ impl Eraser {
     fn show_eraser_circle(&self, pos: egui::Pos2, eraser_ctx: &mut ToolContext<'_>) {
         let old_layer = eraser_ctx.painter.layer_id();
         eraser_ctx.painter.set_layer_id(egui::LayerId {
-            order: egui::Order::PanelResizeLine,
+            order: egui::Order::Foreground,
             id: "eraser_overlay".into(),
         });
 

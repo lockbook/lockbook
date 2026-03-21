@@ -49,7 +49,7 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-@SuppressLint("ViewConstructor")
+@SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
     private var eraserToggledOnByPen = false
 
@@ -97,6 +97,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             pendingDx.getAndUpdate { it - distanceX }
             pendingDy.getAndUpdate { it - distanceY }
+            drawImmediately()
             return true
         }
 
@@ -111,11 +112,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
 
-            val density = context.resources.displayMetrics.scaledDensity
             scroller.fling(
                 0, 0,
-                (velocityX / density).toInt(),
-                (velocityY / density).toInt(),
+                velocityX.toInt(),
+                velocityY.toInt(),
                 Int.MIN_VALUE, Int.MAX_VALUE,
                 Int.MIN_VALUE, Int.MAX_VALUE
             )
@@ -155,16 +155,15 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val halfSpanY = detector.currentSpanY / 2f
             gestureStartPositions = arrayOf(
                 PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
-//                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
+                // PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
             )
             return true
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val density = context.resources.displayMetrics.density
             pendingZoom.getAndUpdate { it * detector.scaleFactor }
-            pendingFocusX.set(detector.focusX / density)
-            pendingFocusY.set(detector.focusY / density)
+            pendingFocusX.set(detector.focusX)
+            pendingFocusY.set(detector.focusY)
             drawImmediately()
             return true
         }
@@ -200,10 +199,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     fun stopRendering() {
         renderJob?.cancel()
         nativeLock.withLock { }
-    }
-
-    private fun adjustTouchPoint(axis: Float): Float {
-        return axis / context.resources.displayMetrics.scaledDensity
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -299,11 +294,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             if (dx != 0f || dy != 0f || zoom !=1f){
                 Workspace.multiTouch(WGPU_OBJ,
-                    adjustTouchPoint(dx),
-                    adjustTouchPoint(dy),
+                    dx,
+                    dy,
                     zoom, focusX, focusY,
-                    gestureStartPositions.map { adjustTouchPoint(it.x) }.toFloatArray(),
-                    gestureStartPositions.map { adjustTouchPoint(it.y) }.toFloatArray())
+                    gestureStartPositions.map { it.x }.toFloatArray(),
+                    gestureStartPositions.map { it.y }.toFloatArray())
             }
 
 
@@ -424,8 +419,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 Workspace.touchesBegin(
                     WGPU_OBJ,
                     pointerId,
-                    adjustTouchPoint(event.getX(actionIndex)),
-                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    event.getX(actionIndex),
+                    event.getY(actionIndex) + touchOffsetY,
                     pressure
                 )
 
@@ -437,8 +432,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     Workspace.touchesMoved(
                         WGPU_OBJ,
                         pointerId,
-                        adjustTouchPoint(event.getX(i)),
-                        adjustTouchPoint(event.getY(i) + touchOffsetY),
+                        event.getX(i),
+                        event.getY(i) + touchOffsetY,
                         pressure
                     )
                 }
@@ -448,8 +443,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 Workspace.touchesEnded(
                     WGPU_OBJ,
                     pointerId,
-                    adjustTouchPoint(event.getX(actionIndex)),
-                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    event.getX(actionIndex),
+                    event.getY(actionIndex) + touchOffsetY,
                     pressure
                 )
             }
@@ -458,8 +453,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 Workspace.touchesCancelled(
                     WGPU_OBJ,
                     pointerId,
-                    adjustTouchPoint(event.getX(actionIndex)),
-                    adjustTouchPoint(event.getY(actionIndex) + touchOffsetY),
+                    event.getX(actionIndex),
+                    event.getY(actionIndex) + touchOffsetY,
                     pressure
                 )
             }

@@ -204,21 +204,24 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_multiTouch(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let start_positions = parse_start_positions(&_env, start_x, start_y);
+    let start_positions = parse_start_positions(&_env, obj, start_x, start_y);
+    let translation_delta = obj.renderer.vec_from_pixels(x, y);
+    let center_pos = obj.renderer.pos_from_pixels(focus_x, focus_y);
 
     obj.renderer
         .context
         .push_event(workspace_rs::Event::MultiTouchGesture {
             rotation_delta: 0.0,
-            translation_delta: egui::vec2(x, y),
+            translation_delta,
             zoom_factor: factor,
-            center_pos: egui::pos2(focus_x, focus_y),
+            center_pos,
             start_positions,
         });
 }
 
 fn parse_start_positions(
-    env: &JNIEnv, start_x: JPrimitiveArray<jfloat>, start_y: JPrimitiveArray<jfloat>,
+    env: &JNIEnv, obj: &mut WgpuWorkspace, start_x: JPrimitiveArray<jfloat>,
+    start_y: JPrimitiveArray<jfloat>,
 ) -> Vec<egui::Pos2> {
     let len = env.get_array_length(&start_x).unwrap_or(0) as usize;
     let mut xs = vec![0f32; len];
@@ -227,7 +230,7 @@ fn parse_start_positions(
     env.get_float_array_region(&start_y, 0, &mut ys).ok();
     xs.iter()
         .zip(ys.iter())
-        .map(|(&x, &y)| egui::pos2(x, y))
+        .map(|(&x, &y)| obj.renderer.pos_from_pixels(x, y))
         .collect()
 }
 
