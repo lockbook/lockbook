@@ -8,7 +8,7 @@ struct UsageBar: View {
 
     var body: some View {
         if let usage = settingsModel.usage, let usageMessage,
-            let progressBarColor, shouldShow
+           let progressBarColor, shouldShow
         {
             VStack(alignment: .leading, spacing: 5) {
                 #if os(iOS)
@@ -80,15 +80,15 @@ struct UsageTooltip: ViewModifier {
 struct MobileGlassEffectModifier: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
-        content
-            .frame(height: 40)
-            .padding(.vertical, 8)
-            .padding(.horizontal)
-            .modifier(GlassEffectModifier())
-            .padding(.horizontal)
+            content
+                .frame(height: 40)
+                .padding(.vertical, 8)
+                .padding(.horizontal)
+                .modifier(GlassEffectModifier())
+                .padding(.horizontal)
         #else
-        content
-            .padding(8)
+            content
+                .padding(8)
         #endif
     }
 }

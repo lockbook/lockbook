@@ -3,7 +3,7 @@ import SwiftUI
 struct MobileCustomTabView<TabContent: View>: View {
     @Binding var selectedTab: TabType
     @ViewBuilder var tabContent: (TabType) -> TabContent
-    
+
     @EnvironmentObject var filesModel: FilesViewModel
 
     var body: some View {
@@ -18,7 +18,7 @@ struct MobileCustomTabView<TabContent: View>: View {
             }
         }
     }
-    
+
     func badgeCount(_ mode: TabType) -> Int {
         switch mode {
         case .home:

@@ -3,9 +3,9 @@ import SwiftUI
 struct AutocapitalizationDisabled: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.textInputAutocapitalization(.never)
+            content.textInputAutocapitalization(.never)
         #else
-        content
+            content
         #endif
     }
 }

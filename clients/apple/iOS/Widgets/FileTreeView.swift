@@ -2,17 +2,16 @@ import SwiftUI
 import SwiftWorkspace
 
 struct FileTreeView: View {
-    
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-    
+
     @StateObject var fileTreeModel: FileTreeViewModel
-    
+
     var root: File
-    
+
     init(root: File, filesModel: FilesViewModel, workspaceInput: WorkspaceInputState, workspaceOutput: WorkspaceOutputState) {
         self.root = root
-        self._fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput))
+        _fileTreeModel = StateObject(wrappedValue: FileTreeViewModel(filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput))
     }
 
     var body: some View {
@@ -21,7 +20,7 @@ struct FileTreeView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     FileRowView(file: root, level: -1)
                         .environmentObject(fileTreeModel)
-                    
+
                     Spacer()
                 }
                 .listStyle(.sidebar)
@@ -32,7 +31,7 @@ struct FileTreeView: View {
                 .onAppear {
                     scrollHelper.scrollTo(fileTreeModel.openDoc)
                 }
-                
+
                 Spacer().frame(height: 150)
             }
             .contentShape(Rectangle())
@@ -48,48 +47,42 @@ struct FileRowView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var fileTreeModel: FileTreeViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-    
+
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
     let file: File
     let level: CGFloat
-    
+
     var children: [File] {
-        get {
-            (filesModel.childrens[file.id] ?? []).sorted { $1 > $0 }
-        }
+        (filesModel.childrens[file.id] ?? []).sorted { $1 > $0 }
     }
 
     var isLeaf: Bool {
-        get {
-            children.isEmpty
-        }
+        children.isEmpty
     }
-        
+
     var isOpen: Bool {
-        get {
-            fileTreeModel.openFolders.contains(file.id)
-        }
+        fileTreeModel.openFolders.contains(file.id)
     }
-    
+
     var isSelected: Bool {
         filesModel.selectedFilesState.isSelected(file)
     }
-    
+
     var isSelectable: Bool {
         filesModel.selectedFilesState.isSelectableState()
     }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if level != -1 {
                 fileRow
                     .onTapGesture {
-                        self.openOrSelectFile()
+                        openOrSelectFile()
                     }
             }
-            
-            if !isLeaf && (isOpen || level == -1) {
+
+            if !isLeaf, isOpen || level == -1 {
                 ForEach(children, id: \.id) { child in
                     FileRowView(file: child, level: level + 1)
                 }
@@ -100,7 +93,7 @@ struct FileRowView: View {
         }
         .id(file.id)
     }
-    
+
     var fileRow: some View {
         HStack {
             if isSelectable {
@@ -110,27 +103,27 @@ struct FileRowView: View {
                             .foregroundStyle(Color.accentColor)
                             .font(.system(size: 17))
                     }
-                    
+
                     Image(systemName: isSelected ? "checkmark" : "circle")
                         .foregroundStyle(isSelected ? Color.white : Color.secondary)
-                        .font(.system(size: (isSelected ? 10 : 17)))
+                        .font(.system(size: isSelected ? 10 : 17))
                 }
                 .padding(.trailing, 5)
             }
-            
+
             Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
                 .font(.system(size: 16))
                 .frame(width: 16)
                 .foregroundColor(file.isFolder ? .accentColor : .secondary)
-                        
+
             Text(file.name)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .allowsTightening(true)
                 .foregroundColor(.primary)
-            
+
             Spacer()
-            
+
             if !isLeaf {
                 Image(systemName: "chevron.forward")
                     .renderingMode(.template)
@@ -140,7 +133,6 @@ struct FileRowView: View {
                     .rotationEffect(Angle.degrees(isOpen ? 90 : 0))
                     .foregroundColor(.accentColor)
             }
-
         }
         .padding(.vertical, 9)
         .contentShape(Rectangle())
@@ -160,30 +152,30 @@ struct FileRowView: View {
             }
         )
     }
-    
+
     func openOrSelectFile() {
         homeState.closeWorkspaceBlockingScreens()
-        
+
         if isSelectable {
             if isSelected {
                 filesModel.removeFileFromSelection(file: file)
             } else {
                 filesModel.addFileToSelection(file: file)
             }
-            
+
             return
         }
-        
+
         if file.isFolder {
             fileTreeModel.supressNextOpenFolder = true
             workspaceInput.selectFolder(id: file.id)
-            
+
             withAnimation {
-                let _ = fileTreeModel.toggleFolder(file.id)
+                _ = fileTreeModel.toggleFolder(file.id)
             }
         } else {
             workspaceInput.openFile(id: file.id)
-            
+
             if homeState.isSidebarFloating {
                 homeState.sidebarState = .closed
             }

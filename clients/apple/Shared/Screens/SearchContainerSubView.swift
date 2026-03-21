@@ -4,17 +4,17 @@ import SwiftWorkspace
 struct SearchContainerSubView<Content: View>: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-    
+
     @Binding var isSearching: Bool
     @ObservedObject var model: SearchContainerViewModel
     let dismissSearch: () -> Void
 
     let content: Content
-    
+
     var body: some View {
         Group {
             if isSearching {
-                if !model.isSearchInProgress && !model.input.isEmpty && model.results.isEmpty {
+                if !model.isSearchInProgress, !model.input.isEmpty, model.results.isEmpty {
                     noResults
                 } else {
                     List {
@@ -23,7 +23,7 @@ struct SearchContainerSubView<Content: View>: View {
                                 .frame(width: 20, height: 20)
                                 .padding(.top)
                         }
-                        
+
                         if !model.results.isEmpty {
                             results
                         }
@@ -40,11 +40,11 @@ struct SearchContainerSubView<Content: View>: View {
             }
         }
     }
-    
+
     var results: some View {
         ForEach(model.results, id: \.id) { result in
             switch result {
-            case .path(let pathResult):
+            case let .path(pathResult):
                 Button(action: {
                     model.open(id: pathResult.id, workspaceInput: workspaceInput)
                     if homeState.isSidebarFloating {
@@ -55,7 +55,7 @@ struct SearchContainerSubView<Content: View>: View {
                     SearchPathResultView(name: pathResult.path.nameAndPath().0, path: pathResult.path.nameAndPath().1, matchedIndices: pathResult.matchedIndicies)
                 }
                 .buttonStyle(.plain)
-            case .document(let docResult):
+            case let .document(docResult):
                 Button(action: {
                     model.open(id: docResult.id, workspaceInput: workspaceInput)
                     if homeState.isSidebarFloating {
@@ -70,7 +70,7 @@ struct SearchContainerSubView<Content: View>: View {
         }
         .modifier(SearchContainerListStyleViewModifier())
     }
-    
+
     var noResults: some View {
         VStack {
             Text("No results.")
@@ -78,7 +78,7 @@ struct SearchContainerSubView<Content: View>: View {
                 .foregroundColor(.gray)
                 .fontWeight(.bold)
                 .padding()
-            
+
             Spacer()
         }
     }
@@ -87,9 +87,9 @@ struct SearchContainerSubView<Content: View>: View {
 struct SearchContainerListStyleViewModifier: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
-        content.listStyle(.bordered)
+            content.listStyle(.bordered)
         #else
-        content.listStyle(.sidebar)
+            content.listStyle(.sidebar)
         #endif
     }
 }
@@ -98,36 +98,36 @@ class SearchContainerViewModel: ObservableObject {
     @Published var input: String = ""
     @Published var isShown: Bool = false
     @Published var isSearchInProgress: Bool = false
-    
+
     @Published var results: [SearchResult] = []
-    
+
     let filesModel: FilesViewModel
-    
+
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
     }
-    
+
     func open(id: UUID, workspaceInput: WorkspaceInputState) {
         guard let file = filesModel.idsToFiles[id] else {
             return
         }
-        
-        if(file.type == .folder) {
+
+        if file.type == .folder {
             workspaceInput.selectFolder(id: id)
         } else {
             workspaceInput.openFile(id: id)
         }
     }
-    
+
     func search() {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.search(input: self.input, searchPaths: true, searchDocs: true)
-            
+
             DispatchQueue.main.async {
                 switch res {
-                case .success(let results):
+                case let .success(results):
                     self.results = Array(results.prefix(20))
-                case .failure(let err):
+                case let .failure(err):
                     print("got error: \(err.msg)")
                 }
             }
@@ -135,13 +135,12 @@ class SearchContainerViewModel: ObservableObject {
     }
 }
 
-
 struct SearchListViewModifier: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
-        content.listStyle(.inset)
+            content.listStyle(.inset)
         #else
-        content.listStyle(.sidebar)
+            content.listStyle(.sidebar)
         #endif
     }
 }

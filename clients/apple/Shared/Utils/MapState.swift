@@ -12,6 +12,6 @@ struct MapStateViewModifier<T: Equatable>: ViewModifier {
 
 extension View {
     func mapState<T: Equatable>(_ from: Published<T>.Publisher, to: Binding<T>) -> some View {
-        self.modifier(MapStateViewModifier(from: from, to: to))
+        modifier(MapStateViewModifier(from: from, to: to))
     }
 }

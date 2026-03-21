@@ -5,36 +5,36 @@ class SettingsViewModel: ObservableObject {
     @Published var account: Account? = nil
     @Published var usage: UsageMetrics? = nil
     @Published var isPremium: Bool? = nil
-    
+
     init(initalUsageComputation: Bool = true) {
-        self.loadAccount()
-        self.loadTier()
-        
+        loadAccount()
+        loadTier()
+
         if initalUsageComputation {
-            self.loadUsages()
+            loadUsages()
         }
     }
-    
+
     func loadAccount() {
         switch AppState.lb.getAccount() {
-        case .success(let account):
+        case let .success(account):
             self.account = account
-        case .failure(let err):
+        case let .failure(err):
             if err.code != .serverUnreachable {
                 AppState.shared.error = .lb(error: err)
             }
         }
     }
-    
+
     func loadTier() {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.getSubscriptionInfo()
-            
+
             DispatchQueue.main.async {
                 switch res {
-                case .success(let info):
+                case let .success(info):
                     self.isPremium = info?.isPremium() ?? false
-                case .failure(let err):
+                case let .failure(err):
                     if err.code != .serverUnreachable {
                         AppState.shared.error = .lb(error: err)
                     }
@@ -42,15 +42,15 @@ class SettingsViewModel: ObservableObject {
             }
         }
     }
-    
+
     func loadUsages() {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.getUsage()
             DispatchQueue.main.async {
                 switch res {
-                case .success(let usage):
+                case let .success(usage):
                     self.usage = usage
-                case .failure(let err):
+                case let .failure(err):
                     if err.code != .serverUnreachable {
                         AppState.shared.error = .lb(error: err)
                     }
@@ -58,24 +58,24 @@ class SettingsViewModel: ObservableObject {
             }
         }
     }
-    
+
     func cancelSubscription() {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.cancelSubscription()
-            
+
             DispatchQueue.main.async {
-                if case .failure(let err) = res {
+                if case let .failure(err) = res {
                     AppState.shared.error = .lb(error: err)
                 }
             }
         }
     }
-    
+
     func deleteAccountAndExit() {
         switch AppState.lb.deleteAccount() {
-        case .success(_):
+        case .success:
             exit(0)
-        case .failure(let err):
+        case let .failure(err):
             AppState.shared.error = .lb(error: err)
         }
     }
@@ -83,6 +83,6 @@ class SettingsViewModel: ObservableObject {
 
 extension SettingsViewModel {
     static var preview: SettingsViewModel {
-        return SettingsViewModel()
+        SettingsViewModel()
     }
 }

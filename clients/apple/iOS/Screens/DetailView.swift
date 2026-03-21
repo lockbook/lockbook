@@ -7,12 +7,12 @@ struct DetailView: View {
 
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-    
+
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
-            
+
     @State var sheetHeight: CGFloat = 0
-    
+
     var body: some View {
         Group {
             if isPreview {
@@ -24,16 +24,16 @@ struct DetailView: View {
             }
         }
         .toolbar {
-            if horizontalSizeClass == .compact && workspaceOutput.tabCount > 0 {
+            if horizontalSizeClass == .compact, workspaceOutput.tabCount > 0 {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        self.showTabsSheet()
+                        showTabsSheet()
                     } label: {
                         ZStack(alignment: .center) {
                             RoundedRectangle(cornerSize: .init(width: 4, height: 4))
                                 .stroke(lineWidth: 2)
                                 .frame(width: 20, height: 20)
-                            
+
                             Text(workspaceOutput.tabCount < 100 ? String(workspaceOutput.tabCount) : ":D")
                                 .font(.footnote)
                         }
@@ -53,13 +53,13 @@ struct DetailView: View {
 
     func showTabsSheet() {
         homeState.tabsSheetInfo = TabSheetInfo(
-            info: workspaceInput.getTabsIds().map({ id in
+            info: workspaceInput.getTabsIds().map { id in
                 guard let file = filesModel.idsToFiles[id] else {
                     return nil
                 }
 
                 return (name: file.name, id: file.id)
-            }).compactMap({ $0 })
+            }.compactMap { $0 }
         )
     }
 
@@ -72,7 +72,6 @@ struct DetailView: View {
             f(file)
         }
     }
-
 }
 
 struct CompactTitle: ViewModifier {
@@ -95,7 +94,7 @@ struct CompactTitle: ViewModifier {
                         if #available(iOS 26.0, *) {
                             ToolbarSpacer(.fixed, placement: .topBarLeading)
                         }
-                        
+
                         ToolbarItem(placement: .topBarLeading) {
                             Button(
                                 action: {
@@ -116,6 +115,7 @@ struct CompactTitle: ViewModifier {
             content
         }
     }
+
     func openRenameSheet() {
         guard let id = workspaceOutput.openDoc else {
             return
@@ -132,7 +132,7 @@ struct CompactTitle: ViewModifier {
 }
 
 #Preview {
-    return NavigationStack {
+    NavigationStack {
         DetailView()
             .withCommonPreviewEnvironment()
     }

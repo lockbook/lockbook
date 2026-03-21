@@ -6,10 +6,10 @@ class BillingState: ObservableObject {
     static let MONTHLY_SUBSCRIPTION_PRODUCT_ID = "basic.premium"
     static let PREMIUM_DATA_CAP: Double = 30_000_000_000
 
-    var processPending: Task<Void, Error>? = nil
-    var subProduct: Product? = nil
+    var processPending: Task<Void, Error>?
+    var subProduct: Product?
 
-    public var purchaseState: PurchaseState = .uninitiated
+    var purchaseState: PurchaseState = .uninitiated
 
     init() {
         processPendingTransactions()
@@ -17,14 +17,14 @@ class BillingState: ObservableObject {
 
     func processPendingTransactions() {
         processPending = Task.detached { [self] in
-            await self.listenToTransactions()
+            await listenToTransactions()
         }
     }
 
     func requestProducts() async {
         guard
             let storeProducts = try? await Product.products(for: [
-                BillingState.MONTHLY_SUBSCRIPTION_PRODUCT_ID
+                BillingState.MONTHLY_SUBSCRIPTION_PRODUCT_ID,
             ])
         else {
             return
@@ -37,7 +37,7 @@ class BillingState: ObservableObject {
 
     func listenToTransactions() async {
         if subProduct == nil {
-            await self.requestProducts()
+            await requestProducts()
         }
 
         if subProduct == nil {
@@ -45,7 +45,7 @@ class BillingState: ObservableObject {
         }
 
         for await verificationRes in Transaction.updates {
-            await self.processTransactionUpdate(
+            await processTransactionUpdate(
                 verificationRes: verificationRes
             )
         }
@@ -54,12 +54,12 @@ class BillingState: ObservableObject {
     func processTransactionUpdate(
         verificationRes: VerificationResult<StoreKit.Transaction>
     ) async {
-        guard case .verified(let transaction) = verificationRes else {
+        guard case let .verified(transaction) = verificationRes else {
             return
         }
 
-        if case .success(.some(let info)) = AppState.lb.getSubscriptionInfo(),
-            info.isPremium() == true
+        if case let .success(.some(info)) = AppState.lb.getSubscriptionInfo(),
+           info.isPremium() == true
         {
             return
         }
@@ -77,7 +77,7 @@ class BillingState: ObservableObject {
         switch res {
         case .success():
             await transaction.finish()
-        case .failure(let err):
+        case let .failure(err):
             if err.code == .appStoreAccountAlreadyLinked {
                 await transaction.finish()
             }
@@ -94,7 +94,7 @@ class BillingState: ObservableObject {
         await MainActor.run { purchaseState = .processing }
 
         if subProduct == nil {
-            await self.requestProducts()
+            await requestProducts()
         }
 
         if subProduct == nil {
@@ -104,7 +104,7 @@ class BillingState: ObservableObject {
 
         guard
             let res = try? await subProduct!.purchase(options: [
-                Product.PurchaseOption.appAccountToken(UUID())
+                Product.PurchaseOption.appAccountToken(UUID()),
             ])
         else {
             await MainActor.run { purchaseState = .failure }
@@ -113,9 +113,9 @@ class BillingState: ObservableObject {
         }
 
         switch res {
-        case .success(let verificationRes):
+        case let .success(verificationRes):
             await MainActor.run { purchaseState = .success }
-            await self.processTransactionUpdate(
+            await processTransactionUpdate(
                 verificationRes: verificationRes
             )
         case .pending:
@@ -138,6 +138,6 @@ enum PurchaseState {
 
 extension BillingState {
     static var preview: BillingState {
-        return BillingState()
+        BillingState()
     }
 }
