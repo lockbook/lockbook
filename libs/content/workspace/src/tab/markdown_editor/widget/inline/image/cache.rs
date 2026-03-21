@@ -1,4 +1,4 @@
-use crate::tab;
+use crate::file_cache::FilesExt as _;
 use crate::tab::markdown_editor::HttpClient;
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{ColorImage, Context, TextureId, Ui};
@@ -8,7 +8,7 @@ use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 use std::collections::HashMap;
 use std::ops::Deref;
-use std::path::PathBuf;
+
 use std::sync::{Arc, Mutex};
 use tracing::debug;
 
@@ -44,7 +44,8 @@ macro_rules! async_on_wasm {
 
 pub fn calc<'ast>(
     root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &HttpClient, core: &Lb,
-    file_id: Uuid, ui: &Ui,
+    file_id: Uuid, files: &std::sync::Arc<std::sync::RwLock<Option<crate::file_cache::FileCache>>>,
+    ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
     let mut prior_cache = prior_cache.clone();
@@ -71,38 +72,22 @@ pub fn calc<'ast>(
                 let ctx = ui.ctx().clone();
                 let updated = result.updated.clone();
 
+                let maybe_lb_id = {
+                    let guard = files.read().unwrap();
+                    guard.as_ref().and_then(|cache| {
+                        let from_id = cache.files.get_by_id(file_id)?.parent;
+                        let resolved = cache.files.resolve_link(&url, from_id)?;
+                        let id_str = resolved.strip_prefix("lb://")?;
+                        Uuid::parse_str(id_str).ok()
+                    })
+                };
+
                 result.map.insert(url.clone(), image_state.clone());
                 // fetch image
                 spawn!({
                     let texture_manager = ctx.tex_manager();
 
                     let texture_closure = async_on_wasm!({
-                        // use core for lb:// urls and relative paths
-                        let maybe_lb_id = match url.strip_prefix("lb://") {
-                            Some(id) => Some(Uuid::parse_str(id).map_err(|e| e.to_string())?),
-                            None => {
-                                #[cfg(not(target_arch = "wasm32"))]
-                                {
-                                    let parent_id = core
-                                        .get_file_by_id(file_id)
-                                        .map_err(|e| e.to_string())?
-                                        .parent;
-
-                                    tab::core_get_by_relative_path(
-                                        &core,
-                                        parent_id,
-                                        PathBuf::from(&url),
-                                    )
-                                    .map(|f| f.id)
-                                    .ok()
-                                }
-                                #[cfg(target_arch = "wasm32")]
-                                {
-                                    None
-                                }
-                            }
-                        };
-
                         let image_bytes = if let Some(id) = maybe_lb_id {
                             core.read_document(id, false).map_err(|e| e.to_string())?
                         } else {

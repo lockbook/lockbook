@@ -1,5 +1,7 @@
 use std::mem;
 
+use crate::file_cache::FilesExt as _;
+use crate::file_cache::relative_path;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{self, ClipContent, ExtendedInput as _, ExtendedOutput as _, markdown_editor};
 use crate::theme::icons::Icon;
@@ -48,10 +50,21 @@ impl<'ast> Editor {
                         match clip {
                             ClipContent::Image(data) => {
                                 let file = tab::import_image(&self.core, self.file_id, &data);
-                                let parent = self.core.get_file_by_id(self.file_id).unwrap().parent;
 
-                                let rel_path =
-                                    tab::core_get_relative_path(&self.core, parent, file.id);
+                                let rel_path = {
+                                    let guard = self.files.read().unwrap();
+                                    let cache = guard.as_ref().unwrap();
+                                    let parent =
+                                        cache.files.get_by_id(self.file_id).unwrap().parent;
+                                    let mut augmented = cache.files.clone();
+                                    if augmented.get_by_id(file.parent).is_none() {
+                                        if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                            augmented.push(folder);
+                                        }
+                                    }
+                                    augmented.push(file.clone());
+                                    relative_path(&augmented.path(parent), &augmented.path(file.id))
+                                };
                                 let markdown_image_link = format!("![{}]({})", file.name, rel_path);
 
                                 result.push(Event::Replace {

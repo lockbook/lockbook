@@ -12,12 +12,14 @@ use std::mem;
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
+use crate::file_cache::FilesExt as _;
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
+use crate::tab::{ContentState, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
+use lb_rs::Uuid;
 
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
@@ -212,21 +214,34 @@ impl Workspace {
                                 return;
                             };
 
+                            // lb://uuid — direct internal link
+                            if let Some(id_str) = url.url.strip_prefix("lb://") {
+                                if let Ok(id) = Uuid::parse_str(id_str) {
+                                    open_id = Some(id);
+                                    new_tab = url.new_tab;
+                                    w.commands.remove(idx);
+                                }
+                                return;
+                            }
+
                             // only intercept open urls for tabs representing files
                             let Some(id) = id else { return };
 
-                            // lookup this file so we can get the parent
-                            let Ok(file) = self.core.get_file_by_id(id) else { return };
-
-                            // evaluate relative path based on parent location
-                            let Ok(file) =
-                                core_get_by_relative_path(&self.core, file.parent, &url.url)
-                            else {
+                            let files_arc = std::sync::Arc::clone(&self.files);
+                            let files_guard = files_arc.read().unwrap();
+                            let Some(cache) = files_guard.as_ref() else { return };
+                            let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
                                 return;
                             };
 
-                            // if all that found something then open within lockbook
-                            open_id = Some(file.id);
+                            let Some(resolved) = cache.files.resolve_link(&url.url, from_id) else {
+                                return;
+                            };
+
+                            let Some(id_str) = resolved.strip_prefix("lb://") else { return };
+                            let Ok(file_id) = Uuid::parse_str(id_str) else { return };
+
+                            open_id = Some(file_id);
                             new_tab = url.new_tab;
                             w.commands.remove(idx);
                         }

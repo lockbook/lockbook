@@ -446,6 +446,7 @@ impl Editor {
             &self.client,
             &self.core,
             self.file_id,
+            &self.files,
             ui,
         );
 

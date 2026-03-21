@@ -2,6 +2,7 @@ use comrak::nodes::{AstNode, NodeLink};
 use egui::{OpenUrl, Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
+use crate::file_cache::FilesExt as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
@@ -84,10 +85,19 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            ui.ctx()
-                .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
+            let url = self
+                .resolve_link(&node_link.url)
+                .unwrap_or_else(|| node_link.url.clone());
+            ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
         }
 
         response
+    }
+
+    pub fn resolve_link(&self, url: &str) -> Option<String> {
+        let guard = self.files.read().unwrap();
+        let cache = guard.as_ref()?;
+        let from_id = cache.files.get_by_id(self.file_id)?.parent;
+        cache.files.resolve_link(url, from_id)
     }
 }
