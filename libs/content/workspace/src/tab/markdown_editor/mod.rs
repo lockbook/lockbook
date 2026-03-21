@@ -263,7 +263,7 @@ impl Editor {
             in_progress_selection: None,
 
             // this is used to toggle the mobile toolbar
-            virtual_keyboard_shown: if cfg!(target_os = "android") { true } else { false },
+            virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
             unprocessed_scroll: Default::default(),
 
