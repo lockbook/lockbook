@@ -141,6 +141,7 @@ impl Workspace {
             }
 
             ui.centered_and_justified(|ui| {
+                let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 let mut open_id = None;
                 let mut new_tab = false;
                 if let Some(tab) = self.current_tab_mut() {
@@ -205,47 +206,42 @@ impl Workspace {
                     }
 
                     ui.ctx().output_mut(|w| {
-                        let open_url_cmd_idx = w
-                            .commands
-                            .iter()
-                            .position(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
-                        if let Some(idx) = open_url_cmd_idx {
-                            let egui::OutputCommand::OpenUrl(url) = w.commands[idx].clone() else {
-                                return;
-                            };
+                        w.commands.retain(|c| {
+                            let egui::OutputCommand::OpenUrl(url) = c else { return true };
 
                             // lb://uuid — direct internal link
                             if let Some(id_str) = url.url.strip_prefix("lb://") {
                                 if let Ok(id) = Uuid::parse_str(id_str) {
-                                    open_id = Some(id);
-                                    new_tab = url.new_tab;
-                                    w.commands.remove(idx);
+                                    open_ids.push((id, url.new_tab));
                                 }
-                                return;
+                                return false;
                             }
 
                             // only intercept open urls for tabs representing files
-                            let Some(id) = id else { return };
+                            let Some(id) = id else { return true };
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
-                            let Some(cache) = files_guard.as_ref() else { return };
+                            let Some(cache) = files_guard.as_ref() else { return true };
                             let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
-                                return;
+                                return true;
                             };
 
                             let Some(resolved) = cache.files.resolve_link(&url.url, from_id) else {
-                                return;
+                                return true;
                             };
 
-                            let Some(id_str) = resolved.strip_prefix("lb://") else { return };
-                            let Ok(file_id) = Uuid::parse_str(id_str) else { return };
+                            let Some(id_str) = resolved.strip_prefix("lb://") else { return true };
+                            let Ok(file_id) = Uuid::parse_str(id_str) else { return true };
 
                             open_id = Some(file_id);
                             new_tab = url.new_tab;
-                            w.commands.remove(idx);
-                        }
+                            false
+                        });
                     });
+                }
+                for (id, new_tab) in open_ids {
+                    self.open_file(id, true, new_tab);
                 }
                 if let Some(id) = open_id {
                     self.open_file(id, true, new_tab);

@@ -100,7 +100,7 @@ impl<'ast> Editor {
                 })
             })
             .into_iter()
-            .filter_map(|e| self.translate_egui_keyboard_event(e, root))
+            .filter_map(|e| self.translate_egui_keyboard_event(e, root, ctx))
             .collect::<Vec<_>>()
         } else {
             Vec::new()

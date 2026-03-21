@@ -1,6 +1,6 @@
-use comrak::nodes::{AstNode, NodeWikiLink};
+use comrak::nodes::{AstNode, NodeValue, NodeWikiLink};
 use egui::{OpenUrl, Pos2, Ui};
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::file_cache::FilesExt as _;
 use crate::tab::markdown_editor::Editor;
@@ -60,5 +60,39 @@ impl<'ast> Editor {
         let cache = guard.as_ref()?;
         let from_id = cache.files.get_by_id(self.file_id)?.parent;
         cache.files.resolve_wikilink(title, from_id)
+    }
+
+    pub fn links_in_selection(&self, root: &'ast AstNode<'ast>) -> Vec<egui::OpenUrl> {
+        let selection = self.buffer.current.selection;
+        let mut results = vec![];
+        for node in root.descendants() {
+            let url_raw = {
+                let data = node.data.borrow();
+                match &data.value {
+                    NodeValue::Link(link) => Some((false, false, link.url.clone())),
+                    NodeValue::Image(img) => Some((false, true, img.url.clone())),
+                    NodeValue::WikiLink(wl) => Some((true, false, wl.url.clone())),
+                    _ => None,
+                }
+            };
+            if let Some((is_wiki, new_tab, raw)) = url_raw {
+                let range = self.node_range(node);
+                if range.intersects(&selection, true) {
+                    let url =
+                        if is_wiki { self.resolve_wikilink(&raw) } else { self.resolve_link(&raw) };
+                    if let Some(url) = url {
+                        if url.starts_with("lb://") {
+                            results.push(egui::OpenUrl { url, new_tab });
+                        }
+                    }
+                }
+            }
+        }
+        if results.len() > 1 {
+            for r in &mut results {
+                r.new_tab = true;
+            }
+        }
+        results
     }
 }
