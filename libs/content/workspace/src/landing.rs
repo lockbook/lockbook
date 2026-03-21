@@ -104,7 +104,9 @@ impl Workspace {
                 });
         });
 
-        let Some(files) = &self.files else {
+        let files_arc = Arc::clone(&self.files);
+        let files_guard = files_arc.read().unwrap();
+        let Some(files) = files_guard.as_ref() else {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
             return;
         };
@@ -137,7 +139,9 @@ impl Workspace {
     fn show_heading(&mut self, ui: &mut egui::Ui) -> Response {
         let mut response = Response::default();
 
-        let Some(files) = &self.files else {
+        let files_arc = Arc::clone(&self.files);
+        let files_guard = files_arc.read().unwrap();
+        let Some(files) = files_guard.as_ref() else {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
             return response;
         };
@@ -190,7 +194,9 @@ impl Workspace {
     fn show_filters(&mut self, ui: &mut egui::Ui) -> Response {
         let mut response = Response::default();
 
-        let (Some(files), Some(account)) = (&self.files, &self.account) else {
+        let files_arc = Arc::clone(&self.files);
+        let files_guard = files_arc.read().unwrap();
+        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
             return response;
         };
@@ -603,7 +609,9 @@ impl Workspace {
     fn show_files(&mut self, ui: &mut egui::Ui) -> Response {
         let mut response = Response::default();
 
-        let (Some(files), Some(account)) = (&self.files, &self.account) else {
+        let files_arc = Arc::clone(&self.files);
+        let files_guard = files_arc.read().unwrap();
+        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
             ui.ctx().request_repaint_after(Duration::from_millis(8));
             return response;
         };
