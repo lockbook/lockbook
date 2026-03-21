@@ -324,12 +324,16 @@ public class MacMTK: MTKView, MTKViewDelegate {
             workspaceInput?.openFile(id: newFile)
         }
 
-        if let openedUrl = output.url_opened {
-            let url = textFromPtr(s: openedUrl)
-
-            if let url = URL(string: url) {
-                self.workspaceOutput?.urlOpened = url
+        if output.urls_opened.size > 0 {
+            var urls: [URL] = []
+            for i in 0..<Int(output.urls_opened.size) {
+                if let ptr = output.urls_opened.urls[i], let url = URL(string: textFromPtr(s: ptr)) {
+                    urls.append(url)
+                }
             }
+            self.workspaceOutput?.urlsOpened = urls
+            free_urls(output.urls_opened)
+
         }
 
         if output.new_folder_btn_pressed {

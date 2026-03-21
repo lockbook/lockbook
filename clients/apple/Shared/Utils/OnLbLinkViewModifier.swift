@@ -18,15 +18,13 @@ struct OnLbLinkViewModifier: ViewModifier {
                     }
                 }
             })
-            .onReceive(workspaceOutput.$urlOpened, perform: { url in
-                guard let url else {
-                    return
-                }
-                                
-                if AppState.isInternalLink(url) {
-                    handleOpenLink(url: url)
-                } else {
-                    openURLExternally(url)
+            .onReceive(workspaceOutput.$urlsOpened, perform: { urls in
+                for url in urls {
+                    if AppState.isInternalLink(url) {
+                        handleOpenLink(url: url)
+                    } else {
+                        openURLExternally(url)
+                    }
                 }
             })
     }
