@@ -91,6 +91,9 @@ pub fn calc<'ast>(
                         let image_bytes = if let Some(id) = maybe_lb_id {
                             core.read_document(id, false).map_err(|e| e.to_string())?
                         } else {
+                            if !url.starts_with("http://") && !url.starts_with("https://") {
+                                return Err(format!("image not found: {url}"));
+                            }
                             let bytes;
                             #[cfg(target_arch = "wasm32")]
                             {

@@ -128,7 +128,7 @@ impl<'ast> Editor {
                 }
                 ImageState::Failed(message) => {
                     let icon = Icon::NO_IMAGE;
-                    let caption = format!("Could not show image: {message}");
+                    let caption = message.clone();
 
                     let size = self.image_size(Vec2::splat(200.), width);
                     let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
