@@ -41,6 +41,38 @@ impl std::ops::BitOrAssign for Response {
 }
 
 impl<'ast> Editor {
+    pub fn links_in_selection(&self, root: &'ast AstNode<'ast>) -> Vec<egui::OpenUrl> {
+        let selection = self.buffer.current.selection;
+        let mut results = vec![];
+        for node in root.descendants() {
+            let url_raw = {
+                let data = node.data.borrow();
+                match &data.value {
+                    NodeValue::Link(link) => Some((false, false, link.url.clone())),
+                    NodeValue::Image(img) => Some((false, true, img.url.clone())),
+                    NodeValue::WikiLink(wl) => Some((true, false, wl.url.clone())),
+                    _ => None,
+                }
+            };
+            if let Some((is_wiki, new_tab, raw)) = url_raw {
+                let range = self.node_range(node);
+                if range.intersects(&selection, true) {
+                    let url =
+                        if is_wiki { self.resolve_wikilink(&raw) } else { self.resolve_link(&raw) };
+                    if let Some(url) = url {
+                        results.push(egui::OpenUrl { url, new_tab });
+                    }
+                }
+            }
+        }
+        if results.len() > 1 {
+            for r in &mut results {
+                r.new_tab = true;
+            }
+        }
+        results
+    }
+
     pub fn span(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {

@@ -27,7 +27,7 @@ const PAGE_LINES: usize = 50;
 
 impl<'ast> Editor {
     pub fn translate_egui_keyboard_event(
-        &self, event: egui::Event, root: &'ast AstNode<'ast>, ctx: &egui::Context,
+        &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
         match event {
             egui::Event::Key { key, pressed: true, modifiers, .. }
@@ -141,7 +141,7 @@ impl<'ast> Editor {
                 if !cfg!(target_os = "ios") && modifiers.command =>
             {
                 for open_url in self.links_in_selection(root) {
-                    ctx.open_url(open_url);
+                    self.ctx.open_url(open_url);
                 }
                 None
             }
