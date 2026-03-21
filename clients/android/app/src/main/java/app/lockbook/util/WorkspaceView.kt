@@ -232,6 +232,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         contextMenu?.finish()
                     }
 
+                    if (response.selectionUpdated) {
+                        textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                    }
+
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =
                             TextEditorContextMenu(textInputWrapper)
