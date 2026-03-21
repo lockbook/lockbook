@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct ImportFilePicker: UIViewControllerRepresentable {
     @EnvironmentObject var homeState: HomeState
-    
+
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [UTType.item], asCopy: true)
         picker.allowsMultipleSelection = true
@@ -11,7 +11,7 @@ struct ImportFilePicker: UIViewControllerRepresentable {
         return picker
     }
 
-    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+    func updateUIViewController(_: UIDocumentPickerViewController, context _: Context) {}
 
     func makeCoordinator() -> Coordinator {
         Coordinator(homeState: homeState)
@@ -19,16 +19,16 @@ struct ImportFilePicker: UIViewControllerRepresentable {
 
     class Coordinator: NSObject, UIDocumentPickerDelegate {
         let homeState: HomeState
-        
+
         init(homeState: HomeState) {
             self.homeState = homeState
         }
-        
-        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+
+        func documentPicker(_: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
             for url in urls {
-                let _ = url.startAccessingSecurityScopedResource()
+                _ = url.startAccessingSecurityScopedResource()
             }
-            
+
             homeState.selectSheetInfo = .externalImport(urls: urls)
         }
     }

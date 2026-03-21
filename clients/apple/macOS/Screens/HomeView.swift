@@ -6,11 +6,11 @@ struct HomeView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-    
+
     @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
-        self._homeState = StateObject(
+        _homeState = StateObject(
             wrappedValue: HomeState(
                 workspaceOutput: workspaceOutput,
                 filesModel: filesModel
@@ -25,7 +25,7 @@ struct HomeView: View {
                 sidebar: {
                     CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
                         switch tabType {
-                            case .home:
+                        case .home:
                             filesHome
                         case .sharedWithMe:
                             sharedWithMe
@@ -59,13 +59,13 @@ struct HomeView: View {
         .environmentObject(homeState)
         .environmentObject(filesModel)
     }
-    
+
     var filesHome: some View {
         SearchContainerView(filesModel: filesModel) {
             FilesHomeView()
         }
     }
-    
+
     var sharedWithMe: some View {
         SharedWithMeView(
             filesModel: filesModel, workspaceInput: workspaceInput, workspaceOutput: workspaceOutput
@@ -101,7 +101,7 @@ struct FilesHomeView: View {
 
                 Section(
                     header:
-                        Label("Files", systemImage: "folder")
+                    Label("Files", systemImage: "folder")
                         .bold()
                         .padding(.horizontal)
                         .font(.callout)
@@ -148,6 +148,6 @@ struct DetailView: View {
 }
 
 #Preview("Home View") {
-    return HomeView(workspaceOutput: .preview, filesModel: .preview)
+    HomeView(workspaceOutput: .preview, filesModel: .preview)
         .withCommonPreviewEnvironment()
 }

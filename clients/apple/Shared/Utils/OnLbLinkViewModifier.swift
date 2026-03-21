@@ -6,7 +6,7 @@ struct OnLbLinkViewModifier: ViewModifier {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-    
+
     func body(content: Content) -> some View {
         content
             .onOpenURL(perform: { url in
@@ -28,46 +28,47 @@ struct OnLbLinkViewModifier: ViewModifier {
                 }
             })
     }
-    
+
     func openURLExternally(_ url: URL) {
         DispatchQueue.main.async {
             #if os(iOS)
-            UIApplication.shared.open(url)
+                UIApplication.shared.open(url)
             #else
-            NSWorkspace.shared.open(url)
+                NSWorkspace.shared.open(url)
             #endif
         }
     }
-    
+
     func handleImportLink(url: URL) {
         DispatchQueue.global(qos: .userInitiated).async {
             while filesModel.root == nil {
                 Thread.sleep(until: .now + 0.1)
             }
-                        
+
             if let filePathsQuery = url.query,
-               let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") {
+               let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook")
+            {
                 let filePaths = filePathsQuery.components(separatedBy: ",")
-                
+
                 var urls: [URL] = []
-                
+
                 for filePath in filePaths {
                     let url = URL(filePath: containerURL.appendingPathComponent(filePath.removingPercentEncoding!).path(percentEncoded: false))
-                    let _ = url.startAccessingSecurityScopedResource()
-                    
+                    _ = url.startAccessingSecurityScopedResource()
+
                     urls.append(url)
                 }
-                
+
                 DispatchQueue.main.async {
                     homeState.selectSheetInfo = .externalImport(urls: urls)
                 }
             }
         }
     }
-        
+
     func handleOpenLink(url: URL) {
         guard let uuidString = url.host, let id = UUID(uuidString: uuidString) else {
-            AppState.shared.error =  .custom(title: "Could not open link", msg: "Invalid URL")
+            AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid URL")
             return
         }
 
@@ -80,7 +81,7 @@ struct OnLbLinkViewModifier: ViewModifier {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "File not found")
                 return
             }
-            
+
             DispatchQueue.main.async {
                 workspaceInput.openFile(id: file.id)
             }

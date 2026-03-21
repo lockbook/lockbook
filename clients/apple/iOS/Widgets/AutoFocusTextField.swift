@@ -10,21 +10,21 @@ struct AutoFocusTextField: UIViewRepresentable {
     let borderStyle: UITextField.BorderStyle
     let onSubmit: () -> Void
     let autocorrectionType: UITextAutocorrectionType
-    
+
     init(text: Binding<String>, placeholder: String, returnKeyType: UIReturnKeyType = .done, borderStyle: UITextField.BorderStyle = .roundedRect, autocorrect: Bool = false, onSubmit: @escaping () -> Void) {
-        self._text = text
-        
+        _text = text
+
         self.placeholder = placeholder
         self.returnKeyType = returnKeyType
         self.borderStyle = borderStyle
-        self.autocorrectionType = autocorrect ? .yes : .no
+        autocorrectionType = autocorrect ? .yes : .no
         self.onSubmit = onSubmit
     }
-    
+
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
     }
-    
+
     func makeUIView(context: Context) -> UITextField {
         let textField = UITextField()
         textField.delegate = context.coordinator
@@ -34,33 +34,34 @@ struct AutoFocusTextField: UIViewRepresentable {
         textField.text = text
         textField.autocorrectionType = autocorrectionType
         textField.setContentHuggingPriority(.defaultHigh, for: .vertical)
-        
+
         textField.becomeFirstResponder()
-        
+
         textField.addTarget(context.coordinator, action: #selector(Coordinator.textFieldDidChange(_:)), for: .editingChanged)
-        
+
         return textField
     }
-    
-    func updateUIView(_ uiView: UITextField, context: Context) {
+
+    func updateUIView(_ uiView: UITextField, context _: Context) {
         uiView.text = text
-        
+
         guard let baseName = (uiView.text as? NSString)?.deletingPathExtension else { return }
-        
+
         if !selectedName,
            let start = uiView.position(from: uiView.beginningOfDocument, offset: 0),
-           let end = uiView.position(from: start, offset: baseName.count) {
+           let end = uiView.position(from: start, offset: baseName.count)
+        {
             DispatchQueue.main.async {
-                self.selectedName = true
+                selectedName = true
             }
-            
+
             uiView.selectedTextRange = uiView.textRange(from: start, to: end)
         }
     }
-        
+
     class Coordinator: NSObject, UITextFieldDelegate {
         var parent: AutoFocusTextField
-        
+
         init(parent: AutoFocusTextField) {
             self.parent = parent
         }
@@ -69,7 +70,7 @@ struct AutoFocusTextField: UIViewRepresentable {
             parent.text = textField.text ?? ""
         }
 
-        func textFieldShouldReturn(_ textField: UITextField) -> Bool {
+        func textFieldShouldReturn(_: UITextField) -> Bool {
             parent.onSubmit()
             return false
         }

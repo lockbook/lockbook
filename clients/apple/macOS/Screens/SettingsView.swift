@@ -3,7 +3,7 @@ import SwiftWorkspace
 
 struct SettingsView: View {
     @StateObject var model = SettingsViewModel()
-    
+
     var body: some View {
         NavigationStack {
             TabView {
@@ -11,12 +11,12 @@ struct SettingsView: View {
                     .tabItem {
                         Label("Account", systemImage: "person")
                     }
-                
+
                 SettingsUsageView(model: model)
                     .tabItem {
                         Label("Usage", systemImage: "externaldrive")
                     }
-                
+
                 SettingsDebugView(model: model)
                     .tabItem {
                         Label("Debug", systemImage: "hammer")
@@ -30,12 +30,12 @@ struct SettingsView: View {
 
 struct SettingsAccountView: View {
     @ObservedObject var model: SettingsViewModel
-    
+
     @State var confirmLogout = false
     @State var confirmDeleteAccount = false
-    
+
     @State var showAccountKeys = false
-    
+
     var body: some View {
         Form {
             Section("Account") {
@@ -48,7 +48,7 @@ struct SettingsAccountView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 Button(action: {
                     AuthHelper.authenticateWithBiometricsOrPasscode { success in
                         showAccountKeys = success
@@ -62,12 +62,12 @@ struct SettingsAccountView: View {
                         .foregroundStyle(.gray)
                 })
                 .buttonStyle(.borderless)
-                
+
                 HStack {
                     Text("Logout")
                     Spacer()
                     Button(role: .destructive, action: {
-                        self.confirmLogout = true
+                        confirmLogout = true
                     }, label: {
                         Text("Logout")
                     })
@@ -78,20 +78,20 @@ struct SettingsAccountView: View {
                     }
                 }
             }
-            
+
             Section("Privacy") {
                 HStack {
                     Text("Privacy Policy")
                     Spacer()
                     Link("Open in browser", destination: URL(string: "https://lockbook.net/privacy-policy")!)
                 }
-                
+
                 HStack {
                     Text("Terms of Service")
                     Spacer()
                     Link("Open in browser", destination: URL(string: "https://lockbook.net/tos")!)
                 }
-                
+
                 HStack {
                     Text("Delete Account")
                     Spacer()
@@ -105,8 +105,6 @@ struct SettingsAccountView: View {
                     }
                 }
             }
-            
-            
         }
         .formStyle(.grouped)
         .navigationDestination(isPresented: $showAccountKeys, destination: {
@@ -165,11 +163,11 @@ struct AccountKeysView: View {
 
 struct SettingsUsageView: View {
     @ObservedObject var model: SettingsViewModel
-    
+
     @State var confirmCancelSubscription = false
-    
+
     @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
-    
+
     var body: some View {
         Form {
             Section("Usage") {
@@ -179,7 +177,7 @@ struct SettingsUsageView: View {
                         Spacer()
                         Text(isPremium ? "Premium" : "Free")
                     }
-                    
+
                     if !isPremium {
                         NavigationLink("Upgrade Now") {
                             VStack {
@@ -188,7 +186,7 @@ struct SettingsUsageView: View {
                         }
                     }
                 }
-                
+
                 if let usage = model.usage {
                     VStack {
                         HStack {
@@ -196,7 +194,7 @@ struct SettingsUsageView: View {
                             Spacer()
                             Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
                         }
-                        
+
                         ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
                             .padding(.top, 10)
                             .padding(.bottom, 8)
@@ -204,20 +202,20 @@ struct SettingsUsageView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 Picker("Display Mode", selection: $usageBarMode) {
                     ForEach(UsageBarDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.menu)
-                
+
                 if model.isPremium == true {
                     HStack {
                         Text("Cancel Subscription")
                         Spacer()
                         Button("Cancel Subscription", role: .destructive) {
-                            self.confirmCancelSubscription = true
+                            confirmCancelSubscription = true
                         }
                     }
                     .confirmationDialog("Are you sure you want to cancel your subscription?", isPresented: $confirmCancelSubscription, titleVisibility: .visible) {
@@ -242,7 +240,7 @@ struct SettingsDebugView: View {
                     HStack {
                         Text("Server:")
                             .padding(.trailing, 10)
-                        
+
                         Text(account.apiUrl)
                             .lineLimit(1)
                             .truncationMode(.head)
@@ -251,14 +249,13 @@ struct SettingsDebugView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 DebugView()
             }
         }
         .formStyle(.grouped)
     }
 }
-
 
 #Preview {
     SettingsView()

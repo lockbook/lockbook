@@ -8,7 +8,7 @@ class AuthHelper {
         if context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
             let reason = "Authenticate to access the app"
 
-            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, authenticationError in
+            context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason) { success, _ in
                 DispatchQueue.main.async {
                     completion(success || isPreviewEnvironmentKey.defaultValue)
                 }
@@ -18,4 +18,3 @@ class AuthHelper {
         }
     }
 }
-

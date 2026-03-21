@@ -17,8 +17,8 @@ struct CameraView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(
-        _ uiViewController: UIImagePickerController,
-        context: Context
+        _: UIImagePickerController,
+        context _: Context
     ) {}
 
     func makeCoordinator() -> Coordinator {
@@ -29,17 +29,19 @@ struct CameraView: UIViewControllerRepresentable {
         UINavigationControllerDelegate
     {
         let parent: CameraView
-        init(_ parent: CameraView) { self.parent = parent }
+        init(_ parent: CameraView) {
+            self.parent = parent
+        }
 
         func imagePickerController(
-            _ picker: UIImagePickerController,
+            _: UIImagePickerController,
             didFinishPickingMediaWithInfo info: [UIImagePickerController
                 .InfoKey: Any]
         ) {
             guard let image = info[.originalImage] as? UIImage,
-                let data = image.normalizedImage().jpegData(
-                    compressionQuality: 1.0
-                )
+                  let data = image.normalizedImage().jpegData(
+                      compressionQuality: 1.0
+                  )
             else {
                 AppState.shared.error = .custom(
                     title: "Could not save image",
@@ -53,7 +55,7 @@ struct CameraView: UIViewControllerRepresentable {
             parent.homeState.sheetInfo = nil
         }
 
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        func imagePickerControllerDidCancel(_: UIImagePickerController) {
             parent.homeState.sheetInfo = nil
         }
     }

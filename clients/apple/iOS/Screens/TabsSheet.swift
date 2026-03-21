@@ -13,7 +13,7 @@ struct TabsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             Button {
-                self.closeAllTabs()
+                closeAllTabs()
             } label: {
                 Text("Close all")
                     .font(.body)
@@ -38,9 +38,9 @@ struct TabsSheet: View {
                             HStack {
                                 Image(
                                     systemName:
-                                        FileIconHelper.docNameToSystemImageName(
-                                            name: info.name
-                                        )
+                                    FileIconHelper.docNameToSystemImageName(
+                                        name: info.name
+                                    )
                                 )
                                 .foregroundColor(.primary)
                                 .imageScale(.medium)
@@ -57,7 +57,7 @@ struct TabsSheet: View {
 
                                 Button(
                                     action: {
-                                        self.closeTab(id: info.id)
+                                        closeTab(id: info.id)
                                     },
                                     label: {
                                         Image(systemName: "xmark.circle.fill")
@@ -66,7 +66,6 @@ struct TabsSheet: View {
                                             .padding(.leading)
                                     }
                                 )
-
                             }
                             .padding(.horizontal)
                             .padding(.vertical, 6)
@@ -89,10 +88,10 @@ struct TabsSheet: View {
 
     func closeTab(id: UUID) {
         workspaceInput.closeDoc(id: id)
-        let i = self.info.firstIndex(where: { $0.id == id })
+        let i = info.firstIndex(where: { $0.id == id })
 
         if let i {
-            self.info.remove(at: i)
+            info.remove(at: i)
         }
 
         if info.isEmpty {
@@ -110,7 +109,7 @@ struct TabsSheet: View {
     @available(iOS 17.0, *)
     #Preview {
         @Previewable @State var sheetInfo: TabSheetInfo? = TabSheetInfo(info: [
-            (name: "Cookie", id: UUID())
+            (name: "Cookie", id: UUID()),
         ])
 
         Color.accentColor

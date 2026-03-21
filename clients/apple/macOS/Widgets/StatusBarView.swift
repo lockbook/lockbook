@@ -6,19 +6,19 @@ struct StatusBarView: View {
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
-    
+
     var body: some View {
         HStack {
             SyncButton()
-            
+
             Spacer()
-            
+
             fileActionButtons
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 16)
     }
-    
+
     var fileActionButtons: some View {
         HStack(spacing: 0) {
             if let root = filesModel.root {
@@ -30,7 +30,7 @@ struct StatusBarView: View {
                         .foregroundColor(.accentColor)
                 }
                 .modifier(GlassButtonViewModifier())
-                
+
                 Button(action: {
                     workspaceInput.createDocAt(parent: selectedFolderOrRoot(root).id, drawing: true)
                 }) {
@@ -39,7 +39,7 @@ struct StatusBarView: View {
                         .foregroundColor(.accentColor)
                 }
                 .modifier(GlassButtonViewModifier())
-                
+
                 Button(action: {
                     homeState.sheetInfo = .createFolder(parent: selectedFolderOrRoot(root))
                 }) {
@@ -59,7 +59,7 @@ struct StatusBarView: View {
         guard let selectedFolder = workspaceOutput.selectedFolder else {
             return root
         }
-        
+
         return filesModel.idsToFiles[selectedFolder] ?? root
     }
 }

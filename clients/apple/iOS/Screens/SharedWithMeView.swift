@@ -12,7 +12,7 @@ struct SharedWithMeView: View {
         workspaceInput: WorkspaceInputState,
         workspaceOutput: WorkspaceOutputState
     ) {
-        self._fileTreeModel = StateObject(
+        _fileTreeModel = StateObject(
             wrappedValue: FileTreeViewModel(
                 filesModel: filesModel,
                 workspaceInput: workspaceInput,
@@ -36,8 +36,7 @@ struct SharedWithMeView: View {
         .navigationTitle("Shared with me")
         .toolbarTitleDisplayMode(.large)
     }
-    
-    @ViewBuilder
+
     func sharedByUsers(pendingShares: [String: [File]]) -> some View {
         ScrollViewReader { scrollHelper in
             ScrollView {
@@ -50,7 +49,7 @@ struct SharedWithMeView: View {
                         shares in
                         SharedByUserSection(
                             username: username,
-                            shares: shares,
+                            shares: shares
                         )
                         .environmentObject(
                             fileTreeModel
@@ -64,11 +63,11 @@ struct SharedWithMeView: View {
             }
         }
     }
-    
+
     var noShares: some View {
         VStack {
             Spacer()
-            
+
             VStack(spacing: 6) {
                 Text("Nothing shared yet")
                     .font(.title3)
@@ -79,7 +78,7 @@ struct SharedWithMeView: View {
                     .foregroundStyle(.secondary)
             }
             .multilineTextAlignment(.center)
-            
+
             Spacer()
         }
     }

@@ -4,19 +4,22 @@ import PackageDescription
 let package = Package(
     name: "SwiftWorkspace",
     platforms: [
-        .macOS(.v13), .iOS(.v16)
+        .macOS(.v13), .iOS(.v16),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.
         .library(
             name: "SwiftWorkspace",
-            targets: ["SwiftWorkspace"]),
+            targets: ["SwiftWorkspace"]
+        ),
         .library(
             name: "Bridge",
-            targets: ["Bridge"]),
+            targets: ["Bridge"]
+        ),
         .library(
             name: "workspace",
-            targets: ["workspace"])
+            targets: ["workspace"]
+        ),
     ],
     targets: [
         .target(
@@ -35,4 +38,3 @@ let package = Package(
         ),
     ]
 )
-

@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftWorkspace
 
 struct DrawerView<Main: View, Side: View>: View {
-
     @ObservedObject var homeState: HomeState
 
     @ViewBuilder let mainView: Main
@@ -53,8 +52,8 @@ struct DrawerView<Main: View, Side: View>: View {
             .onReceive(homeState.$sidebarState) { newValue in
                 let newOffset =
                     newValue == .open
-                    ? calculatedSidebarWidth
-                    : Constants.sidebarOffsetClosed
+                        ? calculatedSidebarWidth
+                        : Constants.sidebarOffsetClosed
                 setSidebarOffset(newOffset: newOffset)
             }
             .onChange(of: geometry.size) { newSize in
@@ -110,8 +109,8 @@ struct DrawerView<Main: View, Side: View>: View {
     private func sidebarWidth(width: CGFloat) -> CGFloat {
         let orientationWidth =
             UIDevice.current.orientation.isPortrait
-            ? Constants.defaultSidebarWidthPortrait
-            : Constants.defaultSidebarWidthLandscape
+                ? Constants.defaultSidebarWidthPortrait
+                : Constants.defaultSidebarWidthLandscape
 
         let maxAllowedWidth = width - Constants.sidebarTrailingPadding
 
@@ -120,7 +119,7 @@ struct DrawerView<Main: View, Side: View>: View {
 
     private func setSidebarOffset(newOffset: CGFloat) {
         withAnimation(Constants.sidebarAnimation) {
-            self.sidebarOffset = newOffset
+            sidebarOffset = newOffset
         }
     }
 
@@ -166,7 +165,7 @@ struct DrawerView<Main: View, Side: View>: View {
     }
 
     private func getBlurRadius() -> CGFloat {
-        return sidebarOffset
+        sidebarOffset
             / (UIScreen.main.bounds.height * Constants.blurDenominatorFactor)
     }
 
@@ -187,12 +186,12 @@ struct DrawerView<Main: View, Side: View>: View {
     }
 }
 
-private struct Constants {
-    static let velocityActivationX: CGFloat = 300  // fling this fast to open the drawer
-    static let successThreshold: CGFloat = 0.6  // drag this much of the way out to open the drawer
-    static let activationDistance: CGFloat = 10.0  // must drag at least this far or your drag looks too much like a tap
-    static let activationRatio: CGFloat = 2.0  // must drag at least this horizontally in terms of abs(x) / abs(y)
-    static let dragHandleWidth: CGFloat = 100  // must drag starting from within this distance of whichever edge
+private enum Constants {
+    static let velocityActivationX: CGFloat = 300 // fling this fast to open the drawer
+    static let successThreshold: CGFloat = 0.6 // drag this much of the way out to open the drawer
+    static let activationDistance: CGFloat = 10.0 // must drag at least this far or your drag looks too much like a tap
+    static let activationRatio: CGFloat = 2.0 // must drag at least this horizontally in terms of abs(x) / abs(y)
+    static let dragHandleWidth: CGFloat = 100 // must drag starting from within this distance of whichever edge
 
     static let sidebarTrailingPadding: CGFloat = 50
     static let defaultSidebarWidthPortrait: CGFloat = 350
@@ -232,11 +231,12 @@ struct CloseSidebarToolbarModifier: ViewModifier {
 
 extension View {
     func closeSidebarToolbar() -> some View {
-        self.modifier(CloseSidebarToolbarModifier())
+        modifier(CloseSidebarToolbarModifier())
     }
 }
 
 // MARK: - DragValue
+
 struct DragValue {
     let location: CGPoint
     let translation: CGPoint
@@ -244,6 +244,7 @@ struct DragValue {
 }
 
 // MARK: - DrawerGesture
+
 /// Like a DragGesture, but must be a horizontal drag to activate
 struct DrawerGesture: UIGestureRecognizerRepresentable {
     typealias UIGestureRecognizerType = Recognizer
@@ -255,7 +256,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     let onChanged: (DragValue) -> Void
     let onEnded: (DragValue) -> Void
 
-    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+    func makeCoordinator(converter _: CoordinateSpaceConverter) -> Coordinator {
         Coordinator(
             onChanged: onChanged,
             onEnded: onEnded
@@ -264,14 +265,15 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
 
     @MainActor func makeUIGestureRecognizer(context: Context) -> UIGestureRecognizerType {
         let recognizer = Recognizer(
-            geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset)
+            geometry: geometry, sidebarWidth: sidebarWidth, sidebarOffset: $sidebarOffset
+        )
         recognizer.delegate = context.coordinator
         return recognizer
     }
 
     @MainActor func updateUIGestureRecognizer(
-        _ uiGestureRecognizer: UIGestureRecognizerType,
-        context: Context
+        _: UIGestureRecognizerType,
+        context _: Context
     ) {}
 
     @MainActor func handleUIGestureRecognizerAction(
@@ -282,6 +284,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     }
 
     // MARK: - DrawerGesture.Coordinator
+
     class Coordinator: NSObject, UIGestureRecognizerDelegate {
         let onChanged: (DragValue) -> Void
         let onEnded: (DragValue) -> Void
@@ -320,7 +323,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
         }
 
         func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
+            _: UIGestureRecognizer,
             shouldRequireFailureOf otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             otherGestureRecognizer.name == "UITextInteractionNameInteractiveRefinement"
@@ -329,6 +332,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
     }
 
     // MARK: - DrawerGesture.Recognizer
+
     final class Recognizer: UIGestureRecognizer {
         var geometry: GeometryProxy
         var sidebarWidth: CGFloat
@@ -348,14 +352,14 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             self.sidebarWidth = sidebarWidth
             _sidebarOffset = sidebarOffset
             super.init(target: nil, action: nil)
-            self.name = "DrawerGesture.Recognizer"
+            name = "DrawerGesture.Recognizer"
         }
 
-        override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+        override func touchesBegan(_ touches: Set<UITouch>, with _: UIEvent) {
             guard state == .possible else { return }
             guard let touch = touches.first else { return }
 
-            let location = touch.location(in: self.view)
+            let location = touch.location(in: view)
 
             startLocation = location
             lastLocation = location
@@ -377,19 +381,21 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             }
         }
 
-        override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+        override func touchesMoved(_ touches: Set<UITouch>, with _: UIEvent) {
             guard let touch = touches.first else { return }
-            guard let view = self.view else { return }
+            guard let view else { return }
 
             let currentLocation = touch.location(in: view)
             let currentTimestamp = touch.timestamp
 
             let deltaSinceFirst = CGPoint(
                 x: currentLocation.x - startLocation.x,
-                y: currentLocation.y - startLocation.y)
+                y: currentLocation.y - startLocation.y
+            )
             let deltaSinceLast = CGPoint(
                 x: currentLocation.x - lastLocation.x,
-                y: currentLocation.y - lastLocation.y)
+                y: currentLocation.y - lastLocation.y
+            )
             let timeDelta = currentTimestamp - lastTimestamp
 
             lastLocation = currentLocation
@@ -399,7 +405,8 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             if timeDelta > 0 {
                 velocity = CGPoint(
                     x: deltaSinceLast.x / CGFloat(timeDelta),
-                    y: deltaSinceLast.y / CGFloat(timeDelta))
+                    y: deltaSinceLast.y / CGFloat(timeDelta)
+                )
             }
 
             // begin after min distance; fail instantly if too vertical
@@ -417,7 +424,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             }
         }
 
-        override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+        override func touchesEnded(_: Set<UITouch>, with _: UIEvent) {
             if state == .began || state == .changed {
                 state = .ended
             } else {
@@ -426,7 +433,7 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             reset()
         }
 
-        override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+        override func touchesCancelled(_: Set<UITouch>, with _: UIEvent) {
             if state == .began || state == .changed {
                 state = .cancelled
             } else {
@@ -450,11 +457,11 @@ struct DrawerGesture: UIGestureRecognizerRepresentable {
             velocity
         }
 
-        override func canBePrevented(by preventingGestureRecognizer: UIGestureRecognizer) -> Bool {
+        override func canBePrevented(by _: UIGestureRecognizer) -> Bool {
             false
         }
 
-        override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
+        override func canPrevent(_: UIGestureRecognizer) -> Bool {
             false
         }
     }

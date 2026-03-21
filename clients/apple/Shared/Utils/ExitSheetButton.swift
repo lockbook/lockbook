@@ -2,7 +2,7 @@ import SwiftUI
 
 struct ExitSheetButton: View {
     @Environment(\.dismiss) var dismiss
-    
+
     var body: some View {
         Button(action: {
             dismiss()

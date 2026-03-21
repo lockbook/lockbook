@@ -4,52 +4,52 @@ import SwiftWorkspace
 @main struct LockbookApp: App {
     var body: some Scene {
         #if os(macOS)
-        macOS
+            macOS
         #else
-        iOS
+            iOS
         #endif
     }
-    
+
     #if os(macOS)
-    @SceneBuilder
-    var macOS: some Scene {
-        WindowGroup {
-            ContentView()
+        @SceneBuilder
+        var macOS: some Scene {
+            WindowGroup {
+                ContentView()
+            }
+            .commands {
+                SidebarCommands()
+
+                NewWindowCommand()
+            }
+
+            Settings {
+                SettingsView()
+                    .environmentObject(AppState.billingState)
+            }
+
+            Window("Upgrade Account", id: "upgrade-account") {
+                UpgradeAccountView(settingsModel: SettingsViewModel())
+                    .environmentObject(AppState.billingState)
+            }
         }
-        .commands {
-            SidebarCommands()
-            
-            NewWindowCommand()
-        }
-        
-        Settings {
-            SettingsView()
-                .environmentObject(AppState.billingState)
-        }
-        
-        Window("Upgrade Account", id: "upgrade-account") {
-            UpgradeAccountView(settingsModel: SettingsViewModel())
-                .environmentObject(AppState.billingState)
-        }
-    }
     #else
-    @SceneBuilder
-    var iOS: some Scene {
-        WindowGroup {
-            ContentView()
+        @SceneBuilder
+        var iOS: some Scene {
+            WindowGroup {
+                ContentView()
+            }
+            .commands {
+                SidebarCommands()
+
+                NewWindowCommand()
+            }
         }
-        .commands {
-            SidebarCommands()
-            
-            NewWindowCommand()
-        }
-    }
     #endif
 }
 
 struct ContentView: View {
     @StateObject var appState = AppState.shared
-    
+
     var body: some View {
         Group {
             if appState.isLoggedIn {
@@ -74,7 +74,7 @@ struct HomeContextWrapper: View {
     @StateObject var filesModel = FilesViewModel()
     @StateObject var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
     @StateObject var workspaceOutput = WorkspaceOutputState()
-    
+
     var body: some View {
         HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
             .environmentObject(AppState.billingState)
@@ -86,14 +86,14 @@ struct HomeContextWrapper: View {
 
 #Preview("Logged In") {
     AppState.shared.isLoggedIn = true
-    
+
     return ContentView()
         .withCommonPreviewEnvironment()
 }
 
 #Preview("Onboarding") {
     AppState.shared.isLoggedIn = false
-    
+
     return ContentView()
         .withCommonPreviewEnvironment()
 }
