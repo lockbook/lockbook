@@ -399,4 +399,27 @@
         }
     }
 
+
+extension MacMTK: NSTextInputClient {
+    // Called by the macOS Character Viewer (fn key) and other text input services.
+    public func insertText(_ string: Any, replacementRange _: NSRange) {
+        let text: String
+        if let attr = string as? NSAttributedString { text = attr.string }
+        else if let str = string as? String { text = str }
+        else { return }
+        clipboard_paste(wsHandle, text)
+        setNeedsDisplay(self.frame)
+    }
+    public func setMarkedText(_ string: Any, selectedRange _: NSRange, replacementRange _: NSRange) {}
+    public func unmarkText() {}
+    public func selectedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+    public func markedRange() -> NSRange { NSRange(location: NSNotFound, length: 0) }
+    public func hasMarkedText() -> Bool { false }
+    public func attributedSubstring(forProposedRange _: NSRange, actualRange _: NSRangePointer?) -> NSAttributedString? { nil }
+    public func validAttributesForMarkedText() -> [NSAttributedString.Key] { [] }
+    public func firstRect(forCharacterRange _: NSRange, actualRange _: NSRangePointer?) -> NSRect {
+        window?.convertToScreen(frame) ?? .zero
+    }
+    public func characterIndex(for _: NSPoint) -> Int { NSNotFound }
+}
 #endif
