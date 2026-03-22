@@ -356,7 +356,7 @@ impl Editor {
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
         options.extension.footnotes = true;
-        options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
+        options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
         options.extension.highlight = true;

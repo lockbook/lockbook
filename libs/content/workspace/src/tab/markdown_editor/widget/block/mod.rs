@@ -30,7 +30,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::FrontMatter(_) => self.width - 2. * self.layout.margin,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -121,7 +121,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         let height = match value {
-            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::FrontMatter(_) => self.height_front_matter(node),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -216,7 +216,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => {}
+            NodeValue::FrontMatter(_) => self.show_front_matter(ui, node, top_left),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block

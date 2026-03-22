@@ -20,6 +20,28 @@
 		</dict>
 		<dict>
 			<key>name</key>
+			<string>YAML Keys</string>
+			<key>scope</key>
+			<string>entity.name.tag.yaml</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#000000</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Lifetimes</string>
+			<key>scope</key>
+			<string>storage.modifier.lifetime, entity.name.lifetime</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#000000</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
 			<string>Comments</string>
 			<key>scope</key>
 			<string>comment, punctuation.definition.comment</string>
@@ -64,6 +86,17 @@
 		</dict>
 		<dict>
 			<key>name</key>
+			<string>Punctuation</string>
+			<key>scope</key>
+			<string>punctuation</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#111111</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
 			<string>Keywords</string>
 			<key>scope</key>
 			<string>keyword, storage</string>
@@ -88,11 +121,22 @@
 			<key>name</key>
 			<string>Language Constants</string>
 			<key>scope</key>
-			<string>constant.language, support.constant, variable.language</string>
+			<string>constant.language</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#555555</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Variable Language</string>
+			<key>scope</key>
+			<string>support.constant, variable.language</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
@@ -103,7 +147,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#222222</string>
+				<string>#333333</string>
 			</dict>
 		</dict>
 		<dict>
@@ -114,7 +158,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
@@ -130,11 +174,22 @@
 			<key>name</key>
 			<string>Numbers, Characters</string>
 			<key>scope</key>
-			<string>constant.numeric, constant.character, constant</string>
+			<string>constant.numeric, constant.character</string>
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#555555</string>
+			</dict>
+		</dict>
+		<dict>
+			<key>name</key>
+			<string>Enum Variants, Named Constants</string>
+			<key>scope</key>
+			<string>constant.other, entity.name.constant</string>
+			<key>settings</key>
+			<dict>
+				<key>foreground</key>
+				<string>#555555</string>
 			</dict>
 		</dict>
 		<dict>
@@ -145,7 +200,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#333333</string>
+				<string>#555555</string>
 			</dict>
 		</dict>
 		<dict>
@@ -167,7 +222,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#333333</string>
+				<string>#555555</string>
 			</dict>
 		</dict>
 		<dict>
@@ -178,18 +233,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
-			</dict>
-		</dict>
-		<dict>
-			<key>name</key>
-			<string>Punctuation</string>
-			<key>scope</key>
-			<string>punctuation</string>
-			<key>settings</key>
-			<dict>
-				<key>foreground</key>
-				<string>#111111</string>
+				<string>#555555</string>
 			</dict>
 		</dict>
 		<dict>
@@ -219,7 +263,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#111111</string>
 			</dict>
 		</dict>
 		<dict>
@@ -253,7 +297,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
@@ -282,7 +326,7 @@
 			<key>settings</key>
 			<dict>
 				<key>foreground</key>
-				<string>#444444</string>
+				<string>#222222</string>
 			</dict>
 		</dict>
 		<dict>
