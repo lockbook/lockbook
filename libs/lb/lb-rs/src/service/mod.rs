@@ -11,6 +11,7 @@ pub mod debug;
 pub mod documents;
 pub mod events;
 pub mod file;
+pub mod fs_base;
 pub mod import_export;
 pub mod integrity;
 pub mod keychain;

@@ -1,0 +1,24 @@
+[package]
+name = "lb-sync-dir"
+version = "26.3.22"
+edition = "2021"
+description = "Bidirectional sync between a local directory and a lockbook folder."
+repository = "https://github.com/lockbook/lockbook"
+license = "BSD-3-Clause"
+
+[dependencies]
+lb-rs = { path = "../lb/lb-rs" }
+ignore = "0.4"
+notify = "7"
+notify-debouncer-full = "0.4"
+sha2 = "0.9.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+uuid = { version = "1.2.2", features = ["v4", "serde"] }
+chrono = "0.4"
+tempfile = "3"
+
+[dev-dependencies]
+test_utils = { path = "../lb/test_utils" }

@@ -16,6 +16,7 @@ use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
+use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -25,6 +26,18 @@ use web_time::{Duration, Instant};
 pub(crate) type LbDb = Arc<RwLock<CoreDb>>;
 // todo: limit visibility
 pub type CoreDb = CoreV4;
+
+/// Snapshot of a file's state at the last sync-dir reconciliation.
+/// Used for 3-way diff between local disk, lockbook, and the last agreed state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FsBaseEntry {
+    /// Relative path from the sync root on local disk.
+    pub local_path: String,
+    /// SHA-256 hash of the file content at last agreement.
+    pub content_hash: [u8; 32],
+    /// Lockbook `last_modified` timestamp at last agreement.
+    pub lb_last_modified: u64,
+}
 
 #[derive(Schema, Debug)]
 #[cfg_attr(feature = "no-network", derive(Clone))]
@@ -40,6 +53,9 @@ pub struct CoreV4 {
 
     pub doc_events: List<DocEvent>,
     pub id: Single<LbID>,
+
+    /// sync-dir: last agreed state between local filesystem and lockbook
+    pub fs_base: LookupTable<Uuid, FsBaseEntry>,
 }
 
 pub struct LbRO<'a> {
