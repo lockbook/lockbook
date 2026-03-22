@@ -431,6 +431,7 @@ impl<'ast> Editor {
     // "The closing code fence may be indented up to three spaces, and may be
     // followed only by spaces, which are ignored."
     // https://github.github.com/gfm/#fenced-code-blocks
+
     fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (DocCharOffset, DocCharOffset),
