@@ -206,6 +206,19 @@ impl<'ast> Editor {
         }
     }
 
+    pub fn syntax_color_for_hex(&self, hex: &str) -> egui::Color32 {
+        let theme = self.ctx.get_lb_theme();
+        match hex {
+            "#000000" => theme.neutral_fg(),
+            "#111111" => theme.neutral_fg_secondary(),
+            "#222222" => theme.fg().get_color(theme.prefs().primary),
+            "#333333" => theme.fg().get_color(theme.prefs().secondary),
+            "#444444" => theme.fg().get_color(theme.prefs().tertiary),
+            "#555555" => theme.fg().get_color(theme.prefs().quaternary),
+            _ => theme.neutral_fg(),
+        }
+    }
+
     pub fn text_format_syntax(&self) -> Format {
         Format {
             family: FontFamily::Mono,

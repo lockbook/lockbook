@@ -119,7 +119,6 @@ impl<'ast> Editor {
                         );
                     }
                     for (style, region) in regions {
-                        let theme = self.ctx.get_lb_theme();
                         let hex = Color32::from_rgb(
                             style.foreground.r,
                             style.foreground.g,
@@ -127,14 +126,7 @@ impl<'ast> Editor {
                         )
                         .to_hex();
                         let hex = hex.strip_suffix("ff").unwrap();
-                        text_format.color = match hex {
-                            "#000000" => theme.neutral_fg(),
-                            "#111111" => theme.neutral_fg_secondary(),
-                            "#222222" => theme.fg().get_color(theme.prefs().primary),
-                            "#333333" => theme.fg().get_color(theme.prefs().secondary),
-                            "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-                            _ => theme.neutral_fg(),
-                        };
+                        text_format.color = self.syntax_color_for_hex(hex);
                         self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
                     }
                 } else {
