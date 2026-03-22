@@ -1,8 +1,6 @@
 use super::ignore::IgnoreRules;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::mpsc;
 
@@ -15,13 +13,7 @@ impl FsWatcher {
     /// Create a new filesystem watcher on the given root directory.
     pub fn new(root: &Path, _ignore: &IgnoreRules) -> Result<Self, notify::Error> {
         let (tx, rx) = mpsc::channel(64);
-        let root_owned = root.to_path_buf();
-
-        // Paths we recently wrote ourselves — suppress self-triggered events
-        let self_writes: Arc<Mutex<HashSet<PathBuf>>> = Arc::new(Mutex::new(HashSet::new()));
-
-        // Clone ignore rules context for the callback
-        let root_for_filter = root_owned.clone();
+        let root_for_filter = root.to_path_buf();
 
         let mut debouncer = new_debouncer(
             Duration::from_millis(500),
@@ -38,20 +30,13 @@ impl FsWatcher {
                 };
 
                 let mut changed = Vec::new();
-                let self_writes_guard = self_writes.lock().unwrap();
-
                 for event in events {
                     for path in &event.paths {
-                        if self_writes_guard.contains(path) {
-                            continue;
-                        }
                         if path.starts_with(&root_for_filter) {
                             changed.push(path.clone());
                         }
                     }
                 }
-
-                drop(self_writes_guard);
 
                 if !changed.is_empty() {
                     changed.sort();

@@ -6,12 +6,6 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 
-#[derive(Debug, Clone)]
-pub struct LocalFileInfo {
-    pub content_hash: [u8; 32],
-    pub is_dir: bool,
-}
-
 /// Compute SHA-256 hash of a file, streaming in 8KB chunks.
 pub fn hash_file(path: &Path) -> io::Result<[u8; 32]> {
     let mut file = fs::File::open(path)?;
@@ -34,12 +28,13 @@ pub fn hash_bytes(data: &[u8]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Scan the local directory tree, returning a map of relative_path -> LocalFileInfo.
-/// Follows symlinks. Detects symlink cycles via visited (dev, ino) pairs.
+/// Scan the local directory tree, returning a map of relative_path -> content_hash.
+/// Only tracks files (directories are skipped). Follows symlinks. Detects symlink cycles
+/// via visited (dev, ino) pairs.
 pub fn scan_local_tree(
     root: &Path,
     ignore: &IgnoreRules,
-) -> io::Result<HashMap<String, LocalFileInfo>> {
+) -> io::Result<HashMap<String, [u8; 32]>> {
     let mut result = HashMap::new();
     let mut visited_dirs = HashSet::new();
     scan_recursive(root, root, ignore, &mut result, &mut visited_dirs)?;
@@ -50,7 +45,7 @@ fn scan_recursive(
     root: &Path,
     current: &Path,
     ignore: &IgnoreRules,
-    result: &mut HashMap<String, LocalFileInfo>,
+    result: &mut HashMap<String, [u8; 32]>,
     visited_dirs: &mut HashSet<(u64, u64)>,
 ) -> io::Result<()> {
     // Cycle detection using device + inode
@@ -98,17 +93,10 @@ fn scan_recursive(
         }
 
         if meta.is_dir() {
-            result.insert(
-                rel.clone(),
-                LocalFileInfo { content_hash: [0; 32], is_dir: true },
-            );
             scan_recursive(root, &entry.path(), ignore, result, visited_dirs)?;
         } else if meta.is_file() {
             let content_hash = hash_file(&entry.path()).unwrap_or([0; 32]);
-            result.insert(
-                rel.clone(),
-                LocalFileInfo { content_hash, is_dir: false },
-            );
+            result.insert(rel, content_hash);
         }
     }
 
@@ -191,9 +179,7 @@ mod tests {
 
         assert!(tree.contains_key("a.txt"));
         assert!(tree.contains_key("sub/b.txt"));
-        assert!(tree.contains_key("sub"));
-        assert!(tree.get("sub").unwrap().is_dir);
-        assert!(!tree.get("a.txt").unwrap().is_dir);
+        assert!(!tree.contains_key("sub"), "directories should not be in the map");
     }
 
     #[test]

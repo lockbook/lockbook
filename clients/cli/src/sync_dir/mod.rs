@@ -5,13 +5,13 @@ mod watcher;
 use cli_rs::cli_error::{CliError, CliResult};
 use ignore::IgnoreRules;
 use lb_rs::model::core_config::Config;
-use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::ValidationFailure;
 use lb_rs::Lb;
 use local::{
     delete_local, hash_bytes, hash_file, scan_local_tree, write_conflict_sidecar,
-    write_local_file, LocalFileInfo,
+    write_local_file,
 };
 use watcher::FsWatcher;
 
@@ -46,7 +46,7 @@ pub async fn run(
     let local_dir = PathBuf::from(local_dir);
 
     if once {
-        sync_once(&lb, &lockbook_folder, &local_dir, pull_interval)
+        sync_once(&lb, &lockbook_folder, &local_dir)
             .await
             .map_err(|e| CliError::from(e.to_string()))?;
     } else {
@@ -116,6 +116,12 @@ impl From<notify::Error> for SyncDirError {
     }
 }
 
+impl From<LbErr> for SyncDirError {
+    fn from(e: LbErr) -> Self {
+        Self::Lb(e.kind)
+    }
+}
+
 // --- fs_base: last agreed state between local filesystem and lockbook ---
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -147,7 +153,7 @@ fn save_fs_base(local_dir: &Path, entries: &[(Uuid, FsBaseEntry)]) -> std::io::R
 
 #[derive(Debug)]
 enum LocalChange {
-    NewFile { path: String, is_dir: bool },
+    NewFile { path: String },
     Modified { path: String, id: Uuid },
     Deleted { id: Uuid },
 }
@@ -159,7 +165,6 @@ async fn sync_once(
     lb: &Lb,
     lockbook_folder: &str,
     local_dir: &Path,
-    _pull_interval: Duration,
 ) -> Result<(), SyncDirError> {
     let root_path = resolve_or_create_lb_folder(lb, lockbook_folder).await?;
 
@@ -262,7 +267,7 @@ async fn run_cycle(
 
     // Step 4: sync with server
     tracing::debug!("syncing with lockbook server");
-    lb.sync().await.map_err(|e| SyncDirError::Lb(e.kind))?;
+    lb.sync().await?;
 
     // Step 5: materialize resolved state to disk
     let remote_tree = get_remote_tree(lb, root_path).await?;
@@ -279,7 +284,7 @@ async fn run_cycle(
 // --- Step 1: detect local changes ---
 
 fn detect_local_changes(
-    local_tree: &HashMap<String, LocalFileInfo>,
+    local_tree: &HashMap<String, [u8; 32]>,
     fs_base: &HashMap<Uuid, FsBaseEntry>,
 ) -> Vec<LocalChange> {
     let mut changes = Vec::new();
@@ -295,37 +300,20 @@ fn detect_local_changes(
     }
 
     // Files on disk
-    for (path, local_info) in local_tree {
+    for (path, content_hash) in local_tree {
         match base_by_path.get(path.as_str()) {
             None => {
-                changes.push(LocalChange::NewFile {
-                    path: path.clone(),
-                    is_dir: local_info.is_dir,
-                });
+                changes.push(LocalChange::NewFile { path: path.clone() });
             }
             Some((id, base_entry)) => {
-                if !local_info.is_dir && local_info.content_hash != base_entry.content_hash {
+                if *content_hash != base_entry.content_hash {
                     changes.push(LocalChange::Modified { path: path.clone(), id: *id });
                 }
             }
         }
     }
 
-    changes.sort_by(|a, b| change_sort_key(a).cmp(&change_sort_key(b)));
     changes
-}
-
-fn change_sort_key(change: &LocalChange) -> (u8, isize) {
-    match change {
-        LocalChange::NewFile { path, is_dir: true } => (0, path_depth(path) as isize),
-        LocalChange::NewFile { path, is_dir: false } => (1, path_depth(path) as isize),
-        LocalChange::Modified { path, .. } => (1, path_depth(path) as isize),
-        LocalChange::Deleted { .. } => (2, 0),
-    }
-}
-
-fn path_depth(path: &str) -> usize {
-    path.chars().filter(|c| *c == '/').count()
 }
 
 // --- Step 3: apply local changes to lb-rs ---
@@ -338,31 +326,13 @@ async fn apply_local_to_lb(
 ) -> Result<(), SyncDirError> {
     for change in changes {
         match change {
-            LocalChange::NewFile { path, is_dir: true } => {
-                let full = format!("{root_path}/{path}/");
-                match lb.create_at_path(&full).await {
-                    Ok(_) => tracing::info!("creating remote dir: {path}"),
-                    Err(e)
-                        if matches!(
-                            &e.kind,
-                            LbErrKind::Validation(ValidationFailure::PathConflict(_))
-                        ) =>
-                    {
-                        tracing::debug!("remote dir already exists: {path}");
-                    }
-                    Err(e) => return Err(SyncDirError::Lb(e.kind)),
-                }
-            }
-
-            LocalChange::NewFile { path, is_dir: false } => {
+            LocalChange::NewFile { path } => {
                 let content = fs::read(local_dir.join(path))?;
                 let full = format!("{root_path}/{path}");
                 tracing::info!("pushing new file: {path}");
                 match lb.create_at_path(&full).await {
                     Ok(file) => {
-                        lb.write_document(file.id, &content)
-                            .await
-                            .map_err(|e| SyncDirError::Lb(e.kind))?;
+                        lb.write_document(file.id, &content).await?;
                     }
                     Err(e)
                         if matches!(
@@ -371,29 +341,22 @@ async fn apply_local_to_lb(
                         ) =>
                     {
                         tracing::debug!("remote file already exists, updating: {path}");
-                        let existing = lb
-                            .get_by_path(&full)
-                            .await
-                            .map_err(|e| SyncDirError::Lb(e.kind))?;
-                        lb.write_document(existing.id, &content)
-                            .await
-                            .map_err(|e| SyncDirError::Lb(e.kind))?;
+                        let existing = lb.get_by_path(&full).await?;
+                        lb.write_document(existing.id, &content).await?;
                     }
-                    Err(e) => return Err(SyncDirError::Lb(e.kind)),
+                    Err(e) => return Err(e.into()),
                 }
             }
 
             LocalChange::Modified { path, id } => {
                 tracing::info!("updating remote: {path}");
                 let content = fs::read(local_dir.join(path))?;
-                lb.write_document(*id, &content)
-                    .await
-                    .map_err(|e| SyncDirError::Lb(e.kind))?;
+                lb.write_document(*id, &content).await?;
             }
 
             LocalChange::Deleted { id } => {
                 tracing::info!("deleting remote: {id}");
-                lb.delete(id).await.map_err(|e| SyncDirError::Lb(e.kind))?;
+                lb.delete(id).await?;
             }
         }
     }
@@ -408,7 +371,7 @@ async fn materialize_to_disk(
     local_dir: &Path,
     ignore: &IgnoreRules,
     remote_tree: &[(String, File)],
-    local_tree: &HashMap<String, LocalFileInfo>,
+    local_tree: &HashMap<String, [u8; 32]>,
     fs_base: &HashMap<Uuid, FsBaseEntry>,
 ) -> Result<(), SyncDirError> {
     let remote_by_path: HashMap<&str, &File> =
@@ -433,28 +396,25 @@ async fn materialize_to_disk(
         // Optimization: skip if last_modified matches fs_base (unchanged since last agreement)
         if let Some(base) = base_by_id.get(&file.id) {
             if file.last_modified == base.lb_last_modified {
-                if let Some(local) = local_tree.get(rel_path.as_str()) {
-                    if local.content_hash == base.content_hash {
+                if let Some(local_hash) = local_tree.get(rel_path.as_str()) {
+                    if *local_hash == base.content_hash {
                         continue;
                     }
                 }
             }
         }
 
-        let content = lb
-            .read_document(file.id, false)
-            .await
-            .map_err(|e| SyncDirError::Lb(e.kind))?;
+        let content = lb.read_document(file.id, false).await?;
         let remote_hash = hash_bytes(&content);
 
-        if let Some(local_info) = local_tree.get(rel_path.as_str()) {
-            if remote_hash == local_info.content_hash {
+        if let Some(local_hash) = local_tree.get(rel_path.as_str()) {
+            if remote_hash == *local_hash {
                 continue;
             }
 
             // Write-race check: did the disk change since fs_base?
             if let Some(base) = base_by_id.get(&file.id) {
-                if local_info.content_hash != base.content_hash {
+                if *local_hash != base.content_hash {
                     tracing::info!(
                         "write-race conflict: {rel_path} — saving local as sidecar",
                     );
@@ -488,45 +448,40 @@ async fn materialize_to_disk(
 
 // --- Helpers ---
 
-/// Get the remote file tree under the sync root, using lb-rs path APIs.
+/// Get the remote file tree under the sync root.
 /// Returns `(relative_path, File)` pairs with paths relative to the sync root.
 async fn get_remote_tree(lb: &Lb, root_path: &str) -> Result<Vec<(String, File)>, SyncDirError> {
-    let prefix = format!("{root_path}/");
+    let root = lb.get_by_path(root_path).await?;
+    let descendants = lb.get_and_get_children_recursively(&root.id).await?;
 
-    // 1. Get all paths, build id→relative_path map for our subtree
-    let all_paths = lb
-        .list_paths_with_ids(None)
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?;
-    let mut path_by_id: HashMap<Uuid, String> = HashMap::new();
-    for (id, path) in all_paths {
-        if let Some(rel) = path.strip_prefix(&prefix) {
-            let rel = rel.trim_end_matches('/');
-            if !rel.is_empty() {
-                path_by_id.insert(id, rel.to_string());
-            }
-        }
-    }
+    let files_by_id: HashMap<Uuid, &File> = descendants.iter().map(|f| (f.id, f)).collect();
 
-    // 2. Get all descendant Files in one call
-    let root_id = lb
-        .get_by_path(root_path)
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?
-        .id;
-    let descendants = lb
-        .get_and_get_children_recursively(&root_id)
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?;
-
-    // 3. Join: pair each descendant with its relative path
     let mut result = Vec::new();
-    for file in descendants {
-        if let Some(rel_path) = path_by_id.remove(&file.id) {
-            result.push((rel_path, file));
+    for file in &descendants {
+        if file.id == root.id {
+            continue;
+        }
+        if let Some(rel) = build_relative_path(file.id, root.id, &files_by_id) {
+            result.push((rel, file.clone()));
         }
     }
     Ok(result)
+}
+
+fn build_relative_path(
+    file_id: Uuid,
+    root_id: Uuid,
+    files_by_id: &HashMap<Uuid, &File>,
+) -> Option<String> {
+    let mut parts = Vec::new();
+    let mut current = file_id;
+    while current != root_id {
+        let file = files_by_id.get(&current)?;
+        parts.push(file.name.as_str());
+        current = file.parent;
+    }
+    parts.reverse();
+    Some(parts.join("/"))
 }
 
 fn build_new_fs_base(
@@ -573,15 +528,10 @@ async fn resolve_or_create_lb_folder(
         Ok(file) => file,
         Err(_) => {
             tracing::info!("creating lockbook folder: {folder_path}");
-            lb.create_at_path(&format!("{folder_path}/"))
-                .await
-                .map_err(|e| SyncDirError::Lb(e.kind))?
+            lb.create_at_path(&format!("{folder_path}/")).await?
         }
     };
-    let path = lb
-        .get_path_by_id(file.id)
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?;
+    let path = lb.get_path_by_id(file.id).await?;
     Ok(path.trim_end_matches('/').to_string())
 }
 
@@ -593,18 +543,8 @@ mod tests {
         FsBaseEntry { local_path: path.to_string(), content_hash: hash, lb_last_modified: modified }
     }
 
-    fn local_file(path: &str, hash: [u8; 32]) -> (String, LocalFileInfo) {
-        (
-            path.to_string(),
-            LocalFileInfo { content_hash: hash, is_dir: false },
-        )
-    }
-
-    fn local_dir_entry(path: &str) -> (String, LocalFileInfo) {
-        (
-            path.to_string(),
-            LocalFileInfo { content_hash: [0; 32], is_dir: true },
-        )
+    fn local_file(path: &str, hash: [u8; 32]) -> (String, [u8; 32]) {
+        (path.to_string(), hash)
     }
 
     #[test]
@@ -638,9 +578,7 @@ mod tests {
 
         let changes = detect_local_changes(&local_tree, &fs_base);
         assert_eq!(changes.len(), 1);
-        assert!(
-            matches!(&changes[0], LocalChange::NewFile { path, is_dir: false } if path == "new.txt")
-        );
+        assert!(matches!(&changes[0], LocalChange::NewFile { path } if path == "new.txt"));
     }
 
     #[test]
@@ -648,22 +586,11 @@ mod tests {
         let id = Uuid::new_v4();
         let hash = [1u8; 32];
         let fs_base: HashMap<_, _> = [(id, base_entry("a.txt", hash, 100))].into();
-        let local_tree: HashMap<String, LocalFileInfo> = HashMap::new();
+        let local_tree: HashMap<String, [u8; 32]> = HashMap::new();
 
         let changes = detect_local_changes(&local_tree, &fs_base);
         assert_eq!(changes.len(), 1);
         assert!(matches!(&changes[0], LocalChange::Deleted { id: did } if *did == id));
     }
 
-    #[test]
-    fn dirs_created_before_files() {
-        let fs_base: HashMap<Uuid, FsBaseEntry> = HashMap::new();
-        let local_tree: HashMap<_, _> =
-            [local_file("src/main.rs", [1u8; 32]), local_dir_entry("src")].into();
-
-        let changes = detect_local_changes(&local_tree, &fs_base);
-        assert_eq!(changes.len(), 2);
-        assert!(matches!(&changes[0], LocalChange::NewFile { is_dir: true, .. }));
-        assert!(matches!(&changes[1], LocalChange::NewFile { is_dir: false, .. }));
-    }
 }
