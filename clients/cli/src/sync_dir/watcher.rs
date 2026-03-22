@@ -21,12 +21,7 @@ impl FsWatcher {
             move |result: DebounceEventResult| {
                 let events = match result {
                     Ok(events) => events,
-                    Err(errs) => {
-                        for e in errs {
-                            tracing::warn!("watcher error: {e}");
-                        }
-                        return;
-                    }
+                    Err(_) => return,
                 };
 
                 let mut changed = Vec::new();

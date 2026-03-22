@@ -56,7 +56,6 @@ fn scan_recursive(
         if meta.is_dir() {
             let key = (meta.dev(), meta.ino());
             if !visited_dirs.insert(key) {
-                tracing::warn!("symlink cycle detected at {}, skipping", current.display());
                 return Ok(());
             }
         }
@@ -64,10 +63,7 @@ fn scan_recursive(
 
     let entries = match fs::read_dir(current) {
         Ok(entries) => entries,
-        Err(e) => {
-            tracing::warn!("cannot read directory {}: {e}", current.display());
-            return Ok(());
-        }
+        Err(_) => return Ok(()),
     };
 
     for entry in entries {
@@ -75,10 +71,7 @@ fn scan_recursive(
         // Use metadata() which follows symlinks, not symlink_metadata()
         let meta = match fs::metadata(entry.path()) {
             Ok(m) => m,
-            Err(e) => {
-                tracing::warn!("cannot stat {}: {e}", entry.path().display());
-                continue;
-            }
+            Err(_) => continue,
         };
 
         let rel = entry

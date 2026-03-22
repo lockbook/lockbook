@@ -207,32 +207,24 @@ async fn sync_loop(
     let mut interval = tokio::time::interval(pull_interval);
     interval.tick().await; // skip first tick (we just synced)
 
-    tracing::info!(
-        "sync-dir running: {} <-> {}",
-        lockbook_folder,
-        local_dir.display()
-    );
-
     loop {
         tokio::select! {
-            Some(paths) = async {
+            Some(_paths) = async {
                 match watcher.as_mut() {
                     Some(w) => w.next_batch().await,
                     None => std::future::pending().await,
                 }
             } => {
-                tracing::debug!("local changes detected: {} paths", paths.len());
                 if let Err(e) = run_cycle(lb, local_dir, &ignore_rules, &root_path).await {
-                    tracing::error!("sync cycle failed: {e}");
+                    eprintln!("sync cycle failed: {e}");
                 }
             }
             _ = interval.tick() => {
                 if let Err(e) = run_cycle(lb, local_dir, &ignore_rules, &root_path).await {
-                    tracing::error!("sync cycle failed: {e}");
+                    eprintln!("sync cycle failed: {e}");
                 }
             }
             _ = tokio::signal::ctrl_c() => {
-                tracing::info!("shutting down sync-dir");
                 break;
             }
         }
@@ -261,12 +253,10 @@ async fn run_cycle(
 
     // Step 3: apply local changes to lb-rs
     if !changes.is_empty() {
-        tracing::info!("{} local changes to apply", changes.len());
         apply_local_to_lb(lb, root_path, &changes, local_dir).await?;
     }
 
     // Step 4: sync with server
-    tracing::debug!("syncing with lockbook server");
     lb.sync().await?;
 
     // Step 5: materialize resolved state to disk
@@ -329,7 +319,6 @@ async fn apply_local_to_lb(
             LocalChange::NewFile { path } => {
                 let content = fs::read(local_dir.join(path))?;
                 let full = format!("{root_path}/{path}");
-                tracing::info!("pushing new file: {path}");
                 match lb.create_at_path(&full).await {
                     Ok(file) => {
                         lb.write_document(file.id, &content).await?;
@@ -340,7 +329,6 @@ async fn apply_local_to_lb(
                             LbErrKind::Validation(ValidationFailure::PathConflict(_))
                         ) =>
                     {
-                        tracing::debug!("remote file already exists, updating: {path}");
                         let existing = lb.get_by_path(&full).await?;
                         lb.write_document(existing.id, &content).await?;
                     }
@@ -349,13 +337,11 @@ async fn apply_local_to_lb(
             }
 
             LocalChange::Modified { path, id } => {
-                tracing::info!("updating remote: {path}");
                 let content = fs::read(local_dir.join(path))?;
                 lb.write_document(*id, &content).await?;
             }
 
             LocalChange::Deleted { id } => {
-                tracing::info!("deleting remote: {id}");
                 lb.delete(id).await?;
             }
         }
@@ -387,7 +373,6 @@ async fn materialize_to_disk(
 
         if file.is_folder() {
             if !full_path.exists() {
-                tracing::info!("creating local dir: {rel_path}");
                 fs::create_dir_all(&full_path)?;
             }
             continue;
@@ -415,18 +400,13 @@ async fn materialize_to_disk(
             // Write-race check: did the disk change since fs_base?
             if let Some(base) = base_by_id.get(&file.id) {
                 if *local_hash != base.content_hash {
-                    tracing::info!(
-                        "write-race conflict: {rel_path} — saving local as sidecar",
-                    );
                     let local_content = fs::read(local_dir.join(rel_path))?;
                     write_conflict_sidecar(local_dir, rel_path, &local_content)?;
                 }
             }
 
-            tracing::info!("updating local: {rel_path}");
             write_local_file(local_dir, rel_path, &content)?;
         } else {
-            tracing::info!("pulling: {rel_path}");
             write_local_file(local_dir, rel_path, &content)?;
         }
     }
@@ -438,7 +418,6 @@ async fn materialize_to_disk(
         }
         let was_tracked = fs_base.values().any(|e| e.local_path == *path);
         if was_tracked {
-            tracing::info!("deleting local (remotely deleted): {path}");
             delete_local(local_dir, path)?;
         }
     }
@@ -527,7 +506,6 @@ async fn resolve_or_create_lb_folder(
     let file = match lb.get_by_path(folder_path).await {
         Ok(file) => file,
         Err(_) => {
-            tracing::info!("creating lockbook folder: {folder_path}");
             lb.create_at_path(&format!("{folder_path}/")).await?
         }
     };
