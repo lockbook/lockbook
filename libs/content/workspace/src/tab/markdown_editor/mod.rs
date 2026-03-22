@@ -2,6 +2,7 @@ use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex, RwLock};
 use web_time::Instant;
 
@@ -26,7 +27,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::ThemeSet;
+use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
@@ -34,6 +35,27 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
+
+static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+static SYNTAX_THEME: OnceLock<Theme> = OnceLock::new();
+
+pub fn syntax_set() -> &'static SyntaxSet {
+    SYNTAX_SET.get_or_init(|| {
+        HighlightingAssets::from_binary()
+            .get_syntax_set()
+            .unwrap()
+            .clone()
+    })
+}
+
+pub fn syntax_theme() -> &'static Theme {
+    SYNTAX_THEME.get_or_init(|| {
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
+        let mut buffer = BufReader::new(cursor);
+        ThemeSet::load_from_reader(&mut buffer).unwrap()
+    })
+}
 
 pub mod bounds;
 mod galleys;
@@ -70,8 +92,6 @@ pub struct Editor {
 
     // theme
     dark_mode: bool, // supports change detection
-    syntax_set: SyntaxSet,
-    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
@@ -214,14 +234,6 @@ impl Editor {
         let MdConfig { plaintext_mode, readonly, ext } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
-        let highlighting_assets = HighlightingAssets::from_binary();
-        let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
-
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
@@ -234,8 +246,6 @@ impl Editor {
             files,
 
             dark_mode,
-            syntax_set,
-            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),

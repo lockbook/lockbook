@@ -1012,6 +1012,13 @@ impl Display for DocType {
     }
 }
 
+pub fn syntax_ext_for(ext: &str) -> &str {
+    match ext {
+        "jsonl" | "jsonc" => "json",
+        other => other,
+    }
+}
+
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
@@ -1021,9 +1028,13 @@ impl DocType {
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
-            "json" | "toml" | "yaml" | "yml" | "go" | "rs" | "py" | "js" | "ts" | "c" | "cpp"
-            | "h" | "java" | "rb" | "sh" | "html" | "xml" | "css" => Self::Code, // many such cases
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if crate::tab::markdown_editor::syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(ext))
+                .is_some() =>
+            {
+                Self::Code
+            }
             _ => Self::Unknown,
         }
     }

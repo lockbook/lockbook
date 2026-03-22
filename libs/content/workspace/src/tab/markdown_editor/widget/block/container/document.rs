@@ -1,8 +1,10 @@
+use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use comrak::nodes::AstNode;
 use egui::{Color32, Pos2, Ui};
 use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _, RangeIterExt as _};
 use syntect::easy::HighlightLines;
 
+use crate::show::syntax_ext_for;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -31,22 +33,22 @@ impl<'ast> Editor {
         if any_children && !self.plaintext_mode {
             self.block_children_height(node)
         } else {
-            let highlighter_syntax = self.syntax_set.find_syntax_by_extension(&self.syntax_ext);
+            let highlighter_syntax =
+                syntax_set().find_syntax_by_extension(syntax_ext_for(&self.syntax_ext));
             let mut result = 0.;
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let mut wrap = self.new_wrap(width);
                 if let Some(syntax) = highlighter_syntax {
-                    let mut highlighter = HighlightLines::new(syntax, &self.syntax_theme);
+                    let mut highlighter = HighlightLines::new(syntax, syntax_theme());
                     let line_text = &self.buffer[line];
                     let regions = if let Some(regions) = self.syntax.get(line_text, line) {
                         regions
                     } else {
                         let mut regions = Vec::new();
                         let mut region_start = self.offset_to_byte(line.start());
-                        for (style, region_str) in highlighter
-                            .highlight_line(line_text, &self.syntax_set)
-                            .unwrap()
+                        for (style, region_str) in
+                            highlighter.highlight_line(line_text, syntax_set()).unwrap()
                         {
                             let region_end = region_start + region_str.len();
                             let region = self.range_to_char((region_start, region_end));
@@ -75,20 +77,18 @@ impl<'ast> Editor {
         if any_children && !self.plaintext_mode {
             self.show_block_children(ui, node, top_left);
         } else {
-            let has_syntax = self
-                .syntax_set
-                .find_syntax_by_extension(&self.syntax_ext)
+            let has_syntax = syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(&self.syntax_ext))
                 .is_some();
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let mut wrap = self.new_wrap(width);
 
                 if has_syntax {
-                    let syntax = self
-                        .syntax_set
-                        .find_syntax_by_extension(&self.syntax_ext)
+                    let syntax = syntax_set()
+                        .find_syntax_by_extension(syntax_ext_for(&self.syntax_ext))
                         .unwrap();
-                    let mut highlighter = HighlightLines::new(syntax, &self.syntax_theme);
+                    let mut highlighter = HighlightLines::new(syntax, syntax_theme());
                     let line_text = &self.buffer[line];
 
                     let regions = if let Some(regions) = self.syntax.get(line_text, line) {
@@ -96,9 +96,8 @@ impl<'ast> Editor {
                     } else {
                         let mut regions = Vec::new();
                         let mut region_start = self.offset_to_byte(line.start());
-                        for (style, region_str) in highlighter
-                            .highlight_line(line_text, &self.syntax_set)
-                            .unwrap()
+                        for (style, region_str) in
+                            highlighter.highlight_line(line_text, syntax_set()).unwrap()
                         {
                             let region_end = region_start + region_str.len();
                             let region = self.range_to_char((region_start, region_end));
