@@ -3,17 +3,10 @@ use egui::{
     Color32, CornerRadius, Frame, Key, Layout, Margin, Rect, ScrollArea, Sense, TextEdit, Ui, Vec2,
     pos2,
 };
+use lb_rs::model::chat::{Buffer, Message};
 use lb_rs::{Uuid, model::file_metadata::DocumentHmac};
-use serde::{Deserialize, Serialize};
 
 use crate::theme::palette_v2::{Palette, ThemeExt};
-
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Message {
-    pub from: String,
-    pub content: String,
-    pub ts: i64,
-}
 
 pub struct Chat {
     pub id: Uuid,
@@ -26,45 +19,19 @@ pub struct Chat {
 
 impl Chat {
     pub fn new(bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, username: String) -> Self {
-        let messages = std::str::from_utf8(bytes)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|line| serde_json::from_str(line).ok())
-            .collect();
+        let messages = Buffer::new(bytes).messages;
         Self { id, hmac, messages, input: String::new(), username, seq: 0 }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = self
-            .messages
-            .iter()
-            .filter_map(|m| serde_json::to_string(m).ok())
-            .collect::<Vec<_>>()
-            .join("\n");
-        if !out.is_empty() {
-            out.push('\n');
-        }
-        out.into_bytes()
+        Buffer { messages: self.messages.clone() }.serialize()
     }
 
     pub fn reload(&mut self, bytes: &[u8], hmac: Option<DocumentHmac>) {
-        let remote: Vec<Message> = std::str::from_utf8(bytes)
-            .unwrap_or_default()
-            .lines()
-            .filter_map(|line| serde_json::from_str(line).ok())
-            .collect();
-
-        for remote_msg in remote {
-            let exists = self
-                .messages
-                .iter()
-                .any(|m| m.from == remote_msg.from && m.ts == remote_msg.ts);
-            if !exists {
-                self.messages.push(remote_msg);
-            }
-        }
-
-        self.messages.sort_by_key(|m| m.ts);
+        // treat current in-memory state as "local", incoming bytes as "remote",
+        // with no base (empty) — equivalent to a union merge
+        let merged = Buffer::merge(&[], &self.to_bytes(), bytes);
+        self.messages = Buffer::new(&merged).messages;
         self.hmac = hmac;
         self.seq += 1;
     }

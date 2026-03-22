@@ -22,6 +22,7 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
+        chat,
         crypto::{DecryptedDocument, EncryptedDocument},
         errors::{LbErr, Unexpected},
         file::ShareMode,
@@ -599,6 +600,21 @@ impl Lb {
                                     self.read_document_helper(id, &mut local).await?;
 
                                 match document_type {
+                                    DocumentType::Chat => {
+                                        let merged = chat::Buffer::merge(
+                                            &base_document,
+                                            &local_document,
+                                            &remote_document,
+                                        );
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged,
+                                                &self.keychain,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
                                     DocumentType::Text => {
                                         // 3-way merge
                                         // todo: a couple more clones than necessary

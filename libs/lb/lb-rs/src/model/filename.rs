@@ -7,6 +7,7 @@ pub const MAX_ENCRYPTED_FILENAME_LENGTH: usize = MAX_FILENAME_LENGTH + 24;
 pub enum DocumentType {
     Text,
     Drawing,
+    Chat,
     Other,
 }
 
@@ -16,6 +17,7 @@ impl DocumentType {
         match name.split('.').next_back() {
             Some("md") | Some("txt") => DocumentType::Text,
             Some("svg") => DocumentType::Drawing,
+            Some("chat") => DocumentType::Chat,
             _ => DocumentType::Other,
         }
     }
