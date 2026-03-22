@@ -432,22 +432,7 @@ public class Lb: LbAPI {
 
         return String(cString: debugInfo!)
     }
-<<<<<<< HEAD
 
-=======
-
-    public func calculateWork() -> Result<SyncStatus, LbError> {
-        let res = lb_calculate_work(lb)
-        defer { lb_free_sync_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(SyncStatus(res))
-    }
-
->>>>>>> cea0b0d932ef2a6e8d530ff8ec4305cb8eeb496a
     class UpdateSyncStatus {
         let closure: ((UInt, UInt, UUID, String) -> Void)?
 
@@ -463,7 +448,6 @@ public class Lb: LbAPI {
             Unmanaged<UpdateSyncStatus>.fromOpaque(pointer).takeUnretainedValue()
         }
     }
-<<<<<<< HEAD
             
     public func sync() -> Result<Void, LbError> {
         
@@ -472,26 +456,6 @@ public class Lb: LbAPI {
         if let err = err {
             defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
-=======
-
-    public func sync(updateStatus: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
-        var lbUpdateStatusFunc: (@convention(c) (UnsafeRawPointer?, UInt, UInt, LbUuid, UnsafePointer<CChar>?) -> Void)? = nil
-        var updateStatusObj: UpdateSyncStatus? = nil
-
-        if updateStatus != nil {
-            lbUpdateStatusFunc = { (obj: UnsafeRawPointer?, total: UInt, progress: UInt, id: LbUuid, msg: UnsafePointer<CChar>?) in
-                UpdateSyncStatus.fromPtr(obj!).closure!(total, progress, id.toUUID(), String(cString: msg!))
-            }
-
-            updateStatusObj = UpdateSyncStatus(updateStatus)
-        }
-
-        let res = lb_sync(lb, updateStatusObj?.toPointer(), &lbUpdateStatusFunc)
-        defer { lb_free_sync_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
->>>>>>> cea0b0d932ef2a6e8d530ff8ec4305cb8eeb496a
         }
 
         return .success(())
@@ -573,22 +537,7 @@ public class Lb: LbAPI {
 
         return .success(UsageMetrics(res.usages))
     }
-<<<<<<< HEAD
-    
-=======
 
-    public func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError> {
-        let res = lb_get_uncompressed_usage(lb)
-        defer { lb_free_uncompressed_usage(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(UncompressedUsageMetric(res))
-    }
-
->>>>>>> cea0b0d932ef2a6e8d530ff8ec4305cb8eeb496a
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> {
         let sourcesLen = UInt(sources.count)
         let sources = sources.map { strdup($0) }
@@ -725,13 +674,7 @@ public class MockLb: LbAPI {
     public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
     public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
     public let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"
-<<<<<<< HEAD
-    
-=======
 
-    public let syncStatus = SyncStatus(latestServerTS: 1_735_857_215, work: [])
-
->>>>>>> cea0b0d932ef2a6e8d530ff8ec4305cb8eeb496a
     public let rootId: UUID
     public let file0: File
     public let file1: File
@@ -772,7 +715,6 @@ public class MockLb: LbAPI {
     }
 
     public func logoutAndExit() {}
-<<<<<<< HEAD
     public func exportAccountPrivateKey() -> Result<String, LbError> { .success(accountPK) }
     public func exportAccountPhrase() -> Result<String, LbError> { .success(accountPhrase) }
     public func exportAccountQR() -> Result<[UInt8], LbError> { .success([]) }
@@ -815,179 +757,4 @@ public class MockLb: LbAPI {
     public func cancelSubscription() -> Result<Void, LbError> { .success(()) }
     public func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> { .success(nil) }
     public func subscribe(notify: ((LbEvent) -> Void)?) { }
-=======
-    public func exportAccountPrivateKey() -> Result<String, LbError> {
-        .success(accountPK)
-    }
-
-    public func exportAccountPhrase() -> Result<String, LbError> {
-        .success(accountPhrase)
-    }
-
-    public func exportAccountQR() -> Result<[UInt8], LbError> {
-        .success([])
-    }
-
-    public func createFile(name _: String, parent _: UUID, fileType _: FileType) -> Result<File, LbError> {
-        .success(file1)
-    }
-
-    public func createLink(name _: String, parent _: UUID, target _: UUID) -> Result<File, LbError> {
-        .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1_735_857_215, shares: []))
-    }
-
-    public func writeDocument(id _: UUID, content _: inout [UInt8]) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func getRoot() -> Result<File, LbError> {
-        .success(file0)
-    }
-
-    public func getChildren(id _: UUID) -> Result<[File], LbError> {
-        .success([file1, file2, file3, file4])
-    }
-
-    public func getAndGetChildren(id _: UUID) -> Result<[File], LbError> {
-        .success([file1, file2, file3, file4])
-    }
-
-    public func getFile(id _: UUID) -> Result<File, LbError> {
-        .success(file1)
-    }
-
-    public func deleteFile(id _: UUID) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func readDoc(id _: UUID) -> Result<[UInt8], LbError> {
-        .success([])
-    }
-
-    public func listMetadatas() -> Result<[File], LbError> {
-        .success([file0, file1, file2, file3, file4, file5])
-    }
-
-    public func renameFile(id _: UUID, newName _: String) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func moveFile(id _: UUID, newParent _: UUID) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func shareFile(id _: UUID, username _: String, mode _: ShareMode) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func getPendingShares() -> Result<[File], LbError> {
-        .success([file1, file1, file1, file1, file1])
-    }
-
-    public func getPendingShareFiles() -> Result<[File], LbError> {
-        .success([file1, file1, file1, file1, file1])
-    }
-
-    public func deletePendingShare(id _: UUID) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func createLinkAtPath(pathAndName _: String, targetId _: UUID) -> Result<File, LbError> {
-        .success(file5)
-    }
-
-    public func createAtPath(pathAndName _: String) -> Result<File, LbError> {
-        .success(file1)
-    }
-
-    public func getByPath(path _: String) -> Result<File, LbError> {
-        .success(file1)
-    }
-
-    public func getPathById(id _: UUID) -> Result<String, LbError> {
-        .success("/welcome.md")
-    }
-
-    public func listFolderPaths() -> Result<[String], LbError> {
-        .success(["/"])
-    }
-
-    public func getLocalChanges() -> Result<[UUID], LbError> {
-        .success([UUID(), UUID()])
-    }
-
-    public func debugInfo() -> String {
-        "No debug info. This is a preview."
-    }
-
-    public func calculateWork() -> Result<SyncStatus, LbError> {
-        .success(syncStatus)
-    }
-
-    public func sync(updateStatus _: ((UInt, UInt, UUID, String) -> Void)?) -> Result<SyncStatus, LbError> {
-        .success(syncStatus)
-    }
-
-    public func getLastSynced() -> Result<Int64, LbError> {
-        .success(1_735_857_215)
-    }
-
-    public func getLastSyncedHumanString() -> Result<String, LbError> {
-        .success("You synced a second ago.")
-    }
-
-    public func getTimestampHumanString(timestamp _: Int64) -> String {
-        "1 second ago."
-    }
-
-    public func suggestedDocs() -> Result<[UUID], LbError> {
-        .success([file1.id, file2.id, file3.id])
-    }
-
-    public func clearSuggestedId(id _: UUID) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func clearSuggestedDocs() -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func getUsage() -> Result<UsageMetrics, LbError> {
-        .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B"))
-    }
-
-    public func getUncompressedUsage() -> Result<UncompressedUsageMetric, LbError> {
-        .success(UncompressedUsageMetric(exact: 100, humanMsg: "100B"))
-    }
-
-    public func importFiles(sources _: [String], dest _: UUID) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func exportFile(sourceId _: UUID, dest _: String, edit _: Bool) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func search(input _: String, searchPaths _: Bool, searchDocs _: Bool) -> Result<[SearchResult], LbError> {
-        .success([])
-    }
-
-    public func upgradeAccountStripe(isOldCard _: Bool, number _: String, expYear _: Int32, expMonth _: Int32, cvc _: String) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func upgradeAccountAppStore(originalTransactionId _: String, appAccountToken _: String) -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func cancelSubscription() -> Result<Void, LbError> {
-        .success(())
-    }
-
-    public func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> {
-        .success(nil)
-    }
-
-    public func subscribe(notify _: ((LbEvent) -> Void)?) {}
->>>>>>> cea0b0d932ef2a6e8d530ff8ec4305cb8eeb496a
 }
