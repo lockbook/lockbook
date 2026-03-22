@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::sync::{Arc, RwLock};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
@@ -650,11 +651,24 @@ impl Editor {
                 let metrics = glyphon::Metrics::new(font_size, line_height);
                 let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
                 b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
-                b.set_text(
+                let emoji_attrs =
+                    glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
+                let spans = text.graphemes(true).map(|g| {
+                    let is_emoji = g.chars().any(|c| {
+                        matches!(
+                            c as u32,
+                            0xFE0F  // variation selector-16: emoji presentation
+                        | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+                        )
+                    });
+                    (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+                });
+                b.set_rich_text(
                     &mut self.font_system.lock().unwrap(),
-                    text,
+                    spans,
                     &attrs,
                     glyphon::Shaping::Advanced,
+                    None,
                 );
                 b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
                 Arc::new(RwLock::new(b))
