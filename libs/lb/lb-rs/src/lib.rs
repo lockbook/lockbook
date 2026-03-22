@@ -57,7 +57,7 @@ impl Lb {
             schema_name: Default::default(),
         })
         .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
-        let user_last_seen = Arc::new(AtomicU64::new(0));
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         Ok(Self {
             user_last_seen,
@@ -66,7 +66,7 @@ impl Lb {
             db: Arc::new(RwLock::new(db)),
             docs: AsyncDocs::from(&config),
             client: Default::default(),
-            syncing: Default::default(),
+            syncer: Default::default(),
             events: Default::default(),
             status: Default::default(),
         })
@@ -125,11 +125,7 @@ pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use crate::io::CoreDb;
-#[cfg(target_family = "wasm")]
-use crate::io::CoreDb;
 use crate::subscribers::syncer::Syncer;
-use db_rs::Db;
-#[cfg(target_family = "wasm")]
 use db_rs::Db;
 #[cfg(not(target_family = "wasm"))]
 use subscribers::search::SearchIndex;
@@ -143,7 +139,8 @@ pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::Arc;
-use std::time::Instant;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;
+use web_time::Instant;
+
