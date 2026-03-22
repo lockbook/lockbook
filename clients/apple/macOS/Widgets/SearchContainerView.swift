@@ -6,16 +6,16 @@ struct SearchContainerView<Content: View>: View {
     @ViewBuilder let content: Content
     @FocusState var isFocused: Bool
     @State var isSearching: Bool = false
-    
+
     init(filesModel: FilesViewModel, content: @escaping () -> Content) {
-        self._model = StateObject(wrappedValue: SearchContainerViewModel(filesModel: filesModel))
+        _model = StateObject(wrappedValue: SearchContainerViewModel(filesModel: filesModel))
         self.content = content()
     }
-    
+
     var body: some View {
         VStack {
             SearchBar(searchContainerModel: model, isFocused: $isFocused)
-            
+
             SearchContainerSubView(isSearching: $isSearching, model: model, dismissSearch: { isFocused = false }, content: content)
                 .onChange(of: model.input) { _ in
                     model.search()
@@ -31,12 +31,12 @@ struct SearchBar: View {
     @StateObject var searchContainerModel: SearchContainerViewModel
 
     @FocusState.Binding var isFocused: Bool
-        
+
     var body: some View {
         HStack {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.gray)
-            
+
             TextField("Search", text: $searchContainerModel.input)
                 .focused($isFocused)
                 .onAppear {
@@ -54,12 +54,12 @@ struct SearchBar: View {
                     .keyboardShortcut("F", modifiers: [.command, .shift])
                     .hidden()
                 )
-                .onChange(of: isFocused, perform: { newValue in
+                .onChange(of: isFocused, perform: { _ in
                     if isFocused {
                         searchContainerModel.search()
                     }
                 })
-            
+
             if isFocused {
                 Button(action: {
                     searchContainerModel.input = ""
@@ -80,10 +80,10 @@ struct SearchBar: View {
 
 struct SearchBarSelectionBackgroundModifier: ViewModifier {
     @FocusState<Bool>.Binding var isFocused: Bool
-    
+
     func body(content: Content) -> some View {
         let rectangle = RoundedRectangle(cornerRadius: 5)
-        
+
         return content
             .background(
                 rectangle

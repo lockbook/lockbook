@@ -60,7 +60,7 @@ struct StatusBarView: View {
 
             Button(
                 action: {
-                    self.exportFiles(
+                    exportFiles(
                         homeState: homeState,
                         files: filesModel.getConsolidatedSelection()
                     )
@@ -96,7 +96,7 @@ struct StatusBarView: View {
         HStack {
             if let root = filesModel.root {
                 Button(action: {
-                    self.docCreateAction {
+                    docCreateAction {
                         workspaceInput.createDocAt(
                             parent: selectedFolderOrRoot(root).id,
                             drawing: false
@@ -110,7 +110,7 @@ struct StatusBarView: View {
                 .padding(.trailing, 5)
 
                 Button(action: {
-                    self.docCreateAction {
+                    docCreateAction {
                         workspaceInput.createDocAt(
                             parent: selectedFolderOrRoot(root).id,
                             drawing: true

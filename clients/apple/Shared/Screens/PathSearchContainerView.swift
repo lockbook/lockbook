@@ -6,7 +6,7 @@ struct PathSearchContainerView<Content: View>: View {
     @ViewBuilder var content: Content
 
     init(model: PathSearchViewModel, content: @escaping () -> Content) {
-        self._model = StateObject(wrappedValue: model)
+        _model = StateObject(wrappedValue: model)
         self.content = content()
     }
 
@@ -15,7 +15,7 @@ struct PathSearchContainerView<Content: View>: View {
         workspaceInput: WorkspaceInputState,
         content: @escaping () -> Content
     ) {
-        self._model = StateObject(
+        _model = StateObject(
             wrappedValue: PathSearchViewModel(
                 filesModel: filesModel,
                 workspaceInput: workspaceInput
@@ -74,8 +74,7 @@ struct PathSearchContainerView<Content: View>: View {
 
                         searchResults
 
-                    } else if !model.isSearchInProgress && model.results.isEmpty
-                    {
+                    } else if !model.isSearchInProgress, model.results.isEmpty {
                         Text("No results.")
                             .font(.headline)
                             .foregroundColor(.gray)
@@ -185,11 +184,10 @@ struct PathSearchContainerView<Content: View>: View {
     let preview = PathSearchViewModel.preview
     preview.isShown = true
     preview.results = [
-        PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: [])
+        PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: []),
     ]
 
     return PathSearchContainerView(model: preview) {
         Color.clear
     }
-
 }

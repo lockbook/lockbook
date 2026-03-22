@@ -4,11 +4,11 @@ public struct LbError: Error {
     public let code: EC
     public let msg: String
     public let trace: String
-    
+
     init(_ err: LbFfiErr) {
-        self.code = EC(err.code)
-        self.msg = String(cString: err.msg)
-        self.trace = String(cString: err.trace)
+        code = EC(err.code)
+        msg = String(cString: err.msg)
+        trace = String(cString: err.trace)
     }
 }
 
@@ -76,4 +76,3 @@ public enum EC: Int {
         self = EC(rawValue: Int(lbEC.rawValue))!
     }
 }
-

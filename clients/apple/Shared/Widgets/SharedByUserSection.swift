@@ -23,7 +23,7 @@ struct SharedByUserSection: View {
                         shares,
                         content: { file in
                             PendingShareRowView(
-                                file: file,
+                                file: file
                             )
                         }
                     )
@@ -52,13 +52,11 @@ struct PendingShareRowView: View {
     var level: CGFloat = 1
 
     var children: [File] {
-        let children = (filesModel.childrens[file.id] ?? []).sorted { $1 > $0 }
-
-        return children
+        (filesModel.childrens[file.id] ?? []).sorted { $1 > $0 }
     }
 
     var isRootShare: Bool {
-        return level == 1
+        level == 1
     }
 
     var isLeaf: Bool {
@@ -72,7 +70,7 @@ struct PendingShareRowView: View {
     var body: some View {
         fileRow
             .onTapGesture {
-                self.openOrSelectFile()
+                openOrSelectFile()
             }
             .confirmationDialog(
                 "Are you sure?",
@@ -88,7 +86,7 @@ struct PendingShareRowView: View {
             }
             .id(file.id)
 
-        if !isLeaf && isOpen {
+        if !isLeaf, isOpen {
             ForEach(children, id: \.id) { child in
                 PendingShareRowView(file: child, level: level + 1)
             }
@@ -97,7 +95,7 @@ struct PendingShareRowView: View {
 
     var fileRow: some View {
         HStack {
-            if !isLeaf && isMacOS {
+            if !isLeaf, isMacOS {
                 openArrow
             }
 
@@ -114,7 +112,7 @@ struct PendingShareRowView: View {
 
             Spacer()
 
-            if !isLeaf && !isMacOS {
+            if !isLeaf, !isMacOS {
                 openArrow
             }
 
@@ -137,7 +135,7 @@ struct PendingShareRowView: View {
                 Button(
                     role: .destructive,
                     action: {
-                        self.confirmRejection = true
+                        confirmRejection = true
                     },
                     label: {
                         Label("Reject", systemImage: "xmark.circle.fill")
@@ -174,7 +172,7 @@ struct PendingShareRowView: View {
             workspaceInput.selectFolder(id: file.id)
 
             withAnimation {
-                let _ = fileTreeModel.toggleFolder(file.id)
+                _ = fileTreeModel.toggleFolder(file.id)
             }
         } else {
             workspaceInput.openFile(id: file.id)

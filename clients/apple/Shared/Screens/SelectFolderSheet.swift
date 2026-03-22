@@ -4,44 +4,45 @@ import SwiftWorkspace
 
 struct SelectFolderSheet: View {
     // MARK: Have to be updated manually whenever the view contents change. Vital for macOS
+
     #if os(macOS)
-    static let FORM_WIDTH: CGFloat = 420
-    static let FORM_HEIGHT: CGFloat = 340
+        static let FORM_WIDTH: CGFloat = 420
+        static let FORM_HEIGHT: CGFloat = 340
     #endif
 
     @Environment(\.dismiss) private var dismiss
-    
+
     @StateObject var model: SelectFolderViewModel
     @ObservedObject var filesModel: FilesViewModel
-    
+
     @State var mode: SelectFolderMode = .Tree
-    
+
     let action: SelectFolderAction
-    
+
     let showExitButton: Bool
-    
+
     init(homeState: HomeState, filesModel: FilesViewModel, action: SelectFolderAction, showExitButton: Bool) {
-        self._model = StateObject(wrappedValue: SelectFolderViewModel(homeState: homeState, filesModel: filesModel))
-        self._filesModel = ObservedObject(wrappedValue: filesModel)
+        _model = StateObject(wrappedValue: SelectFolderViewModel(homeState: homeState, filesModel: filesModel))
+        _filesModel = ObservedObject(wrappedValue: filesModel)
         self.action = action
         self.showExitButton = showExitButton
     }
-    
+
     var actionMsg: String {
         switch action {
-        case .move(let files):
+        case let .move(files):
             if files.count == 1 {
                 "Moving \"\(files[0].name)\"."
             } else {
                 "Moving \(files.count) \(files.count == 1 ? "file" : "files")."
             }
-        case .externalImport(let urls):
+        case let .externalImport(urls):
             "Importing \(urls.count) \(urls.count == 1 ? "file" : "files")."
-        case .acceptShare(let name, _):
+        case let .acceptShare(name, _):
             "Accepting share \"\(name)\"."
         }
     }
-    
+
     var body: some View {
         Group {
             switch mode {
@@ -57,7 +58,7 @@ struct SelectFolderSheet: View {
             }
         }
     }
-    
+
     var folderList: some View {
         VStack {
             VStack {
@@ -69,7 +70,7 @@ struct SelectFolderSheet: View {
                         .onChange(of: model.searchInput) { _ in
                             model.selected = 0
                         }
-                    
+
                     if !model.searchInput.isEmpty {
                         Button(action: {
                             model.searchInput = ""
@@ -80,7 +81,7 @@ struct SelectFolderSheet: View {
                         .padding(.leading)
                         .selectFolderButton()
                     }
-                    
+
                     Button(action: {
                         withAnimation {
                             mode = .Tree
@@ -91,7 +92,7 @@ struct SelectFolderSheet: View {
                     })
                     .padding(.leading)
                     .selectFolderButton()
-                    
+
                     if showExitButton {
                         ExitSheetButton()
                     }
@@ -99,11 +100,10 @@ struct SelectFolderSheet: View {
                 .padding(.horizontal)
                 .padding(.bottom, 4)
                 .padding(.top)
-                
-                
+
                 Divider()
             }
-            
+
             HStack {
                 if let error = model.error {
                     Text(error)
@@ -114,12 +114,12 @@ struct SelectFolderSheet: View {
                     Text(actionMsg)
                         .fontWeight(.bold)
                 }
-                
+
                 Spacer()
             }
             .padding(.horizontal)
             .padding(.vertical, 5)
-            
+
             if model.folderPaths != nil {
                 ScrollViewReader { scrollHelper in
                     ScrollView {
@@ -131,7 +131,7 @@ struct SelectFolderSheet: View {
                                     HighlightedText(text: path.isEmpty ? "/" : path, pattern: model.searchInput, textSize: 16)
                                         .foregroundStyle(.foreground)
                                         .multilineTextAlignment(.leading)
-                                    
+
                                     Spacer()
                                 }
                             })
@@ -141,7 +141,7 @@ struct SelectFolderSheet: View {
                             .selectFolderButton()
                         }
                     }
-                    .onChange(of: model.selected) { newValue in
+                    .onChange(of: model.selected) { _ in
                         if model.selected < model.filteredFolderPaths.count {
                             withAnimation {
                                 scrollHelper.scrollTo(model.selectedPath, anchor: .center)
@@ -153,14 +153,14 @@ struct SelectFolderSheet: View {
                 ProgressView()
                     .controlSize(.small)
             }
-            
+
             Spacer()
         }
         .onAppear {
             model.calculateFolderPaths()
         }
     }
-    
+
     @ViewBuilder
     var folderTree: some View {
         if let root = model.filesModel.root {
@@ -175,7 +175,7 @@ struct SelectFolderSheet: View {
                         Text(actionMsg)
                             .fontWeight(.bold)
                     }
-                    
+
                     Spacer()
 
                     Button(action: {
@@ -188,20 +188,19 @@ struct SelectFolderSheet: View {
                     })
                     .padding(.leading)
                     .selectFolderButton()
-                    
+
                     if showExitButton {
                         ExitSheetButton()
                     }
                 }
                 .padding(.bottom, 10)
                 .padding(.horizontal)
-                
-                
+
                 ScrollView {
                     SelectFolderNestedList(
-                        node: WithChild(root, model.filesModel.files, { (parent: File, meta: File) in
+                        node: WithChild(root, model.filesModel.files) { (parent: File, meta: File) in
                             parent.id == meta.parent && parent.id != meta.id && meta.type == .folder
-                        }),
+                        },
                         row: { (dest: File) in
                             Button(action: {
                                 if model.selectFolder(action: action, parent: dest.id) {
@@ -229,13 +228,13 @@ struct SelectFolderSheet: View {
             ProgressView()
         }
     }
-    
+
     func selectFolderAndDismiss(parent: UUID) {
         if model.selectFolder(action: action, parent: parent) {
             dismiss()
         }
     }
-    
+
     func selectFolderAndDismiss(path: String) {
         if model.selectFolder(action: action, path: path) {
             dismiss()
@@ -245,15 +244,15 @@ struct SelectFolderSheet: View {
 
 struct HighlightedText: View {
     let text: AttributedString
-    
+
     init(text: String, pattern: String, textSize: CGFloat) {
         var attribText = AttributedString(text)
-        
-        let range = attribText.range(of: pattern, options: .caseInsensitive) ?? (attribText.startIndex..<attribText.startIndex)
-        
+
+        let range = attribText.range(of: pattern, options: .caseInsensitive) ?? (attribText.startIndex ..< attribText.startIndex)
+
         attribText.font = .systemFont(ofSize: textSize)
         attribText[range].font = .bold(Font.system(size: textSize))()
-        
+
         self.text = attribText
     }
 
@@ -263,69 +262,69 @@ struct HighlightedText: View {
 }
 
 #if os(iOS)
-#Preview("Select Folder - Move") {
-    Color.accentColor
-        .sheet(isPresented: .constant(true)) {
-            SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-                filesModel: .preview,
-                action: .move(files: [(AppState.lb as! MockLb).file1]),
-                showExitButton: true
-            )
-        }
-}
+    #Preview("Select Folder - Move") {
+        Color.accentColor
+            .sheet(isPresented: .constant(true)) {
+                SelectFolderSheet(
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                    filesModel: .preview,
+                    action: .move(files: [(AppState.lb as! MockLb).file1]),
+                    showExitButton: true
+                )
+            }
+    }
 
-#Preview("Select Folder - Accept Share") {
-    Color.accentColor
-        .sheet(isPresented: .constant(true)) {
-            SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-                filesModel: .preview,
-                action: .acceptShare(name: "work.md", id: UUID()),
-                showExitButton: true
-            )
-        }
-}
+    #Preview("Select Folder - Accept Share") {
+        Color.accentColor
+            .sheet(isPresented: .constant(true)) {
+                SelectFolderSheet(
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                    filesModel: .preview,
+                    action: .acceptShare(name: "work.md", id: UUID()),
+                    showExitButton: true
+                )
+            }
+    }
 
-#Preview("Select Folder - Import Files") {
-    Color.accentColor
-        .sheet(isPresented: .constant(true)) {
-            SelectFolderSheet(
-                homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-                filesModel: .preview,
-                action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
-                showExitButton: true
-            )
-        }
-}
+    #Preview("Select Folder - Import Files") {
+        Color.accentColor
+            .sheet(isPresented: .constant(true)) {
+                SelectFolderSheet(
+                    homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+                    filesModel: .preview,
+                    action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
+                    showExitButton: true
+                )
+            }
+    }
 #else
-#Preview("Select Folder - Move") {
-    SelectFolderSheet(
-        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-        filesModel: .preview,
-        action: .move(files: [(AppState.lb as! MockLb).file1]),
-        showExitButton: true
-    )
-    .withMacPreviewSize(height: 300)
-}
+    #Preview("Select Folder - Move") {
+        SelectFolderSheet(
+            homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+            filesModel: .preview,
+            action: .move(files: [(AppState.lb as! MockLb).file1]),
+            showExitButton: true
+        )
+        .withMacPreviewSize(height: 300)
+    }
 
-#Preview("Select Folder - Accept Share") {
-    SelectFolderSheet(
-        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-        filesModel: .preview,
-        action: .acceptShare(name: "work.md", id: UUID()),
-        showExitButton: true
-    )
-    .withMacPreviewSize(height: 300)
-}
+    #Preview("Select Folder - Accept Share") {
+        SelectFolderSheet(
+            homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+            filesModel: .preview,
+            action: .acceptShare(name: "work.md", id: UUID()),
+            showExitButton: true
+        )
+        .withMacPreviewSize(height: 300)
+    }
 
-#Preview("Select Folder - Import Files") {
-    SelectFolderSheet(
-        homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
-        filesModel: .preview,
-        action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
-        showExitButton: true
-    )
-    .withMacPreviewSize(height: 300)
-}
+    #Preview("Select Folder - Import Files") {
+        SelectFolderSheet(
+            homeState: HomeState(workspaceOutput: .preview, filesModel: .preview),
+            filesModel: .preview,
+            action: .externalImport(urls: [URL(filePath: "/path/to/file.txt"), URL(filePath: "/path/to/file2.txt")]),
+            showExitButton: true
+        )
+        .withMacPreviewSize(height: 300)
+    }
 #endif

@@ -77,7 +77,7 @@ struct FileRowContextMenu: View {
                     Label(
                         "Move",
                         systemImage:
-                            "arrow.up.and.down.and.arrow.left.and.right"
+                        "arrow.up.and.down.and.arrow.left.and.right"
                     )
                 }
 

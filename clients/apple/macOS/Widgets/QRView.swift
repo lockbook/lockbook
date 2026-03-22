@@ -1,10 +1,10 @@
-import SwiftUI
 import CoreImage
 import CoreImage.CIFilterBuiltins
+import SwiftUI
 
 struct QRView: View {
     let text: String
-    
+
     var body: some View {
         if let qrImage = generateQRCode(text: text) {
             Image(nsImage: qrImage)
@@ -17,20 +17,19 @@ struct QRView: View {
             Text("Failed to generate QR Code")
         }
     }
-    
+
     func generateQRCode(text: String) -> NSImage? {
         let context = CIContext()
         let filter = CIFilter.qrCodeGenerator()
-        
+
         filter.message = Data(text.utf8)
-        
+
         if let outputImage = filter.outputImage {
             let transform = CGAffineTransform(scaleX: 10, y: 10)
             let scaledImage = outputImage.transformed(by: transform)
-            
+
             if let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) {
-                let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: scaledImage.extent.width, height: scaledImage.extent.height))
-                return nsImage
+                return NSImage(cgImage: cgImage, size: NSSize(width: scaledImage.extent.width, height: scaledImage.extent.height))
             }
         }
         return nil

@@ -12,12 +12,14 @@ use std::mem;
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
+use crate::file_cache::FilesExt as _;
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
+use crate::tab::{ContentState, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::IconButton;
 use crate::workspace::Workspace;
+use lb_rs::Uuid;
 
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
@@ -138,8 +140,7 @@ impl Workspace {
             }
 
             ui.centered_and_justified(|ui| {
-                let mut open_id = None;
-                let mut new_tab = false;
+                let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -202,36 +203,40 @@ impl Workspace {
                     }
 
                     ui.ctx().output_mut(|w| {
-                        let open_url_cmd_idx = w
-                            .commands
-                            .iter()
-                            .position(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
-                        if let Some(idx) = open_url_cmd_idx {
-                            let egui::OutputCommand::OpenUrl(url) = w.commands[idx].clone() else {
-                                return;
-                            };
+                        w.commands.retain(|c| {
+                            let egui::OutputCommand::OpenUrl(url) = c else { return true };
+
+                            // lb://uuid — direct internal link
+                            if let Some(id_str) = url.url.strip_prefix("lb://") {
+                                if let Ok(id) = Uuid::parse_str(id_str) {
+                                    open_ids.push((id, url.new_tab));
+                                }
+                                return false;
+                            }
 
                             // only intercept open urls for tabs representing files
-                            let Some(id) = id else { return };
+                            let Some(id) = id else { return true };
 
-                            // lookup this file so we can get the parent
-                            let Ok(file) = self.core.get_file_by_id(id) else { return };
-
-                            // evaluate relative path based on parent location
-                            let Ok(file) =
-                                core_get_by_relative_path(&self.core, file.parent, &url.url)
-                            else {
-                                return;
+                            let files_arc = std::sync::Arc::clone(&self.files);
+                            let files_guard = files_arc.read().unwrap();
+                            let Some(cache) = files_guard.as_ref() else { return true };
+                            let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
+                                return true;
                             };
 
-                            // if all that found something then open within lockbook
-                            open_id = Some(file.id);
-                            new_tab = url.new_tab;
-                            w.commands.remove(idx);
-                        }
+                            let Some(resolved) = cache.files.resolve_link(&url.url, from_id) else {
+                                return true;
+                            };
+
+                            let Some(id_str) = resolved.strip_prefix("lb://") else { return true };
+                            let Ok(file_id) = Uuid::parse_str(id_str) else { return true };
+
+                            open_ids.push((file_id, url.new_tab));
+                            false
+                        });
                     });
                 }
-                if let Some(id) = open_id {
+                for (id, new_tab) in open_ids {
                     self.open_file(id, true, new_tab);
                 }
             });
@@ -1006,6 +1011,13 @@ impl Display for DocType {
     }
 }
 
+pub fn syntax_ext_for(ext: &str) -> &str {
+    match ext {
+        "jsonl" | "jsonc" => "json",
+        other => other,
+    }
+}
+
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
@@ -1014,9 +1026,14 @@ impl DocType {
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
-            "go" => Self::Code,
             "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if crate::tab::markdown_editor::syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(ext))
+                .is_some() =>
+            {
+                Self::Code
+            }
             _ => Self::Unknown,
         }
     }
@@ -1030,6 +1047,14 @@ impl DocType {
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn plaintext_mode(&self) -> Option<bool> {
+        match self {
+            DocType::Markdown => Some(false),
+            DocType::PlainText | DocType::Code => Some(true),
+            _ => None,
         }
     }
 

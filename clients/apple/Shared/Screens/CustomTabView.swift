@@ -28,9 +28,9 @@ struct CustomTabView<TabContent: View>: View {
         }
     }
 
-    // To persist state on macOS, I ensure every view is rendered, but unselected
-    // views are hidden. This doesn't work well on iOS since navigation titles don't
-    // handle this behavior well
+    /// To persist state on macOS, I ensure every view is rendered, but unselected
+    /// views are hidden. This doesn't work well on iOS since navigation titles don't
+    /// handle this behavior well
     var tabItem: some View {
         Group {
             #if os(iOS)
@@ -68,19 +68,21 @@ enum TabType: Hashable, CaseIterable, Identifiable {
     case home
     case sharedWithMe
 
-    var id: Self { self }
+    var id: Self {
+        self
+    }
 
     var title: String {
         switch self {
-        case .home: return "Home"
-        case .sharedWithMe: return "Shared"
+        case .home: "Home"
+        case .sharedWithMe: "Shared"
         }
     }
 
     var systemImage: String {
         switch self {
-        case .home: return "house.fill"
-        case .sharedWithMe: return "person.2.fill"
+        case .home: "house.fill"
+        case .sharedWithMe: "person.2.fill"
         }
     }
 }

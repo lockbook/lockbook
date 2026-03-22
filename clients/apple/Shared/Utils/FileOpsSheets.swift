@@ -24,14 +24,14 @@ struct FileOpSheets: ViewModifier {
                     .sheet(item: $homeState.sheetInfo) { info in
                         Group {
                             switch info {
-                            case .createFolder(let parent):
+                            case let .createFolder(parent):
                                 CreateFolderSheet(
                                     homeState: homeState,
                                     parentId: parent.id,
                                     showExitButton: false
                                 )
                                 .autoSizeSheet(sheetHeight: $compactSheetHeight)
-                            case .rename(let file):
+                            case let .rename(file):
                                 RenameFileSheet(
                                     homeState: homeState,
                                     id: file.id,
@@ -39,7 +39,7 @@ struct FileOpSheets: ViewModifier {
                                     showExitButton: false
                                 )
                                 .autoSizeSheet(sheetHeight: $compactSheetHeight)
-                            case .share(let file):
+                            case let .share(file):
                                 ShareFileSheet(
                                     id: file.id,
                                     name: file.name,
@@ -61,7 +61,7 @@ struct FileOpSheets: ViewModifier {
                     .formSheet(item: $homeState.sheetInfo) { info in
                         Group {
                             switch info {
-                            case .createFolder(let parent):
+                            case let .createFolder(parent):
                                 CreateFolderSheet(
                                     homeState: homeState,
                                     parentId: parent.id,
@@ -71,7 +71,7 @@ struct FileOpSheets: ViewModifier {
                                     width: CreateFolderSheet.FORM_WIDTH,
                                     height: CreateFolderSheet.FORM_HEIGHT
                                 )
-                            case .rename(let file):
+                            case let .rename(file):
                                 RenameFileSheet(
                                     homeState: homeState,
                                     id: file.id,
@@ -82,7 +82,7 @@ struct FileOpSheets: ViewModifier {
                                     width: RenameFileSheet.FORM_WIDTH,
                                     height: RenameFileSheet.FORM_HEIGHT
                                 )
-                            case .share(let file):
+                            case let .share(file):
                                 ShareFileSheet(
                                     id: file.id,
                                     name: file.name,
@@ -108,7 +108,7 @@ struct FileOpSheets: ViewModifier {
                 .sheet(item: $homeState.sheetInfo) { info in
                     Group {
                         switch info {
-                        case .createFolder(let parent):
+                        case let .createFolder(parent):
                             CreateFolderSheet(
                                 homeState: homeState,
                                 parentId: parent.id,
@@ -118,7 +118,7 @@ struct FileOpSheets: ViewModifier {
                                 width: CreateFolderSheet.FORM_WIDTH,
                                 height: CreateFolderSheet.FORM_HEIGHT
                             )
-                        case .rename(let file):
+                        case let .rename(file):
                             RenameFileSheet(
                                 homeState: homeState,
                                 id: file.id,
@@ -129,7 +129,7 @@ struct FileOpSheets: ViewModifier {
                                 width: RenameFileSheet.FORM_WIDTH,
                                 height: RenameFileSheet.FORM_HEIGHT
                             )
-                        case .share(let file):
+                        case let .share(file):
                             ShareFileSheet(
                                 id: file.id,
                                 name: file.name,

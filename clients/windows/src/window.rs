@@ -338,13 +338,16 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                                 viewport,
                                 app: Response { close },
                             } = app.frame();
-                            let open_url = commands.iter().find_map(|c| {
-                                if let OutputCommand::OpenUrl(u) = c {
-                                    Some(u.clone())
-                                } else {
-                                    None
-                                }
-                            });
+                            let open_urls = commands
+                                .iter()
+                                .filter_map(|c| {
+                                    if let OutputCommand::OpenUrl(u) = c {
+                                        Some(u.clone())
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect();
                             let copied_text = commands
                                 .iter()
                                 .find_map(|c| {
@@ -385,7 +388,7 @@ fn handle_message(hwnd: HWND, message: Message) -> bool {
                             output::close::handle(close);
                             output::window_title::handle(hwnd, window_title);
                             output::cursor::update(cursor_icon); // output saved and handled by 'SetCursor' message
-                            output::open_url::handle(open_url);
+                            output::open_url::handle(open_urls);
 
                             unsafe { EndPaint(hwnd, std::ptr::null_mut()) };
 

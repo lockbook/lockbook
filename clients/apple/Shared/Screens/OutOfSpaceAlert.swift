@@ -2,7 +2,7 @@ import SwiftUI
 
 struct OutOfSpaceAlert: ViewModifier {
     @EnvironmentObject var homeState: HomeState
-    
+
     @AppStorage("hideOutOfSpaceSheet") private var hideOutOfSpaceSheet: Bool = false
 
     func body(content: Content) -> some View {
@@ -46,7 +46,7 @@ struct OutOfSpaceSheet: View {
             .multilineTextAlignment(.leading)
 
             Spacer()
-            
+
             Toggle(isOn: $hideOutOfSpaceSheet) {
                 Text("Don’t show this again")
                     .font(.callout)

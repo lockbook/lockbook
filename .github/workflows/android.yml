@@ -3,6 +3,12 @@ on:
   push:
     branches: [ master ]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        default: internal-play-store
+        required: false
 jobs:
   DeployAndroid:
     if: github.repository == 'lockbook/lockbook'
@@ -28,4 +34,4 @@ jobs:
           echo $ANDROID_RELEASE_STORE_BASE64 | base64 --decode > $HOME/lockbook-android-upload.keystore
           echo "ANDROID_RELEASE_STORE_FILE=$HOME/lockbook-android-upload.keystore" >> $GITHUB_ENV
       - name: deploy android
-        run: nix-shell clients/android --command "cargo r -p lbdev releaser android internal-play-store"
+        run: nix-shell clients/android --command "cargo r -p lbdev releaser android ${{ inputs.environment || 'internal-play-store' }}"

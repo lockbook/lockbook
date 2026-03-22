@@ -1,3 +1,4 @@
+use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -285,10 +286,9 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = self
-            .syntax_set
+        let mut highlighter = syntax_set()
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
@@ -301,7 +301,7 @@ impl<'ast> Editor {
                 let mut regions = Vec::new();
                 let mut region_start = self.offset_to_byte(code_line.start());
                 for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, &self.syntax_set)
+                    .highlight_line(code_line_text, syntax_set())
                     .unwrap()
                 {
                     let region_end = region_start + region_str.len();
@@ -363,10 +363,9 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = self
-            .syntax_set
+        let mut highlighter = syntax_set()
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
@@ -379,7 +378,7 @@ impl<'ast> Editor {
                 let mut regions = Vec::new();
                 let mut region_start = self.offset_to_byte(code_line.start());
                 for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, &self.syntax_set)
+                    .highlight_line(code_line_text, syntax_set())
                     .unwrap()
                 {
                     let region_end = region_start + region_str.len();

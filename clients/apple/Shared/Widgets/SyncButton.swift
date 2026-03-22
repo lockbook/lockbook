@@ -1,17 +1,17 @@
-import SwiftUI
 import AlertToast
+import SwiftUI
 import SwiftWorkspace
 
 struct SyncButton: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-    
+
     @State var syncButtonStatus: SyncButtonStatus = .canSync
     @State var statusMessage: String? = nil
     @State private var showClickToast = false
 
     @Environment(\.isPreview) var isPreview
-    
+
     var body: some View {
         Button(action: {
             if syncButtonStatus == .updateRequired {
@@ -19,8 +19,7 @@ struct SyncButton: View {
             } else if syncButtonStatus == .outOfSpace {
                 homeState.triggerOutOfSpaceAlert()
             }
-            
-            
+
             workspaceInput.requestSync()
         }, label: {
             if syncButtonStatus == .syncing {
@@ -29,7 +28,7 @@ struct SyncButton: View {
                         .progressViewStyle(.circular)
                         .padding(.trailing, 1)
                         .modifier(SyncButtonProgressBarSize())
-                        
+
                 }).padding(.vertical, 5)
             } else {
                 Label("Sync", systemImage: getButtonIcon()).padding(.vertical, 5)
@@ -40,9 +39,9 @@ struct SyncButton: View {
         .tint(getButtonTintColor())
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }
-            
+
             statusMessage = status.message
-                        
+
             if status.offline {
                 syncButtonStatus = .offline
             } else if status.outOfSpace {
@@ -54,26 +53,26 @@ struct SyncButton: View {
             }
         })
     }
-        
+
     func getButtonTintColor() -> Color? {
-        return (syncButtonStatus == .updateRequired || syncButtonStatus == .syncError) ? .red : nil
+        (syncButtonStatus == .updateRequired || syncButtonStatus == .syncError) ? .red : nil
     }
-    
+
     func getButtonIcon() -> String {
         switch syncButtonStatus {
         case .offline:
-            return "wifi.slash"
+            "wifi.slash"
         case .canSync:
-            return "arrow.triangle.2.circlepath"
+            "arrow.triangle.2.circlepath"
         case .outOfSpace:
-            return "gauge.high"
+            "gauge.high"
         case .updateRequired:
-            return "exclamationmark.triangle.fill"
+            "exclamationmark.triangle.fill"
         case .syncing:
             // Should never be reached
-            return "arrow.triangle.2.circlepath"
+            "arrow.triangle.2.circlepath"
         case .syncError:
-            return "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
+            "exclamationmark.arrow.trianglehead.2.clockwise.rotate.90"
         }
     }
 }
@@ -81,16 +80,16 @@ struct SyncButton: View {
 struct SyncButtonProgressBarSize: ViewModifier {
     func body(content: Content) -> some View {
         #if os(macOS)
-        content.controlSize(.small)
+            content.controlSize(.small)
         #else
-        content
+            content
         #endif
     }
 }
 
 struct SyncButtonHelpMessage: ViewModifier {
     @Binding var statusMessage: String?
-    
+
     func body(content: Content) -> some View {
         if let statusMessage {
             content.help(statusMessage)

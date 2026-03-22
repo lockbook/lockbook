@@ -29,3 +29,10 @@ jobs:
   call_publish_flatpak:
     needs: release
     uses: ./.github/workflows/deploy-flatpak.yml
+
+  deploy_android:
+    needs: release
+    uses: ./.github/workflows/android.yml
+    with:
+      environment: prod-play-store
+    secrets: inherit
