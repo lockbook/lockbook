@@ -1,4 +1,4 @@
-use crate::ignore::IgnoreRules;
+use super::ignore::IgnoreRules;
 use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -45,8 +45,6 @@ impl FsWatcher {
                         if self_writes_guard.contains(path) {
                             continue;
                         }
-                        // We can't call ignore.is_ignored here without ownership issues,
-                        // so we filter in the consumer side. Just pass all paths through.
                         if path.starts_with(&root_for_filter) {
                             changed.push(path.clone());
                         }

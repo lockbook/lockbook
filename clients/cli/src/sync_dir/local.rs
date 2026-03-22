@@ -1,5 +1,5 @@
-use crate::hash::hash_file;
-use crate::ignore::IgnoreRules;
+use super::hash::hash_file;
+use super::ignore::IgnoreRules;
 use chrono::Utc;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -143,7 +143,7 @@ pub fn write_conflict_sidecar(
     Ok(sidecar_path)
 }
 
-/// Delete a local file or empty directory.
+/// Delete a local file or directory.
 pub fn delete_local(root: &Path, relative_path: &str) -> io::Result<()> {
     let target = root.join(relative_path);
     if target.is_dir() {

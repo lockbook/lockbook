@@ -4304,25 +4304,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "lb-sync-dir"
-version = "26.3.22"
-dependencies = [
- "chrono",
- "ignore",
- "lb-rs",
- "notify 7.0.0",
- "notify-debouncer-full 0.4.0",
- "serde",
- "serde_json",
- "sha2 0.9.9",
- "tempfile",
- "test_utils",
- "tokio",
- "tracing",
- "uuid 1.8.0",
-]
-
-[[package]]
 name = "lb-tantivy"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4615,15 +4596,22 @@ dependencies = [
 name = "lockbook"
 version = "26.3.22"
 dependencies = [
+ "chrono",
  "cli-rs 0.2.0",
  "colored 3.0.0",
  "fs_extra",
  "hotwatch",
+ "ignore",
  "is-terminal",
  "lb-fs",
  "lb-rs",
- "lb-sync-dir",
+ "notify 7.0.0",
+ "notify-debouncer-full 0.4.0",
+ "sha2 0.9.9",
+ "tempfile",
  "tokio",
+ "tracing",
+ "uuid 1.8.0",
 ]
 
 [[package]]
