@@ -1160,6 +1160,7 @@ impl Lb {
     }
 
     fn send_debug_info(self, account: Account) {
+        #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             self.client
                 .request(
@@ -1223,6 +1224,7 @@ impl Lb {
     }
 
     fn local_change_worker(self) {
+        #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             let mut events = self.subscribe();
 
@@ -1269,6 +1271,7 @@ impl Lb {
     }
 
     fn periodic_sync_worker(self) {
+        #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             self.sync().await.map_unexpected().log_and_ignore();
             if self.user_active().await {
@@ -1285,6 +1288,7 @@ impl Lb {
     }
 
     fn post_sync_worker(self) {
+        #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             let mut events = self.subscribe();
 

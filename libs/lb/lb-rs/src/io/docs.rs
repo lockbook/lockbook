@@ -47,6 +47,10 @@ impl AsyncDocs {
         Ok(())
     }
 
+    pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
+        true
+    }
+
     pub(crate) async fn retain(&self, _file_hmacs: HashSet<(Uuid, [u8; 32])>) -> LbResult<()> {
         Ok(())
     }
