@@ -366,8 +366,10 @@ impl Workspace {
                 }
                 Event::DocumentWritten(id, Actor::Sync) => {
                     self.user_last_seen = Instant::now();
+                    println!("[chat-debug] DocumentWritten(Sync) id={id}");
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                            println!("[chat-debug] queuing reload for open tab id={id}");
                             self.open_file(id, false, false);
                         }
                     }
@@ -482,6 +484,9 @@ impl Workspace {
                             }
                         } else if ext == "chat" {
                             let reload = tab.chat().is_some() && !tab_created;
+                            println!(
+                                "[chat-debug] chat load complete id={id} reload={reload} tab_created={tab_created}"
+                            );
                             if !reload {
                                 let username = self
                                     .account
@@ -493,7 +498,13 @@ impl Workspace {
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
+                                let before = chat.messages.len();
                                 chat.reload(&bytes, maybe_hmac);
+                                println!(
+                                    "[chat-debug] reload done: {} -> {} messages",
+                                    before,
+                                    chat.messages.len()
+                                );
                             }
                         } else if let Some(plaintext_mode) =
                             DocType::from_name(&ext).plaintext_mode().or_else(|| {
