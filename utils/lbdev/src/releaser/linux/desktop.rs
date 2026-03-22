@@ -372,7 +372,7 @@ pub fn update_flatpak() -> CliResult<()> {
         .args([
             "clone",
             "--depth=1",
-            "https://github.com/flathub/net.lockbook.Lockbook",
+            &format!("https://parth:{}@:github.com/flathub/net.lockbook.Lockbook", Github::env().0),
             &flatpak_repo_directory,
         ])
         .assert_success()?;

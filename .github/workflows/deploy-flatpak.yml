@@ -10,6 +10,8 @@ jobs:
   deploy-flatpak:
     if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, ci]
+    env: 
+      GITHUB_TOKEN: ${{ secrets.FH_PAT }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Flatpak
