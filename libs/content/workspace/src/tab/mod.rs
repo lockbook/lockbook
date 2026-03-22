@@ -1,6 +1,7 @@
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -23,6 +24,7 @@ use std::path::{Component, Path, PathBuf};
 use urlencoding::decode;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
+pub mod chat;
 pub mod image_viewer;
 pub mod markdown_editor;
 pub mod pdf_viewer;
@@ -54,6 +56,7 @@ impl Tab {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
     }
@@ -123,6 +126,20 @@ impl Tab {
         }
     }
 
+    pub fn chat(&self) -> Option<&Chat> {
+        match &self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
+        }
+    }
+
+    pub fn chat_mut(&mut self) -> Option<&mut Chat> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
+        }
+    }
+
     /// Clones the content required to save the tab. This is intended for use on the UI thread. Returns `None` if the
     /// tab does not have an editable file type open.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
@@ -176,6 +193,7 @@ pub enum TabContent {
     Markdown(Markdown),
     Pdf(PdfViewer),
     Svg(SVGEditor),
+    Chat(Chat),
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
@@ -188,6 +206,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
             TabContent::Svg(_) => write!(f, "TabContent::Svg"),
+            TabContent::Chat(_) => write!(f, "TabContent::Chat"),
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
@@ -202,6 +221,7 @@ impl TabContent {
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
+            TabContent::Chat(chat) => Some(chat.id),
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
@@ -212,6 +232,7 @@ impl TabContent {
         match self {
             TabContent::Markdown(md) => md.hmac,
             TabContent::Svg(svg) => svg.open_file_hmac,
+            TabContent::Chat(chat) => chat.hmac,
             _ => None,
         }
     }
@@ -219,6 +240,7 @@ impl TabContent {
     pub fn seq(&self) -> usize {
         match self {
             TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::Chat(chat) => chat.seq,
             _ => 0,
         }
     }
@@ -231,6 +253,7 @@ impl TabContent {
                 Some(TabSaveContent::String(md.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
+            TabContent::Chat(chat) => Some(TabSaveContent::Bytes(chat.to_bytes())),
             _ => None,
         }
     }
