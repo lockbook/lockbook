@@ -17,7 +17,7 @@ use lb_rs::model::api::{
     AdminListUsersResponse, DeleteAccountError, DeleteAccountRequest, FileUsage, GetPublicKeyError,
     GetPublicKeyRequest, GetPublicKeyResponse, GetUsageError, GetUsageRequest, GetUsageResponse,
     GetUsernameError, GetUsernameRequest, GetUsernameResponse, METADATA_FEE, NewAccountError,
-    NewAccountRequest, NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
+    NewAccountRequestV2, NewAccountResponse, PaymentPlatform,
 };
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
@@ -25,7 +25,6 @@ use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::lazy::LazyTree;
 use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
 use lb_rs::model::server_tree::ServerTree;
-use lb_rs::model::signed_meta::SignedMeta;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
 use libsecp256k1::PublicKey;
@@ -41,27 +40,6 @@ where
     G: GooglePlayClient,
     D: DocumentService,
 {
-    /// Create a new account given a username, public_key, and root folder.
-    /// Checks that username is valid, and that username, public_key and root_folder are new.
-    /// Inserts all of these values into their respective keys along with the default free account tier size
-    pub async fn new_account(
-        &self, context: RequestContext<NewAccountRequest>,
-    ) -> Result<NewAccountResponse, ServerError<NewAccountError>> {
-        let request = context.request;
-        let request = NewAccountRequestV2 {
-            username: request.username.to_lowercase(),
-            public_key: request.public_key,
-            root_folder: SignedMeta::from(request.root_folder),
-        };
-
-        self.new_account_v2(RequestContext {
-            request,
-            public_key: context.public_key,
-            ip: context.ip,
-        })
-        .await
-    }
-
     /// Create a new account given a username, public_key, and root folder.
     /// Checks that username is valid, and that username, public_key and root_folder are new.
     /// Inserts all of these values into their respective keys along with the default free account tier size
@@ -235,15 +213,6 @@ where
             })
             .collect();
         Ok(result)
-    }
-
-    pub fn get_usage_helper_v2<T>(
-        _owner: &Owner, _tree: &mut LazyTree<T>,
-    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
-    where
-        T: TreeLike<F = ServerMeta>,
-    {
-        todo!()
     }
 
     pub fn get_cap(

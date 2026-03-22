@@ -25,7 +25,7 @@ use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
-use lb_rs::service::sync::SyncProgress;
+use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
 
@@ -300,12 +300,49 @@ async fn search(query: &str) -> CliResult<()> {
 async fn sync() -> CliResult<()> {
     let lb = &core().await?;
     ensure_account(lb)?;
+    let mut receiver = lb.subscribe();
 
-    println!("syncing...");
-    lb.sync(Some(Box::new(|sp: SyncProgress| {
-        println!("{sp}");
-    })))
-    .await?;
+    let monitor_lb = lb.clone();
+    let monitor = tokio::spawn(async move {
+        let get_name = async |id| {
+            monitor_lb
+                .get_file_by_id(id)
+                .await
+                .map(|file| file.name)
+                .unwrap_or(format!("{id} (new file)"))
+        };
+
+        loop {
+            let event = receiver.recv().await.unwrap();
+            if let Event::Sync(sync_increment) = event {
+                match sync_increment {
+                    SyncIncrement::SyncStarted => println!("Sync Started!"),
+                    SyncIncrement::PullingDocument(uuid, true) => {
+                        println!("Downloading {}", get_name(uuid).await)
+                    }
+                    SyncIncrement::PullingDocument(uuid, false) => {
+                        println!("Downloaded {}", get_name(uuid).await)
+                    }
+                    SyncIncrement::PushingDocument(uuid, true) => {
+                        println!("Uploading {}", get_name(uuid).await)
+                    }
+                    SyncIncrement::PushingDocument(uuid, false) => {
+                        println!("Uploaded {}", get_name(uuid).await)
+                    }
+                    SyncIncrement::SyncFinished(lb_err_kind) => {
+                        match lb_err_kind {
+                            Some(err) => eprintln!("Sync completed with an error: {err}"),
+                            None => println!("Sync successful"),
+                        };
+                        return;
+                    }
+                }
+            }
+        }
+    });
+
+    lb.sync().await?;
+    monitor.await?;
     Ok(())
 }
 

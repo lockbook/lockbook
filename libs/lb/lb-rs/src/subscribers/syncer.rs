@@ -1,201 +1,132 @@
-use crate::Lb;
-use crate::io::network::ApiError;
-use crate::model::access_info::UserAccessMode;
-use crate::model::api::{
-    ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
-    GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
+use std::{
+    collections::{HashMap, HashSet},
+    num::NonZeroUsize,
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
 };
-use crate::model::errors::{LbErrKind, LbResult};
-use crate::model::file::ShareMode;
-use crate::model::file_like::FileLike;
-use crate::model::file_metadata::{DocumentHmac, FileDiff, FileType, Owner};
-use crate::model::filename::{DocumentType, NameComponents};
-use crate::model::signed_meta::SignedMeta;
-use crate::model::staged::StagedTreeLikeMut;
-use crate::model::svg::buffer::u_transform_to_bezier;
-use crate::model::svg::element::Element;
-use crate::model::text::buffer::Buffer;
-use crate::model::tree_like::TreeLike;
-use crate::model::work_unit::WorkUnit;
-use crate::model::{ValidationFailure, clock, svg, symkey};
-pub use basic_human_duration::ChronoHumanDuration;
+
 use futures::{StreamExt, stream};
-use serde::Serialize;
-use std::collections::{HashMap, HashSet, hash_map};
-use std::fmt::{Display, Formatter};
-use std::num::NonZeroUsize;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread;
-use time::Duration;
+use tokio::sync::{Mutex, broadcast::error::TryRecvError};
 use usvg::Transform;
 use uuid::Uuid;
-use web_time::Instant;
 
-use super::events::Actor;
+use crate::{
+    Lb, LbErrKind, LbResult,
+    io::network::ApiError,
+    model::{
+        ValidationFailure,
+        access_info::UserAccessMode,
+        account::Account,
+        api::{
+            ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
+            GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
+        },
+        crypto::{DecryptedDocument, EncryptedDocument},
+        errors::{LbErr, Unexpected},
+        file::ShareMode,
+        file_like::FileLike,
+        file_metadata::{DocumentHmac, FileDiff, FileType, Owner},
+        filename::{DocumentType, NameComponents},
+        lazy::LazyTree,
+        signed_meta::SignedMeta,
+        staged::StagedTreeLikeMut,
+        svg::{self, buffer::u_transform_to_bezier, element::Element},
+        symkey, text,
+        tree_like::TreeLike,
+        validate,
+    },
+    service::events::{Actor, Event, SyncIncrement},
+};
 
-#[cfg(not(target_family = "wasm"))]
-use crate::model::api::UpsertDebugInfoRequest;
+pub type Syncer = Arc<Mutex<SyncState>>;
 
-pub type SyncFlag = Arc<AtomicBool>;
-
-pub struct SyncContext {
-    progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
-    current: usize,
-    total: usize,
-
-    pk_cache: HashMap<Owner, String>,
+#[derive(Default)]
+pub struct SyncState {
+    /// the starting point for updates for this sync pass
     last_synced: u64,
-    remote_changes: Vec<SignedMeta>,
-    update_as_of: u64,
 
-    /// is this the sync that populated root?
+    /// if our pull is successful, this is the timestamp we will commit
+    updates_as_of: u64,
+
+    /// changes we pulled from the server, post deduplication
+    remote_changes: Vec<SignedMeta>,
+
+    /// did we pull a root on this pass?
     new_root: Option<Uuid>,
-    pushed_metas: Vec<FileDiff<SignedMeta>>,
-    pushed_docs: Vec<FileDiff<SignedMeta>>,
+
+    /// what docs did we pull as a result of this sync
     pulled_docs: Vec<Uuid>,
 }
 
+// we are gonna have a fetch metadata fn which will get the docs that it needs to get, the ones
+// that match should_fetch
+//
+// should_fetch is going to be a tree fn that will return true if:
+//     is md or svg that descends from
+
 impl Lb {
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    pub async fn calculate_work(&self) -> LbResult<SyncStatus> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-        let last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
-        drop(tx);
+    pub async fn sync(&self) -> LbResult<()> {
+        let mut sync_state = self.syncer.lock().await;
 
-        let remote_changes = self
-            .client
-            .request(
-                self.get_account()?,
-                GetUpdatesRequestV2 { since_metadata_version: last_synced },
-            )
-            .await?;
-        let (deduped, latest_server_ts, _) = self.dedup(remote_changes).await?;
-        let remote_dirty = deduped
-            .into_iter()
-            .map(|f| *f.id())
-            .map(WorkUnit::ServerChange);
-
-        self.prune().await?;
-
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-
-        let locally_dirty = db
-            .local_metadata
-            .get()
-            .keys()
-            .copied()
-            .map(WorkUnit::LocalChange);
-
-        let mut work_units: Vec<WorkUnit> = Vec::new();
-        work_units.extend(locally_dirty.chain(remote_dirty));
-        Ok(SyncStatus { work_units, latest_server_ts })
-    }
-
-    #[instrument(level = "debug", skip_all, err(Debug))]
-    pub async fn sync(&self, f: Option<Box<dyn Fn(SyncProgress) + Send>>) -> LbResult<SyncStatus> {
-        let old = self.syncing.swap(true, Ordering::SeqCst);
-        if old {
-            return Err(LbErrKind::AlreadySyncing.into());
-        }
-
-        let mut ctx = self.setup_sync(f).await?;
-
-        let mut got_updates = false;
-        let mut pipeline: LbResult<()> = async {
-            ctx.msg("Preparing Sync..."); // todo remove
-            self.events.sync(SyncIncrement::SyncStarted);
-            self.prune().await?;
-            got_updates = self.fetch_meta(&mut ctx).await?;
-            self.populate_pk_cache(&mut ctx).await?;
-            self.docs.dont_delete.store(true, Ordering::SeqCst);
-            self.fetch_docs(&mut ctx).await?;
-            self.merge(&mut ctx).await?;
-            self.push_meta(&mut ctx).await?;
-            self.push_docs(&mut ctx).await?;
+        let pipeline: LbResult<()> = async {
+            self.pull_updates(&mut sync_state).await?;
+            self.push_local_changes().await?;
             Ok(())
         }
         .await;
 
-        self.docs.dont_delete.store(false, Ordering::SeqCst);
+        self.events.sync_update(SyncIncrement::SyncFinished(
+            pipeline.as_ref().err().map(|err| err.kind.clone()),
+        ));
 
-        if pipeline.is_ok() {
-            pipeline = self.commit_last_synced(&mut ctx).await;
-        }
+        self.cleanup().await?;
 
-        let cleanup = self.cleanup().await;
-
-        let ekind = pipeline.as_ref().err().map(|err| err.kind.clone());
-        self.events.sync(SyncIncrement::SyncFinished(ekind));
-
-        self.syncing.store(false, Ordering::Relaxed);
         pipeline?;
-        cleanup?;
 
-        // done not being sent if pipeline is an error is likely the reason we get stuck offline
-        ctx.done_msg();
-
-        if got_updates {
-            // did it?
-            self.events.meta_changed();
-            let owner = self.keychain.get_pk().map(Owner).ok();
-            // this is overly agressive as it'll notify on shares that have been accepted
-            // another strategy could be to diff the changes coming before and after a sync
-            if ctx.remote_changes.iter().any(|f| Some(f.owner()) != owner) {
-                self.events.pending_shares_changed();
-            }
-            for id in &ctx.pulled_docs {
-                self.events.doc_written(*id, Some(Actor::Sync));
-            }
+        let account = self.get_account()?.clone();
+        if account.is_beta() {
+            self.clone().send_debug_info(account);
         }
 
-        #[cfg(not(target_family = "wasm"))]
-        {
-            let account = self.get_account()?;
-            if account.is_beta() {
-                let debug_info = self.debug_info("".into(), false).await?;
-
-                self.client
-                    .request(account, UpsertDebugInfoRequest { debug_info })
-                    .await?;
-            }
-        }
-
-        Ok(ctx.summarize())
+        Ok(())
     }
 
-    async fn setup_sync(
-        &self, progress: Option<Box<dyn Fn(SyncProgress) + Send>>,
-    ) -> LbResult<SyncContext> {
+    pub(crate) async fn pull_updates(&self, sync_state: &mut SyncState) -> LbResult<()> {
+        self.inital_sync_state(sync_state).await?;
+        self.process_deletions().await?;
+        self.fetch_meta(sync_state).await?;
+        self.fetch_required_docs(sync_state).await?;
+        // todo: should this inform a re-pull?
+        self.merge(sync_state).await?;
+        self.commit_last_synced(sync_state).await?;
+        self.send_pull_events(sync_state).await?;
+
+        if !self.config.background_work {
+            self.populate_pk_cache().await?;
+        }
+
+        Ok(())
+    }
+
+    pub(crate) async fn push_local_changes(&self) -> LbResult<()> {
+        self.push_meta().await?;
+        self.push_docs().await?;
+
+        Ok(())
+    }
+
+    async fn inital_sync_state(&self, state: &mut SyncState) -> LbResult<()> {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
-        let pk_cache = db.pub_key_lookup.get().clone();
+        *state = Default::default();
+        state.last_synced = db.last_synced.get().copied().unwrap_or_default() as u64;
 
-        let current = 0;
-        let total = 7;
-
-        Ok(SyncContext {
-            last_synced,
-            pk_cache,
-
-            progress,
-            current,
-            total,
-
-            new_root: Default::default(),
-            update_as_of: Default::default(),
-            remote_changes: Default::default(),
-            pushed_docs: Default::default(),
-            pushed_metas: Default::default(),
-            pulled_docs: Default::default(),
-        })
+        Ok(())
     }
 
-    async fn prune(&self) -> LbResult<()> {
+    pub(crate) async fn process_deletions(&self) -> LbResult<()> {
         let server_ids = self
             .client
             .request(self.get_account()?, GetFileIdsRequest {})
@@ -227,84 +158,94 @@ impl Lb {
         }
 
         let mut base_staged = (&mut db.base_metadata).to_lazy().stage(None);
-        base_staged.tree.removed = prunable_ids.clone().into_iter().collect();
+        base_staged.tree.removed = prunable_ids.iter().copied().collect();
         base_staged.promote()?;
 
         let mut local_staged = (&mut db.local_metadata).to_lazy().stage(None);
-        local_staged.tree.removed = prunable_ids.into_iter().collect();
+        local_staged.tree.removed = prunable_ids.iter().copied().collect();
         local_staged.promote()?;
+
+        if !prunable_ids.is_empty() {
+            self.events.meta_changed(Actor::Sync);
+        }
 
         Ok(())
     }
 
-    /// Returns true if there were any updates
-    async fn fetch_meta(&self, ctx: &mut SyncContext) -> LbResult<bool> {
-        ctx.msg("Fetching tree updates...");
+    async fn fetch_meta(&self, state: &mut SyncState) -> LbResult<()> {
         let updates = self
             .client
             .request(
                 self.get_account()?,
-                GetUpdatesRequestV2 { since_metadata_version: ctx.last_synced },
+                GetUpdatesRequestV2 { since_metadata_version: state.last_synced },
             )
             .await?;
 
-        let empty = updates.file_metadata.is_empty();
-        let (remote, as_of, root) = self.dedup(updates).await?;
-
-        ctx.remote_changes = remote;
-        ctx.update_as_of = as_of;
-        ctx.new_root = root;
-
-        Ok(!empty)
-    }
-
-    async fn populate_pk_cache(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Updating public key cache...");
-        let mut all_owners = HashSet::new();
-        for file in &ctx.remote_changes {
-            for user_access_key in file.user_access_keys() {
-                all_owners.insert(Owner(user_access_key.encrypted_by));
-                all_owners.insert(Owner(user_access_key.encrypted_for));
-            }
-        }
-
-        let mut new_entries = HashMap::new();
-
-        for owner in all_owners {
-            if let hash_map::Entry::Vacant(e) = ctx.pk_cache.entry(owner) {
-                let username_result = self
-                    .client
-                    .request(self.get_account()?, GetUsernameRequest { key: owner.0 })
-                    .await;
-                let username = match username_result {
-                    Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => {
-                        "<unknown>".to_string()
-                    }
-                    _ => username_result?.username.clone(),
-                };
-                new_entries.insert(owner, username.clone());
-                e.insert(username.clone());
-            }
-        }
-
-        let mut tx = self.begin_tx().await;
+        let tx = self.ro_tx().await;
         let db = tx.db();
 
-        for (owner, username) in new_entries {
-            db.pub_key_lookup.insert(owner, username)?;
+        // this loop implicitly prunes remote orphans
+        let mut without_orphans = Vec::new();
+        let me = Owner(self.keychain.get_pk()?);
+        let remote = db.base_metadata.stage(updates.file_metadata).to_lazy();
+        for id in remote.tree.staged.ids() {
+            let meta = remote.find(&id)?;
+            if remote.maybe_find_parent(meta).is_some()
+                || meta
+                    .user_access_keys()
+                    .iter()
+                    .any(|k| k.encrypted_for == me.0)
+            {
+                without_orphans.push(remote.find(&id)?.clone());
+            }
         }
+
+        // this is what actually performs the deduplication
+        let pruned_tree = db.base_metadata.stage(without_orphans).pruned()?.to_lazy();
+        let (_, deduped_changes) = pruned_tree.unstage();
+
+        // initialize root if this is the first pull on this device
+        let mut root_id = None;
+        if db.root.get().is_none() {
+            let root = deduped_changes
+                .all_files()?
+                .into_iter()
+                .find(|f| f.is_root())
+                .ok_or(LbErrKind::RootNonexistent)?;
+            root_id = Some(*root.id());
+        }
+
+        state.remote_changes = deduped_changes;
+        state.updates_as_of = updates.as_of_metadata_version;
+        state.new_root = root_id;
+
         Ok(())
     }
 
-    async fn fetch_docs(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Fetching documents...");
+    async fn fetch_required_docs(&self, state: &mut SyncState) -> LbResult<()> {
         let mut docs_to_pull = vec![];
 
         let tx = self.ro_tx().await;
         let db = tx.db();
-        let start = Instant::now();
 
-        let mut remote = db.base_metadata.stage(ctx.remote_changes.clone()).to_lazy(); // this used to be owned remote changes
+        let mut files_with_local_edits = vec![];
+        let local = db.base_metadata.stage(&db.local_metadata);
+        for id in local.staged.ids() {
+            if let Some(base) = local.base.maybe_find(&id) {
+                if let Some(local_hmac) = local.find(&id)?.document_hmac() {
+                    if Some(local_hmac) != base.document_hmac() {
+                        files_with_local_edits.push(id);
+                        println!("local edits found");
+                    }
+                }
+            }
+        }
+
+        let mut remote = db
+            .base_metadata
+            .stage(state.remote_changes.clone())
+            .to_lazy();
+
         for id in remote.tree.staged.ids() {
             if remote.calculate_deleted(&id)? {
                 continue;
@@ -321,22 +262,36 @@ impl Lb {
             }
 
             if let Some(remote_hmac) = remote_hmac {
-                docs_to_pull.push((id, remote_hmac));
-                self.events.sync(SyncIncrement::PullingDocument(id, true));
+                // pull a file if we have a prior base, this is our heuristic -- do they have the
+                // ability to edit this file while we release the lock and are pulling all the
+                // files
+                if self.docs.exists(id, base_hmac) && !self.docs.exists(id, Some(remote_hmac)) {
+                    docs_to_pull.push((id, remote_hmac));
+                }
+
+                // this clause captures documents which went from being new -> multiple parties
+                // having updates. We'll still need the updates
+                if files_with_local_edits.contains(&id)
+                    && !docs_to_pull
+                        .iter()
+                        .any(|(already_pulling, _)| already_pulling == &id)
+                {
+                    if let Some(base_hmac) = base_hmac {
+                        if !self.docs.exists(id, Some(base_hmac)) {
+                            // this scenario basically only comes up in tests
+                            // someone modifies a file directly without reading the prior version
+                            docs_to_pull.push((id, base_hmac));
+                        }
+                    }
+                    docs_to_pull.push((id, remote_hmac));
+                }
             }
         }
-
         drop(tx);
-        if start.elapsed() > web_time::Duration::from_millis(100) {
-            warn!("sync fetch_docs held lock for {:?}", start.elapsed());
-        }
-
-        let num_docs = docs_to_pull.len();
-        ctx.total += num_docs;
 
         let futures = docs_to_pull
             .into_iter()
-            .map(|(id, hmac)| self.fetch_doc(id, hmac));
+            .map(|(id, hmac)| async move { self.fetch_doc(id, hmac).await.map(|_| id) });
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -344,18 +299,27 @@ impl Lb {
                 .into(),
         );
 
-        let mut idx = 0;
         while let Some(fut) = stream.next().await {
             let id = fut?;
-            ctx.pulled_docs.push(id);
-            self.events.sync(SyncIncrement::PullingDocument(id, false));
-            ctx.file_msg(id, &format!("Downloaded file {idx} of {num_docs}."));
-            idx += 1;
+            state.pulled_docs.push(id);
         }
+
         Ok(())
     }
 
-    async fn fetch_doc(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<Uuid> {
+    pub(crate) async fn fetch_doc(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> LbResult<EncryptedDocument> {
+        // todo: in a lot of cases there is a list of ids we're trying to get, it would be better
+        // if the caller managed the event updates, the status would be more meaningful for longer
+
+        // in this world, can we get stuck pushing a doc as well? Probably fine for now
+        if let Ok(Some(doc)) = self.docs.maybe_get(id, Some(hmac)).await {
+            return Ok(doc);
+        }
+
+        self.events
+            .sync_update(SyncIncrement::PullingDocument(id, true));
         let remote_document = self
             .client
             .request(self.get_account()?, GetDocRequest { id, hmac })
@@ -363,18 +327,20 @@ impl Lb {
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
             .await?;
+        self.events
+            .sync_update(SyncIncrement::PullingDocument(id, false));
 
-        Ok(id)
+        Ok(remote_document.content)
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
     /// Promotes Base to Stage<Base, Remote> and Local to Stage<Local, Merge>
-    async fn merge(&self, ctx: &mut SyncContext) -> LbResult<()> {
+    async fn merge(&self, state: &mut SyncState) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         let start = Instant::now();
 
-        let remote_changes = &ctx.remote_changes;
+        let remote_changes = &state.remote_changes;
 
         // fetch document updates and local documents for merge
         let me = Owner(self.keychain.get_pk()?);
@@ -642,8 +608,9 @@ impl Lb {
                                             String::from_utf8_lossy(&remote_document).to_string();
                                         let local_document =
                                             String::from_utf8_lossy(&local_document).to_string();
-                                        let merged_document = Buffer::from(base_document.as_str())
-                                            .merge(local_document, remote_document);
+                                        let merged_document =
+                                            text::buffer::Buffer::from(base_document.as_str())
+                                                .merge(local_document, remote_document);
                                         let encrypted_document = merge
                                             .update_document_unvalidated(
                                                 &id,
@@ -961,9 +928,91 @@ impl Lb {
         Ok(())
     }
 
+    async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
+        if !state.remote_changes.is_empty() {
+            self.events.meta_changed(Actor::Sync);
+
+            let owner = Owner(self.keychain.get_pk()?);
+            if state.remote_changes.iter().any(|f| f.owner() != owner) {
+                self.events.pending_shares_changed();
+            }
+        }
+
+        for &doc in &state.pulled_docs {
+            self.events.doc_written(doc, Actor::Sync);
+        }
+
+        Ok(())
+    }
+
+    async fn commit_last_synced(&self, state: &mut SyncState) -> LbResult<()> {
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+        db.last_synced.insert(state.updates_as_of as i64)?;
+
+        if let Some(root) = state.new_root {
+            db.root.insert(root)?;
+        }
+
+        Ok(())
+    }
+
+    async fn populate_pk_cache(&self) -> LbResult<()> {
+        // todo: is this the move?
+        let mut missing_owners = HashSet::new();
+        {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            for file in db.base_metadata.get().values() {
+                for user_access_key in file.user_access_keys() {
+                    let enc_by = Owner(user_access_key.encrypted_by);
+                    let enc_for = Owner(user_access_key.encrypted_for);
+
+                    if !db.pub_key_lookup.get().contains_key(&enc_by) {
+                        missing_owners.insert(enc_by);
+                    }
+
+                    if !db.pub_key_lookup.get().contains_key(&enc_for) {
+                        missing_owners.insert(enc_for);
+                    }
+                }
+            }
+        }
+
+        let mut new_owners = HashMap::new();
+        {
+            for owner in missing_owners {
+                let username_result = self
+                    .client
+                    .request(self.get_account().unwrap(), GetUsernameRequest { key: owner.0 })
+                    .await;
+                new_owners.insert(owner, username_result);
+            }
+        }
+
+        let mut tx = self.begin_tx().await;
+        let db = tx.db();
+
+        let have_updates = !new_owners.is_empty();
+        for (owner, username) in new_owners {
+            let username = match username {
+                Err(ApiError::Endpoint(GetUsernameError::UserNotFound)) => "<unknown>".to_string(),
+                Ok(username) => username.username,
+                _ => continue, // todo: possibly add some logging here
+            };
+
+            db.pub_key_lookup.insert(owner, username).unwrap();
+        }
+
+        if have_updates {
+            self.events.meta_changed(Actor::Sync);
+        }
+
+        Ok(())
+    }
+
     /// Updates remote and base metadata to local.
-    async fn push_meta(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Pushing tree changes...");
+    async fn push_meta(&self) -> LbResult<()> {
         let mut updates = vec![];
         let mut local_changes_no_digests = Vec::new();
 
@@ -995,7 +1044,6 @@ impl Lb {
             self.client
                 .request(self.get_account()?, UpsertRequestV2 { updates: updates.clone() })
                 .await?;
-            ctx.pushed_metas = updates;
         }
 
         let mut tx = self.begin_tx().await;
@@ -1014,8 +1062,10 @@ impl Lb {
     }
 
     /// Updates remote and base files to local. Assumes metadata is already pushed for all new files.
-    async fn push_docs(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Pushing document changes...");
+    // todo: make this so that all document updates are attempted and we don't just return the
+    // first error. Once an attempt is made we can return any or all errors, either would be an
+    // improvement
+    async fn push_docs(&self) -> LbResult<()> {
         let mut updates = vec![];
         let mut local_changes_digests_only = vec![];
 
@@ -1045,7 +1095,8 @@ impl Lb {
 
             updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
             local_changes_digests_only.push(local_change);
-            self.events.sync(SyncIncrement::PushingDocument(id, true));
+            self.events
+                .sync_update(SyncIncrement::PushingDocument(id, true));
         }
 
         drop(tx);
@@ -1053,8 +1104,6 @@ impl Lb {
             warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 
-        let docs_count = updates.len();
-        ctx.total += docs_count;
         let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
 
         let mut stream = stream::iter(futures).buffer_unordered(
@@ -1063,14 +1112,23 @@ impl Lb {
                 .into(),
         );
 
-        let mut idx = 0;
+        let mut docs_without_errors = vec![];
+        let mut last_error: Option<LbErr> = None;
+
         while let Some(fut) = stream.next().await {
-            let id = fut?;
-            self.events.sync(SyncIncrement::PushingDocument(id, false));
-            ctx.file_msg(id, &format!("Pushed file {idx} of {docs_count}."));
-            idx += 1;
+            match fut {
+                Ok(id) => {
+                    docs_without_errors.push(id);
+                    self.events
+                        .sync_update(SyncIncrement::PushingDocument(id, false));
+                }
+                Err(err) => {
+                    last_error = Some(err);
+                }
+            }
         }
-        ctx.pushed_docs = updates;
+
+        local_changes_digests_only.retain(|f| docs_without_errors.contains(f.id()));
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();
@@ -1084,7 +1142,7 @@ impl Lb {
 
         tx.end();
 
-        Ok(())
+        if let Some(err) = last_error { Err(err) } else { Ok(()) }
     }
 
     async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
@@ -1101,178 +1159,195 @@ impl Lb {
         Ok(id)
     }
 
-    async fn dedup(
-        &self, updates: GetUpdatesResponseV2,
-    ) -> LbResult<(Vec<SignedMeta>, u64, Option<Uuid>)> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
+    fn send_debug_info(self, account: Account) {
+        tokio::spawn(async move {
+            self.client
+                .request(
+                    &account,
+                    UpsertDebugInfoRequest {
+                        debug_info: self
+                            .debug_info("none provided - sync".to_string(), false)
+                            .await
+                            .unwrap(),
+                    },
+                )
+                .await
+                .unwrap();
+        });
+    }
 
-        let mut root_id = None;
-        let (remote_changes, update_as_of) = {
-            let mut remote_changes = updates.file_metadata;
-            let update_as_of = updates.as_of_metadata_version;
+    async fn read_document_helper<T>(
+        &self, id: Uuid, tree: &mut LazyTree<T>,
+    ) -> LbResult<DecryptedDocument>
+    where
+        T: TreeLike<F = SignedMeta>,
+    {
+        let file = tree.find(&id)?;
+        validate::is_document(file)?;
+        let hmac = file.document_hmac().copied();
 
-            remote_changes = {
-                let me = Owner(self.keychain.get_pk()?);
-                let remote = db.base_metadata.stage(remote_changes).to_lazy();
-                let mut result = Vec::new();
+        if tree.calculate_deleted(&id)? {
+            return Err(LbErrKind::FileNonexistent.into());
+        }
 
-                for id in remote.tree.staged.ids() {
-                    let meta = remote.find(&id)?;
-                    if remote.maybe_find_parent(meta).is_some()
-                        || meta
-                            .user_access_keys()
-                            .iter()
-                            .any(|k| k.encrypted_for == me.0)
-                    {
-                        result.push(remote.find(&id)?.clone()); // todo: don't clone
+        let doc = match hmac {
+            Some(hmac) => {
+                let doc = self.docs.get(id, Some(hmac)).await?;
+                tree.decrypt_document(&id, &doc, &self.keychain)?
+            }
+            None => vec![],
+        };
+
+        Ok(doc)
+    }
+
+    /// for tests only
+    #[doc(hidden)]
+    pub async fn server_dirty_ids(&self) -> LbResult<Vec<Uuid>> {
+        let mut state = self.syncer.lock().await;
+        self.inital_sync_state(&mut state).await?;
+        self.process_deletions().await?;
+        self.fetch_meta(&mut state).await?;
+
+        let server_ids = state.remote_changes.iter().map(|f| *f.id()).collect();
+
+        Ok(server_ids)
+    }
+
+    pub(crate) fn setup_syncer(&self) {
+        if self.config.background_work {
+            self.clone().local_change_worker();
+            self.clone().periodic_sync_worker();
+            self.clone().post_sync_worker();
+        }
+    }
+
+    fn local_change_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            let sync_criteria = |e: Event| {
+                matches!(
+                    e,
+                    Event::MetadataChanged(Actor::User) | Event::DocumentWritten(_, Actor::User)
+                )
+            };
+
+            loop {
+                let mut should_sync = false;
+
+                // drain the current channel, so we don't sync for each keystroke if they pile up
+                loop {
+                    let event = events.try_recv();
+                    match event {
+                        Ok(event) => {
+                            if sync_criteria(event) {
+                                should_sync = true;
+                            }
+                        }
+                        Err(TryRecvError::Empty) => break,
+                        _ => {
+                            panic!(
+                                "unexpected broadcast receive error, returning local_change_worker"
+                            );
+                        }
                     }
                 }
 
-                result
-            };
-
-            let remote = db.base_metadata.stage(remote_changes).pruned()?.to_lazy();
-
-            let (_, remote_changes) = remote.unstage();
-            (remote_changes, update_as_of)
-        };
-
-        // initialize root if this is the first pull on this device
-        if db.root.get().is_none() {
-            let root = remote_changes
-                .all_files()?
-                .into_iter()
-                .find(|f| f.is_root())
-                .ok_or(LbErrKind::RootNonexistent)?;
-            root_id = Some(*root.id());
-        }
-
-        Ok((remote_changes, update_as_of, root_id))
+                // empty channel + nothing interesting has happened, sit and wait for something
+                // interesting
+                if !should_sync {
+                    let event = events.recv().await.unwrap();
+                    if sync_criteria(event) {
+                        self.sync().await.map_unexpected().log_and_ignore();
+                    } else {
+                        continue;
+                    }
+                }
+            }
+        });
     }
 
-    async fn commit_last_synced(&self, ctx: &mut SyncContext) -> LbResult<()> {
-        ctx.msg("Cleaning up...");
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-        db.last_synced.insert(ctx.update_as_of as i64)?;
+    fn periodic_sync_worker(self) {
+        tokio::spawn(async move {
+            self.sync().await.map_unexpected().log_and_ignore();
+            if self.user_active().await {
+                tokio::time::sleep(Duration::from_secs(3)).await;
+            } else {
+                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            }
+        });
+    }
 
-        if let Some(root) = ctx.new_root {
-            db.root.insert(root)?;
+    async fn user_active(&self) -> bool {
+        let last_seen = self.user_last_seen.read().await;
+        last_seen.elapsed() < Duration::from_secs(3 * 60)
+    }
+
+    fn post_sync_worker(self) {
+        tokio::spawn(async move {
+            let mut events = self.subscribe();
+
+            loop {
+                let event = events.recv().await.unwrap();
+                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
+                    self.fetcher().await.map_unexpected().log_and_ignore();
+                    self.populate_pk_cache()
+                        .await
+                        .map_unexpected()
+                        .log_and_ignore();
+                };
+            }
+        });
+    }
+
+    async fn fetcher(&self) -> LbResult<()> {
+        let mut files_to_pull = vec![];
+
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let Some(root) = db.root.get() else {
+            return Ok(());
+        };
+
+        // we can only fetch things we know the server knows about
+        let mut tree = db.base_metadata.stage(None).to_lazy();
+
+        for id in tree.descendants_using_links(root)? {
+            let file = tree.find(&id)?;
+            let hmac = file.document_hmac().copied();
+
+            // skip non-documents
+            if !file.is_document() {
+                continue;
+            }
+
+            // skip deleted files
+            if tree.calculate_deleted(&id)? {
+                continue;
+            }
+
+            // skip non-first-party files
+            let name = tree.name(&id, &self.keychain)?;
+            if !name.ends_with(".md") && !name.ends_with(".svg") {
+                continue;
+            }
+
+            files_to_pull.push((id, hmac));
+        }
+
+        drop(tx);
+
+        // this could all be done in parallel, but for now going to not do it that way
+        // benefits: less work, but also ensures that a file that needs to be fetched immediately
+        // can be
+        for (id, hmac) in files_to_pull {
+            if let Some(hmac) = hmac {
+                self.fetch_doc(id, hmac).await?;
+            }
         }
 
         Ok(())
     }
-
-    pub async fn get_last_synced_human(&self) -> LbResult<String> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
-        let last_synced = db.last_synced.get().copied().unwrap_or(0);
-
-        Ok(self.get_timestamp_human_string(last_synced))
-    }
-
-    pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
-        if timestamp != 0 {
-            Duration::milliseconds(clock::get_time().0 - timestamp)
-                .format_human()
-                .to_string()
-        } else {
-            "never".to_string()
-        }
-    }
-}
-
-impl SyncContext {
-    fn summarize(&self) -> SyncStatus {
-        let mut local = HashSet::new();
-        let mut server = HashSet::new();
-        let mut work_units = vec![];
-
-        for meta in &self.pushed_metas {
-            local.insert(meta.new.id());
-        }
-
-        for meta in &self.pushed_docs {
-            local.insert(meta.new.id());
-        }
-
-        for meta in &self.remote_changes {
-            server.insert(meta.id());
-        }
-
-        for id in local {
-            work_units.push(WorkUnit::LocalChange(*id));
-        }
-
-        for id in server {
-            work_units.push(WorkUnit::ServerChange(*id));
-        }
-
-        SyncStatus { work_units, latest_server_ts: self.update_as_of }
-    }
-
-    fn msg(&mut self, msg: &str) {
-        self.current += 1;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: Default::default(),
-                msg: msg.to_string(),
-            })
-        }
-    }
-
-    fn file_msg(&mut self, id: Uuid, msg: &str) {
-        self.current += 1;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: Some(id),
-                msg: msg.to_string(),
-            })
-        }
-    }
-
-    fn done_msg(&mut self) {
-        self.current = self.total;
-        if let Some(f) = &self.progress {
-            f(SyncProgress {
-                total: self.total,
-                progress: self.current,
-                file_being_processed: None,
-                msg: "Sync successful!".to_string(),
-            })
-        }
-    }
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct SyncStatus {
-    pub work_units: Vec<WorkUnit>,
-    pub latest_server_ts: u64,
-}
-
-#[derive(Clone)]
-pub struct SyncProgress {
-    pub total: usize,
-    pub progress: usize,
-    pub file_being_processed: Option<Uuid>,
-    pub msg: String,
-}
-
-impl Display for SyncProgress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{} / {}]: {}", self.progress, self.total, self.msg)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum SyncIncrement {
-    SyncStarted,
-    PullingDocument(Uuid, bool),
-    PushingDocument(Uuid, bool),
-    SyncFinished(Option<LbErrKind>),
 }

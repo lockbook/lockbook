@@ -5,7 +5,7 @@ use test_utils::*;
 #[tokio::test]
 async fn new_file() {
     let core = test_core_with_account().await;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.create_at_path("/document").await.unwrap();
     assert::all_paths(&core, &["/", "/document"]).await;
     assert::all_document_contents(&core, &[("/document", b"")]).await;
@@ -17,7 +17,7 @@ async fn new_file() {
 #[tokio::test]
 async fn new_files() {
     let core = test_core_with_account().await;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.create_at_path("/a/b/c/d").await.unwrap();
     assert::all_paths(&core, &["/", "/a/", "/a/b/", "/a/b/c/", "/a/b/c/d"]).await;
     assert::all_document_contents(&core, &[("/a/b/c/d", b"")]).await;
@@ -30,7 +30,7 @@ async fn new_files() {
 async fn edited_document() {
     let core = test_core_with_account().await;
     core.create_at_path("/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     write_path(&core, "/document", b"document content")
         .await
         .unwrap();
@@ -46,7 +46,7 @@ async fn edit_unedit() {
     let core = test_core_with_account().await;
     core.create_at_path("/document").await.unwrap();
     write_path(&core, "/document", b"").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     write_path(&core, "/document", b"document content")
         .await
         .unwrap();
@@ -63,7 +63,7 @@ async fn mv() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
     let folder = core.create_at_path("/folder/").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.move_file(&doc.id, &folder.id).await.unwrap();
     assert::all_paths(&core, &["/", "/folder/", "/folder/document"]).await;
     assert::all_document_contents(&core, &[("/folder/document", b"")]).await;
@@ -77,7 +77,7 @@ async fn move_unmove() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
     let folder = core.create_at_path("/folder/").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.move_file(&doc.id, &folder.id).await.unwrap();
     core.move_file(&doc.id, &core.root().await.unwrap().id)
         .await
@@ -93,7 +93,7 @@ async fn move_unmove() {
 async fn rename() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.rename_file(&doc.id, "document2").await.unwrap();
     assert::all_paths(&core, &["/", "/document2"]).await;
     assert::all_document_contents(&core, &[("/document2", b"")]).await;
@@ -106,7 +106,7 @@ async fn rename() {
 async fn rename_unrename() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.rename_file(&doc.id, "document2").await.unwrap();
     core.rename_file(&doc.id, "document").await.unwrap();
     assert::all_paths(&core, &["/", "/document"]).await;
@@ -120,7 +120,7 @@ async fn rename_unrename() {
 async fn delete() {
     let core = test_core_with_account().await;
     core.create_at_path("/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     delete_path(&core, "/document").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
@@ -133,7 +133,7 @@ async fn delete() {
 async fn delete_parent() {
     let core = test_core_with_account().await;
     core.create_at_path("/parent/document").await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     delete_path(&core, "/parent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;
@@ -148,7 +148,7 @@ async fn delete_grandparent() {
     core.create_at_path("/grandparent/parent/document")
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     delete_path(&core, "/grandparent/").await.unwrap();
     assert::all_paths(&core, &["/"]).await;
     assert::all_document_contents(&core, &[]).await;

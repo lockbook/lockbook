@@ -1252,10 +1252,6 @@
                 mtkView.workspaceInput?.openFile(id: newFile)
             }
 
-            if output.new_folder_btn_pressed {
-                mtkView.workspaceOutput?.newFolderButtonPressed = ()
-            }
-
             if output.urls_opened.size > 0 {
                 var urls: [URL] = []
                 for i in 0..<Int(output.urls_opened.size) {

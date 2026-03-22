@@ -16,14 +16,14 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::show::DocType;
 
-use crate::output::{Response, WsStatus};
+use crate::output::Response;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
@@ -55,7 +55,6 @@ pub struct Workspace {
     pub last_sync_completed: Option<Instant>,
 
     // Output
-    pub status: WsStatus,
     pub out: Response,
 
     // Resources & configuration
@@ -99,7 +98,6 @@ impl Workspace {
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
-            status: Default::default(),
             out: Default::default(),
 
             cfg,
@@ -339,7 +337,7 @@ impl Workspace {
     pub fn process_lb_updates(&mut self) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged => {
+                Event::MetadataChanged(_) => {
                     *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
                     let files_arc = Arc::clone(&self.files);
                     let files_guard = files_arc.read().unwrap();
@@ -365,7 +363,7 @@ impl Workspace {
                         }
                     }
                 }
-                Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                Event::DocumentWritten(id, Actor::Sync) => {
                     self.user_last_seen = Instant::now();
                     for i in 0..self.tabs.len() {
                         if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
@@ -383,8 +381,7 @@ impl Workspace {
 
     // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update();
+        let task_manager::Response { completed_loads, completed_saves } = self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -543,7 +540,6 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    let mut sync = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match new_hmac_result {
                             Ok(hmac) => {
@@ -559,7 +555,6 @@ impl Workspace {
                                         svg.opened_content = *content;
                                     }
                                 }
-                                sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -576,29 +571,10 @@ impl Workspace {
                             }
                         }
                     }
-                    if sync {
-                        self.tasks.queue_sync();
-                    }
                 }
             }
         }
         start.warn_after("processing completed saves", Duration::from_millis(100));
-        if let Some(sync) = completed_sync {
-            self.last_sync_completed = Some(sync.timing.completed_at);
-        }
-
-        let start = Instant::now();
-        {
-            let tasks = self.tasks.tasks.lock().unwrap();
-            if let Some(sync) = tasks.in_progress_sync.as_ref() {
-                while let Ok(progress) = sync.progress.try_recv() {
-                    trace!("sync {}", progress);
-                    self.status.sync_message = Some(progress.msg);
-                    self.out.status_updated = true;
-                }
-            }
-        }
-        start.warn_after("processing sync progress", Duration::from_millis(100));
 
         // background work: queue
         let now = Instant::now();
@@ -618,30 +594,6 @@ impl Workspace {
             }
         }
         start.warn_after("processing auto save", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if self.cfg.get_auto_sync() {
-            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
-                let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
-                let sync_period = if user_active && focused {
-                    Duration::from_secs(3)
-                } else {
-                    Duration::from_secs(5 * 60)
-                };
-
-                let instant_of_next_sync = last_sync + sync_period;
-                if instant_of_next_sync < now {
-                    self.tasks.queue_sync();
-                } else {
-                    let duration_until_next_sync = instant_of_next_sync - now;
-                    self.ctx.request_repaint_after(duration_until_next_sync);
-                }
-            } else {
-                self.tasks.queue_sync();
-            }
-        }
-        start.warn_after("processing auto sync", Duration::from_millis(100));
 
         // background work: launch
         let start = Instant::now();
@@ -826,7 +778,6 @@ impl Workspace {
             self.open_file(id, false, false);
         }
 
-        self.out.file_renamed = Some((id, new_name));
         self.ctx.request_repaint();
     }
 
@@ -834,7 +785,6 @@ impl Workspace {
         let (id, new_parent) = req;
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
-                self.out.file_moved = Some((id, new_parent));
                 self.ctx.request_repaint();
             }
             Err(LbErr { kind, .. }) => {
@@ -844,36 +794,6 @@ impl Workspace {
                 warn!(?id, "failed to move file: {:?}", kind);
             }
         }
-    }
-
-    pub fn status_message(&self) -> String {
-        if let Some(error) = &self.status.sync_error {
-            format!("sync error: {error}")
-        } else if let Some(error) = &self.status.sync_status_update_error {
-            format!("sync status update error: {error}")
-        } else if self.status.offline {
-            "Offline".to_string()
-        } else if self.status.out_of_space {
-            "You're out of space, buy more in settings!".to_string()
-        } else if let (true, Some(msg)) = (self.visibly_syncing(), &self.status.sync_message) {
-            msg.to_string()
-        } else if !self.status.dirtyness.dirty_files.is_empty() {
-            let size = self.status.dirtyness.dirty_files.len();
-            if size == 1 {
-                format!("{size} file needs to be synced")
-            } else {
-                format!("{size} files need to be synced")
-            }
-        } else {
-            format!("Last synced: {}", self.status.dirtyness.last_synced)
-        }
-    }
-
-    pub fn visibly_syncing(&self) -> bool {
-        self.tasks
-            .sync_started_at()
-            .map(|s| s.elapsed().as_millis() > 300)
-            .unwrap_or_default()
     }
 }
 

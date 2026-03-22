@@ -18,10 +18,7 @@ pub struct IOSResponse {
 
     // widget response
     pub selected_file: CUuid,
-    pub refresh_files: bool,
     pub doc_created: CUuid,
-    pub new_folder_btn_pressed: bool,
-    pub status_updated: bool,
     pub tabs_changed: bool,
 
     pub text_updated: bool,
@@ -37,14 +34,8 @@ impl From<crate::Response> for IOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
-                    file_renamed,
-                    file_moved: _,
-                    new_folder_clicked,
                     tab_title_clicked,
                     file_created,
-                    settings_updated: _,
-                    sync_done,
-                    status_updated,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
@@ -77,10 +68,7 @@ impl From<crate::Response> for IOSResponse {
         };
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
-            refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
             doc_created,
-            new_folder_btn_pressed: new_folder_clicked,
-            status_updated,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),

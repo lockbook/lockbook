@@ -8,7 +8,6 @@ use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
 use lb::model::file::File;
-use lb::service::sync::SyncProgress;
 use workspace_rs::widgets::Button;
 
 use crate::model::AccountPhraseData;
@@ -20,13 +19,11 @@ pub struct OnboardHandOff {
     pub acct_data: Vec<File>,
 }
 
-enum Update {
-    AccountCreated(Result<Vec<File>, LbErr>),
-    AccountPhraseConfirmation(Result<AccountPhraseData, LbErr>),
-    AccountImported(Option<LbErr>),
-    ImportSyncProgress(SyncProgress),
-    ImportSyncDone(Option<LbErr>),
-    AccountDataLoaded(Result<Vec<File>, LbErr>),
+enum AccountUpdate {
+    Created(Result<Vec<File>, LbErr>),
+    PhraseConfirmation(Result<AccountPhraseData, LbErr>),
+    Imported(Option<LbErr>),
+    DataLoaded(Result<Vec<File>, LbErr>),
 }
 
 struct Router {
@@ -46,8 +43,8 @@ pub struct OnboardScreen {
     pub font_system: Arc<Mutex<FontSystem>>,
     pub core: Lb,
 
-    update_tx: mpsc::Sender<Update>,
-    update_rx: mpsc::Receiver<Update>,
+    update_tx: mpsc::Sender<AccountUpdate>,
+    update_rx: mpsc::Receiver<AccountUpdate>,
 
     router: Router,
     logo: Image<'static>,
@@ -97,7 +94,7 @@ impl OnboardScreen {
 
         while let Ok(update) = self.update_rx.try_recv() {
             match update {
-                Update::AccountCreated(result) => match result {
+                AccountUpdate::Created(result) => match result {
                     Ok(acct_data) => {
                         resp = Some(OnboardHandOff {
                             settings: self.settings.clone(),
@@ -111,25 +108,13 @@ impl OnboardScreen {
                         self.create_err = Some(msg);
                     }
                 },
-                Update::AccountImported(maybe_err) => {
+                AccountUpdate::Imported(maybe_err) => {
                     if let Some(msg) = maybe_err {
                         self.router = Router::new(Route::Import, false);
                         self.import_err = Some(msg);
                     }
                 }
-                Update::ImportSyncProgress(sp) => {
-                    self.import_status = Some(sp.to_string());
-                    self.router = Router::new(Route::SyncProgress, true)
-                }
-                Update::ImportSyncDone(maybe_err) => {
-                    if let Some(err) = maybe_err {
-                        self.import_err = Some(err);
-                        self.router.needs_focus = true;
-                    } else {
-                        self.import_status = Some("Loading account data...".to_string());
-                    }
-                }
-                Update::AccountDataLoaded(result) => match result {
+                AccountUpdate::DataLoaded(result) => match result {
                     Ok(acct_data) => {
                         resp = Some(OnboardHandOff {
                             settings: self.settings.clone(),
@@ -139,7 +124,7 @@ impl OnboardScreen {
                     }
                     Err(err) => self.import_err = Some(err),
                 },
-                Update::AccountPhraseConfirmation(account_phrase_data) => match account_phrase_data
+                AccountUpdate::PhraseConfirmation(account_phrase_data) => match account_phrase_data
                 {
                     Ok(phrase_data) => {
                         self.router = Router::new(Route::AccountPhraseConfirmation, false);
@@ -183,7 +168,6 @@ impl OnboardScreen {
                                     Route::Import => "Enter your account key",
                                     Route::Welcome => "Lockbook",
                                     Route::AccountPhraseConfirmation => "This is your account key",
-                                    Route::SyncProgress => "Importing data",
                                 };
                                 ui.label(egui::RichText::new(header_text).font(egui::FontId::new(
                                     35.0,
@@ -383,17 +367,12 @@ impl OnboardScreen {
                                                     thread::spawn(move || {
                                                         let result = load_account_data(&core);
                                                         update_tx
-                                                            .send(Update::AccountCreated(result))
+                                                            .send(AccountUpdate::Created(result))
                                                             .unwrap();
                                                         ctx.request_repaint();
                                                     });
                                                 }
                                             });
-                                        }
-                                    }
-                                    Route::SyncProgress => {
-                                        if let Some(s) = &self.import_status {
-                                            ui.label(s);
                                         }
                                     }
                                 }
@@ -426,7 +405,6 @@ impl OnboardScreen {
                                         )),
                                         Route::Welcome => None,
                                         Route::AccountPhraseConfirmation => None,
-                                        Route::SyncProgress => None,
                                     };
                                     if let Some((label_text, btn_text, other_route)) =
                                         alternate_route
@@ -472,7 +450,6 @@ The perfect place to record, sync, and share your thoughts."#
                 r#"It proves you're you, and it is a secret. If you lose it, you can't recover your account.
 You can view your key again in the settings."#
             }
-            Route::SyncProgress => "",
         }
     }
 
@@ -527,7 +504,7 @@ You can view your key again in the settings."#
 
             if let Err(create_account_err) = create_account_result {
                 update_tx
-                    .send(Update::AccountCreated(Err(create_account_err)))
+                    .send(AccountUpdate::Created(Err(create_account_err)))
                     .unwrap();
                 ctx.request_repaint();
                 return;
@@ -538,7 +515,7 @@ You can view your key again in the settings."#
                 .map(|res| AccountPhraseData { phrase: res });
 
             update_tx
-                .send(Update::AccountPhraseConfirmation(account_phrase))
+                .send(AccountUpdate::PhraseConfirmation(account_phrase))
                 .unwrap();
             ctx.request_repaint();
         });
@@ -557,29 +534,18 @@ You can view your key again in the settings."#
                 std::env::var("API_URL").unwrap_or_else(|_| DEFAULT_API_LOCATION.to_string());
 
             if let Err(err) = core.import_account(&key, Some(&api_url)) {
-                tx.send(Update::AccountImported(Some(err))).unwrap();
+                tx.send(AccountUpdate::Imported(Some(err))).unwrap();
                 ctx.request_repaint();
                 return;
             }
 
-            let closure = {
-                let ctx = ctx.clone();
-                let tx = tx.clone();
-
-                move |msg| {
-                    tx.send(Update::ImportSyncProgress(msg)).unwrap();
-                    ctx.request_repaint();
-                }
-            };
-
-            match core.sync(Some(Box::new(closure))) {
+            match core.sync() {
                 Ok(_acct) => {
-                    tx.send(Update::ImportSyncDone(None)).unwrap();
-                    tx.send(Update::AccountDataLoaded(load_account_data(&core)))
+                    tx.send(AccountUpdate::DataLoaded(load_account_data(&core)))
                         .unwrap();
                 }
                 Err(err) => {
-                    tx.send(Update::ImportSyncDone(Some(err))).unwrap();
+                    tx.send(AccountUpdate::Imported(Some(err))).unwrap();
                 }
             }
 
@@ -612,5 +578,4 @@ enum Route {
     Import,
     Welcome,
     AccountPhraseConfirmation,
-    SyncProgress,
 }

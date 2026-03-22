@@ -502,11 +502,8 @@ struct ImportAccountSyncView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                ProgressView(value: model.syncProgress)
-                    .frame(maxWidth: 700)
-
-                Text(model.syncMsg)
-                    .foregroundColor(.secondary)
+                ProgressView("Signing In")
+                    .progressViewStyle(.circular)
             }
 
             Spacer()
@@ -519,9 +516,6 @@ struct ImportAccountSyncView: View {
 }
 
 class ImportAccountSyncViewModel: ObservableObject {
-    @Published var syncMsg: String = "..."
-    @Published var syncProgress: Float = 0
-
     @Published var error: String? = nil
 
     init() {
@@ -530,13 +524,7 @@ class ImportAccountSyncViewModel: ObservableObject {
 
     func sync() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = AppState.lb.sync { total, progress, _, msg in
-                DispatchQueue.main.async {
-                    self.syncProgress = Float(progress) / Float(total)
-                    self.syncMsg = msg
-                }
-            }
-
+            let result = AppState.lb.sync()
             DispatchQueue.main.async {
                 switch result {
                 case .success:

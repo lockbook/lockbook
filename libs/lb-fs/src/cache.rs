@@ -1,6 +1,5 @@
 use crate::{fs_impl::Drive, utils::file_id};
 use lb_rs::model::file::File;
-use lb_rs::model::work_unit::WorkUnit;
 use nfs3_server::nfs3_types::nfs3::{fattr3, ftype3, nfstime3};
 use std::time::{Duration, SystemTime};
 use tracing::info;
@@ -58,46 +57,23 @@ impl FileEntry {
 
 impl Drive {
     // todo: probably need a variant of this that is more suitable post sync cache updates
-    pub async fn prepare_caches(&self) {
-        info!("performing startup sync");
-        self.lb.sync(Self::progress()).await.unwrap();
-
+    pub async fn fill_cache(&self) {
         info!("preparing cache, are you release build?");
-        let sizes = self.lb.get_uncompressed_usage_breakdown().await.unwrap();
         let files = self.lb.list_metadatas().await.unwrap();
 
         let mut data = self.data.lock().await;
+        data.clear();
         for file in files {
             let id = file.id;
-            let entry =
-                FileEntry::from_file(file, sizes.get(&id).copied().unwrap_or_default() as u64);
+            let size = self
+                .lb
+                .read_document(id, false)
+                .await
+                .unwrap_or_default()
+                .len() as u64;
+            let entry = FileEntry::from_file(file, size);
             data.insert(entry.file.id.into(), entry);
         }
         info!("cache ready");
-    }
-
-    pub async fn sync(&self) {
-        let status = self.lb.sync(None).await.unwrap();
-        let mut data = self.data.lock().await;
-
-        for unit in status.work_units {
-            if let WorkUnit::ServerChange(dirty_id) = unit {
-                let file = self.lb.get_file_by_id(dirty_id).await.unwrap();
-                let size = if file.is_document() {
-                    self.lb.read_document(dirty_id, false).await.unwrap().len()
-                } else {
-                    0
-                };
-
-                let mut entry = FileEntry::from_file(file, size as u64);
-
-                let now = FileEntry::now();
-
-                entry.fattr.mtime = now;
-                entry.fattr.ctime = now;
-
-                data.insert(entry.file.id.into(), entry);
-            }
-        }
     }
 }

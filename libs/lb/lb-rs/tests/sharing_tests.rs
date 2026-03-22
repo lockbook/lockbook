@@ -19,7 +19,7 @@ async fn shares_finalized() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert_eq!(
         cores[0].get_file_by_id(document.id).await.unwrap().shares[0].shared_with,
@@ -60,9 +60,9 @@ async fn write_document_read_share() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let result = cores[1]
         .write_document(document.id, b"document content")
@@ -84,9 +84,9 @@ async fn write_document_in_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let result = cores[1]
         .write_document(document.id, b"document content")
@@ -111,9 +111,9 @@ async fn write_document_write_share() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
@@ -123,8 +123,8 @@ async fn write_document_write_share() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -149,9 +149,9 @@ async fn write_document_in_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
@@ -161,8 +161,8 @@ async fn write_document_in_write_shared_folder() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -195,9 +195,9 @@ async fn write_document_in_write_shared_folder_in_read_shared_folder() {
         .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
@@ -207,8 +207,8 @@ async fn write_document_in_write_shared_folder_in_read_shared_folder() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -241,9 +241,9 @@ async fn write_document_in_read_shared_folder_in_write_shared_folder() {
         .share_file(folder2.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
         .await
@@ -253,8 +253,8 @@ async fn write_document_in_read_shared_folder_in_write_shared_folder() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -278,9 +278,9 @@ async fn write_document_rejected_share() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&document.id).await.unwrap();
 
     let result = cores[1]
@@ -315,9 +315,9 @@ async fn write_document_in_shared_folder_in_rejected_share_folder() {
         .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder2.id).await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
@@ -328,8 +328,8 @@ async fn write_document_in_shared_folder_in_rejected_share_folder() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -362,9 +362,9 @@ async fn write_document_in_rejected_shared_folder_in_share_folder() {
         .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder1.id).await.unwrap();
     cores[1]
         .write_document(document.id, b"document content by sharee")
@@ -375,9 +375,9 @@ async fn write_document_in_rejected_shared_folder_in_share_folder() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -410,9 +410,9 @@ async fn write_document_in_rejected_shared_folder_in_rejected_share_folder() {
         .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder1.id).await.unwrap();
     cores[1].reject_share(&folder2.id).await.unwrap();
 
@@ -437,8 +437,8 @@ async fn write_link_by_sharee() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let link = cores[1]
         .create_link_at_path("/link1", document1.id)
@@ -449,8 +449,8 @@ async fn write_link_by_sharee() {
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert_eq!(
         cores[0].read_document(document1.id, false).await.unwrap(),
@@ -477,8 +477,8 @@ async fn write_target_by_sharee() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("/link1", document1.id)
@@ -489,8 +489,8 @@ async fn write_target_by_sharee() {
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert_eq!(
         cores[0].read_document(document1.id, false).await.unwrap(),
@@ -517,8 +517,8 @@ async fn create_document_in_link_folder_by_sharee() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let link = cores[1]
         .create_link_at_path("/link1", folder1.id)
@@ -550,15 +550,15 @@ async fn create_document_in_link_folder_by_sharer() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let link = cores[1]
         .create_link_at_path("/link1", folder1.id)
         .await
         .unwrap();
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     let result = cores[0]
         .create_file("document1", &link.id, FileType::Document)
         .await
@@ -582,8 +582,8 @@ async fn create_document_in_target_folder_by_sharee() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("/link1", folder1.id)
@@ -594,8 +594,8 @@ async fn create_document_in_target_folder_by_sharee() {
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/link1/", "/link1/document1"]).await;
     assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document1"]).await;
@@ -616,8 +616,8 @@ async fn create_document_in_target_folder_by_sharer() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("/link1", folder1.id)
@@ -628,8 +628,8 @@ async fn create_document_in_target_folder_by_sharer() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/link1/", "/link1/document1"]).await;
     assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document1"]).await;
@@ -659,16 +659,16 @@ async fn get_link_target_children_by_sharee() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("/link1", folder1.id)
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert::all_recursive_children_ids(
         &cores[1],
@@ -714,9 +714,9 @@ async fn linked_nested_shared_folders_distinct_path_changes_when_closest_link_de
         .share_file(folder2.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_link_at_path("/link1", folder1.id)
         .await
@@ -762,9 +762,9 @@ async fn write_document_write_share_by_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: document.id })
         .await
@@ -778,8 +778,8 @@ async fn write_document_write_share_by_link() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -804,9 +804,9 @@ async fn write_document_deleted_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: document.id })
         .await
@@ -825,8 +825,8 @@ async fn write_document_deleted_link() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee 2"
     );
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharee 2"
@@ -851,9 +851,9 @@ async fn write_document_link_deleted_when_share_rejected() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: document.id })
         .await
@@ -870,9 +870,9 @@ async fn write_document_link_deleted_when_share_rejected() {
         cores[1].read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
     );
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].get_file_by_id(document.id).await.unwrap_err();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
     assert_eq!(
         cores[0].read_document(document.id, false).await.unwrap(),
         b"document content by sharer"
@@ -954,21 +954,21 @@ async fn test_deleted_share() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1]
         .create_link_at_path("/asrar.md", doc.id)
         .await
         .unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1].reject_share(&doc.id).await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let fresh = test_core_from(&cores[1]).await;
-    fresh.sync(None).await.unwrap();
+    fresh.sync().await.unwrap();
     let root = fresh.root().await.unwrap().id;
     fresh.get_children(&root).await.unwrap();
 }
@@ -989,26 +989,26 @@ async fn share_file_duplicate_original_deleted() {
     core.share_file(document.id, &sharee_account.username, ShareMode::Write)
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
-    sharee_core.sync(None).await.unwrap();
+    sharee_core.sync().await.unwrap();
     sharee_core.reject_share(&document.id).await.unwrap();
-    sharee_core.sync(None).await.unwrap();
+    sharee_core.sync().await.unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     core.share_file(document.id, &sharee_account.username, ShareMode::Write)
         .await
         .unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
-    sharee_core.sync(None).await.unwrap();
+    sharee_core.sync().await.unwrap();
     sharee_core
         .write_document(document.id, b"document content by sharee")
         .await
         .unwrap();
-    sharee_core.sync(None).await.unwrap();
+    sharee_core.sync().await.unwrap();
 
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     assert_eq!(
         core.read_document(document.id, false).await.unwrap(),
         b"document content by sharee"
@@ -1084,9 +1084,9 @@ async fn share_folder_with_link_inside() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let folder1 = cores[1]
         .create_file("folder1", &roots[1].id, FileType::Folder)
         .await
@@ -1130,8 +1130,8 @@ async fn share_unowned_file_read() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .share_file(folder0.id, &accounts[2].username, ShareMode::Read)
         .await
@@ -1163,8 +1163,8 @@ async fn share_unowned_file_write() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let result = cores[1]
         .share_file(folder0.id, &accounts[2].username, ShareMode::Write)
@@ -1197,8 +1197,8 @@ async fn reject_share() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder.id).await.unwrap();
 
     assert::all_pending_shares(&cores[1], &[]).await;
@@ -1230,8 +1230,8 @@ async fn delete_link_to_share() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert::all_pending_shares(&cores[1], &["folder"]).await;
 
@@ -1273,19 +1273,19 @@ async fn create_link_with_deleted_duplicate() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let link = cores[1]
         .create_link_at_path("link/", folder.id)
         .await
         .unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     cores[1].delete(&link.id).await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let link2 = cores[1]
         .create_link_at_path("link/", folder.id)
@@ -1293,7 +1293,7 @@ async fn create_link_with_deleted_duplicate() {
         .unwrap();
     assert::all_pending_shares(&cores[1], &[]).await;
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     // note: originally, the new link is considered a duplicate during merge conflict resolution and is deleted; both the following assertions failed
     assert::all_pending_shares(&cores[1], &[]).await;
@@ -1334,8 +1334,8 @@ async fn reject_share_duplicate() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder0.id).await.unwrap();
 
     let result = cores[1].reject_share(&folder0.id).await;
@@ -1367,8 +1367,8 @@ async fn reject_share_nonexistent() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1].reject_share(&folder0.id).await.unwrap();
 
     let result = cores[1].reject_share(&folder0.id).await;
@@ -1386,9 +1386,9 @@ async fn create_at_path_insufficient_permission() {
         .share_file(folder.id, &account1.username, ShareMode::Read)
         .await
         .unwrap();
-    core2.sync(None).await.unwrap();
+    core2.sync().await.unwrap();
 
-    core1.sync(None).await.unwrap();
+    core1.sync().await.unwrap();
     core1
         .create_link_at_path("/received-folder", folder.id)
         .await
@@ -1409,9 +1409,9 @@ async fn get_path_by_id_link() {
         .share_file(folder.id, &account1.username, ShareMode::Read)
         .await
         .unwrap();
-    core2.sync(None).await.unwrap();
+    core2.sync().await.unwrap();
 
-    core1.sync(None).await.unwrap();
+    core1.sync().await.unwrap();
     let link = core1
         .create_link_at_path("received-folder", folder.id)
         .await
@@ -1472,9 +1472,9 @@ async fn create_link_at_path_link_in_shared_folder() {
         .share_file(folder0.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder0.id })
         .await
@@ -1506,9 +1506,9 @@ async fn create_link_at_path_link_duplicate() {
         .share_file(document0.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_link_at_path("/link1", document0.id)
         .await
@@ -1579,9 +1579,9 @@ async fn create_file_shared_link() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1613,9 +1613,9 @@ async fn create_file_duplicate_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link_1", &roots[1].id, FileType::Link { target: document.id })
         .await
@@ -1647,9 +1647,9 @@ async fn create_file_duplicate_link_deleted() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link_1", &roots[1].id, FileType::Link { target: document.id })
         .await
@@ -1680,9 +1680,9 @@ async fn create_file_in_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1711,9 +1711,9 @@ async fn create_file_in_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1745,9 +1745,9 @@ async fn rename_file_in_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1778,9 +1778,9 @@ async fn rename_file_in_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1808,9 +1808,9 @@ async fn rename_link_by_sharee() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1818,8 +1818,8 @@ async fn rename_link_by_sharee() {
 
     cores[1].rename_file(&link.id, "renamed").await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/renamed/"]).await;
     assert::all_paths(&cores[0], &["/", "/folder/"]).await;
@@ -1842,9 +1842,9 @@ async fn rename_target_by_sharee() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1852,8 +1852,8 @@ async fn rename_target_by_sharee() {
 
     cores[1].rename_file(&folder.id, "renamed").await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/renamed/"]).await;
     assert::all_paths(&cores[0], &["/", "/folder/"]).await;
@@ -1876,9 +1876,9 @@ async fn rename_target_by_sharer() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1886,8 +1886,8 @@ async fn rename_target_by_sharer() {
 
     cores[0].rename_file(&folder.id, "renamed").await.unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/link/"]).await;
     assert::all_paths(&cores[0], &["/", "/renamed/"]).await;
@@ -1912,9 +1912,9 @@ async fn move_file_under_target() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -1927,8 +1927,8 @@ async fn move_file_under_target() {
 
     cores[1].move_file(&document.id, &folder.id).await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
+    cores[0].sync().await.unwrap();
 
     assert::all_paths(&cores[1], &["/", "/link/", "/link/document"]).await;
     assert::all_paths(&cores[0], &["/", "/folder/", "/folder/document"]).await;
@@ -1953,9 +1953,9 @@ async fn move_file_under_link() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2002,9 +2002,9 @@ async fn move_file_shared_link() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2046,9 +2046,9 @@ async fn move_file_shared_link_in_folder_a() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2096,9 +2096,9 @@ async fn move_file_shared_link_in_folder_b() {
         .share_file(document.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2144,9 +2144,9 @@ async fn move_file_in_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2181,9 +2181,9 @@ async fn move_file_in_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2211,9 +2211,9 @@ async fn move_file_into_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2244,9 +2244,9 @@ async fn move_file_into_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2275,9 +2275,9 @@ async fn move_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let child_folder = cores[1]
         .create_file("child_folder", &roots[1].id, FileType::Folder)
         .await
@@ -2308,9 +2308,9 @@ async fn delete_in_read_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Read)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2341,9 +2341,9 @@ async fn delete_in_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2369,9 +2369,9 @@ async fn delete_write_shared_folder() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_file("folder_link", &roots[1].id, FileType::Link { target: folder.id })
         .await
@@ -2392,8 +2392,8 @@ async fn delete_share() {
         .share_file(f1.id, &core2_name, ShareMode::Write)
         .await
         .unwrap();
-    core1.sync(None).await.unwrap();
-    core2.sync(None).await.unwrap();
+    core1.sync().await.unwrap();
+    core2.sync().await.unwrap();
 
     core1.delete(&f1.id).await.unwrap();
     let f2 = core1.create_at_path("a.md").await.unwrap();
@@ -2401,8 +2401,8 @@ async fn delete_share() {
         .share_file(f2.id, &core2_name, ShareMode::Write)
         .await
         .unwrap();
-    core1.sync(None).await.unwrap();
-    core2.sync(None).await.unwrap();
+    core1.sync().await.unwrap();
+    core2.sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -2424,12 +2424,12 @@ async fn delete_folder_with_shared_child() {
         .await
         .unwrap();
 
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
     cores[0].delete(&folder.id).await.unwrap();
 
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 }
 
 #[tokio::test]
@@ -2444,8 +2444,8 @@ async fn populate_last_modified_by() {
     c1.share_file(doc.id, &a2.username, ShareMode::Write)
         .await
         .unwrap();
-    c1.sync(None).await.unwrap();
-    c2.sync(None).await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
 
     assert_eq!(doc.last_modified_by, a1.username);
     let doc = c1.get_file_by_id(doc.id).await.unwrap();
@@ -2459,8 +2459,8 @@ async fn populate_last_modified_by() {
     let doc = c2.get_file_by_id(doc.id).await.unwrap();
     assert_eq!(doc.last_modified_by, a2.username);
 
-    c2.sync(None).await.unwrap();
-    c1.sync(None).await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
 
     let doc = c1.get_file_by_id(doc.id).await.unwrap();
     assert_eq!(doc.last_modified_by, a2.username);

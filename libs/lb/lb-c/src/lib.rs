@@ -15,13 +15,11 @@ use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
 pub use lb_rs::*;
-use lb_work::LbSyncRes;
 use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
 use service::import_export::ImportStatus;
-use service::sync::SyncProgress;
 use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::Arc;
@@ -520,48 +518,16 @@ pub extern "C" fn lb_debug_info(lb: *mut Lb, os_info: *const c_char) -> *mut c_c
     cstring(lb.debug_info(os_info).to_string())
 }
 
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_calculate_work(lb: *mut Lb) -> LbSyncRes {
-    let lb = rlb(lb);
-    lb.calculate_work().into()
-}
-
 pub type UpdateSyncStatus = extern "C" fn(*const c_void, usize, usize, LbUuid, *const c_char);
 
 #[unsafe(no_mangle)]
 #[allow(clippy::missing_safety_doc)]
-pub unsafe extern "C" fn lb_sync(
-    lb: *mut Lb, update_status_obj: *const c_void, update_status: *const UpdateSyncStatus,
-) -> LbSyncRes {
-    unsafe {
-        let lb = rlb(lb);
+pub unsafe extern "C" fn lb_sync(lb: *mut Lb) -> *mut LbFfiErr {
+    let lb = rlb(lb);
 
-        let update_status_obj = Arc::new(AtomicPtr::new(update_status_obj as *mut c_void));
-
-        let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if !update_status.is_null() {
-            let update_status = *update_status;
-            let update_status_obj = update_status_obj.clone();
-
-            Some(Box::new(move |sync_progress: SyncProgress| {
-                let update_status_obj =
-                    update_status_obj.load(std::sync::atomic::Ordering::Relaxed) as *const c_void;
-
-                update_status(
-                    update_status_obj,
-                    sync_progress.total,
-                    sync_progress.progress,
-                    sync_progress
-                        .file_being_processed
-                        .unwrap_or_else(Uuid::nil)
-                        .into(),
-                    cstring(sync_progress.msg),
-                );
-            }))
-        } else {
-            None
-        };
-
-        lb.sync(f).into()
+    match lb.sync() {
+        Ok(_) => null_mut(),
+        Err(err) => lb_err(err),
     }
 }
 
@@ -684,31 +650,6 @@ pub extern "C" fn lb_get_usage(lb: *mut Lb) -> LbUsageMetricsRes {
                 server_cap_exact: 0,
                 server_cap_human: null_mut(),
             },
-        },
-    }
-}
-
-#[repr(C)]
-pub struct LbUncompressedRes {
-    err: *mut LbFfiErr,
-    uncompressed_exact: u64,
-    uncompressed_human: *mut c_char,
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_get_uncompressed_usage(lb: *mut Lb) -> LbUncompressedRes {
-    let lb = rlb(lb);
-
-    match lb.get_uncompressed_usage() {
-        Ok(usage) => LbUncompressedRes {
-            err: null_mut(),
-            uncompressed_exact: usage.exact,
-            uncompressed_human: cstring(usage.readable),
-        },
-        Err(err) => LbUncompressedRes {
-            err: lb_err(err),
-            uncompressed_exact: 0,
-            uncompressed_human: null_mut(),
         },
     }
 }
@@ -1075,7 +1016,7 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
             if let Ok(event) = rx.blocking_recv() {
                 let event = match event {
                     Event::StatusUpdated => LbEvent { status_updated: true, ..Default::default() },
-                    Event::MetadataChanged => {
+                    Event::MetadataChanged(_) => {
                         LbEvent { metadata_updated: true, ..Default::default() }
                     }
                     Event::PendingSharesChanged => {
@@ -1096,5 +1037,4 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
 mod ffi_utils;
 mod lb_c_err;
 mod lb_file;
-mod lb_work;
 mod mem_cleanup;

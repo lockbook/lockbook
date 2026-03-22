@@ -3,6 +3,7 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
+use lb_c::model::errors::Unexpected;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
@@ -299,7 +300,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_requestSync(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.tasks.queue_sync();
+    obj.workspace.core.sync().map_unexpected().log_and_ignore();
 }
 
 #[no_mangle]

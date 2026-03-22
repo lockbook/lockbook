@@ -336,10 +336,6 @@
                 free_urls(output.urls_opened)
             }
 
-            if output.new_folder_btn_pressed {
-                workspaceOutput?.newFolderButtonPressed = ()
-            }
-
             if let text = output.copied_text {
                 let text = textFromPtr(s: text)
                 if !text.isEmpty {
