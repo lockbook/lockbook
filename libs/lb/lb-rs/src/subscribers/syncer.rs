@@ -1349,6 +1349,9 @@ impl Lb {
         for (id, hmac) in files_to_pull {
             if let Some(hmac) = hmac {
                 self.fetch_doc(id, hmac).await?;
+                // I actually don't want to do this, but is required because of tantivy annoyances
+                // ideally a new search technology would eliminate the need for this
+                self.events.doc_written(id, Actor::Sync);
             }
         }
 
