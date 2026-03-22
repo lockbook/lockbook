@@ -4607,6 +4607,8 @@ dependencies = [
  "lb-rs",
  "notify 7.0.0",
  "notify-debouncer-full 0.4.0",
+ "serde",
+ "serde_json",
  "sha2 0.9.9",
  "tempfile",
  "tokio",

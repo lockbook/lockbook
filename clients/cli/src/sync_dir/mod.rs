@@ -4,7 +4,6 @@ mod watcher;
 
 use cli_rs::cli_error::{CliError, CliResult};
 use ignore::IgnoreRules;
-use lb_rs::io::FsBaseEntry;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::File;
@@ -117,6 +116,33 @@ impl From<notify::Error> for SyncDirError {
     }
 }
 
+// --- fs_base: last agreed state between local filesystem and lockbook ---
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct FsBaseEntry {
+    local_path: String,
+    content_hash: [u8; 32],
+    lb_last_modified: u64,
+}
+
+fn load_fs_base(local_dir: &Path) -> HashMap<Uuid, FsBaseEntry> {
+    let path = local_dir.join(".sync-dir-state");
+    match fs::read(&path) {
+        Ok(data) => serde_json::from_slice(&data).unwrap_or_default(),
+        Err(_) => HashMap::new(),
+    }
+}
+
+fn save_fs_base(local_dir: &Path, entries: &[(Uuid, FsBaseEntry)]) -> std::io::Result<()> {
+    let map: HashMap<&Uuid, &FsBaseEntry> = entries.iter().map(|(id, e)| (id, e)).collect();
+    let data = serde_json::to_vec(&map).expect("serialize fs_base");
+    let path = local_dir.join(".sync-dir-state");
+    let tmp = tempfile::NamedTempFile::new_in(local_dir)?;
+    fs::write(tmp.path(), &data)?;
+    tmp.persist(&path).map_err(|e| e.error)?;
+    Ok(())
+}
+
 // --- Local change detection ---
 
 #[derive(Debug)]
@@ -225,12 +251,7 @@ async fn run_cycle(
 ) -> Result<(), SyncDirError> {
     // Step 1: detect local changes
     let local_tree = scan_local_tree(local_dir, ignore)?;
-    let fs_base: HashMap<Uuid, FsBaseEntry> = lb
-        .get_fs_base()
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?
-        .into_iter()
-        .collect();
+    let fs_base = load_fs_base(local_dir);
     let changes = detect_local_changes(&local_tree, &fs_base);
 
     // Step 3: apply local changes to lb-rs
@@ -250,9 +271,7 @@ async fn run_cycle(
 
     // Step 6: advance fs_base
     let new_base = build_new_fs_base(local_dir, ignore, &remote_tree)?;
-    lb.set_fs_base(new_base)
-        .await
-        .map_err(|e| SyncDirError::Lb(e.kind))?;
+    save_fs_base(local_dir, &new_base)?;
 
     Ok(())
 }

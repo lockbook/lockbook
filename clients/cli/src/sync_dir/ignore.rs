@@ -11,6 +11,7 @@ const BUILTIN_DEFAULTS: &[&str] = &[
     "target/",
     "__pycache__/",
     ".DS_Store",
+    ".sync-dir-state",
 ];
 
 const DEFAULT_FILE_CONTENTS: &str = "\
@@ -26,6 +27,7 @@ node_modules/
 target/
 __pycache__/
 .DS_Store
+.sync-dir-state
 ";
 
 pub struct IgnoreRules {
