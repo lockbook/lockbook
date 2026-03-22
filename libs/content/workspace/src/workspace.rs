@@ -480,7 +480,9 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         } else if let Some(plaintext_mode) =
-                            DocType::from_name(&ext).plaintext_mode()
+                            DocType::from_name(&ext).plaintext_mode().or_else(|| {
+                                content_inspector::inspect(&bytes).is_text().then_some(true)
+                            })
                         {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
