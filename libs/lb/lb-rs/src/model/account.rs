@@ -2,7 +2,7 @@ use crate::model::pubkey;
 use bip39_dict::Language;
 use libsecp256k1::{PublicKey, SecretKey};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use std::fmt::Write;
 
 use super::errors::{LbErrKind, LbResult};
