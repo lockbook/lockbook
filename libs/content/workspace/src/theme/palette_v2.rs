@@ -3,6 +3,8 @@ use egui::{
     style::{self},
 };
 use epaint::hex_color;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Copy)]
 pub struct Theme {
@@ -244,6 +246,15 @@ impl Theme {
             },
         }
     }
+}
+
+const ACCENT_PALETTES: [Palette; 6] =
+    [Palette::Red, Palette::Green, Palette::Yellow, Palette::Blue, Palette::Magenta, Palette::Cyan];
+
+pub fn username_color(username: &str) -> Palette {
+    let mut h = DefaultHasher::new();
+    username.hash(&mut h);
+    ACCENT_PALETTES[(h.finish() as usize) % ACCENT_PALETTES.len()]
 }
 
 pub trait ThemeExt {
