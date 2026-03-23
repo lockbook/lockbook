@@ -42,6 +42,7 @@ impl Chat {
 
         let available_width = ui.available_width();
         let composer_height = 52.0_f32;
+        let composer_bottom_inset = 16.0_f32;
 
         let text_color = theme.neutral_fg();
         let secondary_color = theme.neutral_fg_secondary();
@@ -117,7 +118,7 @@ impl Chat {
             // editor does with its mobile toolbar.
             let (_, scroll_area_rect) = ui.allocate_space(vec2(
                 available_width,
-                ui.available_height() - composer_height - 16.0,
+                ui.available_height() - composer_height - composer_bottom_inset,
             ));
             ui.scope_builder(egui::UiBuilder::new().max_rect(scroll_area_rect), |ui| {
                 ui.set_clip_rect(scroll_area_rect.intersect(ui.clip_rect()));
@@ -245,7 +246,7 @@ impl Chat {
 
             // Composer: remaining height, same pattern as editor's mobile toolbar.
             let (_, composer_rect) =
-                ui.allocate_space(vec2(available_width, composer_height + 16.0));
+                ui.allocate_space(vec2(available_width, composer_height + composer_bottom_inset));
             ui.scope_builder(egui::UiBuilder::new().max_rect(composer_rect), |ui| {
                 const MAX_WIDTH: f32 = 800.0;
                 let col_width = available_width.min(MAX_WIDTH);
@@ -283,9 +284,7 @@ impl Chat {
                     self.initialized = true;
                 }
 
-                let enter_sends = enter_pressed;
-
-                if enter_sends {
+                if enter_pressed {
                     let trimmed = self.input.trim().to_string();
                     if !trimmed.is_empty() {
                         self.messages.push(Message {
