@@ -16,12 +16,13 @@ pub struct Chat {
     pub input: String,
     pub username: String,
     pub seq: usize,
+    pub initialized: bool,
 }
 
 impl Chat {
     pub fn new(bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, username: String) -> Self {
         let messages = Buffer::new(bytes).messages;
-        Self { id, hmac, messages, input: String::new(), username, seq: 0 }
+        Self { id, hmac, messages, input: String::new(), username, seq: 0, initialized: false }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -64,7 +65,8 @@ impl Chat {
                 let is_mine = msg.from == self.username;
                 let last_in_run = i + 1 >= n || self.messages[i + 1].from != msg.from;
 
-                let name_h = if !is_mine {
+                let first_in_run = i == 0 || self.messages[i - 1].from != msg.from;
+                let name_h = if !is_mine && first_in_run {
                     ui.fonts(|f| {
                         f.layout_no_wrap(
                             msg.from.clone(),
@@ -141,7 +143,8 @@ impl Chat {
                                 theme.neutral_bg_tertiary()
                             };
 
-                            let name_galley = if !is_mine {
+                            let first_in_run = i == 0 || self.messages[i - 1].from != msg.from;
+                            let name_galley = if !is_mine && first_in_run {
                                 Some(ui.fonts(|f| {
                                     f.layout_no_wrap(
                                         msg.from.clone(),
@@ -255,14 +258,24 @@ impl Chat {
                     bubble_rect.center(),
                     vec2(bubble_rect.width() - h_pad * 2.0, 20.0),
                 );
+                let te_id = egui::Id::new("chat_composer");
+                let has_focus = ui.ctx().memory(|m| m.has_focus(te_id));
+                let enter_pressed =
+                    has_focus && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter));
+
                 let te = TextEdit::singleline(&mut self.input)
+                    .id(te_id)
                     .hint_text("Message...")
                     .frame(false)
                     .font(egui::FontId::proportional(14.0));
                 let resp = ui.put(text_rect, te);
 
-                let enter_sends = resp.has_focus()
-                    && ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift);
+                if !self.initialized {
+                    resp.request_focus();
+                    self.initialized = true;
+                }
+
+                let enter_sends = enter_pressed;
 
                 if enter_sends {
                     let trimmed = self.input.trim().to_string();
