@@ -5,6 +5,7 @@ use crate::model::api::{
     ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
     GetUpdatesResponseV2, GetUsernameError, GetUsernameRequest, UpsertRequestV2,
 };
+use crate::model::chat;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::ShareMode;
 use crate::model::file_like::FileLike;
@@ -633,6 +634,21 @@ impl Lb {
                                     self.read_document_helper(id, &mut local).await?;
 
                                 match document_type {
+                                    DocumentType::Chat => {
+                                        let merged = chat::Buffer::merge(
+                                            &base_document,
+                                            &local_document,
+                                            &remote_document,
+                                        );
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged,
+                                                &self.keychain,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
                                     DocumentType::Text => {
                                         // 3-way merge
                                         // todo: a couple more clones than necessary

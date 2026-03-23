@@ -8,6 +8,7 @@
 pub mod access_info;
 pub mod account;
 pub mod api;
+pub mod chat;
 pub mod clock;
 pub mod compression_service;
 pub mod core_config;

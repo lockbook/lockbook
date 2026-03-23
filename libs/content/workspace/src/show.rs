@@ -189,6 +189,12 @@ impl Workspace {
                                     }
                                 }
 
+                                TabContent::Chat(chat) => {
+                                    let sent = chat.show(ui);
+                                    if sent {
+                                        tab.last_changed = Instant::now();
+                                    }
+                                }
                                 #[cfg(not(target_family = "wasm"))]
                                 TabContent::MindMap(mm) => {
                                     let response = mm.show(ui);
@@ -994,6 +1000,7 @@ pub enum DocType {
     ImageUnsupported,
     Code,
     PDF,
+    Chat,
     Unknown,
 }
 
@@ -1007,6 +1014,7 @@ impl Display for DocType {
             DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
             DocType::Code => write!(f, "Code"),
             DocType::PDF => write!(f, "PDF"),
+            DocType::Chat => write!(f, "Chat"),
             DocType::Unknown => write!(f, "Unknown"),
         }
     }
@@ -1022,6 +1030,7 @@ impl DocType {
             "cr2" => Self::ImageUnsupported,
             "go" => Self::Code,
             "pdf" => Self::PDF,
+            "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
             _ => Self::Unknown,
         }
@@ -1035,6 +1044,7 @@ impl DocType {
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
+            DocType::Chat => Icon::MESSAGE,
             _ => Icon::DOC_UNKNOWN,
         }
     }
@@ -1048,6 +1058,7 @@ impl DocType {
             DocType::ImageUnsupported => false,
             DocType::Code => false,
             DocType::PDF => true,
+            DocType::Chat => true,
             DocType::Unknown => false,
         }
     }

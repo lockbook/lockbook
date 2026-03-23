@@ -24,6 +24,7 @@ use crate::landing::LandingPage;
 
 use crate::output::{Response, WsStatus};
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
@@ -336,48 +337,53 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
-        match self.lb_rx.try_recv() {
-            Ok(evt) => match evt {
-                Event::MetadataChanged => {
-                    *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
-                    let files_arc = Arc::clone(&self.files);
-                    let files_guard = files_arc.read().unwrap();
-                    if let Some(files) = files_guard.as_ref() {
-                        let mut tabs_to_delete = vec![];
-                        for tab in &self.tabs {
-                            if let Some(id) = tab.id() {
-                                if !files
-                                    .files
-                                    .iter()
-                                    .chain(&files.shared)
-                                    .any(|f| Some(f.id) == tab.id())
-                                {
-                                    tabs_to_delete.push(id);
+        loop {
+            match self.lb_rx.try_recv() {
+                Ok(evt) => match evt {
+                    Event::MetadataChanged => {
+                        *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
+                        let files_arc = Arc::clone(&self.files);
+                        let files_guard = files_arc.read().unwrap();
+                        if let Some(files) = files_guard.as_ref() {
+                            let mut tabs_to_delete = vec![];
+                            for tab in &self.tabs {
+                                if let Some(id) = tab.id() {
+                                    if !files
+                                        .files
+                                        .iter()
+                                        .chain(&files.shared)
+                                        .any(|f| Some(f.id) == tab.id())
+                                    {
+                                        tabs_to_delete.push(id);
+                                    }
+                                }
+                            }
+
+                            for id in tabs_to_delete {
+                                if let Some(idx) = self.get_idx_by_id(id) {
+                                    self.remove_tab(idx);
                                 }
                             }
                         }
-
-                        for id in tabs_to_delete {
-                            if let Some(idx) = self.get_idx_by_id(id) {
-                                self.remove_tab(idx);
+                    }
+                    Event::DocumentWritten(id, Some(Actor::Sync)) => {
+                        self.user_last_seen = Instant::now();
+                        for i in 0..self.tabs.len() {
+                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                self.open_file(id, false, false);
                             }
                         }
                     }
+                    _ => {}
+                },
+                #[cfg(not(target_family = "wasm"))]
+                Err(TryRecvError::Empty) => break,
+                Err(e) => {
+                    eprintln!("cannot recv events from lb-rs {e:?}");
+                    break;
                 }
-                Event::DocumentWritten(id, Some(Actor::Sync)) => {
-                    self.user_last_seen = Instant::now();
-                    for i in 0..self.tabs.len() {
-                        if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false);
-                        }
-                    }
-                }
-                _ => {}
-            },
-            #[cfg(not(target_family = "wasm"))]
-            Err(TryRecvError::Empty) => {}
-            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
-        }
+            }
+        } // end loop
     }
 
     // #[instrument(level = "trace", skip_all)]
@@ -481,6 +487,21 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
+                        } else if ext == "chat" {
+                            let reload = tab.chat().is_some() && !tab_created;
+                            if !reload {
+                                let username = self
+                                    .account
+                                    .as_ref()
+                                    .map(|a| a.username.to_string())
+                                    .unwrap_or_default();
+                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
+                                    &bytes, id, maybe_hmac, username,
+                                )));
+                            } else {
+                                let chat = tab.chat_mut().unwrap();
+                                chat.reload(&bytes, maybe_hmac);
+                            }
                         } else if ext == "md" || ext == "txt" {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
@@ -554,6 +575,8 @@ impl Workspace {
                                         svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
+                                } else if let Some(chat) = tab.chat_mut() {
+                                    chat.hmac = Some(hmac);
                                 }
                                 sync = true;
                             }
