@@ -1,6 +1,6 @@
 use chrono::{DateTime, Local, Utc};
 use egui::{
-    CornerRadius, Key, Rect, ScrollArea, TextEdit, Ui, Vec2, pos2,
+    CornerRadius, Key, Rect, ScrollArea, TextEdit, Ui, pos2,
     text::{LayoutJob, TextFormat},
     vec2,
 };
