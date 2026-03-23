@@ -473,7 +473,8 @@ where
 }
 
 static EXTERNAL_LINK_ROUTE: &str = "files";
-const APPLE_APP_SITE_ASSOCIATION: &str = include_str!("../etc/well-known/apple-app-site-association");
+const APPLE_APP_SITE_ASSOCIATION: &str =
+    include_str!("../etc/well-known/apple-app-site-association");
 
 pub fn files_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     let open_route = warp::path(EXTERNAL_LINK_ROUTE)
