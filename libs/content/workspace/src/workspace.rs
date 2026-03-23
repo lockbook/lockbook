@@ -25,6 +25,7 @@ use crate::show::DocType;
 
 use crate::output::Response;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
@@ -495,6 +496,21 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
+                        } else if ext == "chat" {
+                            let reload = tab.chat().is_some() && !tab_created;
+                            if !reload {
+                                let username = self
+                                    .account
+                                    .as_ref()
+                                    .map(|a| a.username.to_string())
+                                    .unwrap_or_default();
+                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
+                                    &bytes, id, maybe_hmac, username,
+                                )));
+                            } else {
+                                let chat = tab.chat_mut().unwrap();
+                                chat.reload(&bytes, maybe_hmac);
+                            }
                         } else if let Some(plaintext_mode) =
                             DocType::from_name(&ext).plaintext_mode().or_else(|| {
                                 content_inspector::inspect(&bytes).is_text().then_some(true)
@@ -572,6 +588,8 @@ impl Workspace {
                                         svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
+                                } else if let Some(chat) = tab.chat_mut() {
+                                    chat.hmac = Some(hmac);
                                 }
                             }
                             Err(err) => {
