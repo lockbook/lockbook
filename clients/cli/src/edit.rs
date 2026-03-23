@@ -6,8 +6,9 @@ use std::{env, fs};
 
 use cli_rs::cli_error::{CliError, CliResult};
 use cli_rs::flag::Flag;
-use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
+use notify::EventKind;
+use notify_debouncer_full::{new_debouncer, DebounceEventResult, Debouncer, RecommendedCache};
 use tokio::runtime::Handle;
 
 use crate::input::FileInput;
@@ -36,7 +37,7 @@ pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
 
     if let Some(mut watcher) = maybe_watcher {
         watcher
-            .unwatch(&temp_file_path)
+            .unwatch(temp_file_path.as_path())
             .unwrap_or_else(|err| eprintln!("file watcher failed to unwatch: {err:#?}"))
     }
 
@@ -189,22 +190,39 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         .success()
 }
 
-fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotwatch> {
-    match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
-        Ok(mut watcher) => {
-            let core = core.clone();
-            let path = PathBuf::from(path.as_ref());
-            let handle = Handle::current();
+fn set_up_auto_save<P: AsRef<Path>>(
+    core: &Lb,
+    id: Uuid,
+    path: P,
+) -> Option<Debouncer<notify::RecommendedWatcher, RecommendedCache>> {
+    let core = core.clone();
+    let path = PathBuf::from(path.as_ref());
+    let handle = Handle::current();
+    let watch_path = path.clone();
 
-            watcher
-                .watch(path.clone(), move |event: Event| {
-                    if let EventKind::Modify(_) = event.kind {
-                        handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
-                    }
-                })
+    match new_debouncer(
+        std::time::Duration::from_secs(5),
+        None,
+        move |result: DebounceEventResult| {
+            let events = match result {
+                Ok(events) => events,
+                Err(_) => return,
+            };
+
+            for event in events {
+                if let EventKind::Modify(_) = event.kind {
+                    handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
+                    return;
+                }
+            }
+        },
+    ) {
+        Ok(mut debouncer) => {
+            debouncer
+                .watch(watch_path.as_path(), notify::RecursiveMode::NonRecursive)
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {err:#?}"));
 
-            Some(watcher)
+            Some(debouncer)
         }
         Err(err) => {
             println!("file watcher failed to initialize: {err:#?}");

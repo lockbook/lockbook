@@ -4,7 +4,6 @@ mod watcher;
 
 use cli_rs::cli_error::{CliError, CliResult};
 use ignore::IgnoreRules;
-use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::ValidationFailure;
@@ -21,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::ensure_account;
+use crate::{core, ensure_account_and_root};
 
 // --- CLI entry point ---
 
@@ -33,10 +32,8 @@ pub async fn run(
     no_watch: bool,
     once: bool,
 ) -> CliResult<()> {
-    let lb = Lb::init(Config::cli_config("cli"))
-        .await
-        .map_err(|err| CliError::from(err.to_string()))?;
-    ensure_account(&lb)?;
+    let lb = core().await?;
+    ensure_account_and_root(&lb).await?;
 
     let pull_interval = match pull_interval {
         Some(s) => parse_duration(&s)?,
