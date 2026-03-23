@@ -7,7 +7,7 @@ use egui::{
 use lb_rs::model::chat::{Buffer, Message};
 use lb_rs::{Uuid, model::file_metadata::DocumentHmac};
 
-use crate::theme::palette_v2::{Palette, ThemeExt};
+use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
 pub struct Chat {
     pub id: Uuid,
@@ -115,8 +115,10 @@ impl Chat {
         ui.vertical(|ui| {
             // Scroll area: takes all height except the composer, exactly as the
             // editor does with its mobile toolbar.
-            let (_, scroll_area_rect) =
-                ui.allocate_space(vec2(available_width, ui.available_height() - composer_height));
+            let (_, scroll_area_rect) = ui.allocate_space(vec2(
+                available_width,
+                ui.available_height() - composer_height - 16.0,
+            ));
             ui.scope_builder(egui::UiBuilder::new().max_rect(scroll_area_rect), |ui| {
                 ui.set_clip_rect(scroll_area_rect.intersect(ui.clip_rect()));
                 ScrollArea::vertical()
@@ -138,18 +140,22 @@ impl Chat {
                             let last_in_run = i + 1 >= n || self.messages[i + 1].from != msg.from;
 
                             let bubble_color = if is_mine {
-                                theme.bg().get_color(Palette::Blue)
+                                theme
+                                    .bg()
+                                    .get_color(Palette::Blue)
+                                    .lerp_to_gamma(theme.neutral_bg(), 0.5)
                             } else {
-                                theme.neutral_bg_tertiary()
+                                theme.neutral_bg_secondary()
                             };
 
                             let first_in_run = i == 0 || self.messages[i - 1].from != msg.from;
                             let name_galley = if !is_mine && first_in_run {
+                                let name_color = theme.fg().get_color(username_color(&msg.from));
                                 Some(ui.fonts(|f| {
                                     f.layout_no_wrap(
                                         msg.from.clone(),
                                         egui::FontId::proportional(11.0),
-                                        secondary_color,
+                                        name_color,
                                     )
                                 }))
                             } else {
@@ -219,7 +225,7 @@ impl Chat {
                                 ui.painter().galley(
                                     pos2(bubble_rect.min.x + h_pad, text_y),
                                     ng,
-                                    secondary_color,
+                                    egui::Color32::PLACEHOLDER,
                                 );
                                 text_y += name_h;
                             }
@@ -238,18 +244,20 @@ impl Chat {
             });
 
             // Composer: remaining height, same pattern as editor's mobile toolbar.
-            let (_, composer_rect) = ui.allocate_space(vec2(available_width, composer_height));
+            let (_, composer_rect) =
+                ui.allocate_space(vec2(available_width, composer_height + 16.0));
             ui.scope_builder(egui::UiBuilder::new().max_rect(composer_rect), |ui| {
                 const MAX_WIDTH: f32 = 800.0;
                 let col_width = available_width.min(MAX_WIDTH);
                 let padding = (available_width - col_width) / 2.0;
-                let h_inset = padding + 12.0;
+                let h_inset = padding + 48.0;
 
-                let bubble_color = theme.neutral_bg_tertiary();
+                let bubble_color = theme.neutral_bg_secondary();
                 let v_gap = 6.0_f32;
+                let bottom_gap = 22.0_f32;
                 let bubble_rect = Rect::from_min_max(
                     pos2(composer_rect.min.x + h_inset, composer_rect.min.y + v_gap),
-                    pos2(composer_rect.max.x - h_inset, composer_rect.max.y - v_gap),
+                    pos2(composer_rect.max.x - h_inset, composer_rect.max.y - bottom_gap),
                 );
                 ui.painter()
                     .rect_filled(bubble_rect, CornerRadius::same(10_u8), bubble_color);
