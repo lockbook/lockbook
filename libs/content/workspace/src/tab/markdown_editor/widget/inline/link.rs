@@ -35,15 +35,24 @@ impl<'ast> Editor {
             .is_some_and(|r| &self.buffer[r] == url)
     }
 
+    fn link_is_revealed(&self, node: &'ast AstNode<'ast>, is_auto: bool) -> bool {
+        let node_range = self.node_range(node);
+        let selection = &self.buffer.current.selection;
+        // auto links also reveal when cursor sits at a boundary, so backspacing
+        // from outside the link doesn't leave the user inside a captured title
+        node_range.intersects(selection, is_auto)
+    }
+
     pub fn span_link(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         let node_range = self.node_range(node);
         let url = node_link_url(node);
+        let is_auto = self.link_is_auto(node, &url);
 
-        let used_override = (node.children().next().is_none() || self.link_is_auto(node, &url))
-            && !self.node_intersects_selection(node)
+        let used_override = (node.children().next().is_none() || is_auto)
+            && !self.link_is_revealed(node, is_auto)
             && !node_range.trim(&range).is_empty()
             && match self.get_link_title(&url) {
                 DestinationTitle::Ready(t) => {
@@ -90,9 +99,9 @@ impl<'ast> Editor {
         node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
     ) -> Response {
         let node_range = self.node_range(node);
-        let mut response = if (node.children().next().is_none()
-            || self.link_is_auto(node, &node_link.url))
-            && !self.node_intersects_selection(node)
+        let is_auto = self.link_is_auto(node, &node_link.url);
+        let mut response = if (node.children().next().is_none() || is_auto)
+            && !self.link_is_revealed(node, is_auto)
         {
             // empty or auto link: show the fetched title in place of the URL
             let trimmed = node_range.trim(&range);
