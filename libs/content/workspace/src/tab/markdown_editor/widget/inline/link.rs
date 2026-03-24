@@ -30,16 +30,22 @@ impl<'ast> Editor {
         Format { family: FontFamily::Icons, ..self.text_format_link(parent) }
     }
 
+    fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
+        self.infix_range(node)
+            .is_some_and(|r| &self.buffer[r] == url)
+    }
+
     pub fn span_link(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         let node_range = self.node_range(node);
+        let url = node_link_url(node);
 
-        let used_override = node.children().next().is_none()
+        let used_override = (node.children().next().is_none() || self.link_is_auto(node, &url))
             && !self.node_intersects_selection(node)
             && !node_range.trim(&range).is_empty()
-            && match self.get_link_title(&node_link_url(node)) {
+            && match self.get_link_title(&url) {
                 DestinationTitle::Ready(t) => {
                     tmp_wrap.offset += self.span_override_section(
                         &tmp_wrap,
@@ -83,44 +89,46 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
         node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
     ) -> Response {
-        let mut response =
-            if node.children().next().is_none() && !self.node_intersects_selection(node) {
-                // empty link: show the fetched title
-                let node_range = self.node_range(node);
-                let trimmed = node_range.trim(&range);
-                if !trimmed.is_empty() {
-                    match self.get_link_title(&node_link.url) {
-                        DestinationTitle::Ready(t) => self.show_override_section(
-                            ui,
-                            top_left,
-                            wrap,
-                            trimmed,
-                            self.text_format_link(node.parent().unwrap()),
-                            Some(&t),
-                            Sense::hover(),
-                        ),
-                        DestinationTitle::Loading => self.show_override_section(
-                            ui,
-                            top_left,
-                            wrap,
-                            trimmed,
-                            self.text_format_syntax(),
-                            Some("Loading..."),
-                            Sense::hover(),
-                        ),
-                        DestinationTitle::Absent => {
-                            // destination has no title
-                            self.show_circumfix(ui, node, top_left, wrap, range)
-                        }
+        let node_range = self.node_range(node);
+        let mut response = if (node.children().next().is_none()
+            || self.link_is_auto(node, &node_link.url))
+            && !self.node_intersects_selection(node)
+        {
+            // empty or auto link: show the fetched title in place of the URL
+            let trimmed = node_range.trim(&range);
+            if !trimmed.is_empty() {
+                match self.get_link_title(&node_link.url) {
+                    DestinationTitle::Ready(t) => self.show_override_section(
+                        ui,
+                        top_left,
+                        wrap,
+                        trimmed,
+                        self.text_format_link(node.parent().unwrap()),
+                        Some(&t),
+                        Sense::hover(),
+                    ),
+                    DestinationTitle::Loading => self.show_override_section(
+                        ui,
+                        top_left,
+                        wrap,
+                        trimmed,
+                        self.text_format_syntax(),
+                        Some("Loading..."),
+                        Sense::hover(),
+                    ),
+                    DestinationTitle::Absent => {
+                        // destination has no title
+                        self.show_circumfix(ui, node, top_left, wrap, range)
                     }
-                } else {
-                    // has title
-                    self.show_circumfix(ui, node, top_left, wrap, range)
                 }
             } else {
-                // has children or is revealed
+                // has title
                 self.show_circumfix(ui, node, top_left, wrap, range)
-            };
+            }
+        } else {
+            // has children or is revealed
+            self.show_circumfix(ui, node, top_left, wrap, range)
+        };
 
         response.hovered &= self.inline_clickable(ui, node);
 
