@@ -127,6 +127,10 @@ impl Workspace {
             ws.make_current_by_id(current_tab);
         }
 
+        let core = ws.core.clone();
+        let ctx = ctx.clone();
+        spawn!(lb_frames(ctx, core));
+
         ws
     }
 
@@ -335,47 +339,54 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
-        match self.lb_rx.try_recv() {
-            Ok(evt) => match evt {
-                Event::MetadataChanged(_) => {
-                    *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
-                    let files_arc = Arc::clone(&self.files);
-                    let files_guard = files_arc.read().unwrap();
-                    if let Some(files) = files_guard.as_ref() {
-                        let mut tabs_to_delete = vec![];
-                        for tab in &self.tabs {
-                            if let Some(id) = tab.id() {
-                                if !files
-                                    .files
-                                    .iter()
-                                    .chain(&files.shared)
-                                    .any(|f| Some(f.id) == tab.id())
-                                {
-                                    tabs_to_delete.push(id);
+        loop {
+            match self.lb_rx.try_recv() {
+                Ok(evt) => match evt {
+                    Event::MetadataChanged(_) => {
+                        *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
+                        let files_arc = Arc::clone(&self.files);
+                        let files_guard = files_arc.read().unwrap();
+                        if let Some(files) = files_guard.as_ref() {
+                            let mut tabs_to_delete = vec![];
+                            for tab in &self.tabs {
+                                if let Some(id) = tab.id() {
+                                    if !files
+                                        .files
+                                        .iter()
+                                        .chain(&files.shared)
+                                        .any(|f| Some(f.id) == tab.id())
+                                    {
+                                        tabs_to_delete.push(id);
+                                    }
+                                }
+                            }
+
+                            for id in tabs_to_delete {
+                                if let Some(idx) = self.get_idx_by_id(id) {
+                                    self.remove_tab(idx);
                                 }
                             }
                         }
-
-                        for id in tabs_to_delete {
-                            if let Some(idx) = self.get_idx_by_id(id) {
-                                self.remove_tab(idx);
+                    }
+                    Event::DocumentWritten(id, Actor::Sync) => {
+                        self.core.app_foregrounded();
+                        for i in 0..self.tabs.len() {
+                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                self.open_file(id, false, false);
                             }
                         }
                     }
+                    _ => {}
+                },
+                #[cfg(not(target_family = "wasm"))]
+                Err(TryRecvError::Empty) => {
+                    break;
                 }
-                Event::DocumentWritten(id, Actor::Sync) => {
-                    self.user_last_seen = Instant::now();
-                    for i in 0..self.tabs.len() {
-                        if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false);
-                        }
-                    }
+                Err(e) => {
+                    eprintln!("cannot recv events from lb-rs {e:?}");
+                    break;
                 }
-                _ => {}
-            },
-            #[cfg(not(target_family = "wasm"))]
-            Err(TryRecvError::Empty) => {}
-            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
+            }
         }
     }
 
@@ -940,6 +951,21 @@ impl WsPersistentStore {
             let content = serde_json::to_string(&data).unwrap();
             let _ = fs::write(path, content);
         });
+    }
+}
+pub fn lb_frames(ctx: Context, lb: Lb) {
+    let mut events = lb.subscribe();
+
+    loop {
+        match events.blocking_recv() {
+            Ok(_) => {
+                ctx.request_repaint();
+            }
+            Err(e) => {
+                error!("lb_frames died: {:?}", e);
+                return;
+            }
+        }
     }
 }
 

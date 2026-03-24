@@ -25,6 +25,8 @@ pub enum Event {
     Sync(SyncIncrement),
 
     StatusUpdated,
+
+    UserSignedIn,
 }
 
 #[derive(Debug, Clone)]
@@ -59,6 +61,11 @@ impl EventSubs {
 
     pub(crate) fn status_updated(&self) {
         self.queue(Event::StatusUpdated);
+    }
+
+    /// executed after root and account are created
+    pub(crate) fn signed_in(&self) {
+        self.queue(Event::UserSignedIn);
     }
 
     fn queue(&self, evt: Event) {

@@ -335,6 +335,12 @@ impl Lb {
         self.block_on(self.lb.status())
     }
 
+    pub fn app_foregrounded(&self) {
+        let rt = self.rt.enter();
+        self.lb.app_foregrounded();
+        drop(rt);
+    }
+
     #[cfg(not(target_family = "wasm"))]
     pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         self.rt.block_on(self.lb.debug_info(os_info, true))
