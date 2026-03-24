@@ -336,9 +336,12 @@ impl Lb {
     }
 
     pub fn app_foregrounded(&self) {
-        let rt = self.rt.enter();
-        self.lb.app_foregrounded();
-        drop(rt);
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rt = self.rt.enter();
+            self.lb.app_foregrounded();
+            drop(rt);
+        }
     }
 
     #[cfg(not(target_family = "wasm"))]
