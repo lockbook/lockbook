@@ -1,5 +1,6 @@
 pub mod file_cache;
 mod font;
+pub mod url_title_fetcher;
 pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;

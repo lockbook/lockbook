@@ -95,6 +95,8 @@ pub enum Region {
 pub enum Event {
     Select { region: Region },
     Replace { region: Region, text: String, advance_cursor: bool }, // replace region with text and optionally advance cursor to end of new text
+    /// Replace last occurrence of `from` with `to`. Used for URL auto-titling after async fetch.
+    ReplaceLastOccurrence { from: String, to: String },
     ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc

@@ -5,6 +5,7 @@ use crate::file_cache::relative_path;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{self, ClipContent, ExtendedInput as _, ExtendedOutput as _, markdown_editor};
 use crate::theme::icons::Icon;
+use crate::url_title_fetcher;
 use crate::widgets::IconButton;
 use comrak::nodes::AstNode;
 use egui::{Context, EventFilter, Pos2, Stroke, ViewportCommand};
@@ -19,7 +20,12 @@ impl<'ast> Editor {
     pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> Response {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
-        for event in mem::take(&mut self.event.internal_events) {
+        let mut events: Vec<Event> = mem::take(&mut self.event.internal_events);
+        for (from, to) in url_title_fetcher::try_recv_pending_replacements() {
+            events.push(Event::ReplaceLastOccurrence { from, to });
+            ctx.request_repaint();
+        }
+        for event in events {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_workspace_events(ctx) {

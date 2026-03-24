@@ -1,11 +1,9 @@
 use crate::WgpuWorkspace;
 use egui::{Event, MouseWheelUnit, vec2};
-use lb_c::model::text::offset_types::DocCharOffset;
 use lb_c::Uuid;
 use lb_c::model::errors::Unexpected;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
-use workspace_rs::tab::markdown_editor::input::{Event as MdEvent, Location, Region};
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 
@@ -199,47 +197,6 @@ pub unsafe extern "C" fn tab_renamed(obj: *mut c_void, id: *const c_char, new_na
         .expect("Could not String -> Uuid");
 
     obj.workspace.file_renamed(id, new_name);
-}
-
-/// # Safety
-/// Replaces the last occurrence of `from` in the current markdown document with `to`.
-/// Used to turn a pasted URL into [Title](url) after fetching the title.
-/// obj, from, and to must be valid. from and to must be null-terminated C strings.
-#[no_mangle]
-pub unsafe extern "C" fn workspace_replace_literal(obj: *mut c_void, from: *const c_char, to: *const c_char) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let from_str = match CStr::from_ptr(from).to_str() {
-        Ok(s) => s,
-        Err(_) => return,
-    };
-    let to_str: String = match CStr::from_ptr(to).to_str() {
-        Ok(s) => s.into(),
-        Err(_) => return,
-    };
-
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(md) => md,
-        None => return,
-    };
-
-    let text = markdown.buffer.current.text.as_str();
-    let Some(byte_start) = text.rfind(from_str) else {
-        return;
-    };
-
-    let char_start = text[..byte_start].chars().count();
-    let char_end = char_start + from_str.chars().count();
-
-    let region = Region::BetweenLocations {
-        start: Location::DocCharOffset(DocCharOffset(char_start)),
-        end: Location::DocCharOffset(DocCharOffset(char_end)),
-    };
-
-    obj.renderer.context.push_markdown_event(MdEvent::Replace {
-        region,
-        text: to_str,
-        advance_cursor: true,
-    });
 }
 
 // todo: can't close non-file tabs (mind map)

@@ -111,12 +111,20 @@ impl<'ast> Editor {
                         style: NodeValue::Link(NodeLink { url: text, ..Default::default() }.into()),
                     })
                 } else {
+                    if let Some(url) = crate::url_title_fetcher::parse_bare_url(&text) {
+                        let trimmed = text.trim().to_string();
+                        crate::url_title_fetcher::spawn_fetch_and_replace(trimmed, url);
+                    }
                     Some(Event::Replace { region: Region::Selection, text, advance_cursor: true })
                 }
             }
             egui::Event::Text(text) => {
                 if self.readonly {
                     return None;
+                }
+                if let Some(url) = crate::url_title_fetcher::parse_bare_url(&text) {
+                    let trimmed = text.trim().to_string();
+                    crate::url_title_fetcher::spawn_fetch_and_replace(trimmed, url);
                 }
                 Some(Event::Replace {
                     region: Region::Selection,
