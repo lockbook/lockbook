@@ -78,7 +78,7 @@ impl Lb {
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.lb.export_account_private_key_v1()
+        self.lb.export_account_private_key()
     }
 
     pub fn export_account_phrase(&self) -> LbResult<String> {

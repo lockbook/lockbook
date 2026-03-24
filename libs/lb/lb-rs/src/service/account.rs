@@ -157,13 +157,13 @@ impl Lb {
         self.export_account_private_key_v2()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn export_account_private_key_v1(&self) -> LbResult<String> {
         let account = self.get_account()?;
         let encoded: Vec<u8> = bincode::serialize(account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
-    #[allow(dead_code)]
     pub(crate) fn export_account_private_key_v2(&self) -> LbResult<String> {
         let account = self.get_account()?;
         Ok(base64::encode(account.private_key.serialize()))
@@ -175,7 +175,7 @@ impl Lb {
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_private_key_v1()?;
+        let acct_secret = self.export_account_private_key_v2()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(|err| core_err_unexpected(err).into())
     }
