@@ -223,31 +223,32 @@ impl<'ast> Editor {
                 let ctx = self.ctx.clone();
                 let title_state = arc.clone();
                 spawn!({
-                    let html_result: Result<String, String>;
+                    const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+                    const GOOGLEBOT: &str =
+                        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
                     #[cfg(not(target_arch = "wasm32"))]
-                    {
-                        html_result = client
-                            .get(&resolved)
-                            .send()
-                            .and_then(|r| r.text())
-                            .map_err(|e| e.to_string());
-                    }
-
+                    let mut html = fetch_html(&client, &resolved, CHROME);
                     #[cfg(target_arch = "wasm32")]
-                    {
-                        html_result = async { client.get(&resolved).send().await?.text().await }
-                            .await
-                            .map_err(|e| e.to_string());
+                    let mut html = fetch_html(&client, &resolved, CHROME).await;
+
+                    // some sites (e.g. Twitter/X) only serve static content to known crawlers
+                    if html.as_deref().ok().and_then(extract_html_title).is_none() {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            html = fetch_html(&client, &resolved, GOOGLEBOT);
+                        }
+                        #[cfg(target_arch = "wasm32")]
+                        {
+                            html = fetch_html(&client, &resolved, GOOGLEBOT).await;
+                        }
                     }
 
-                    *title_state.lock().unwrap() = match html_result {
-                        Ok(html) => match extract_html_title(&html) {
-                            Some(t) => TitleState::Loaded(t),
-                            None => TitleState::Failed,
-                        },
-                        Err(_) => TitleState::Failed,
-                    };
+                    *title_state.lock().unwrap() = html
+                        .ok()
+                        .and_then(|h| extract_html_title(&h))
+                        .map(TitleState::Loaded)
+                        .unwrap_or(TitleState::Failed);
                     ctx.request_repaint();
                 });
                 arc
@@ -269,6 +270,33 @@ fn node_link_url(node: &AstNode<'_>) -> String {
         NodeValue::Link(link) => link.url.clone(),
         _ => String::new(),
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn fetch_html(
+    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
+) -> Result<String, String> {
+    client
+        .get(url)
+        .header("User-Agent", user_agent)
+        .send()
+        .and_then(|r| r.text())
+        .map_err(|e| e.to_string())
+}
+
+#[cfg(target_arch = "wasm32")]
+async fn fetch_html(
+    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
+) -> Result<String, String> {
+    client
+        .get(url)
+        .header("User-Agent", user_agent)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .text()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 fn extract_html_title(html: &str) -> Option<String> {
@@ -294,4 +322,42 @@ fn extract_html_title(html: &str) -> Option<String> {
         .map(|t| t.trim().to_string())
         .filter(|t| !t.is_empty())?;
     Some(title)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_agent_experiments() {
+        let agents = [
+            "Mozilla/5.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+            "Lockbook/1.0",
+        ];
+
+        let urls = [
+            "https://reddit.com",
+            "https://www.reddit.com/r/rust/",
+            "https://twitter.com",
+            "https://x.com",
+        ];
+
+        let client = reqwest::blocking::Client::builder()
+            .redirect(reqwest::redirect::Policy::limited(5))
+            .build()
+            .unwrap();
+
+        for url in urls {
+            for agent in agents {
+                let resp = client.get(url).header("User-Agent", agent).send();
+                let title = resp
+                    .ok()
+                    .and_then(|r| r.text().ok())
+                    .and_then(|html| extract_html_title(&html));
+                println!("{url:50} | {agent:90} | {title:?}");
+            }
+        }
+    }
 }
