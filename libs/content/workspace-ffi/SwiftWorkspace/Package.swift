@@ -36,5 +36,11 @@ let package = Package(
             name: "workspace",
             path: "Libs/workspace.xcframework"
         ),
+        .testTarget(
+            name: "SwiftWorkspaceTests",
+            dependencies: ["SwiftWorkspace"],
+            path: "Tests/SwiftWorkspaceTests",
+            linkerSettings: [.linkedFramework("SystemConfiguration")]
+        ),
     ]
 )

@@ -401,6 +401,7 @@
             inputDelegate?.textWillChange(self)
             insert_text(wsHandle, text)
             mtkView.drawImmediately()
+            mtkView.tryFetchTitleForInsertedURL(text: text, view: mtkView)
             inputDelegate?.textDidChange(self)
             inputDelegate?.selectionDidChange(self)
         }
@@ -1706,7 +1707,79 @@
                 }
             case let .text(text):
                 clipboard_paste(wsHandle, text)
+                if isPaste, let url = URLTitleFetcher.parseBareURL(text) {
+                    let pastedString = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                    Self.fetchTitleAndReplace(pastedString: pastedString, url: url, wsHandle: wsHandle, view: self)
+                }
             }
+        }
+
+        /// Call when text was inserted via insertText (e.g. from ui_type); runs auto-titling if it's a bare URL.
+        func tryFetchTitleForInsertedURL(text: String, view: UIView) {
+            guard let url = URLTitleFetcher.parseBareURL(text) else { return }
+            let pastedString = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            Self.fetchTitleAndReplace(pastedString: pastedString, url: url, wsHandle: wsHandle, view: view)
+        }
+
+        /// Fetches the page title for the URL in the background, then replaces the pasted URL with [Title](url) on the main thread.
+        /// Uses pastedString (not url.absoluteString) for the replace since they can differ (e.g. youtu.be vs youtube.com).
+        private static func fetchTitleAndReplace(pastedString: String, url: URL, wsHandle: UnsafeMutableRawPointer?, view: UIView) {
+            guard let wsHandle else { return }
+            let urlForLink = url.absoluteString
+
+            DispatchQueue.global(qos: .userInitiated).async {
+                let title = Self.fetchPageTitle(from: url)
+                let markdownLink = URLTitleFetcher.formatMarkdownLink(title: title ?? urlForLink, url: urlForLink)
+
+                DispatchQueue.main.async {
+                    pastedString.withCString { fromPtr in
+                        markdownLink.withCString { toPtr in
+                            workspace_replace_literal(wsHandle, fromPtr, toPtr)
+                        }
+                    }
+                    view.setNeedsDisplay(view.frame)
+                }
+            }
+        }
+
+        /// Crawler User-Agents so YouTube, X/Twitter, etc. serve server-rendered meta tags instead of JS shells.
+        private static let crawlerUserAgents = [
+            "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+        ]
+
+        private static func fetchPageTitle(from url: URL) -> String? {
+            for userAgent in crawlerUserAgents {
+                if let title = fetchPageTitle(from: url, userAgent: userAgent), !title.isEmpty {
+                    return title
+                }
+            }
+            return nil
+        }
+
+        private static func fetchPageTitle(from url: URL, userAgent: String) -> String? {
+            var request = URLRequest(url: url)
+            request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue("en-US,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+            request.setValue("text/html,application/xhtml+xml", forHTTPHeaderField: "Accept")
+
+            let sessionConfig = URLSessionConfiguration.default
+            sessionConfig.timeoutIntervalForRequest = 5
+            let session = URLSession(configuration: sessionConfig)
+
+            var result: String?
+            let semaphore = DispatchSemaphore(value: 0)
+            let task = session.dataTask(with: request) { data, response, _ in
+                defer { semaphore.signal() }
+                guard let data,
+                      let html = String(data: data, encoding: .utf8),
+                      (response as? HTTPURLResponse)?.statusCode == 200
+                else { return }
+                result = URLTitleFetcher.extractTitleFromHTML(html)
+            }
+            task.resume()
+            _ = semaphore.wait(timeout: .now() + 5.5)
+            return result
         }
 
         func isDarkMode() -> Bool {
