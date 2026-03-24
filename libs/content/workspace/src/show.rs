@@ -25,7 +25,7 @@ impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
-            self.user_last_seen = Instant::now();
+            self.core.app_foregrounded();
         }
 
         self.set_tooltip_visibility(ui);

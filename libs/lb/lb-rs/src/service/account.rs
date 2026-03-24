@@ -59,8 +59,6 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::User);
-
         if welcome_doc {
             let welcome_doc = self
                 .create_file("welcome.md", &root_id, FileType::Document)
@@ -69,6 +67,9 @@ impl Lb {
                 .await?;
             self.sync().await?;
         }
+
+        self.events.meta_changed(Actor::User);
+        self.events.signed_in();
 
         Ok(account)
     }

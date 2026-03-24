@@ -66,8 +66,10 @@ pub struct SyncState {
 //     is md or svg that descends from
 
 impl Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;
+        self.events.sync_update(SyncIncrement::SyncStarted);
 
         let pipeline: LbResult<()> = async {
             self.pull_updates(&mut sync_state).await?;
@@ -929,6 +931,10 @@ impl Lb {
     }
 
     async fn send_pull_events(&self, state: &mut SyncState) -> LbResult<()> {
+        if state.new_root.is_some() {
+            self.events.signed_in();
+        }
+
         if !state.remote_changes.is_empty() {
             self.events.meta_changed(Actor::Sync);
 
@@ -1273,11 +1279,13 @@ impl Lb {
     fn periodic_sync_worker(self) {
         #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
-            self.sync().await.map_unexpected().log_and_ignore();
-            if self.user_active().await {
-                tokio::time::sleep(Duration::from_secs(3)).await;
-            } else {
-                tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+            loop {
+                self.sync().await.map_unexpected().log_and_ignore();
+                if self.user_active().await {
+                    tokio::time::sleep(Duration::from_secs(3)).await;
+                } else {
+                    tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+                }
             }
         });
     }
@@ -1349,9 +1357,6 @@ impl Lb {
         for (id, hmac) in files_to_pull {
             if let Some(hmac) = hmac {
                 self.fetch_doc(id, hmac).await?;
-                // I actually don't want to do this, but is required because of tantivy annoyances
-                // ideally a new search technology would eliminate the need for this
-                self.events.doc_written(id, Actor::Sync);
             }
         }
 
