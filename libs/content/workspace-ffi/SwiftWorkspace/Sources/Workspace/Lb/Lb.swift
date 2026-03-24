@@ -671,7 +671,7 @@ public class MockLb: LbAPI {
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer?
     public var events: Events = .init()
 
-    public let account = Account(username: "smail", apiUrl: "https://api.prod.lockbook.net")
+    public let account = Account(username: "smail", apiUrl: "https://app.lockbook.net")
     public let accountPK = "BQAAAAAAAAB0ZXN0MQkAAAAAAAAAdGVzdDEuY29tIAAAAAAAAAATIlUEJFM0ejFr3ywfEAKgZGfBAEMPuIUhb1uPiejwKg"
     public let accountPhrase = "turkey, era, velvet, detail, prison, income, dose, royal, fever, truly, unique, couple, party, example, piece, art, leaf, follow, rose, access, vacant, gather, wasp, audit"
 

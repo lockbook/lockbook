@@ -121,7 +121,7 @@ pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
+pub static DEFAULT_API_LOCATION: &str = "https://app.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use crate::io::CoreDb;
