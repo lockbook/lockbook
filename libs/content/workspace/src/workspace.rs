@@ -958,9 +958,14 @@ pub fn lb_frames(ctx: Context, lb: Lb) {
 
     loop {
         match events.blocking_recv() {
-            Ok(_) => {
-                ctx.request_repaint();
-            }
+            Ok(evt) => match evt {
+                Event::Sync(events::SyncIncrement::SyncFinished(_)) => {
+                    ctx.request_repaint();
+                }
+                _ => {
+                    continue;
+                }
+            },
             Err(e) => {
                 error!("lb_frames died: {:?}", e);
                 return;
