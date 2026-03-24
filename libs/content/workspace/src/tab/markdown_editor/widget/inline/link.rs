@@ -39,7 +39,7 @@ impl<'ast> Editor {
         let node_range = self.node_range(node);
         let selection = &self.buffer.current.selection;
         // auto links also reveal when cursor sits at a boundary, so backspacing
-        // from outside the link doesn't leave the user inside a captured title
+        // from the right side doesn't repeatedly replace the display text
         node_range.intersects(selection, is_auto)
     }
 
