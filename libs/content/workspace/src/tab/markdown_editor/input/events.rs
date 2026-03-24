@@ -21,8 +21,8 @@ impl<'ast> Editor {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
         let mut events: Vec<Event> = mem::take(&mut self.event.internal_events);
-        for (from, to) in url_title_fetcher::try_recv_pending_replacements() {
-            events.push(Event::ReplaceLastOccurrence { from, to });
+        for (pasted_url, markdown) in url_title_fetcher::try_recv_pending_replacements() {
+            events.push(Event::ReplacePastedUrlTitle { pasted_url, markdown });
             ctx.request_repaint();
         }
         for event in events {

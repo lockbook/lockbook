@@ -93,15 +93,39 @@ pub enum Region {
 /// Interpretation may depend on render state e.g. galley positions, line wrap.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    Select { region: Region },
-    Replace { region: Region, text: String, advance_cursor: bool }, // replace region with text and optionally advance cursor to end of new text
-    /// Replace last occurrence of `from` with `to`. Used for URL auto-titling after async fetch.
-    ReplaceLastOccurrence { from: String, to: String },
-    ToggleStyle { region: Region, style: NodeValue }, // supports toolbar and inline tyle keyboard shortcuts
-    Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
-    Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
-    Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
-    Find { term: String, backwards: bool },
+    Select {
+        region: Region,
+    },
+    Replace {
+        region: Region,
+        text: String,
+        advance_cursor: bool,
+    }, // replace region with text and optionally advance cursor to end of new text
+    /// After async URL title fetch: replace the last occurrence of `pasted_url` with `markdown`.
+    /// Last-match is intentional—the user may have typed or pasted the same URL earlier; we only
+    /// upgrade the paste that triggered the background fetch (still the trailing occurrence in the
+    /// common case).
+    ReplacePastedUrlTitle {
+        pasted_url: String,
+        markdown: String,
+    },
+    ToggleStyle {
+        region: Region,
+        style: NodeValue,
+    }, // supports toolbar and inline tyle keyboard shortcuts
+    Newline {
+        shift: bool,
+    }, // distinct from replace because it triggers auto-bullet, etc
+    Delete {
+        region: Region,
+    }, // distinct from replace because it triggers numbered list renumber, etc
+    Indent {
+        deindent: bool,
+    }, // distinct from replace because it's a no-op for first list item, etc
+    Find {
+        term: String,
+        backwards: bool,
+    },
     Undo,
     Redo,
     Cut,

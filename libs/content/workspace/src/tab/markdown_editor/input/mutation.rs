@@ -44,16 +44,13 @@ impl<'ast> Editor {
                     operations.push(Operation::Select(range.start().to_range()));
                 }
             }
-            Event::ReplaceLastOccurrence { from, to } => {
+            Event::ReplacePastedUrlTitle { pasted_url, markdown } => {
                 let text = self.buffer.current.text.as_str();
-                if let Some(byte_start) = text.rfind(&from) {
+                if let Some(byte_start) = text.rfind(&pasted_url) {
                     let char_start = text[..byte_start].chars().count();
-                    let char_end = char_start + from.chars().count();
+                    let char_end = char_start + pasted_url.chars().count();
                     let range = (DocCharOffset(char_start), DocCharOffset(char_end));
-                    operations.push(Operation::Replace(Replace {
-                        range,
-                        text: to.clone(),
-                    }));
+                    operations.push(Operation::Replace(Replace { range, text: markdown.clone() }));
                     let end_offset = DocCharOffset(char_end);
                     operations.push(Operation::Select((end_offset, end_offset)));
                 }
