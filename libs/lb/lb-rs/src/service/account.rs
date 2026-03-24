@@ -154,7 +154,7 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.export_account_private_key_v1()
+        self.export_account_private_key_v2()
     }
 
     pub(crate) fn export_account_private_key_v1(&self) -> LbResult<String> {

@@ -77,9 +77,11 @@ impl Network {
         let mut retries = 0;
         let start = Instant::now();
         let sent = loop {
+            let url = &account.api_url;
+            debug!("url {url}");
             match self
                 .client
-                .request(T::METHOD, format!("{}{}", account.api_url, T::ROUTE).as_str())
+                .request(T::METHOD, format!("{}{}", url, T::ROUTE).as_str())
                 .body(serialized_request.clone())
                 .header("Accept-Version", client_version.clone())
                 .send()
