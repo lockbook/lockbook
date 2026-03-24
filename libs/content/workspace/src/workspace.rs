@@ -45,7 +45,6 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub landing_page: LandingPage,
-    pub user_last_seen: Instant,
     pub account: Option<Account>,
 
     // Files and task status
@@ -90,7 +89,6 @@ impl Workspace {
             tabs: Default::default(),
             current_tab: Default::default(),
             landing_page: cfg.get_landing_page(),
-            user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
