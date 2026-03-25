@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
@@ -573,6 +573,12 @@ pub struct LinePrefixCacheEntry {
     value: (RelCharOffset, bool),
 }
 
+pub enum TitleState {
+    Loading,
+    Loaded(String),
+    Failed,
+}
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
@@ -580,6 +586,7 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
+    pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -616,6 +623,7 @@ impl LayoutCache {
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.glyphon_buffers.borrow_mut().clear();
+        // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 }
 
