@@ -40,7 +40,7 @@ fn run() -> CliResult<()> {
                     Command::name("new")
                         .input(Arg::str("username").description("your desired username."))
                         .input(Flag::<ApiUrl>::new("api_url")
-                            .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
+                            .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
                         .handler(|username, api_url| {
                             account::new(username.get(), api_url.get())
                         })
@@ -48,7 +48,7 @@ fn run() -> CliResult<()> {
                 .subcommand(
                     Command::name("import").description("import an existing account by piping in the account string")
                         .input(Flag::<ApiUrl>::new("api_url")
-                        .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
+                        .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
 
                         .handler(|api_url| {
                             account::import(api_url.get())

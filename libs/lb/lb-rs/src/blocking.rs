@@ -78,7 +78,7 @@ impl Lb {
     }
 
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.lb.export_account_private_key_v1()
+        self.lb.export_account_private_key()
     }
 
     pub fn export_account_phrase(&self) -> LbResult<String> {
@@ -336,9 +336,12 @@ impl Lb {
     }
 
     pub fn app_foregrounded(&self) {
-        let rt = self.rt.enter();
-        self.lb.app_foregrounded();
-        drop(rt);
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let rt = self.rt.enter();
+            self.lb.app_foregrounded();
+            drop(rt);
+        }
     }
 
     #[cfg(not(target_family = "wasm"))]

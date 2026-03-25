@@ -154,7 +154,7 @@ private struct OnboardingTwoView: View {
     func createAccount() {
         working = true
         error = nil
-        let apiUrl = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
+        let apiUrl = AppState.LB_API_URL ?? "https://app.lockbook.net"
 
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = AppState.lb.createAccount(username: username, apiUrl: apiUrl, welcomeDoc: true)
@@ -430,7 +430,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
+    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://app.lockbook.net"
 
     @Environment(\.dismiss) private var dismiss
 
