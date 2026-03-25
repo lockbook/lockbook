@@ -828,36 +828,6 @@ impl Workspace {
             }
         }
     }
-
-    pub fn status_message(&self) -> String {
-        if let Some(error) = &self.status.sync_error {
-            format!("sync error: {error}")
-        } else if let Some(error) = &self.status.sync_status_update_error {
-            format!("sync status update error: {error}")
-        } else if self.status.offline {
-            "Offline".to_string()
-        } else if self.status.out_of_space {
-            "You're out of space, buy more in settings!".to_string()
-        } else if let (true, Some(msg)) = (self.visibly_syncing(), &self.status.sync_message) {
-            msg.to_string()
-        } else if !self.status.dirtyness.dirty_files.is_empty() {
-            let size = self.status.dirtyness.dirty_files.len();
-            if size == 1 {
-                format!("{size} file needs to be synced")
-            } else {
-                format!("{size} files need to be synced")
-            }
-        } else {
-            format!("Last synced: {}", self.status.dirtyness.last_synced)
-        }
-    }
-
-    pub fn visibly_syncing(&self) -> bool {
-        self.tasks
-            .sync_started_at()
-            .map(|s| s.elapsed().as_millis() > 300)
-            .unwrap_or_default()
-    }
 }
 
 #[derive(Clone)]
