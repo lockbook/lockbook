@@ -9,8 +9,10 @@ use super::Editor;
 use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
+pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
+pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 

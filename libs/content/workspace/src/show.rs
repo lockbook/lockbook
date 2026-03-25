@@ -162,6 +162,9 @@ impl Workspace {
                                     }
 
                                     self.out.open_camera = resp.open_camera;
+                                    if let Some(id) = resp.open_file {
+                                        self.open_file(id, true, false);
+                                    }
 
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
@@ -472,11 +475,14 @@ impl Workspace {
         }
 
         // tab navigation
+        let completions_active = self
+            .current_tab_markdown()
+            .is_some_and(|md| md.emoji_completions.active || md.link_completions.active);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if input.consume_key_exact(COMMAND, key)
+                if !completions_active && input.consume_key_exact(COMMAND, key)
                     || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
                 {
                     goto_tab = Some(i.min(self.tabs.len()) - 1);
@@ -484,7 +490,7 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            if input.consume_key_exact(COMMAND, Key::Num9)
+            if !completions_active && input.consume_key_exact(COMMAND, Key::Num9)
                 || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
             {
                 goto_tab = Some(self.tabs.len() - 1);

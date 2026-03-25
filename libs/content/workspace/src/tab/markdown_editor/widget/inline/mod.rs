@@ -55,11 +55,12 @@ impl<'ast> Editor {
                 }
             };
             if let Some((is_wiki, new_tab, raw)) = url_raw {
+                if is_wiki {
+                    continue;
+                }
                 let range = self.node_range(node);
                 if range.intersects(&selection, true) {
-                    let url =
-                        if is_wiki { self.resolve_wikilink(&raw) } else { self.resolve_link(&raw) };
-                    if let Some(url) = url {
+                    if let Some(url) = self.resolve_link(&raw) {
                         results.push(egui::OpenUrl { url, new_tab });
                     }
                 }
