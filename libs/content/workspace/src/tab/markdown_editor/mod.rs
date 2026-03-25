@@ -619,7 +619,7 @@ impl Editor {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     ui.max_rect(),
-                    crate::GlyphonRendererCallback { buffers: text_areas },
+                    crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
         self.syntax.garbage_collect();

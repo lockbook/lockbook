@@ -71,6 +71,10 @@ pub struct Workspace {
     pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
+
+    // Transient rename state for the landing page file table
+    pub landing_rename_target: Option<lb_rs::Uuid>,
+    pub landing_rename_buffer: String,
 }
 
 impl Workspace {
@@ -84,6 +88,7 @@ impl Workspace {
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
 
         let mut ws = Self {
             tabs: Default::default(),
@@ -109,6 +114,8 @@ impl Workspace {
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
+            landing_rename_target: None,
+            landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
         };
 
@@ -803,6 +810,21 @@ impl Workspace {
                     .failure_messages
                     .push(format!("Move failed: {kind}"));
                 warn!(?id, "failed to move file: {:?}", kind);
+            }
+        }
+    }
+
+    pub fn delete_file(&mut self, id: Uuid) {
+        match self.core.delete_file(&id) {
+            Ok(()) => {
+                self.out.file_deleted = Some(id);
+                self.ctx.request_repaint();
+            }
+            Err(LbErr { kind, .. }) => {
+                self.out
+                    .failure_messages
+                    .push(format!("Delete failed: {kind}"));
+                warn!(?id, "failed to delete file: {:?}", kind);
             }
         }
     }
