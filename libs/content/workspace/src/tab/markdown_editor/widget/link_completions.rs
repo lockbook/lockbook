@@ -43,6 +43,9 @@ pub struct LinkCompletions {
     pub selected: usize,
     /// Which kind of link syntax triggered the completion.
     pub mode: CompletionMode,
+    /// The search term range in the document (the query text only, excluding
+    /// brackets/syntax). Set when active so show_text() can highlight it.
+    pub search_term_range: Option<(DocCharOffset, DocCharOffset)>,
     /// Suppressed query string — cleared automatically when the query changes.
     suppressed: Option<String>,
 }
@@ -50,6 +53,7 @@ pub struct LinkCompletions {
 impl LinkCompletions {
     pub fn update_active_state(&mut self, buffer: &Buffer) {
         self.active = false;
+        self.search_term_range = None;
 
         let Some((range, mode)) = detect_any(buffer) else { return };
         let query = query_from_range(buffer, range, mode);
@@ -67,6 +71,17 @@ impl LinkCompletions {
         }
         self.mode = mode;
         self.active = true;
+
+        // Skip past the opening syntax to get the query text range.
+        let prefix_len = match mode {
+            CompletionMode::WikiLink => 2,  // [[
+            CompletionMode::Link => 1,      // [
+            CompletionMode::ImageLink => 2, // ![
+        };
+        let query_start = DocCharOffset(range.0 .0 + prefix_len);
+        // For [text](url) the query is only the text before `]`.
+        let query_end = DocCharOffset(query_start.0 + query.len());
+        self.search_term_range = Some((query_start, query_end));
     }
 }
 

@@ -38,20 +38,25 @@ impl<'ast> Editor {
             return Default::default();
         }
 
-        if let Some(search_range) = self.emoji_completions.search_term_range {
-            let hs = search_range.0.max(node_range.0);
-            let he = search_range.1.min(node_range.1);
-            if hs < he {
+        // While a completion popup is active, draw the search text in accent color.
+        let search_range = self
+            .emoji_completions
+            .search_term_range
+            .or(self.link_completions.search_term_range);
+        if let Some(search_range) = search_range {
+            let start = search_range.0.max(node_range.0);
+            let end = search_range.1.min(node_range.1);
+            if start < end {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.fg().get_color(theme.prefs().primary);
                 let accent_format = Format { color: accent, ..text_format.clone() };
                 let mut resp = Response::default();
-                if node_range.0 < hs {
+                if node_range.0 < start {
                     resp |= self.show_override_section(
                         ui,
                         top_left,
                         wrap,
-                        (node_range.0, hs),
+                        (node_range.0, start),
                         text_format.clone(),
                         None,
                         sense,
@@ -61,17 +66,17 @@ impl<'ast> Editor {
                     ui,
                     top_left,
                     wrap,
-                    (hs, he),
+                    (start, end),
                     accent_format,
                     None,
                     sense,
                 );
-                if he < node_range.1 {
+                if end < node_range.1 {
                     resp |= self.show_override_section(
                         ui,
                         top_left,
                         wrap,
-                        (he, node_range.1),
+                        (end, node_range.1),
                         text_format,
                         None,
                         sense,
