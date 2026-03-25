@@ -39,6 +39,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     tab::markdown_editor::register_fonts(fonts)
 }
 
+// One TextRenderer per layer. Each GlyphonRendererCallback owns a layer, so
+// glyphon text and egui shapes can be interleaved at arbitrary depths rather
+// than all glyphon text painting on top at the end.
 struct GlyphonLayer {
     renderer: TextRenderer,
     pending: Vec<TextBufferArea>,
@@ -50,10 +53,14 @@ pub struct GlyphonRenderCallbackResources {
     pub text_atlas: TextAtlas,
     pub viewport: Viewport,
     msaa_samples: u32,
+    // Layers grow to the high-water mark of callbacks in a frame and are reused
+    // across frames. Only `pending` is cleared each frame; the TextRenderers
+    // themselves accumulate glyph data and are kept alive.
     layers: Vec<GlyphonLayer>,
+    // Incremented in prepare() for each callback; gives each one a unique index.
     next_layer: usize,
-    /// Set by the last finish_prepare of a frame; cleared by the first prepare
-    /// of the next frame, which resets next_layer and clears pending buffers.
+    // Set to true by the last finish_prepare() of a frame so the first
+    // prepare() of the next frame knows to reset next_layer and clear pending.
     frame_reset: bool,
     pub pending_resolution: Resolution,
 }
@@ -104,7 +111,8 @@ impl GlyphonRenderCallbackResources {
 
 pub struct GlyphonRendererCallback {
     pub buffers: Vec<TextBufferArea>,
-    /// Auto-assigned during prepare() in submission order; do not set manually.
+    // Assigned in prepare(), read in finish_prepare() and paint(). AtomicUsize
+    // because all three methods take &self, not &mut self.
     layer: AtomicUsize,
 }
 
@@ -135,6 +143,11 @@ impl TextBufferArea {
 }
 
 impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
+    // egui_wgpu calls prepare() for every paint callback in paint order before
+    // calling finish_prepare() or paint() for any of them.
+    //
+    // Each call claims the next layer slot, stashes the index for the later
+    // passes, and enqueues its text areas. No GPU work happens here.
     fn prepare(
         &self, device: &wgpu::Device, _queue: &wgpu::Queue, screen_descriptor: &ScreenDescriptor,
         _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
@@ -144,10 +157,11 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
             width: screen_descriptor.size_in_pixels[0],
             height: screen_descriptor.size_in_pixels[1],
         };
+        // First prepare() of a new frame: trim layers to last frame's count
+        // (dropping any TextRenderers above the high-water mark), then reset
+        // the counter. pending was already cleared by drain() in finish_prepare.
         if r.frame_reset {
-            for layer in &mut r.layers {
-                layer.pending.clear();
-            }
+            r.layers.truncate(r.next_layer);
             r.next_layer = 0;
             r.frame_reset = false;
         }
@@ -159,6 +173,9 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
         Vec::new()
     }
 
+    // finish_prepare() is called for every callback in the same order as
+    // prepare(), after all prepare() calls are done. This is where the actual
+    // GPU work happens: each callback uploads its layer's glyphs to the atlas.
     fn finish_prepare(
         &self, device: &wgpu::Device, queue: &wgpu::Queue,
         _egui_encoder: &mut wgpu::CommandEncoder, resources: &mut egui_wgpu::CallbackResources,
@@ -166,11 +183,15 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
         let r: &mut GlyphonRenderCallbackResources = resources.get_mut().unwrap();
         let idx = self.layer.load(Ordering::Relaxed);
 
+        // The last callback in the frame (idx == next_layer - 1) arms the
+        // reset flag so the first prepare() of the next frame starts clean.
         if idx + 1 == r.next_layer {
             r.frame_reset = true;
         }
 
-        let pending = std::mem::take(&mut r.layers[idx].pending);
+        // drain() clears pending while keeping the allocation for next frame,
+        // avoiding a reallocation on every extend() in prepare().
+        let pending: Vec<_> = r.layers[idx].pending.drain(..).collect();
         if pending.is_empty() {
             return Vec::new();
         }
@@ -196,6 +217,7 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
             })
             .collect();
 
+        // Atlas trim and viewport update only need to happen once per frame.
         if idx == 0 {
             r.text_atlas.trim();
             r.viewport.update(queue, resolution);
@@ -218,6 +240,9 @@ impl egui_wgpu::CallbackTrait for GlyphonRendererCallback {
         Vec::new()
     }
 
+    // paint() is called in paint order (back-to-front), interleaved with egui's
+    // own shape rendering. Each callback renders only its own layer, so glyphon
+    // text lands at exactly the right depth relative to surrounding egui shapes.
     fn paint(
         &self, info: egui::PaintCallbackInfo, render_pass: &mut wgpu::RenderPass<'static>,
         resources: &egui_wgpu::CallbackResources,
