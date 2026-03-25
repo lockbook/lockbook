@@ -1,3 +1,5 @@
+use std::sync::mpsc;
+
 use chrono::{DateTime, Local, Utc};
 use egui::{
     CornerRadius, Key, Rect, ScrollArea, TextEdit, Ui, pos2,
@@ -5,9 +7,17 @@ use egui::{
     vec2,
 };
 use lb_rs::model::chat::{Buffer, Message};
+use lb_rs::service::ai::{ApiMessage, ToolRequest};
 use lb_rs::{Uuid, model::file_metadata::DocumentHmac};
 
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
+
+pub enum AgentStatus {
+    Idle,
+    Thinking,
+    ToolsPending { requests: Vec<ToolRequest>, approve_tx: mpsc::Sender<bool> },
+    ToolRunning { name: String },
+}
 
 pub struct Chat {
     pub id: Uuid,
@@ -17,12 +27,32 @@ pub struct Chat {
     pub username: String,
     pub seq: usize,
     pub initialized: bool,
+    pub is_agent: bool,
+    pub agent_pending: bool,
+    pub agent_status: AgentStatus,
+    /// Full API message history including tool_use/tool_result blocks.
+    /// Kept in memory for the session so the agent retains tool context across turns.
+    pub api_messages: Vec<ApiMessage>,
 }
 
 impl Chat {
-    pub fn new(bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, username: String) -> Self {
+    pub fn new(
+        bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, username: String, is_agent: bool,
+    ) -> Self {
         let messages = Buffer::new(bytes).messages;
-        Self { id, hmac, messages, input: String::new(), username, seq: 0, initialized: false }
+        Self {
+            id,
+            hmac,
+            messages,
+            input: String::new(),
+            username,
+            seq: 0,
+            initialized: false,
+            is_agent,
+            agent_pending: false,
+            agent_status: AgentStatus::Idle,
+            api_messages: Vec::new(),
+        }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -238,6 +268,108 @@ impl Chat {
                             );
                         }
 
+                        match &self.agent_status {
+                            AgentStatus::Thinking => {
+                                ui.add_space(row_gap);
+                                let galley = ui.fonts(|f| {
+                                    f.layout_no_wrap(
+                                        "Thinking...".into(),
+                                        egui::FontId::proportional(13.0),
+                                        secondary_color,
+                                    )
+                                });
+                                let (_id, rect) = ui.allocate_space(vec2(
+                                    ui.available_width(),
+                                    galley.rect.height() + v_pad * 2.0,
+                                ));
+                                let col_left = rect.min.x + padding;
+                                ui.painter().galley(
+                                    pos2(col_left + h_margin + h_pad, rect.min.y + v_pad),
+                                    galley,
+                                    secondary_color,
+                                );
+                                ui.ctx().request_repaint_after(
+                                    std::time::Duration::from_millis(500),
+                                );
+                            }
+                            AgentStatus::ToolsPending { requests, .. } => {
+                                ui.add_space(row_gap * 2.0);
+                                let col_left = ui.min_rect().min.x + padding;
+
+                                // Tool descriptions
+                                for req in requests {
+                                    let galley = ui.fonts(|f| {
+                                        f.layout_no_wrap(
+                                            format!("  {}", req.description),
+                                            egui::FontId::proportional(13.0),
+                                            text_color,
+                                        )
+                                    });
+                                    let (_id, rect) = ui.allocate_space(vec2(
+                                        ui.available_width(),
+                                        galley.rect.height() + 4.0,
+                                    ));
+                                    ui.painter().galley(
+                                        pos2(col_left + h_margin + h_pad, rect.min.y + 2.0),
+                                        galley,
+                                        text_color,
+                                    );
+                                }
+
+                                // Approve / Deny buttons
+                                ui.add_space(4.0);
+                                ui.horizontal(|ui| {
+                                    ui.add_space(col_left + h_margin + h_pad);
+                                    if ui.button("Allow").clicked() {
+                                        if let AgentStatus::ToolsPending { approve_tx, .. } =
+                                            std::mem::replace(
+                                                &mut self.agent_status,
+                                                AgentStatus::Thinking,
+                                            )
+                                        {
+                                            let _ = approve_tx.send(true);
+                                        }
+                                    }
+                                    if ui.button("Deny").clicked() {
+                                        if let AgentStatus::ToolsPending { approve_tx, .. } =
+                                            std::mem::replace(
+                                                &mut self.agent_status,
+                                                AgentStatus::Idle,
+                                            )
+                                        {
+                                            let _ = approve_tx.send(false);
+                                            self.agent_pending = false;
+                                        }
+                                    }
+                                });
+                                ui.add_space(row_gap);
+                            }
+                            AgentStatus::ToolRunning { name } => {
+                                ui.add_space(row_gap);
+                                let galley = ui.fonts(|f| {
+                                    f.layout_no_wrap(
+                                        format!("{name}..."),
+                                        egui::FontId::proportional(13.0),
+                                        secondary_color,
+                                    )
+                                });
+                                let (_id, rect) = ui.allocate_space(vec2(
+                                    ui.available_width(),
+                                    galley.rect.height() + v_pad * 2.0,
+                                ));
+                                let col_left = rect.min.x + padding;
+                                ui.painter().galley(
+                                    pos2(col_left + h_margin + h_pad, rect.min.y + v_pad),
+                                    galley,
+                                    secondary_color,
+                                );
+                                ui.ctx().request_repaint_after(
+                                    std::time::Duration::from_millis(500),
+                                );
+                            }
+                            AgentStatus::Idle => {}
+                        }
+
                         let viewport_h = ui.max_rect().height();
                         let end_pad = (viewport_h - content_h - top_margin).max(bottom_pad);
                         ui.add_space(end_pad);
@@ -284,7 +416,7 @@ impl Chat {
                     self.initialized = true;
                 }
 
-                if enter_pressed {
+                if enter_pressed && !self.agent_pending {
                     let trimmed = self.input.trim().to_string();
                     if !trimmed.is_empty() {
                         self.messages.push(Message {

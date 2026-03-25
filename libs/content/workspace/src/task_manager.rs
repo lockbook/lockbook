@@ -8,6 +8,7 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
+use lb_rs::service::ai::{ApiMessage, Content, ToolRequest, extract_text, extract_tool_requests};
 use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
@@ -30,6 +31,10 @@ pub struct Tasks {
     completed_loads: Vec<CompletedLoad>,
     completed_saves: Vec<CompletedSave>,
     completed_sync: Option<CompletedSync>,
+
+    // agent tasks
+    pub in_progress_agent: Option<Uuid>,
+    agent_updates: Vec<AgentUpdate>,
 }
 
 impl Tasks {
@@ -77,6 +82,7 @@ pub struct Response {
     pub completed_loads: Vec<CompletedLoad>,
     pub completed_saves: Vec<CompletedSave>,
     pub completed_sync: Option<CompletedSync>,
+    pub agent_updates: Vec<AgentUpdate>,
 }
 
 // Requests
@@ -218,6 +224,16 @@ pub struct CompletedSync {
     pub timing: CompletedTiming,
 }
 
+/// Events sent from the background agent thread to the UI.
+pub enum AgentUpdate {
+    /// Agent wants to use tools — waiting for user approval.
+    ToolsPending { id: Uuid, requests: Vec<ToolRequest>, approve_tx: mpsc::Sender<bool> },
+    /// A tool is currently executing.
+    ToolRunning { id: Uuid, name: String },
+    /// Agent finished — here's the final text response and full API message history.
+    Done { id: Uuid, response: LbResult<String>, api_messages: Vec<ApiMessage> },
+}
+
 #[derive(Clone)]
 pub struct TaskManager {
     pub tasks: Arc<Mutex<Tasks>>,
@@ -255,6 +271,23 @@ impl TaskManager {
             .unwrap()
             .queued_syncs
             .push(QueuedSync { timing: QueuedTiming::new() });
+    }
+
+    pub fn queue_agent(&self, id: Uuid, api_messages: Vec<ApiMessage>) {
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            if tasks.in_progress_agent == Some(id) {
+                return; // already running for this chat
+            }
+            tasks.in_progress_agent = Some(id);
+        }
+
+        let self_clone = self.clone();
+        spawn!(self_clone.background_agent(id, api_messages));
+    }
+
+    pub fn agent_in_progress(&self, id: Uuid) -> bool {
+        self.tasks.lock().unwrap().in_progress_agent == Some(id)
     }
 
     pub fn load_queued(&self, id: Uuid) -> bool {
@@ -497,6 +530,7 @@ impl TaskManager {
             completed_loads: mem::take(&mut tasks.completed_loads),
             completed_saves: mem::take(&mut tasks.completed_saves),
             completed_sync: mem::take(&mut tasks.completed_sync),
+            agent_updates: mem::take(&mut tasks.agent_updates),
         }
     }
 
@@ -630,6 +664,84 @@ impl TaskManager {
             tasks.completed_sync = Some(completed_sync);
         }
 
+        self.ctx.request_repaint();
+    }
+
+    #[instrument(level = "debug", skip(self, api_messages), fields(thread = format!("{:?}", thread::current().id())))]
+    fn background_agent(&self, id: Uuid, mut api_messages: Vec<ApiMessage>) {
+        loop {
+            // Send to Claude
+            let response = match self.core.ai_send(api_messages.clone()) {
+                Ok(r) => r,
+                Err(e) => {
+                    self.agent_done(id, Err(e), api_messages);
+                    return;
+                }
+            };
+
+            let tool_requests = extract_tool_requests(&response);
+
+            // Append assistant response to conversation
+            api_messages.push(ApiMessage {
+                role: "assistant".into(),
+                content: response.content.clone(),
+            });
+
+            if tool_requests.is_empty() {
+                // No tools — we're done, extract text
+                let text = extract_text(&response);
+                self.agent_done(id, Ok(text), api_messages);
+                return;
+            }
+
+            // Ask the UI for permission
+            let (approve_tx, approve_rx) = mpsc::channel();
+            {
+                let mut tasks = self.tasks.lock().unwrap();
+                tasks.agent_updates.push(AgentUpdate::ToolsPending {
+                    id,
+                    requests: tool_requests.clone(),
+                    approve_tx,
+                });
+            }
+            self.ctx.request_repaint();
+
+            // Block until user approves or denies
+            let approved = approve_rx.recv().unwrap_or(false);
+
+            if !approved {
+                self.agent_done(id, Ok("Tool use was denied.".into()), api_messages);
+                return;
+            }
+
+            // Execute approved tools
+            let mut tool_results = Vec::new();
+            for req in &tool_requests {
+                {
+                    let mut tasks = self.tasks.lock().unwrap();
+                    tasks.agent_updates.push(AgentUpdate::ToolRunning {
+                        id,
+                        name: req.description.clone(),
+                    });
+                }
+                self.ctx.request_repaint();
+
+                let result = self.core.ai_execute_tool(&req.name, &req.input);
+                tool_results.push(Content::ToolResult {
+                    tool_use_id: req.tool_use_id.clone(),
+                    content: result,
+                });
+            }
+
+            api_messages.push(ApiMessage { role: "user".into(), content: tool_results });
+        }
+    }
+
+    fn agent_done(&self, id: Uuid, response: LbResult<String>, api_messages: Vec<ApiMessage>) {
+        let mut tasks = self.tasks.lock().unwrap();
+        tasks.in_progress_agent = None;
+        tasks.agent_updates.push(AgentUpdate::Done { id, response, api_messages });
+        drop(tasks);
         self.ctx.request_repaint();
     }
 

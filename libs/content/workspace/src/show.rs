@@ -193,6 +193,9 @@ impl Workspace {
                                     let sent = chat.show(ui);
                                     if sent {
                                         tab.last_changed = Instant::now();
+                                        if chat.is_agent {
+                                            chat.agent_pending = true;
+                                        }
                                     }
                                 }
                                 #[cfg(not(target_family = "wasm"))]

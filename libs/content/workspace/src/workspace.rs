@@ -32,8 +32,13 @@ use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
 use crate::task_manager;
 use crate::task_manager::{
-    CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
+    AgentUpdate, CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest,
+    TaskManager,
 };
+use lb_rs::model::chat::Message;
+use lb_rs::service::ai::{ApiMessage, Content, chat_to_api_messages};
+
+use crate::tab::chat::AgentStatus;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -388,8 +393,12 @@ impl Workspace {
 
     // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update();
+        let task_manager::Response {
+            completed_loads,
+            completed_saves,
+            completed_sync,
+            agent_updates,
+        } = self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -419,7 +428,7 @@ impl Workspace {
                             }
                         };
 
-                        let (ext, read_only) = match self.core.get_file_by_id(id) {
+                        let (ext, read_only, file_name) = match self.core.get_file_by_id(id) {
                             Ok(file) => {
                                 let ext = file
                                     .name
@@ -427,6 +436,7 @@ impl Workspace {
                                     .next_back()
                                     .unwrap_or_default()
                                     .to_owned();
+                                let file_name = file.name.clone();
 
                                 let read_only = if let Some(account) = &self.account {
                                     file.shares.iter().any(|share| {
@@ -438,7 +448,7 @@ impl Workspace {
                                     false
                                 };
 
-                                (ext, read_only)
+                                (ext, read_only, file_name)
                             }
                             Err(e) => {
                                 self.out
@@ -495,8 +505,13 @@ impl Workspace {
                                     .as_ref()
                                     .map(|a| a.username.to_string())
                                     .unwrap_or_default();
+                                let is_agent = file_name
+                                    .split('.')
+                                    .next()
+                                    .unwrap_or_default()
+                                    .eq_ignore_ascii_case("agent");
                                 tab.content = ContentState::Open(TabContent::Chat(Chat::new(
-                                    &bytes, id, maybe_hmac, username,
+                                    &bytes, id, maybe_hmac, username, is_agent,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
@@ -618,6 +633,98 @@ impl Workspace {
             }
         }
         start.warn_after("processing sync progress", Duration::from_millis(100));
+
+        // Process agent updates
+        for update in agent_updates {
+            match update {
+                AgentUpdate::ToolsPending { id, requests, approve_tx } => {
+                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                        if let Some(chat) = tab.chat_mut() {
+                            chat.agent_status =
+                                AgentStatus::ToolsPending { requests, approve_tx };
+                        }
+                    }
+                }
+                AgentUpdate::ToolRunning { id, name } => {
+                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                        if let Some(chat) = tab.chat_mut() {
+                            chat.agent_status = AgentStatus::ToolRunning { name };
+                        }
+                    }
+                }
+                AgentUpdate::Done { id, response, api_messages } => {
+                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                        if let Some(chat) = tab.chat_mut() {
+                            chat.agent_pending = false;
+                            chat.agent_status = AgentStatus::Idle;
+                            chat.api_messages = api_messages;
+                            let content = match response {
+                                Ok(text) => text,
+                                Err(err) => format!("Error: {err}"),
+                            };
+                            chat.messages.push(Message {
+                                from: "agent".into(),
+                                content,
+                                ts: chrono::Utc::now().timestamp(),
+                            });
+                            chat.seq += 1;
+                            tab.last_changed = Instant::now();
+                        }
+                    }
+                }
+            }
+        }
+
+        // Kick off agent requests for chats that need them
+        for tab in &mut self.tabs {
+            if let Some(chat) = tab.chat_mut() {
+                if chat.agent_pending
+                    && matches!(chat.agent_status, AgentStatus::Idle)
+                    && !self.tasks.agent_in_progress(chat.id)
+                {
+                    chat.agent_status = AgentStatus::Thinking;
+                    // Use stored API messages if available (preserves tool context),
+                    // otherwise rebuild from chat display messages (e.g. tab reopened).
+                    let mut api_msgs = if chat.api_messages.is_empty() {
+                        chat_to_api_messages(&chat.messages)
+                    } else {
+                        // The stored history has everything up to the last agent
+                        // response. Append any new user messages since then.
+                        let mut msgs = chat.api_messages.clone();
+                        // Find the last user text message in api_messages to know
+                        // where stored history ends, then append newer chat messages.
+                        let last_stored_count = msgs
+                            .iter()
+                            .filter(|m| m.role == "user"
+                                && m.content.iter().any(|c| matches!(c, Content::Text { .. })))
+                            .count();
+                        let new_user_msgs: Vec<&Message> = chat
+                            .messages
+                            .iter()
+                            .filter(|m| m.from != "agent")
+                            .skip(last_stored_count)
+                            .collect();
+                        for m in new_user_msgs {
+                            msgs.push(ApiMessage {
+                                role: "user".into(),
+                                content: vec![Content::Text { text: m.content.clone() }],
+                            });
+                        }
+                        msgs
+                    };
+                    // Ensure the last message is from the user (API requirement).
+                    if api_msgs.last().map_or(true, |m| m.role != "user") {
+                        if let Some(last_user) = chat.messages.iter().rev().find(|m| m.from != "agent") {
+                            api_msgs.push(ApiMessage {
+                                role: "user".into(),
+                                content: vec![Content::Text { text: last_user.content.clone() }],
+                            });
+                        }
+                    }
+                    self.tasks.queue_agent(chat.id, api_msgs);
+                }
+            }
+        }
 
         // background work: queue
         let now = Instant::now();

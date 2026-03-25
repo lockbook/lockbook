@@ -4,6 +4,7 @@
 //! On locking: in general, it is okay to hold a lock for reading a file, but not for multiple files or network I/O
 
 pub mod account;
+pub mod ai;
 pub mod activity;
 pub mod admin;
 pub mod billing;

@@ -340,6 +340,16 @@ impl Lb {
         self.block_on(self.lb.set_user_tier(username, info))
     }
 
+    pub fn ai_send(
+        &self, api_messages: Vec<crate::service::ai::ApiMessage>,
+    ) -> LbResult<crate::service::ai::ApiResponse> {
+        self.block_on(self.lb.ai_send(api_messages))
+    }
+
+    pub fn ai_execute_tool(&self, name: &str, input: &serde_json::Value) -> String {
+        self.block_on(self.lb.ai_execute_tool(name, input))
+    }
+
     pub fn subscribe(&self) -> Receiver<Event> {
         self.lb.subscribe()
     }
