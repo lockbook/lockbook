@@ -582,7 +582,6 @@ impl Workspace {
                     let tab_font_size = 14.0;
                     let tab_line_height = 20.0;
                     let tab_max_width = 200.0;
-                    let ppi = ui.ctx().pixels_per_point();
                     let raw_title = self.tab_title(&self.tabs[t]);
                     let title = if DocType::from_name(&raw_title).hide_ext() {
                         std::path::Path::new(&raw_title)
@@ -593,23 +592,19 @@ impl Workspace {
                     } else {
                         raw_title.clone()
                     };
-                    let (text_buffer, text_width) = GlyphonLabel::shape_and_measure(
-                        &self.font_system,
-                        &title,
-                        tab_font_size,
-                        tab_line_height,
-                        tab_max_width,
-                        ppi,
-                    );
+                    let text_width = GlyphonLabel::new(&title, egui::Color32::default())
+                        .font_size(tab_font_size)
+                        .line_height(tab_line_height)
+                        .max_width(tab_max_width)
+                        .measure(ui)
+                        .x;
                     let text_size = if is_renaming {
-                        let (_, rw) = GlyphonLabel::shape_and_measure(
-                            &self.font_system,
-                            &rename_text_for_sizing,
-                            tab_font_size,
-                            tab_line_height,
-                            f32::MAX,
-                            ppi,
-                        );
+                        let rw =
+                            GlyphonLabel::new(&rename_text_for_sizing, egui::Color32::default())
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .measure(ui)
+                                .x;
                         egui::vec2(rw, tab_line_height)
                     } else {
                         egui::vec2(text_width, tab_line_height)
@@ -730,7 +725,13 @@ impl Workspace {
                             self.tabs[t].rename = None;
                         }
                     } else {
-                        ui.put(text_rect, GlyphonLabel::new(text_buffer, text_color));
+                        ui.put(
+                            text_rect,
+                            GlyphonLabel::new(&title, text_color)
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .max_width(tab_max_width),
+                        );
                     }
 
                     if close_button_clicked || tab_label_resp.middle_clicked() {

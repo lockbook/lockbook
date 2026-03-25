@@ -226,7 +226,7 @@ impl<'a> GlyphonTextEdit<'a> {
 
     /// Fix the row height used for allocation and glyphon metrics.
     ///
-    /// Pass the same value used in [`GlyphonLabel::shape_and_measure`] so that
+    /// Pass the same `line_height` used in the sibling [`GlyphonLabel`] so that
     /// both widgets occupy identical vertical space and `ui.place`'s internal
     /// `centered_and_justified` layout produces zero centering offset.
     pub fn line_height(self, line_height: f32) -> Self {

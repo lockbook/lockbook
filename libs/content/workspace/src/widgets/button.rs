@@ -1,7 +1,4 @@
-use std::sync::{Arc, Mutex};
-
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
-use glyphon::FontSystem;
 
 use crate::theme::icons::Icon;
 use crate::widgets::GlyphonLabel;
@@ -113,10 +110,6 @@ impl<'a> Button<'a> {
                     galley
                 });
 
-                let font_system = ui
-                    .ctx()
-                    .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL));
-
                 let font_size = ui
                     .ctx()
                     .style()
@@ -124,33 +117,30 @@ impl<'a> Button<'a> {
                     .get(&text_style)
                     .map(|f| f.size)
                     .unwrap_or(14.0);
-                let ppi = ui.ctx().pixels_per_point();
 
-                let maybe_buffer_and_size = self.text.and_then(|text| {
-                    if let Some(ref fs) = font_system {
-                        let text_str: String = match &text {
-                            WidgetText::RichText(rt) => rt.text().to_owned(),
-                            WidgetText::LayoutJob(job) => job
-                                .sections
-                                .iter()
-                                .map(|s| &job.text[s.byte_range.clone()])
-                                .collect(),
-                            WidgetText::Galley(g) => g.job.text.clone(),
-                            WidgetText::Text(s) => s.to_string(),
-                        };
-                        let (buffer, w) = GlyphonLabel::shape_and_measure(
-                            fs,
-                            &text_str,
-                            font_size,
-                            text_height,
-                            wrap_width,
-                            ppi,
-                        );
-                        width += w;
-                        Some((buffer, egui::vec2(w, text_height)))
-                    } else {
-                        None
-                    }
+                // Extract the raw text string so we can measure it for layout
+                // and then render it with the post-allocation interaction color.
+                let maybe_text_str: Option<String> = self.text.map(|text| match &text {
+                    WidgetText::RichText(rt) => rt.text().to_owned(),
+                    WidgetText::LayoutJob(job) => job
+                        .sections
+                        .iter()
+                        .map(|s| &job.text[s.byte_range.clone()])
+                        .collect(),
+                    WidgetText::Galley(g) => g.job.text.clone(),
+                    WidgetText::Text(s) => s.to_string(),
+                });
+
+                // Measure once; reused below for text_rect to avoid a second shape pass.
+                let text_width = maybe_text_str.as_deref().map(|text_str| {
+                    let w = GlyphonLabel::new(text_str, egui::Color32::default())
+                        .font_size(font_size)
+                        .line_height(text_height)
+                        .max_width(wrap_width)
+                        .measure(ui)
+                        .x;
+                    width += w;
+                    w
                 });
 
                 if self.hexpand {
@@ -235,9 +225,16 @@ impl<'a> Button<'a> {
                         }
                     }
 
-                    if let Some((buffer, size)) = maybe_buffer_and_size {
-                        let text_rect = egui::Rect::from_min_size(text_pos, size);
-                        ui.put(text_rect, GlyphonLabel::new(buffer, text_visuals.text_color()));
+                    if let (Some(ref text_str), Some(w)) = (&maybe_text_str, text_width) {
+                        let text_rect =
+                            egui::Rect::from_min_size(text_pos, egui::vec2(w, text_height));
+                        ui.put(
+                            text_rect,
+                            GlyphonLabel::new(text_str, text_visuals.text_color())
+                                .font_size(font_size)
+                                .line_height(text_height)
+                                .max_width(wrap_width),
+                        );
                     }
                 }
 

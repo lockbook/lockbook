@@ -179,22 +179,14 @@ impl Workspace {
 
             // Breadcrumb / Folder name
             ui.horizontal(|ui| {
-                let ppi = ui.ctx().pixels_per_point();
                 const HEADING_FONT_SIZE: f32 = 40.;
                 const HEADING_LINE_HEIGHT: f32 = 56.;
 
                 if !folder.is_root() {
                     let parent = files.files.get_by_id(folder.parent).unwrap();
-                    let (buf, _) = GlyphonLabel::shape_and_measure(
-                        &self.font_system,
-                        &parent.name,
-                        HEADING_FONT_SIZE,
-                        HEADING_LINE_HEIGHT,
-                        f32::MAX,
-                        ppi,
-                    );
                     let resp = ui.add(
-                        GlyphonLabel::new(buf, ui.visuals().text_color())
+                        GlyphonLabel::new(&parent.name, ui.visuals().text_color())
+                            .font_size(HEADING_FONT_SIZE)
                             .line_height(HEADING_LINE_HEIGHT)
                             .sense(Sense::click()),
                     );
@@ -210,16 +202,9 @@ impl Workspace {
                     );
                 }
 
-                let (buf, _) = GlyphonLabel::shape_and_measure(
-                    &self.font_system,
-                    &folder.name,
-                    HEADING_FONT_SIZE,
-                    HEADING_LINE_HEIGHT,
-                    f32::MAX,
-                    ppi,
-                );
                 ui.add(
-                    GlyphonLabel::new(buf, ui.visuals().text_color())
+                    GlyphonLabel::new(&folder.name, ui.visuals().text_color())
+                        .font_size(HEADING_FONT_SIZE)
                         .line_height(HEADING_LINE_HEIGHT),
                 );
             });
@@ -868,7 +853,6 @@ impl Workspace {
                             child_idx += 1;
 
                             // Shared metrics used by both the rename and display branches.
-                            let ppi = ui.ctx().pixels_per_point();
                             let line_height = ui.text_style_height(&egui::TextStyle::Body);
                             let font_size = ui
                                 .ctx()
@@ -919,14 +903,14 @@ impl Workspace {
                                         .rfind('.')
                                         .unwrap_or(self.landing_rename_buffer.len());
 
-                                    let (_, rename_w) = GlyphonLabel::shape_and_measure(
-                                        &self.font_system,
+                                    let rename_w = GlyphonLabel::new(
                                         &self.landing_rename_buffer,
-                                        font_size,
-                                        line_height,
-                                        f32::MAX,
-                                        ppi,
-                                    );
+                                        egui::Color32::default(),
+                                    )
+                                    .font_size(font_size)
+                                    .line_height(line_height)
+                                    .measure(ui)
+                                    .x;
                                     let text_width = rename_w.max(ui.available_width());
                                     let (text_rect, _) = ui.allocate_exact_size(
                                         egui::vec2(text_width, line_height),
@@ -949,18 +933,14 @@ impl Workspace {
                                     } else {
                                         &child.name
                                     };
-                                    let (buf, _) = GlyphonLabel::shape_and_measure(
-                                        &self.font_system,
-                                        display_name,
-                                        font_size,
-                                        line_height,
-                                        f32::MAX,
-                                        ppi,
-                                    );
                                     let resp = ui.add(
-                                        GlyphonLabel::new(buf, ui.visuals().hyperlink_color)
-                                            .line_height(line_height)
-                                            .sense(Sense::click()),
+                                        GlyphonLabel::new(
+                                            display_name,
+                                            ui.visuals().hyperlink_color,
+                                        )
+                                        .font_size(font_size)
+                                        .line_height(line_height)
+                                        .sense(Sense::click()),
                                     );
                                     resp
                                 }

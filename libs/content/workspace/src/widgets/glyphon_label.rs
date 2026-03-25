@@ -5,92 +5,96 @@ use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
 
 use crate::{GlyphonRendererCallback, TextBufferArea};
 
-/// A widget that renders a pre-shaped glyphon [`Buffer`].
+/// An egui widget that renders text through glyphon so that emoji and
+/// non-Latin scripts work correctly in file names.
 ///
-/// **Two placement modes:**
-///
-/// - `ui.put(rect, GlyphonLabel::new(...))` — fills the given rect exactly.
-///   The default mode; used for tab labels where the rect is pre-computed.
-///
-/// - `ui.add(GlyphonLabel::new(...).line_height(lh))` — measures the buffer's
-///   natural text width and allocates `(text_width × lh)` inline. Use this
-///   when the label lives inside a flowing layout such as `ui.horizontal`.
-///
-/// Adding `.sense(Sense::click())` makes the response report clicks, which is
-/// how you build a glyphon-rendered link.
-pub struct GlyphonLabel {
-    buffer: Arc<RwLock<Buffer>>,
+/// Use `ui.add` for labels that live inside a flowing layout — the widget
+/// will measure and allocate its own width. Use `ui.put` when the rect is
+/// already known (e.g. a tab label whose bounds are computed manually).
+pub struct GlyphonLabel<'a> {
+    text: &'a str,
     color: egui::Color32,
-    /// Interaction sense. Defaults to `Sense::hover()`.
-    sense: Sense,
-    /// When `Some(lh)`, the widget measures the buffer's natural text width and
-    /// allocates `(text_width, lh)` rather than filling `ui.max_rect()`.
+    font_size: f32,
     line_height: Option<f32>,
+    max_width: f32,
+    sense: Sense,
 }
 
-impl GlyphonLabel {
-    pub fn new(buffer: Arc<RwLock<Buffer>>, color: egui::Color32) -> Self {
-        Self { buffer, color, sense: Sense::hover(), line_height: None }
+impl<'a> GlyphonLabel<'a> {
+    pub fn new(text: &'a str, color: egui::Color32) -> Self {
+        Self {
+            text,
+            color,
+            font_size: 14.0,
+            line_height: None,
+            max_width: f32::MAX,
+            sense: Sense::hover(),
+        }
     }
 
-    /// Set the interaction sense.
+    pub fn font_size(self, font_size: f32) -> Self {
+        Self { font_size, ..self }
+    }
+
+    /// Set the row height and switch to inline allocation mode.
     ///
-    /// Use `Sense::click()` to get a clickable link-like label.
+    /// Pass the same value to any sibling `GlyphonTextEdit` so that the text
+    /// baseline doesn't shift when toggling between display and rename.
+    pub fn line_height(self, line_height: f32) -> Self {
+        Self { line_height: Some(line_height), ..self }
+    }
+
+    pub fn max_width(self, max_width: f32) -> Self {
+        Self { max_width, ..self }
+    }
+
     pub fn sense(self, sense: Sense) -> Self {
         Self { sense, ..self }
     }
 
-    /// Enable inline (natural-width) allocation.
-    ///
-    /// When set, the widget measures the buffer's rendered text width and
-    /// allocates exactly `(text_width, line_height)` rather than filling
-    /// `ui.max_rect()`.  Pass the same `line_height` value that was used in
-    /// [`GlyphonLabel::shape_and_measure`].
-    pub fn line_height(self, line_height: f32) -> Self {
-        Self { line_height: Some(line_height), ..self }
+    /// Returns the rendered text width in logical pixels without placing the
+    /// widget. Useful when the width is needed before layout, such as sizing a
+    /// rename field.
+    pub fn measure(&self, ui: &egui::Ui) -> egui::Vec2 {
+        self.shape(ui.ctx(), self.row_height()).1
     }
-}
 
-impl GlyphonLabel {
-    /// Shape `text` into a single-line glyphon [`Buffer`] and measure its
-    /// rendered width in logical pixels, all in one call.
-    ///
-    /// - `max_width` is in **logical pixels**; pass `f32::MAX` for unbounded
-    ///   single-line measurement (e.g. when sizing a rename input field).
-    /// - Returns `(buffer, width_logical_px)`. The buffer is ready to pass
-    ///   directly to [`GlyphonLabel::new`]; discard it if you only need the
-    ///   width.
-    pub fn shape_and_measure(
-        font_system: &Arc<Mutex<FontSystem>>, text: &str, font_size: f32, line_height: f32,
-        max_width: f32, ppi: f32,
-    ) -> (Arc<RwLock<Buffer>>, f32) {
+    fn row_height(&self) -> f32 {
+        self.line_height.unwrap_or(self.font_size * 1.4)
+    }
+
+    fn shape(&self, ctx: &egui::Context, line_height: f32) -> (Arc<RwLock<Buffer>>, egui::Vec2) {
+        let font_system = ctx
+            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
+            .expect("GlyphonLabel used outside of a wgpu context");
+        let ppi = ctx.pixels_per_point();
+
         let mut fs = font_system.lock().unwrap();
-        let mut buf = Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
-        buf.set_size(&mut fs, Some(max_width * ppi), None);
-        buf.set_text(&mut fs, text, &Attrs::new().family(Family::SansSerif), Shaping::Advanced);
+        let mut buf = Buffer::new(&mut fs, Metrics::new(self.font_size * ppi, line_height * ppi));
+        buf.set_size(&mut fs, Some(self.max_width * ppi), None);
+        buf.set_text(
+            &mut fs,
+            self.text,
+            &Attrs::new().family(Family::SansSerif),
+            Shaping::Advanced,
+        );
         buf.shape_until_scroll(&mut fs, false);
-        let width = buf.layout_runs().map(|r| r.line_w).fold(0.0f32, f32::max) / ppi;
-        (Arc::new(RwLock::new(buf)), width)
+
+        let line_height_px = buf.metrics().line_height;
+        let (width, lines) = buf
+            .layout_runs()
+            .fold((0.0f32, 0u32), |(w, n), r| (w.max(r.line_w), n + 1));
+        let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
+        (Arc::new(RwLock::new(buf)), size)
     }
 }
 
-impl egui::Widget for GlyphonLabel {
+impl egui::Widget for GlyphonLabel<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let ppi = ui.ctx().pixels_per_point();
+        let (buffer, text_size) = self.shape(ui.ctx(), self.row_height());
 
-        // Determine the allocation size.
-        //
-        // Natural mode: measure the buffer's rendered text width so the widget
-        // only occupies the space the text actually needs when placed inline.
-        //
-        // Fill mode (default): occupy the full rect provided by the caller,
-        // typically via `ui.put(rect, ...)`.
         let size = match self.line_height {
-            Some(lh) => {
-                let buf = self.buffer.read().unwrap();
-                let w = buf.layout_runs().map(|r| r.line_w).fold(0.0f32, f32::max) / ppi;
-                egui::vec2(w, lh)
-            }
+            Some(lh) => egui::vec2(text_size.x, lh),
             None => ui.max_rect().size(),
         };
 
@@ -98,21 +102,16 @@ impl egui::Widget for GlyphonLabel {
 
         if ui.is_rect_visible(rect) {
             let c = self.color;
-            let glyph_color = glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a());
-
-            // rect is both the draw origin and the clip boundary — text never
-            // bleeds outside the allocated area.
             let area = TextBufferArea::new(
-                self.buffer,
+                buffer,
                 rect,
-                glyph_color,
+                glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
                 ui.ctx(),
-                rect, // clip_rect
+                rect,
             );
-
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect, // paint-callback bounds match widget rect exactly
+                    rect,
                     GlyphonRendererCallback::new(vec![area]),
                 ));
         }
