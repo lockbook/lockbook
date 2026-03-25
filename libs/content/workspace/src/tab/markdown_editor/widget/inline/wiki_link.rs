@@ -91,18 +91,16 @@ impl Editor {
         }
     }
 
-    pub fn open_link_under_cursor<'ast>(
+    pub fn open_links_in_selection<'ast>(
         &self, root: &'ast AstNode<'ast>, ctx: &egui::Context,
     ) {
         let selection = self.buffer.current.selection;
-        if selection.0 != selection.1 {
-            return;
-        }
-        let pos = selection.0;
+        let mut file_ids = vec![];
+        let mut urls = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
-            if !node_range.intersects(&(pos, pos), false) {
+            if !node_range.intersects(&selection, true) {
                 continue;
             }
 
@@ -118,9 +116,9 @@ impl Editor {
 
             if is_wikilink {
                 if let Some(id) = self.resolve_wikilink(&url) {
-                    ctx.open_file(id);
+                    file_ids.push(id);
                 }
-                return;
+                continue;
             }
 
             if !url.starts_with("http://")
@@ -134,13 +132,25 @@ impl Editor {
                     .map(|f| f.parent)
                     .unwrap_or(self.file_id);
                 if let Ok(file) = core_get_by_relative_path(&self.core, from_id, &url) {
-                    ctx.open_file(file.id);
-                    return;
+                    file_ids.push(file.id);
+                    continue;
                 }
             }
 
-            ctx.open_url(egui::OpenUrl { url: url.to_string(), new_tab: false });
-            return;
+            urls.push(egui::OpenUrl { url: url.to_string(), new_tab: false });
+        }
+
+        let new_tab = file_ids.len() + urls.len() > 1;
+        for id in file_ids {
+            ctx.open_file(id, new_tab);
+        }
+        if new_tab {
+            for url in &mut urls {
+                url.new_tab = true;
+            }
+        }
+        for url in urls {
+            ctx.open_url(url);
         }
     }
 }
@@ -184,7 +194,7 @@ impl<'ast> Editor {
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
             if let Some(id) = self.resolve_wikilink(&node_wiki_link.url) {
-                ui.ctx().open_file(id);
+                ui.ctx().open_file(id, false);
             } else {
                 ui.ctx()
                     .open_url(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd });

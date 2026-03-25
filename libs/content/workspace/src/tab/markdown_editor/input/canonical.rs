@@ -150,7 +150,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") && modifiers.command =>
             {
-                self.open_link_under_cursor(root, &self.ctx);
+                self.open_links_in_selection(root, &self.ctx);
                 None
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }

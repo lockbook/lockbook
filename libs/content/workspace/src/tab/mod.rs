@@ -382,8 +382,8 @@ pub trait ExtendedOutput {
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
     fn set_context_menu(&self, pos: egui::Pos2);
     fn pop_context_menu(&self) -> Option<egui::Pos2>;
-    fn open_file(&self, id: Uuid);
-    fn pop_open_files(&self) -> Vec<Uuid>;
+    fn open_file(&self, id: Uuid, new_tab: bool);
+    fn pop_open_files(&self) -> Vec<(Uuid, bool)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -408,21 +408,21 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
     }
 
-    fn open_file(&self, id: Uuid) {
+    fn open_file(&self, id: Uuid, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<Uuid> = m
+            let mut files: Vec<(Uuid, bool)> = m
                 .data
                 .get_temp(Id::new("open_files"))
                 .unwrap_or_default();
-            files.push(id);
+            files.push((id, new_tab));
             m.data.insert_temp(Id::new("open_files"), files);
         })
     }
 
-    fn pop_open_files(&self) -> Vec<Uuid> {
+    fn pop_open_files(&self) -> Vec<(Uuid, bool)> {
         self.memory_mut(|m| {
             m.data
-                .remove_temp::<Vec<Uuid>>(Id::new("open_files"))
+                .remove_temp::<Vec<(Uuid, bool)>>(Id::new("open_files"))
                 .unwrap_or_default()
         })
     }

@@ -238,8 +238,8 @@ impl Workspace {
                 for (id, new_tab) in open_ids {
                     self.open_file(id, true, new_tab);
                 }
-                for id in ui.ctx().pop_open_files() {
-                    self.open_file(id, true, false);
+                for (id, new_tab) in ui.ctx().pop_open_files() {
+                    self.open_file(id, true, new_tab);
                 }
             });
         });
@@ -448,10 +448,17 @@ impl Workspace {
         // apple: command+control+shift [ ]
         let change: i32 = self.ctx.input_mut(|input| {
             if APPLE {
-                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket) {
+                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket)
+                    || input
+                        .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenCurlyBracket)
+                {
                     -1
                 } else if input
                     .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseBracket)
+                    || input.consume_key_exact(
+                        Modifiers::MAC_CMD | CTRL | SHIFT,
+                        Key::CloseCurlyBracket,
+                    )
                 {
                     1
                 } else {
@@ -497,7 +504,9 @@ impl Workspace {
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab
-            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+            if ((APPLE
+                && (input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket)
+                    || input.consume_key_exact(COMMAND | SHIFT, Key::OpenCurlyBracket)))
                 || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
                 && self.current_tab != 0
             {
@@ -505,7 +514,9 @@ impl Workspace {
             }
 
             // Cmd+Shift+] or ctrl tab to go to next tab
-            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+            if ((APPLE
+                && (input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)
+                    || input.consume_key_exact(COMMAND | SHIFT, Key::CloseCurlyBracket)))
                 || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
                 && self.current_tab != self.tabs.len() - 1
             {
