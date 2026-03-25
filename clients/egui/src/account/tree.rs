@@ -5,8 +5,8 @@ use std::time::{Duration, Instant};
 use std::{mem, thread};
 
 use egui::{
-    Color32, Context, DragAndDrop, Event, Id, Key, LayerId, Modifiers, Order, Pos2, Rect, Sense,
-    Ui, UiBuilder, Vec2, WidgetText, vec2,
+    Color32, DragAndDrop, Event, Id, Key, LayerId, Modifiers, Order, Pos2, Rect, Sense, Ui,
+    UiBuilder, Vec2, WidgetText, vec2,
 };
 use egui_notify::Toasts;
 use lb::Uuid;
@@ -479,7 +479,7 @@ impl FileTree {
             }) {
                 if let Some(cursor) = self.cursor {
                     let cursor = self.files.get_by_id(cursor).unwrap().clone();
-                    self.init_rename(ui.ctx(), &cursor);
+                    self.init_rename(&cursor);
                 }
             }
 
@@ -728,9 +728,9 @@ impl FileTree {
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
-        // Drain keyboard events BEFORE show_file_cell so the rename buffer is
-        // up-to-date when show_file_cell derives the real-time icon from it.
-        let rename_id = Id::new(Self::RENAME_ID);
+        // process events before showing so the rename buffer is up-to-date when
+        // show_file_cell uses its width for layout.
+        let rename_id = Id::new("rename_file");
         let rename_submitted = if is_renaming {
             GlyphonTextEdit::process_events(ui, rename_id, &mut self.rename_buffer)
         } else {
@@ -750,26 +750,33 @@ impl FileTree {
             ));
         }
 
-        // Handle rename completion. Children are shown above so that the tree
-        // remains visible while the user types. We early-return here to skip
-        // all click / drag-drop interaction that must not fire during rename.
+        // handle submit rename
         if is_renaming {
-            if !file_resp.has_focus() && !file_resp.lost_focus() {
+            let rename_has_focus = ui.memory(|m| m.has_focus(rename_id));
+            let rename_lost_focus =
+                ui.memory(|m| m.had_focus_last_frame(rename_id)) && !rename_has_focus;
+            let escape_pressed = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+
+            if !rename_has_focus && !rename_lost_focus {
+                // Grant focus on the first frame of renaming; don't re-steal
+                // it after the user has deliberately clicked away.
                 ui.memory_mut(|m| m.request_focus(rename_id));
             }
+
             if rename_submitted {
                 resp.rename_request = Some((id, self.rename_buffer.clone()));
                 self.rename_target = None;
-            } else if file_resp.lost_focus() {
+            } else if rename_lost_focus || escape_pressed {
                 self.rename_target = None;
             }
+            // skip drag 'n' drop / click interactions
             return resp;
         }
 
         // init rename
         // no renames for pending shares
         if file_resp.double_clicked() {
-            self.init_rename(ui.ctx(), &file);
+            self.init_rename(&file);
         }
         // select
         else if file_resp.clicked() {
@@ -1025,14 +1032,9 @@ impl FileTree {
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
 
-        // Only editable files can show the rename field. The two special virtual
-        // folders (pending shares, suggested docs) are never renameable.
         let is_renaming = self.rename_target == Some(file.id)
             && file.id != self.pending_shares_id
             && file.id != self.suggested_docs_folder_id;
-
-        // Derive doc_type from the rename buffer while renaming so the icon
-        // updates in real-time as the user changes the extension.
         let doc_type =
             DocType::from_name(if is_renaming { &self.rename_buffer } else { &file.name });
 
@@ -1053,10 +1055,7 @@ impl FileTree {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
 
-        let icon_size = 19.0_f32;
-
-        // Determine icon and colour — same logic as before, but doc icon now
-        // comes from the rename-buffer-derived doc_type when renaming.
+        let icon_size = 19.;
         let (icon, icon_color) = if file.is_document() {
             (doc_type.to_icon().size(icon_size), theme.neutral_fg_secondary())
         } else {
@@ -1083,9 +1082,6 @@ impl FileTree {
             (icon, color)
         };
 
-        // When renaming, omit the text from the button so there is nothing
-        // underneath the GlyphonTextEdit overlay. The button still expands to
-        // full width (hexpand) and paints the icon and background correctly.
         let button = Button::default()
             .default_fill(default_fill)
             .rounding(Self::BTN_ROUNDING)
@@ -1119,10 +1115,8 @@ impl FileTree {
         let file_resp = button.show(ui);
 
         if is_renaming {
-            // Place the GlyphonTextEdit exactly where the button would have
-            // drawn its text: after the icon, horizontally padded, vertically
-            // centred within the button row.
-            let rename_id = Id::new(Self::RENAME_ID);
+            // place the GlyphonTextEdit exactly where the button would have
+            let rename_id = Id::new("rename_file");
             let stem_end = self
                 .rename_buffer
                 .rfind('.')
@@ -1137,8 +1131,6 @@ impl FileTree {
             let line_height = font_size * 1.4;
             let btn_padding = vec2(15., 7.);
 
-            // Mirror Button's own text-position formula:
-            //   rect.min.x + padding.x + indent + icon_width + padding.x / 2
             let text_field_rect = Rect::from_min_max(
                 egui::pos2(
                     file_resp.rect.min.x + btn_padding.x + indent + icon_size + btn_padding.x / 2.0,
@@ -1150,7 +1142,7 @@ impl FileTree {
                 ),
             );
 
-            return ui.put(
+            ui.place(
                 text_field_rect,
                 GlyphonTextEdit::new(&mut self.rename_buffer)
                     .id(rename_id)
@@ -1264,7 +1256,7 @@ impl FileTree {
             ui.separator();
 
             if ui.button("Rename").clicked() {
-                self.init_rename(ui.ctx(), file);
+                self.init_rename(file);
                 ui.close();
             }
 
@@ -1335,14 +1327,13 @@ impl FileTree {
         resp
     }
 
-    fn init_rename(&mut self, _ctx: &Context, file: &File) {
+    fn init_rename(&mut self, file: &File) {
         self.rename_target = Some(file.id);
         self.rename_buffer = file.name.clone();
     }
 
     const BTN_ROUNDING: f32 = 5.0;
     const BTN_MARGIN: Vec2 = egui::vec2(10.0, 0.0);
-    const RENAME_ID: &'static str = "rename_file";
 }
 
 /// Model related things

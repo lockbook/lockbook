@@ -7,6 +7,11 @@ pub struct Response {
     /// What file the workspace is currently showing
     pub selected_file: Option<Uuid>,
     pub file_created: Option<Result<File, String>>,
+    pub file_renamed: Option<(Uuid, String)>,
+    pub file_moved: Option<(Uuid, Uuid)>,
+    pub file_deleted: Option<Uuid>,
+    pub new_folder_clicked: bool,
+
     pub selected_folder_changed: bool,
     pub tab_title_clicked: bool,
 
@@ -18,10 +23,6 @@ pub struct Response {
     pub markdown_editor_scroll_updated: bool,
 
     pub tabs_changed: bool,
-
-    /// Set by the landing page when the user triggers "Delete" from the context
-    /// menu. The egui client should open its ConfirmDelete modal for this file.
-    pub delete_file_request: Option<lb_rs::Uuid>,
 
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 

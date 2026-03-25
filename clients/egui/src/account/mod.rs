@@ -248,14 +248,6 @@ impl AccountScreen {
                 for msg in wso.failure_messages {
                     self.toasts.error(msg);
                 }
-
-                if let Some(id) = wso.delete_file_request {
-                    if let Some(file) = self.tree.files.get_by_id(id) {
-                        self.update_tx
-                            .send(OpenModal::ConfirmDelete(vec![file.clone()]).into())
-                            .unwrap();
-                    }
-                }
             });
 
         if self.is_new_user {

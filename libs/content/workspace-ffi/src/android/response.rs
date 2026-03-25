@@ -32,6 +32,10 @@ impl From<crate::Response> for AndroidResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    file_renamed,
+                    file_moved: _,
+                    file_deleted: _,
+                    new_folder_clicked,
                     tab_title_clicked,
                     file_created,
                     markdown_editor_text_updated,
@@ -41,7 +45,6 @@ impl From<crate::Response> for AndroidResponse {
                     failure_messages: _,
                     selected_folder_changed: _,
                     open_camera: _,
-                    delete_file_request: _,
                 },
             redraw_in,
             copied_text,

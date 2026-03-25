@@ -195,6 +195,13 @@ impl State {
 pub struct GlyphonTextEdit<'a> {
     text: &'a mut String,
     font_size: f32,
+    /// Override the line height used for allocation and glyph metrics.
+    ///
+    /// When `Some`, the widget allocates exactly this height so that it matches
+    /// a sibling [`GlyphonLabel`] shaped with the same value — preventing
+    /// `ui.place`'s `centered_and_justified` layout from introducing a vertical
+    /// offset when the caller's `body_line_height` differs from `font_size * 1.4`.
+    line_height: Option<f32>,
     cursor_at_end: bool,
     /// `Some((anchor, cursor))` — selection to apply whenever focus is gained.
     focus_selection: Option<(usize, usize)>,
@@ -203,11 +210,27 @@ pub struct GlyphonTextEdit<'a> {
 
 impl<'a> GlyphonTextEdit<'a> {
     pub fn new(text: &'a mut String) -> Self {
-        Self { text, font_size: 14.0, cursor_at_end: false, focus_selection: None, id: None }
+        Self {
+            text,
+            font_size: 14.0,
+            line_height: None,
+            cursor_at_end: false,
+            focus_selection: None,
+            id: None,
+        }
     }
 
     pub fn font_size(self, size: f32) -> Self {
         Self { font_size: size, ..self }
+    }
+
+    /// Fix the row height used for allocation and glyphon metrics.
+    ///
+    /// Pass the same value used in [`GlyphonLabel::shape_and_measure`] so that
+    /// both widgets occupy identical vertical space and `ui.place`'s internal
+    /// `centered_and_justified` layout produces zero centering offset.
+    pub fn line_height(self, line_height: f32) -> Self {
+        Self { line_height: Some(line_height), ..self }
     }
 
     pub fn cursor_at_end(self) -> Self {
@@ -299,7 +322,10 @@ impl<'a> GlyphonTextEdit<'a> {
         let focused = ui.memory(|m| m.has_focus(id));
         let ppi = ui.ctx().pixels_per_point();
         // line_height is the full row height including leading; font renders in the middle.
-        let line_height = self.font_size * 1.4;
+        // Use the caller-supplied value when provided so this widget's allocated height
+        // matches an adjacent GlyphonLabel exactly, keeping the text baseline stable
+        // across display↔rename transitions.
+        let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
         let now = ui.input(|i| i.time);
 
         // --- Restore or initialise per-widget state ---

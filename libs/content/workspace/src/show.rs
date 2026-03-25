@@ -579,7 +579,6 @@ impl Workspace {
                     // create galleys - text layout
 
                     // tab label - the actual file name
-                    // shaped with cosmic-text so emoji render correctly
                     let tab_font_size = 14.0;
                     let tab_line_height = 20.0;
                     let tab_max_width = 200.0;
@@ -603,12 +602,6 @@ impl Workspace {
                         ppi,
                     );
                     let text_size = if is_renaming {
-                        // Measure the full filename (with extension) unbounded so
-                        // the rename field is wide enough to show it entirely.
-                        // Add a small right margin so the cursor is visible when
-                        // at the end of the text and the field doesn't butt flush
-                        // against the close button.
-                        let cursor_margin = 6.0;
                         let (_, rw) = GlyphonLabel::shape_and_measure(
                             &self.font_system,
                             &rename_text_for_sizing,
@@ -617,7 +610,7 @@ impl Workspace {
                             f32::MAX,
                             ppi,
                         );
-                        egui::vec2((rw + cursor_margin).min(300.0), tab_line_height)
+                        egui::vec2(rw, tab_line_height)
                     } else {
                         egui::vec2(text_width, tab_line_height)
                     };
@@ -678,13 +671,6 @@ impl Workspace {
                     let right_bottom =
                         close_button_rect.right_bottom() + tab_padding.right_bottom();
                     let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
-
-                    // uncomment to see geometry debug views
-                    // let s = egui::Stroke::new(1., egui::Color32::RED);
-                    // ui.painter().rect_stroke(marker_rect, 1., s);
-                    // ui.painter().rect_stroke(text_rect, 1., s);
-                    // ui.painter().rect_stroke(close_button_rect, 1., s);
-                    // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
                     let touch_mode =

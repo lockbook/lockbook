@@ -33,6 +33,10 @@ impl From<crate::Response> for MacOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    file_renamed,
+                    file_moved: _,
+                    file_deleted: _,
+                    new_folder_clicked,
                     tab_title_clicked: _,
                     file_created,
                     markdown_editor_text_updated: _,
@@ -42,7 +46,6 @@ impl From<crate::Response> for MacOSResponse {
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera: _,
-                    delete_file_request: _,
                 },
             redraw_in,
             copied_text,

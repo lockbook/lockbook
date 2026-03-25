@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
 use glyphon::FontSystem;
@@ -126,12 +126,7 @@ impl<'a> Button<'a> {
                     .unwrap_or(14.0);
                 let ppi = ui.ctx().pixels_per_point();
 
-                enum TextRender {
-                    Galley(Arc<egui::Galley>),
-                    Glyphon { buffer: Arc<RwLock<glyphon::Buffer>>, size: egui::Vec2 },
-                }
-
-                let maybe_text_render = self.text.map(|text| {
+                let maybe_buffer_and_size = self.text.and_then(|text| {
                     if let Some(ref fs) = font_system {
                         let text_str: String = match &text {
                             WidgetText::RichText(rt) => rt.text().to_owned(),
@@ -152,16 +147,9 @@ impl<'a> Button<'a> {
                             ppi,
                         );
                         width += w;
-                        TextRender::Glyphon { buffer, size: egui::vec2(w, text_height) }
+                        Some((buffer, egui::vec2(w, text_height)))
                     } else {
-                        let galley = text.into_galley(
-                            ui,
-                            Some(TextWrapMode::Extend),
-                            wrap_width,
-                            text_style,
-                        );
-                        width += galley.size().x;
-                        TextRender::Galley(galley)
+                        None
                     }
                 });
 
@@ -247,20 +235,9 @@ impl<'a> Button<'a> {
                         }
                     }
 
-                    if let Some(text_render) = maybe_text_render {
-                        match text_render {
-                            TextRender::Galley(galley) => {
-                                ui.painter()
-                                    .galley(text_pos, galley, text_visuals.text_color());
-                            }
-                            TextRender::Glyphon { buffer, size } => {
-                                let text_rect = egui::Rect::from_min_size(text_pos, size);
-                                ui.put(
-                                    text_rect,
-                                    GlyphonLabel::new(buffer, text_visuals.text_color()),
-                                );
-                            }
-                        }
+                    if let Some((buffer, size)) = maybe_buffer_and_size {
+                        let text_rect = egui::Rect::from_min_size(text_pos, size);
+                        ui.put(text_rect, GlyphonLabel::new(buffer, text_visuals.text_color()));
                     }
                 }
 

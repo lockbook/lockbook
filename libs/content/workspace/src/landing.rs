@@ -136,7 +136,7 @@ impl Workspace {
             self.rename_file((id, name), true);
         }
         if let Some(id) = response.delete_request {
-            self.out.delete_file_request = Some(id);
+            self.delete_file(id);
         }
 
         // Persist landing page if it changed
@@ -180,8 +180,8 @@ impl Workspace {
             // Breadcrumb / Folder name
             ui.horizontal(|ui| {
                 let ppi = ui.ctx().pixels_per_point();
-                const HEADING_FONT_SIZE: f32 = 40.0;
-                const HEADING_LINE_HEIGHT: f32 = HEADING_FONT_SIZE * 1.4;
+                const HEADING_FONT_SIZE: f32 = 40.;
+                const HEADING_LINE_HEIGHT: f32 = 56.;
 
                 if !folder.is_root() {
                     let parent = files.files.get_by_id(folder.parent).unwrap();
@@ -932,11 +932,12 @@ impl Workspace {
                                         egui::vec2(text_width, line_height),
                                         egui::Sense::hover(),
                                     );
-                                    ui.put(
+                                    ui.place(
                                         text_rect,
                                         GlyphonTextEdit::new(&mut self.landing_rename_buffer)
                                             .id(rename_id)
                                             .font_size(font_size)
+                                            .line_height(line_height)
                                             .select_on_focus(0, stem_end),
                                     )
                                 } else {
@@ -956,11 +957,12 @@ impl Workspace {
                                         f32::MAX,
                                         ppi,
                                     );
-                                    ui.add(
+                                    let resp = ui.add(
                                         GlyphonLabel::new(buf, ui.visuals().hyperlink_color)
                                             .line_height(line_height)
                                             .sense(Sense::click()),
-                                    )
+                                    );
+                                    resp
                                 }
                             });
 
@@ -986,50 +988,40 @@ impl Workspace {
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
                                     .on_hover_ui(|ui| {
                                         ui.label(self.core.get_path_by_id(child.id).unwrap());
+                                    })
+                                    .context_menu(|ui| {
+                                        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                        if !child.is_folder() && ui.button("Open").clicked() {
+                                            response.open_file = Some(child.id);
+                                            ui.close();
+                                        }
+                                        if !child.is_folder() {
+                                            ui.separator();
+                                        }
+                                        if ui.button("Rename").clicked() {
+                                            self.landing_rename_target = Some(child.id);
+                                            self.landing_rename_buffer = child.name.clone();
+                                            ui.close();
+                                        }
+                                        if ui.button("Delete").clicked() {
+                                            response.delete_request = Some(child.id);
+                                            ui.close();
+                                        }
+                                        ui.separator();
+                                        if ui.button("New Document").clicked() {
+                                            response.create_note = true;
+                                            ui.close();
+                                        }
+                                        if ui.button("New Drawing").clicked() {
+                                            response.create_drawing = true;
+                                            ui.close();
+                                        }
+                                        if ui.button("New Folder").clicked() {
+                                            response.create_folder = true;
+                                            ui.close();
+                                        }
                                     });
                             }
-
-                            // Context menu — right-click anywhere in the name cell.
-                            // ui.horizontal's response has no sense, so we explicitly
-                            // interact over its rect with Sense::click() to make
-                            // secondary_clicked() fire, which context_menu relies on.
-                            let ctx_resp = ui.interact(
-                                name_row.response.rect,
-                                egui::Id::new("landing_ctx").with(child.id),
-                                egui::Sense::click(),
-                            );
-                            ctx_resp.context_menu(|ui| {
-                                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                                if !child.is_folder() && ui.button("Open").clicked() {
-                                    response.open_file = Some(child.id);
-                                    ui.close();
-                                }
-                                if !child.is_folder() {
-                                    ui.separator();
-                                }
-                                if ui.button("Rename").clicked() {
-                                    self.landing_rename_target = Some(child.id);
-                                    self.landing_rename_buffer = child.name.clone();
-                                    ui.close();
-                                }
-                                if ui.button("Delete").clicked() {
-                                    response.delete_request = Some(child.id);
-                                    ui.close();
-                                }
-                                ui.separator();
-                                if ui.button("New Document").clicked() {
-                                    response.create_note = true;
-                                    ui.close();
-                                }
-                                if ui.button("New Drawing").clicked() {
-                                    response.create_drawing = true;
-                                    ui.close();
-                                }
-                                if ui.button("New Folder").clicked() {
-                                    response.create_folder = true;
-                                    ui.close();
-                                }
-                            });
 
                             // Last modified
                             {
