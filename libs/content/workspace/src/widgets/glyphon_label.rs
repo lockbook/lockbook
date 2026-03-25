@@ -7,15 +7,15 @@ use crate::{GlyphonRendererCallback, TextBufferArea};
 
 /// An egui widget that renders text through glyphon so that emoji and
 /// non-Latin scripts work correctly in file names.
-///
-/// Use `ui.add` for labels that live inside a flowing layout — the widget
-/// will measure and allocate its own width. Use `ui.put` when the rect is
-/// already known (e.g. a tab label whose bounds are computed manually).
 pub struct GlyphonLabel<'a> {
     text: &'a str,
     color: egui::Color32,
     font_size: f32,
+    /// Total row height in logical pixels, passed to glyphon metrics and used
+    /// for the allocated height. Defaults to `font_size * 1.4`.
     line_height: Option<f32>,
+    /// Wrapping / truncation limit in logical pixels. `f32::MAX` means a
+    /// single unbounded line.
     max_width: f32,
     sense: Sense,
 }
@@ -36,7 +36,7 @@ impl<'a> GlyphonLabel<'a> {
         Self { font_size, ..self }
     }
 
-    /// Set the row height and switch to inline allocation mode.
+    /// Set the row height used for glyph metrics and allocation.
     ///
     /// Pass the same value to any sibling `GlyphonTextEdit` so that the text
     /// baseline doesn't shift when toggling between display and rename.
@@ -52,22 +52,19 @@ impl<'a> GlyphonLabel<'a> {
         Self { sense, ..self }
     }
 
-    /// Returns the rendered text width in logical pixels without placing the
-    /// widget. Useful when the width is needed before layout, such as sizing a
-    /// rename field.
+    /// Returns the rendered size in logical pixels without placing the widget.
+    /// Useful when the width is needed before layout, such as sizing a rename
+    /// field.
     pub fn measure(&self, ui: &egui::Ui) -> egui::Vec2 {
-        self.shape(ui.ctx(), self.row_height()).1
+        self.shape(ui.ctx()).1
     }
 
-    fn row_height(&self) -> f32 {
-        self.line_height.unwrap_or(self.font_size * 1.4)
-    }
-
-    fn shape(&self, ctx: &egui::Context, line_height: f32) -> (Arc<RwLock<Buffer>>, egui::Vec2) {
+    fn shape(&self, ctx: &egui::Context) -> (Arc<RwLock<Buffer>>, egui::Vec2) {
         let font_system = ctx
             .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
             .expect("GlyphonLabel used outside of a wgpu context");
         let ppi = ctx.pixels_per_point();
+        let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
 
         let mut fs = font_system.lock().unwrap();
         let mut buf = Buffer::new(&mut fs, Metrics::new(self.font_size * ppi, line_height * ppi));
@@ -91,14 +88,12 @@ impl<'a> GlyphonLabel<'a> {
 
 impl egui::Widget for GlyphonLabel<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let (buffer, text_size) = self.shape(ui.ctx(), self.row_height());
+        let (buffer, text_size) = self.shape(ui.ctx());
 
-        let size = match self.line_height {
-            Some(lh) => egui::vec2(text_size.x, lh),
-            None => ui.max_rect().size(),
-        };
-
-        let (rect, response) = ui.allocate_exact_size(size, self.sense);
+        let (rect, response) = ui.allocate_exact_size(
+            egui::vec2(text_size.x, self.line_height.unwrap_or(self.font_size * 1.4)),
+            self.sense,
+        );
 
         if ui.is_rect_visible(rect) {
             let c = self.color;

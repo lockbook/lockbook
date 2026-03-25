@@ -6,20 +6,12 @@ use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-// ---------------------------------------------------------------------------
-// Shared event filter — identical for both process_events and show_impl
-// ---------------------------------------------------------------------------
-
 const EVENT_FILTER: EventFilter =
     EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
 
-// ---------------------------------------------------------------------------
-// Single authoritative event dispatch
-// ---------------------------------------------------------------------------
-
 /// Apply one editor event to `state` and `text`.
 ///
-/// Returns `(text_changed, submitted)`.  When `submitted` is `true` the caller
+/// Returns `(text_changed, submitted)`. When `submitted` is `true` the caller
 /// should surrender focus on the widget id so that `lost_focus()` fires.
 fn apply_event(
     event: Event, state: &mut State, text: &mut String, now: f64, ctx: &Context,
@@ -140,27 +132,22 @@ fn apply_event(
     (changed, submitted)
 }
 
-// ---------------------------------------------------------------------------
-// Per-widget persistent state (stored in egui's temp data map)
-// ---------------------------------------------------------------------------
-
 #[derive(Clone, Default)]
 struct State {
     /// Moving end of the selection range (the caret).
     cursor: usize,
     /// Fixed end of the selection range. Equal to `cursor` when there is no selection.
     anchor: usize,
-    /// Horizontal scroll in logical pixels. Positive means the view is shifted right
-    /// so that text that starts left of the widget origin becomes visible.
+    /// Horizontal scroll offset in logical pixels. Positive shifts the view right,
+    /// revealing text that starts left of the widget origin.
     singleline_offset: f32,
     /// Timestamp of the last edit or cursor movement, used to reset the blink phase.
     last_interaction_time: f64,
-    /// Whether the widget was focused on the previous frame, used to detect focus-gained.
+    /// Whether the widget was focused last frame, used to detect focus-gained.
     was_focused: bool,
 }
 
 impl State {
-    /// Returns `(lo, hi)` byte offsets of the selection in document order.
     fn selection(&self) -> (usize, usize) {
         (self.cursor.min(self.anchor), self.cursor.max(self.anchor))
     }
@@ -176,7 +163,6 @@ impl State {
         self.anchor = lo;
     }
 
-    /// Move cursor, optionally extending the selection anchor.
     fn move_cursor(&mut self, to: usize, extend: bool) {
         self.cursor = to;
         if !extend {
@@ -185,25 +171,14 @@ impl State {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Widget definition
-// ---------------------------------------------------------------------------
-
 /// A single-line text-edit widget that uses glyphon for shaping so that emoji
-/// and complex scripts render correctly. It has no intrinsic width — it fills
-/// whatever rect the caller negotiates with egui (typically via `ui.put`).
+/// and complex scripts render correctly.
 pub struct GlyphonTextEdit<'a> {
     text: &'a mut String,
     font_size: f32,
-    /// Override the line height used for allocation and glyph metrics.
-    ///
-    /// When `Some`, the widget allocates exactly this height so that it matches
-    /// a sibling [`GlyphonLabel`] shaped with the same value — preventing
-    /// `ui.place`'s `centered_and_justified` layout from introducing a vertical
-    /// offset when the caller's `body_line_height` differs from `font_size * 1.4`.
     line_height: Option<f32>,
     cursor_at_end: bool,
-    /// `Some((anchor, cursor))` — selection to apply whenever focus is gained.
+    /// Selection to apply whenever focus is newly gained.
     focus_selection: Option<(usize, usize)>,
     id: Option<Id>,
 }
@@ -220,15 +195,10 @@ impl<'a> GlyphonTextEdit<'a> {
         }
     }
 
-    pub fn font_size(self, size: f32) -> Self {
-        Self { font_size: size, ..self }
+    pub fn font_size(self, font_size: f32) -> Self {
+        Self { font_size, ..self }
     }
 
-    /// Fix the row height used for allocation and glyphon metrics.
-    ///
-    /// Pass the same `line_height` used in the sibling [`GlyphonLabel`] so that
-    /// both widgets occupy identical vertical space and `ui.place`'s internal
-    /// `centered_and_justified` layout produces zero centering offset.
     pub fn line_height(self, line_height: f32) -> Self {
         Self { line_height: Some(line_height), ..self }
     }
@@ -246,25 +216,16 @@ impl<'a> GlyphonTextEdit<'a> {
         Self { focus_selection: Some((0, len)), ..self }
     }
 
-    /// Apply `(anchor, cursor)` selection whenever focus is newly gained.
-    /// Used by the tab-rename flow to pre-select the stem of the filename.
     pub fn select_on_focus(self, anchor: usize, cursor: usize) -> Self {
         Self { focus_selection: Some((anchor, cursor)), ..self }
     }
 
-    // -----------------------------------------------------------------------
-    // Pre-frame event processing
-    // -----------------------------------------------------------------------
-
-    /// Process keyboard/text events for this widget id *without* rendering.
+    /// Process keyboard/text events for this widget id without rendering.
     ///
-    /// Call this **before** any sizing that depends on the current text content
-    /// (e.g. before computing `text_rect` for a tab rename) so that the text is
-    /// up-to-date before the rect is measured. When `show` / the `Widget` impl
-    /// subsequently runs, the event queue will already be drained and the input
-    /// pass inside `show_impl` becomes a no-op.
+    /// Call this before any sizing that depends on the current text so that
+    /// the buffer is up-to-date when the rect is measured.
     ///
-    /// Returns `true` if Enter was pressed (submit signal).
+    /// Returns `true` if Enter was pressed.
     pub fn process_events(ui: &mut Ui, id: Id, text: &mut String) -> bool {
         if !ui.memory(|m| m.has_focus(id)) {
             return false;
@@ -275,10 +236,8 @@ impl<'a> GlyphonTextEdit<'a> {
         state.cursor = state.cursor.min(text.len());
         state.anchor = state.anchor.min(text.len());
 
-        // Claim horizontal-arrow keys so they don't bubble to the scroll area.
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EVENT_FILTER));
 
-        // Drain only the events we care about; put the rest back.
         let events = ui.input_mut(|i| {
             let (matching, remaining): (Vec<_>, Vec<_>) = std::mem::take(&mut i.events)
                 .into_iter()
@@ -300,35 +259,23 @@ impl<'a> GlyphonTextEdit<'a> {
         submitted
     }
 
-    // -----------------------------------------------------------------------
-    // Rendering entry points
-    // -----------------------------------------------------------------------
-
     pub fn show(self, ui: &mut Ui) -> Response {
         let id = self.id.unwrap_or_else(|| ui.next_auto_id());
         self.show_impl(ui, id)
     }
 
     fn show_impl(self, ui: &mut Ui, id: Id) -> Response {
-        // Fall back to a plain egui TextEdit if the glyphon font system is not
-        // registered (e.g. in tests or non-wgpu builds).
         let font_system = ui
             .ctx()
-            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL));
-        let Some(font_system) = font_system else {
-            return ui.add(egui::TextEdit::singleline(self.text));
-        };
+            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
+            .expect("GlyphonTextEdit used outside of a wgpu context");
 
         let focused = ui.memory(|m| m.has_focus(id));
         let ppi = ui.ctx().pixels_per_point();
-        // line_height is the full row height including leading; font renders in the middle.
-        // Use the caller-supplied value when provided so this widget's allocated height
-        // matches an adjacent GlyphonLabel exactly, keeping the text baseline stable
-        // across display↔rename transitions.
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
         let now = ui.input(|i| i.time);
 
-        // --- Restore or initialise per-widget state ---
+        // Restore or initialise per-widget state
         let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_else(|| {
             let pos = if self.cursor_at_end { self.text.len() } else { 0 };
             if let Some((anchor, cursor)) = self.focus_selection {
@@ -337,11 +284,10 @@ impl<'a> GlyphonTextEdit<'a> {
                 State { cursor: pos, anchor: pos, ..Default::default() }
             }
         });
-        // Guard against stale offsets after text was changed externally.
         state.cursor = state.cursor.min(self.text.len());
         state.anchor = state.anchor.min(self.text.len());
 
-        // Re-apply the focus selection whenever focus is newly acquired.
+        // Re-apply the focus selection whenever focus is newly acquired
         if focused && !state.was_focused {
             if let Some((anchor, cursor)) = self.focus_selection {
                 state.anchor = anchor.min(self.text.len());
@@ -350,15 +296,12 @@ impl<'a> GlyphonTextEdit<'a> {
         }
         state.was_focused = focused;
 
-        // --- Keyboard / text input ---
-        // This is a no-op when process_events() has already drained the queue
-        // this frame, because filtered_events() will find nothing left to take.
+        // Keyboard / text input
         let mut text_changed = false;
         if focused {
             ui.memory_mut(|m| m.set_focus_lock_filter(id, EVENT_FILTER));
 
             let events = ui.input_mut(|i| i.filtered_events(&EVENT_FILTER));
-
             for event in events {
                 let (changed, submitted) = apply_event(event, &mut state, self.text, now, ui.ctx());
                 if changed {
@@ -370,9 +313,7 @@ impl<'a> GlyphonTextEdit<'a> {
             }
         }
 
-        // --- Shape ---
-        // Layout the full text on a single infinite-width line; singleline_offset
-        // provides the scrolling window. We never wrap.
+        // Shape the full text on a single unbounded line; singleline_offset scrolls the view
         let buffer = {
             let mut fs = font_system.lock().unwrap();
             let mut buf = glyphon::Buffer::new(
@@ -397,22 +338,15 @@ impl<'a> GlyphonTextEdit<'a> {
             / ppi;
         let cursor_x = cursor_x_from_buffer(&buffer, state.cursor, ppi);
 
-        // --- Allocate ---
-        // Fill whatever width the caller gave us. Using available_width() rather
-        // than max_rect().width() means the widget correctly sizes to the
-        // remaining space when placed inline after other widgets (e.g. after an
-        // icon in a ui.horizontal), while still filling the full rect when placed
-        // via ui.put (where available_width == max_rect width).
         let visible_width = ui.available_width();
-        let desired_size = egui::vec2(visible_width, line_height);
-        let (rect, _) = ui.allocate_exact_size(desired_size, Sense::hover());
+        let (rect, _) =
+            ui.allocate_exact_size(egui::vec2(visible_width, line_height), Sense::hover());
         let mut response = ui.interact(rect, id, Sense::click_and_drag());
 
         if response.clicked() || response.drag_started() {
             ui.memory_mut(|m| m.request_focus(id));
         }
 
-        // --- Click / drag to reposition cursor ---
         if focused && (response.clicked() || response.drag_started() || response.dragged()) {
             if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
                 let buf_x = (pos.x - rect.min.x + state.singleline_offset) * ppi;
@@ -421,21 +355,19 @@ impl<'a> GlyphonTextEdit<'a> {
                 if response.drag_started() || response.clicked() {
                     state.move_cursor(byte, false);
                 } else {
-                    // Extend selection while dragging.
                     state.cursor = byte;
                 }
                 state.last_interaction_time = now;
             }
         }
 
-        // --- Singleline scroll: keep the cursor inside the visible window ---
+        // Scroll to cursor
         if focused {
             if cursor_x < state.singleline_offset {
                 state.singleline_offset = cursor_x;
             } else if cursor_x > state.singleline_offset + visible_width {
                 state.singleline_offset = cursor_x - visible_width;
             }
-            // Clamp so we never scroll past the end of the text.
             state.singleline_offset = state
                 .singleline_offset
                 .clamp(0.0, (total_text_width - visible_width).max(0.0));
@@ -445,7 +377,6 @@ impl<'a> GlyphonTextEdit<'a> {
             response.mark_changed();
         }
 
-        // --- IME hint (enables the macOS Character Viewer via the fn key) ---
         if focused {
             let cx =
                 (rect.min.x + cursor_x - state.singleline_offset).clamp(rect.min.x, rect.max.x);
@@ -462,11 +393,9 @@ impl<'a> GlyphonTextEdit<'a> {
 
         ui.data_mut(|d| d.insert_temp(id, state.clone()));
 
-        // --- Render ---
         if ui.is_rect_visible(rect) {
             let visuals = ui.style().interact(&response);
 
-            // Selection highlight — subtle primary tint matching the markdown editor.
             if state.has_selection() {
                 let (lo, hi) = state.selection();
                 let x0 = (cursor_x_from_buffer(&buffer, lo, ppi) - state.singleline_offset)
@@ -488,10 +417,8 @@ impl<'a> GlyphonTextEdit<'a> {
                 );
             }
 
-            // Text — the draw rect slides left by singleline_offset so that the
-            // visible window scrolls over the full laid-out line. Its width is
-            // exactly the measured text width (no inflation), so the GPU scissor
-            // matches the clip_rect and nothing bleeds outside `rect`.
+            // The draw rect slides left by singleline_offset so the visible window
+            // scrolls over the full laid-out line. clip_rect keeps text inside the widget.
             let draw_rect = Rect::from_min_size(
                 egui::pos2(rect.min.x - state.singleline_offset, rect.min.y),
                 egui::vec2(total_text_width.max(visible_width), line_height),
@@ -502,15 +429,14 @@ impl<'a> GlyphonTextEdit<'a> {
                 draw_rect,
                 glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
                 ui.ctx(),
-                rect, // clip_rect — hard boundary; nothing paints outside this
+                rect,
             );
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect, // paint_callback bounds match widget rect exactly
+                    rect,
                     crate::GlyphonRendererCallback::new(vec![area]),
                 ));
 
-            // Blinking text cursor — resets phase on any interaction.
             if focused {
                 let elapsed = now - state.last_interaction_time;
                 let blink_on = elapsed < 0.5 || (elapsed * 2.0).fract() < 0.5;
@@ -531,8 +457,7 @@ impl<'a> GlyphonTextEdit<'a> {
             }
         }
 
-        // Escape cancels the edit without submitting.
-        if focused && ui.input(|i| i.key_pressed(Key::Escape)) {
+        if focused && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
             ui.memory_mut(|m| m.surrender_focus(id));
         }
 
@@ -549,10 +474,6 @@ impl egui::Widget for GlyphonTextEdit<'_> {
         self.show(ui)
     }
 }
-
-// ---------------------------------------------------------------------------
-// Grapheme / hit-test helpers
-// ---------------------------------------------------------------------------
 
 fn prev_grapheme_boundary(s: &str, from: usize) -> usize {
     use unicode_segmentation::UnicodeSegmentation as _;
