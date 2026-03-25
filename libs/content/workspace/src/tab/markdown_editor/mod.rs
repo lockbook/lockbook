@@ -80,7 +80,6 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
-    pub open_file: Option<Uuid>,
 }
 
 pub struct Editor {
@@ -633,15 +632,6 @@ impl Editor {
         }
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
-
-        if !self.readonly
-            && self.focused(ui.ctx())
-            && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command)
-        {
-            if let Some(id) = self.link_under_cursor(root, ui.ctx()) {
-                resp.open_file = Some(id);
-            }
-        }
 
         self.syntax.garbage_collect();
 

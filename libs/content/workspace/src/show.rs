@@ -13,7 +13,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::FilesExt as _;
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, image_viewer};
+use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
@@ -162,9 +162,6 @@ impl Workspace {
                                     }
 
                                     self.out.open_camera = resp.open_camera;
-                                    if let Some(id) = resp.open_file {
-                                        self.open_file(id, true, false);
-                                    }
 
                                     if resp.text_updated {
                                         self.out.markdown_editor_text_updated = true;
@@ -240,6 +237,9 @@ impl Workspace {
                 }
                 for (id, new_tab) in open_ids {
                     self.open_file(id, true, new_tab);
+                }
+                for id in ui.ctx().pop_open_files() {
+                    self.open_file(id, true, false);
                 }
             });
         });

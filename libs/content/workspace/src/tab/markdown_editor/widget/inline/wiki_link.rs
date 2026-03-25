@@ -7,6 +7,7 @@ use crate::file_cache::FileCache;
 use crate::tab::core_get_by_relative_path;
 use crate::tab::core_get_relative_path;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -90,12 +91,12 @@ impl Editor {
         }
     }
 
-    pub fn link_under_cursor<'ast>(
+    pub fn open_link_under_cursor<'ast>(
         &self, root: &'ast AstNode<'ast>, ctx: &egui::Context,
-    ) -> Option<Uuid> {
+    ) {
         let selection = self.buffer.current.selection;
         if selection.0 != selection.1 {
-            return None;
+            return;
         }
         let pos = selection.0;
 
@@ -117,9 +118,9 @@ impl Editor {
 
             if is_wikilink {
                 if let Some(id) = self.resolve_wikilink(&url) {
-                    return Some(id);
+                    ctx.open_file(id);
                 }
-                return None;
+                return;
             }
 
             if !url.starts_with("http://")
@@ -133,15 +134,14 @@ impl Editor {
                     .map(|f| f.parent)
                     .unwrap_or(self.file_id);
                 if let Ok(file) = core_get_by_relative_path(&self.core, from_id, &url) {
-                    return Some(file.id);
+                    ctx.open_file(file.id);
+                    return;
                 }
             }
 
             ctx.open_url(egui::OpenUrl { url: url.to_string(), new_tab: false });
-            return None;
+            return;
         }
-
-        None
     }
 }
 
@@ -184,7 +184,7 @@ impl<'ast> Editor {
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
             if let Some(id) = self.resolve_wikilink(&node_wiki_link.url) {
-                self.next_resp.open_file = Some(id);
+                ui.ctx().open_file(id);
             } else {
                 ui.ctx()
                     .open_url(OpenUrl { url: node_wiki_link.url.clone(), new_tab: cmd });

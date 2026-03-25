@@ -382,6 +382,8 @@ pub trait ExtendedOutput {
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
     fn set_context_menu(&self, pos: egui::Pos2);
     fn pop_context_menu(&self) -> Option<egui::Pos2>;
+    fn open_file(&self, id: Uuid);
+    fn pop_open_files(&self) -> Vec<Uuid>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -404,6 +406,25 @@ impl ExtendedOutput for egui::Context {
 
     fn pop_context_menu(&self) -> Option<egui::Pos2> {
         self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
+    }
+
+    fn open_file(&self, id: Uuid) {
+        self.memory_mut(|m| {
+            let mut files: Vec<Uuid> = m
+                .data
+                .get_temp(Id::new("open_files"))
+                .unwrap_or_default();
+            files.push(id);
+            m.data.insert_temp(Id::new("open_files"), files);
+        })
+    }
+
+    fn pop_open_files(&self) -> Vec<Uuid> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<Uuid>>(Id::new("open_files"))
+                .unwrap_or_default()
+        })
     }
 }
 

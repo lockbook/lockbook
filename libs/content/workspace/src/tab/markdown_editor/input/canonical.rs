@@ -148,9 +148,10 @@ impl<'ast> Editor {
                 })
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
-                if modifiers.command && !cfg!(target_os = "ios") =>
+                if !cfg!(target_os = "ios") && modifiers.command =>
             {
-                None // Cmd+Enter is handled as "open link under cursor" in show()
+                self.open_link_under_cursor(root, &self.ctx);
+                None
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>
