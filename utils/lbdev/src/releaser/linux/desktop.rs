@@ -437,7 +437,7 @@ pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
             "--title",
             &format!("update to {}", version),
             "--body",
-            &format!("Automated release PR"),
+            "",
             "--base",
             "master",
             "--head",
