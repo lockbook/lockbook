@@ -496,7 +496,7 @@ impl Workspace {
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab
-            if ((APPLE && (input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket)))
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
                 || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
                 && self.current_tab != 0
             {
@@ -504,7 +504,7 @@ impl Workspace {
             }
 
             // Cmd+Shift+] or ctrl tab to go to next tab
-            if ((APPLE && (input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket)))
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
                 || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
                 && self.current_tab != self.tabs.len() - 1
             {
