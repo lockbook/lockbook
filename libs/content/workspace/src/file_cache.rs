@@ -168,11 +168,15 @@ pub trait FilesExt {
     /// - external (http/https/mailto/#) — returned as `External(url)`
     /// - relative path — resolved against `from_id`'s folder in the cache
     ///
+    /// Only documents resolve to `File`; folders are treated as broken.
     /// Returns None if the URL is an internal path that doesn't resolve.
     fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
         if let Some(id_str) = url.strip_prefix("lb://") {
             let id = Uuid::parse_str(id_str).ok()?;
-            self.get_by_id(id)?;
+            let file = self.get_by_id(id)?;
+            if !file.is_document() {
+                return None;
+            }
             return Some(ResolvedLink::File(id));
         }
 
@@ -191,16 +195,20 @@ pub trait FilesExt {
             .map(|c| c.into_owned())
             .unwrap_or(canonical);
         let file = self.by_path(&decoded)?;
+        if !file.is_document() {
+            return None;
+        }
         Some(ResolvedLink::File(file.id))
     }
 
-    /// Resolves a wikilink title to a navigable lb:// URL.
+    /// Resolves a wikilink title to a document UUID.
     ///
     /// - disambiguation paths ("folder/title") resolved via relative path from `from_id`
     /// - bare titles matched case-insensitively against the cache
     /// - on conflict, prefers the file closest to `from_id`
     ///
-    /// Returns None if no matching file is found.
+    /// Only documents match; folders are ignored.
+    /// Returns None if no matching document is found.
     fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
         let parent_path = self.path(from_id);
 
@@ -209,7 +217,7 @@ pub trait FilesExt {
                 if title.ends_with(".md") { title.to_string() } else { format!("{}.md", title) };
             let combined = format!("{}/{}", parent_path.trim_end_matches('/'), with_ext);
             let canonical = canonicalize(&combined);
-            if let Some(file) = self.by_path(&canonical) {
+            if let Some(file) = self.by_path(&canonical).filter(|f| f.is_document()) {
                 return Some(file.id);
             }
         }

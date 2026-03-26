@@ -370,9 +370,10 @@ fn populate_insert(
     all_files: &[lb_rs::model::file::File], results: &mut Vec<FileResult>, mode: CompletionMode,
 ) {
     if mode != CompletionMode::WikiLink {
-        // For regular and image links, insert = rel_path directly (path is the canonical ref).
+        // For regular and image links, insert = percent-encoded rel_path.
+        // CommonMark requires spaces (and other special chars) to be encoded in link destinations.
         for result in results.iter_mut() {
-            result.insert = result.rel_path.clone();
+            result.insert = encode_link_path(&result.rel_path);
         }
         return;
     }
@@ -402,6 +403,20 @@ fn populate_insert(
             }
         };
     }
+}
+
+/// Percent-encodes characters that are invalid in CommonMark bare link destinations.
+fn encode_link_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for c in path.chars() {
+        match c {
+            ' ' => out.push_str("%20"),
+            '(' => out.push_str("%28"),
+            ')' => out.push_str("%29"),
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 /// Returns a bool per filename character: true if consumed by the subsequence match.
