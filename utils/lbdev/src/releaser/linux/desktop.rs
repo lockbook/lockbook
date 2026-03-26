@@ -428,10 +428,6 @@ pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
         .args(["commit", "-m", &format!("release {}", version)])
         .current_dir(flatpak_repo)
         .assert_success()?;
-    Command::new("git")
-        .args(["push", "origin", "master"])
-        .current_dir(flatpak_repo)
-        .assert_success()?;
     Command::new("gh")
         .args([
             "pr",
