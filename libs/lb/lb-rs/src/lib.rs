@@ -28,15 +28,16 @@ pub mod subscribers;
 #[derive(Clone)]
 pub struct Lb {
     pub config: Config,
+    pub user_last_seen: Arc<RwLock<Instant>>,
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
-    #[cfg(not(target_family = "wasm"))]
-    pub search: SearchIndex,
     pub client: Network,
     pub events: EventSubs,
-    pub syncing: Arc<AtomicBool>,
     pub status: StatusUpdater,
+    pub syncer: Syncer,
+    #[cfg(not(target_family = "wasm"))]
+    pub search: SearchIndex,
 }
 
 impl Lb {
@@ -56,14 +57,16 @@ impl Lb {
             schema_name: Default::default(),
         })
         .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         Ok(Self {
+            user_last_seen,
             config: config.clone(),
             keychain: Default::default(),
             db: Arc::new(RwLock::new(db)),
             docs: AsyncDocs::from(&config),
             client: Default::default(),
-            syncing: Default::default(),
+            syncer: Default::default(),
             events: Default::default(),
             status: Default::default(),
         })
@@ -76,7 +79,8 @@ impl Lb {
         logging::init(&config)?;
 
         let docs = AsyncDocs::from(&config);
-        let db = migrate_and_init(&config, &docs).await?;
+        let db_cfg = db_rs::Config::in_folder(&config.writeable_path);
+        let db = CoreDb::init(db_cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let client = Network::default();
@@ -84,8 +88,9 @@ impl Lb {
         let search = SearchIndex::default();
 
         let status = StatusUpdater::default();
-        let syncing = Arc::default();
+        let syncer = Default::default();
         let events = EventSubs::default();
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         let result = Self {
             config,
@@ -93,15 +98,17 @@ impl Lb {
             db,
             docs,
             client,
-            #[cfg(not(target_family = "wasm"))]
-            search,
-            syncing,
+            syncer,
             events,
             status,
+            user_last_seen,
+            #[cfg(not(target_family = "wasm"))]
+            search,
         };
 
         #[cfg(not(target_family = "wasm"))]
         {
+            result.setup_syncer();
             result.setup_search();
             result.setup_status().await?;
         }
@@ -114,26 +121,25 @@ pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-pub static DEFAULT_API_LOCATION: &str = "https://api.prod.lockbook.net";
+pub static DEFAULT_API_LOCATION: &str = "https://app.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[cfg(target_family = "wasm")]
 use crate::io::CoreDb;
-#[cfg(target_family = "wasm")]
+use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
 #[cfg(not(target_family = "wasm"))]
 use subscribers::search::SearchIndex;
 
 use crate::service::logging;
+use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;
-use io::{LbDb, migrate_and_init};
 use model::core_config::Config;
 pub use model::errors::{LbErrKind, LbResult};
 use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use subscribers::status::StatusUpdater;
 use tokio::sync::RwLock;
 pub use uuid::Uuid;
+use web_time::Instant;

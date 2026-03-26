@@ -9,7 +9,6 @@ use std::path::Path;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
-    upload_deb_gh()?;
     update_aur()?;
     update_snap()?;
     upload_gh()?;
@@ -373,8 +372,7 @@ pub fn update_flatpak() -> CliResult<()> {
         .args([
             "clone",
             "--depth=1",
-            // todo: change once we have a successful release
-            "https://github.com/lockbook/net.lockbook.Lockbook/",
+            &format!("https://parth:{}@github.com/flathub/net.lockbook.Lockbook", Github::env().0),
             &flatpak_repo_directory,
         ])
         .assert_success()?;
@@ -420,6 +418,10 @@ pub fn update_flatpak() -> CliResult<()> {
 }
 
 pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
+    Command::new("git")
+        .args(["checkout", "-b", version])
+        .current_dir(flatpak_repo)
+        .assert_success()?;
     Command::new("git")
         .args(["add", "-A"])
         .current_dir(flatpak_repo)

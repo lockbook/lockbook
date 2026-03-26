@@ -18,5 +18,4 @@ pub mod lb_id;
 pub mod logging;
 pub mod path;
 pub mod share;
-pub mod sync;
 pub mod usage;

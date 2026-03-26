@@ -189,7 +189,10 @@ impl Lb {
                     };
 
                     match evt {
-                        Event::MetadataChanged => {
+                        Event::UserSignedIn => {
+                            lb.build_index().await.log_and_ignore();
+                        }
+                        Event::MetadataChanged(_) => {
                             if let Some(replacement_index) =
                                 SearchMetadata::populate(&lb).await.log_and_ignore()
                             {
@@ -242,6 +245,7 @@ impl Lb {
             };
 
             let Ok(doc) = self.read_document(file.id, false).await else {
+                error!("failed to read doc");
                 continue;
             };
 

@@ -17,6 +17,7 @@ cd ../docs ; mdbook build ; mv book ../public-site/public ; cd ../public-site/pu
 
 if [ "$DEPLOY" = true ]; then
     gcloud storage cp -r public/* gs://lockbook.net/
+    gcloud storage cp -r static/.well-known gs://lockbook.net/
 else 
     cd public && python3 -m http.server 5500
 fi

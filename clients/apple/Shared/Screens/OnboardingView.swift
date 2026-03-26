@@ -154,7 +154,7 @@ private struct OnboardingTwoView: View {
     func createAccount() {
         working = true
         error = nil
-        let apiUrl = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
+        let apiUrl = AppState.LB_API_URL ?? "https://app.lockbook.net"
 
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = AppState.lb.createAccount(username: username, apiUrl: apiUrl, welcomeDoc: true)
@@ -430,7 +430,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
+    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://app.lockbook.net"
 
     @Environment(\.dismiss) private var dismiss
 
@@ -502,11 +502,8 @@ struct ImportAccountSyncView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                ProgressView(value: model.syncProgress)
-                    .frame(maxWidth: 700)
-
-                Text(model.syncMsg)
-                    .foregroundColor(.secondary)
+                ProgressView("Signing In")
+                    .progressViewStyle(.circular)
             }
 
             Spacer()
@@ -519,9 +516,6 @@ struct ImportAccountSyncView: View {
 }
 
 class ImportAccountSyncViewModel: ObservableObject {
-    @Published var syncMsg: String = "..."
-    @Published var syncProgress: Float = 0
-
     @Published var error: String? = nil
 
     init() {
@@ -530,13 +524,7 @@ class ImportAccountSyncViewModel: ObservableObject {
 
     func sync() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = AppState.lb.sync { total, progress, _, msg in
-                DispatchQueue.main.async {
-                    self.syncProgress = Float(progress) / Float(total)
-                    self.syncMsg = msg
-                }
-            }
-
+            let result = AppState.lb.sync()
             DispatchQueue.main.async {
                 switch result {
                 case .success:

@@ -1,5 +1,6 @@
 use std::cell::RefCell;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
@@ -29,7 +30,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::FrontMatter(_) => self.width - 2. * self.layout.margin,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -120,7 +121,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         let height = match value {
-            NodeValue::FrontMatter(_) => 0.,
+            NodeValue::FrontMatter(_) => self.height_front_matter(node),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -215,7 +216,7 @@ impl<'ast> Editor {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => {}
+            NodeValue::FrontMatter(_) => self.show_front_matter(ui, node, top_left),
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -572,6 +573,12 @@ pub struct LinePrefixCacheEntry {
     value: (RelCharOffset, bool),
 }
 
+pub enum TitleState {
+    Loading,
+    Loaded(String),
+    Failed,
+}
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
@@ -579,6 +586,7 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
+    pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
 
 #[derive(Hash, PartialEq, Eq)]
@@ -615,6 +623,7 @@ impl LayoutCache {
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.glyphon_buffers.borrow_mut().clear();
+        // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 }
 
@@ -650,11 +659,24 @@ impl Editor {
                 let metrics = glyphon::Metrics::new(font_size, line_height);
                 let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
                 b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
-                b.set_text(
+                let emoji_attrs =
+                    glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
+                let spans = text.graphemes(true).map(|g| {
+                    let is_emoji = g.chars().any(|c| {
+                        matches!(
+                            c as u32,
+                            0xFE0F  // variation selector-16: emoji presentation
+                        | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+                        )
+                    });
+                    (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+                });
+                b.set_rich_text(
                     &mut self.font_system.lock().unwrap(),
-                    text,
+                    spans,
                     &attrs,
                     glyphon::Shaping::Advanced,
+                    None,
                 );
                 b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
                 Arc::new(RwLock::new(b))

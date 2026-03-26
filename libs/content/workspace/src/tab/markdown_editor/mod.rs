@@ -2,6 +2,7 @@ use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
+use std::sync::OnceLock;
 use std::sync::{Arc, Mutex, RwLock};
 use web_time::Instant;
 
@@ -26,7 +27,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::ThemeSet;
+use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
@@ -34,6 +35,27 @@ use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
+
+static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+static SYNTAX_THEME: OnceLock<Theme> = OnceLock::new();
+
+pub fn syntax_set() -> &'static SyntaxSet {
+    SYNTAX_SET.get_or_init(|| {
+        HighlightingAssets::from_binary()
+            .get_syntax_set()
+            .unwrap()
+            .clone()
+    })
+}
+
+pub fn syntax_theme() -> &'static Theme {
+    SYNTAX_THEME.get_or_init(|| {
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
+        let mut buffer = BufReader::new(cursor);
+        ThemeSet::load_from_reader(&mut buffer).unwrap()
+    })
+}
 
 pub mod bounds;
 mod galleys;
@@ -70,14 +92,13 @@ pub struct Editor {
 
     // theme
     dark_mode: bool, // supports change detection
-    syntax_set: SyntaxSet,
-    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
     pub plaintext_mode: bool,
+    pub syntax_ext: String,
     pub touch_mode: bool,
     pub readonly: bool,
 
@@ -154,6 +175,7 @@ pub struct MdResources {
 pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
+    pub ext: String,
 }
 
 pub struct MdLayout {
@@ -209,17 +231,9 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, font_system, files } = res;
-        let MdConfig { plaintext_mode, readonly } = cfg;
+        let MdConfig { plaintext_mode, readonly, ext } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
-        let highlighting_assets = HighlightingAssets::from_binary();
-        let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
-
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
@@ -232,8 +246,6 @@ impl Editor {
             files,
 
             dark_mode,
-            syntax_set,
-            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -243,6 +255,7 @@ impl Editor {
             hmac,
             initialized: Default::default(),
             plaintext_mode,
+            syntax_ext: ext,
             touch_mode,
             layout,
 
@@ -262,7 +275,8 @@ impl Editor {
 
             in_progress_selection: None,
 
-            virtual_keyboard_shown: Default::default(),
+            // this is used to toggle the mobile toolbar
+            virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
             unprocessed_scroll: Default::default(),
 
@@ -297,7 +311,7 @@ impl Editor {
                 font_system: Arc::new(Mutex::new(crate::make_font_system())),
                 files: Arc::new(RwLock::new(None)),
             },
-            MdConfig { plaintext_mode: false, readonly: false },
+            MdConfig { plaintext_mode: false, readonly: false, ext: String::new() },
         )
     }
 
@@ -342,7 +356,7 @@ impl Editor {
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
         options.extension.footnotes = true;
-        options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
+        options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
         options.extension.highlight = true;
@@ -605,7 +619,7 @@ impl Editor {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     ui.max_rect(),
-                    crate::GlyphonRendererCallback { buffers: text_areas },
+                    crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
         self.syntax.garbage_collect();
@@ -816,6 +830,18 @@ impl Editor {
                     let color = theme.bg().get_color(theme.prefs().primary);
                     self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
+
+                    if self.focused(ui.ctx()) {
+                        if let Some([top, bot]) = self.cursor_line(selection.1) {
+                            let cursor_rect = egui::Rect::from_min_max(top, bot);
+                            ui.output_mut(|o| {
+                                o.ime = Some(egui::output::IMEOutput {
+                                    rect: ui.max_rect(),
+                                    cursor_rect,
+                                });
+                            });
+                        }
+                    }
                 }
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);

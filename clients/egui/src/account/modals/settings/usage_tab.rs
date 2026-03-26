@@ -2,7 +2,7 @@ use std::sync::mpsc;
 
 use egui_extras::{Size, StripBuilder};
 use lb::model::api::{PaymentMethod, StripeAccountTier, SubscriptionInfo};
-use lb::service::usage::{UsageItemMetric, UsageMetrics};
+use lb::service::usage::UsageMetrics;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette::ThemePalette;
 use workspace_rs::widgets::{separator, subscription};
@@ -18,7 +18,6 @@ pub struct UsageSettings {
 pub struct UsageSettingsInfo {
     pub sub_info_result: Result<Option<SubscriptionInfo>, String>,
     pub metrics_result: Result<UsageMetrics, String>,
-    pub uncompressed_result: Result<UsageItemMetric, String>,
 }
 
 pub struct Upgrading {
@@ -93,15 +92,9 @@ impl super::SettingsModal {
 
                                     let metrics_result =
                                         core.get_usage().map_err(|err| format!("{err:?}")); // TODO
-                                    let uncompressed_result = core
-                                        .get_uncompressed_usage()
-                                        .map_err(|err| format!("{err:?}")); // TODO
 
-                                    let new_usage_data = UsageSettingsInfo {
-                                        sub_info_result,
-                                        metrics_result,
-                                        uncompressed_result,
-                                    };
+                                    let new_usage_data =
+                                        UsageSettingsInfo { sub_info_result, metrics_result };
 
                                     update_tx.send(Ok(new_usage_data)).unwrap();
                                 }
@@ -127,17 +120,9 @@ impl super::SettingsModal {
                 }
             };
 
-            let uncompressed = match &info.uncompressed_result {
-                Ok(v) => v,
-                Err(err) => {
-                    ui.label(err);
-                    return None;
-                }
-            };
-
             match &info.sub_info_result {
                 Ok(maybe_info) => {
-                    subscription(ui, maybe_info, metrics, Some(uncompressed));
+                    subscription(ui, maybe_info, metrics);
 
                     if maybe_info.is_none() {
                         ui.add_space(25.0);

@@ -1,3 +1,4 @@
+use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -285,10 +286,9 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = self
-            .syntax_set
+        let mut highlighter = syntax_set()
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
@@ -301,7 +301,7 @@ impl<'ast> Editor {
                 let mut regions = Vec::new();
                 let mut region_start = self.offset_to_byte(code_line.start());
                 for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, &self.syntax_set)
+                    .highlight_line(code_line_text, syntax_set())
                     .unwrap()
                 {
                     let region_end = region_start + region_str.len();
@@ -363,10 +363,9 @@ impl<'ast> Editor {
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = self
-            .syntax_set
+        let mut highlighter = syntax_set()
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, &self.syntax_theme));
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
@@ -379,7 +378,7 @@ impl<'ast> Editor {
                 let mut regions = Vec::new();
                 let mut region_start = self.offset_to_byte(code_line.start());
                 for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, &self.syntax_set)
+                    .highlight_line(code_line_text, syntax_set())
                     .unwrap()
                 {
                     let region_end = region_start + region_str.len();
@@ -403,21 +402,11 @@ impl<'ast> Editor {
                 );
             }
             for (style, region) in regions {
-                let theme = self.ctx.get_lb_theme();
-
-                // theme file contains placeholder colors that we map here based on our theme
                 let hex =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
                         .to_hex();
-                let hex = hex.strip_suffix("ff").unwrap(); // all colors reported with 100% transparency
-                text_format.color = match hex {
-                    "#000000" => theme.neutral_fg(),
-                    "#111111" => theme.neutral_fg_secondary(),
-                    "#222222" => theme.fg().get_color(theme.prefs().primary),
-                    "#333333" => theme.fg().get_color(theme.prefs().secondary),
-                    "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-                    _ => theme.neutral_fg(),
-                };
+                let hex = hex.strip_suffix("ff").unwrap();
+                text_format.color = self.syntax_color_for_hex(hex);
 
                 self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
             }
@@ -432,6 +421,7 @@ impl<'ast> Editor {
     // "The closing code fence may be indented up to three spaces, and may be
     // followed only by spaces, which are ignored."
     // https://github.github.com/gfm/#fenced-code-blocks
+
     fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (DocCharOffset, DocCharOffset),

@@ -63,12 +63,8 @@ impl SettingsModal {
                     .map_err(|err| format!("{err:?}")); // TODO
 
                 let metrics_result = core.get_usage().map_err(|err| format!("{err:?}")); // TODO
-                let uncompressed_result = core
-                    .get_uncompressed_usage()
-                    .map_err(|err| format!("{err:?}")); // TODO
 
-                let usage_info =
-                    UsageSettingsInfo { sub_info_result, metrics_result, uncompressed_result };
+                let usage_info = UsageSettingsInfo { sub_info_result, metrics_result };
 
                 // error ignored, sometimes settings is closed before it's result is seen, it's fine
                 info_tx.send(usage_info).unwrap_or_default();

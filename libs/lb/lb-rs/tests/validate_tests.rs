@@ -57,9 +57,9 @@ async fn directly_shared_link() {
         .share_file(shared_doc.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
     let link = cores[1]
         .create_link_at_path("/link", shared_doc.id)
         .await

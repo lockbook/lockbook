@@ -15,10 +15,8 @@ use lb_rs::model::api::{
 pub use lb_rs::model::core_config::Config;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
-use lb_rs::model::work_unit::WorkUnit;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
-use lb_rs::service::sync::{SyncProgress, SyncStatus};
 use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
@@ -441,19 +439,6 @@ pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_getUncompressedUsage<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jstring {
-    let lb = rlb(&mut env, &class);
-
-    match lb.get_uncompressed_usage() {
-        Ok(usage) => jusage_item_metric(&mut env, usage),
-        Err(err) => throw_err(&mut env, err),
-    }
-    .into_raw()
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_deleteFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
 ) {
@@ -541,105 +526,13 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, jsync_progress: JObject<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>, _jsync_progress: JObject<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
 
-    let f: Option<Box<dyn Fn(SyncProgress) + Send>> = if jsync_progress.is_null() {
-        None
-    } else {
-        let jvm = env.get_java_vm().unwrap();
-        let jsync_progress = env.new_global_ref(jsync_progress).unwrap();
-
-        Some(Box::new(move |sync_progress: SyncProgress| {
-            let mut env = jvm.attach_current_thread().unwrap();
-
-            let msg = jni_string(&mut env, sync_progress.msg);
-            let args = [
-                JValue::Int(sync_progress.total as i32),
-                JValue::Int(sync_progress.progress as i32),
-                JValue::Object(&msg),
-            ]
-            .to_vec();
-
-            env.call_method(
-                jsync_progress.as_obj(),
-                "updateSyncProgressAndTotal",
-                "(IILjava/lang/String;)V",
-                args.as_slice(),
-            )
-            .unwrap();
-        }))
-    };
-
-    if let Err(err) = lb.sync(f) {
+    if let Err(err) = lb.sync() {
         throw_err(&mut env, err);
     }
-}
-
-fn jsync_status<'local>(env: &mut JNIEnv<'local>, sync_status: SyncStatus) -> JObject<'local> {
-    let sync_status_class = env.find_class("net/lockbook/SyncStatus").unwrap();
-    let sync_status_obj = env.alloc_object(sync_status_class).unwrap();
-
-    // latest server ts
-    env.set_field(
-        &sync_status_obj,
-        "latestServerTS",
-        "J",
-        JValue::Long(sync_status.latest_server_ts as jlong),
-    )
-    .unwrap();
-
-    // work units
-    let work_unit_class = env.find_class("net/lockbook/SyncStatus$WorkUnit").unwrap();
-
-    let work_units_array = env
-        .new_object_array(sync_status.work_units.len() as i32, &work_unit_class, JObject::null())
-        .unwrap();
-
-    for (i, work_unit) in sync_status.work_units.iter().enumerate() {
-        let work_unit_obj = env.alloc_object(&work_unit_class).unwrap();
-
-        let (id, is_local_change) = match work_unit {
-            WorkUnit::LocalChange(id) => (id, 1),
-            WorkUnit::ServerChange(id) => (id, 0),
-        };
-
-        // id
-        let id = jni_string(env, id.to_string());
-        env.set_field(&work_unit_obj, "id", "Ljava/lang/String;", JValue::Object(&id))
-            .unwrap();
-
-        // is local change
-        env.set_field(&work_unit_obj, "isLocalChange", "Z", JValue::Bool(is_local_change))
-            .unwrap();
-
-        env.set_object_array_element(&work_units_array, i as i32, work_unit_obj)
-            .unwrap();
-    }
-
-    env.set_field(
-        &sync_status_obj,
-        "workUnits",
-        "[Lnet/lockbook/SyncStatus$WorkUnit;",
-        JValue::Object(&work_units_array),
-    )
-    .unwrap();
-
-    sync_status_obj
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_calculateWork<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jobject {
-    let lb: &mut Lb = rlb(&mut env, &class);
-
-    match lb.calculate_work() {
-        Ok(sync_status) => jsync_status(&mut env, sync_status),
-        Err(err) => throw_err(&mut env, err),
-    }
-    .into_raw()
 }
 
 #[unsafe(no_mangle)]

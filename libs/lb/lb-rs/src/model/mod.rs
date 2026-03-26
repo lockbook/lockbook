@@ -39,6 +39,5 @@ pub mod text;
 pub mod tree_like;
 pub mod usage;
 pub mod validate;
-pub mod work_unit;
 
 pub use lazy::ValidationFailure;

@@ -1,9 +1,8 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
-    Align2, DragAndDrop, EventFilter, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef,
-    Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, ViewportCommand, include_image,
-    vec2,
+    Align2, DragAndDrop, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText,
+    Sense, TextWrapMode, UiBuilder, ViewportCommand, include_image, vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,7 +16,7 @@ use crate::output::Response;
 use crate::tab::{ContentState, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
-use crate::widgets::IconButton;
+use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
 
@@ -25,7 +24,7 @@ impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
-            self.user_last_seen = Instant::now();
+            self.core.app_foregrounded();
         }
 
         self.set_tooltip_visibility(ui);
@@ -33,7 +32,6 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
-        self.status.message = self.status_message();
 
         if self.is_empty() {
             if self.show_tabs {
@@ -307,25 +305,6 @@ impl Workspace {
 
                                                 self.out.tab_title_clicked = true;
                                                 let active_name = self.tab_title(&self.tabs[i]);
-
-                                                let mut rename_edit_state =
-                                                    egui::text_edit::TextEditState::default();
-                                                rename_edit_state.cursor.set_char_range(Some(
-                                                    egui::text::CCursorRange {
-                                                        primary: egui::text::CCursor::new(
-                                                            active_name
-                                                                .rfind('.')
-                                                                .unwrap_or(active_name.len()),
-                                                        ),
-                                                        secondary: egui::text::CCursor::new(0),
-                                                        h_pos: None,
-                                                    },
-                                                ));
-                                                egui::TextEdit::store_state(
-                                                    ui.ctx(),
-                                                    egui::Id::new("rename_tab"),
-                                                    rename_edit_state,
-                                                );
                                                 self.tabs[i].rename = Some(active_name);
                                             } else {
                                                 self.tabs[i].rename = None;
@@ -583,27 +562,53 @@ impl Workspace {
 
         let tab_padding = egui::Margin::symmetric(10, 10);
 
+        let rename_id = egui::Id::new("rename_tab").with(t);
+        let mut rename_submitted = false;
+        if let Some(ref mut str) = self.tabs[t].rename {
+            rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
+        }
+        let rename_text_for_sizing = self.tabs[t].rename.clone().unwrap_or_default();
         let tab_label = egui::Frame::default()
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                let mut ui_builder = UiBuilder::new();
-                if self.tabs[t].rename.is_some() {
-                    ui_builder = ui_builder.invisible();
-                }
-                ui.scope_builder(ui_builder, |ui| {
+                let is_renaming = self.tabs[t].rename.is_some();
+                ui.scope_builder(UiBuilder::new(), |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
                     // create galleys - text layout
 
                     // tab label - the actual file name
-                    let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-                    let text = text.into_galley(
-                        ui,
-                        Some(TextWrapMode::Truncate),
-                        200.0,
-                        egui::TextStyle::Body,
-                    );
+                    let tab_font_size = 14.0;
+                    let tab_line_height = 20.0;
+                    let tab_max_width = 200.0;
+                    let raw_title = self.tab_title(&self.tabs[t]);
+                    let title = if DocType::from_name(&raw_title).hide_ext() {
+                        std::path::Path::new(&raw_title)
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or(&raw_title)
+                            .to_string()
+                    } else {
+                        raw_title.clone()
+                    };
+                    let text_width = GlyphonLabel::new(&title, egui::Color32::default())
+                        .font_size(tab_font_size)
+                        .line_height(tab_line_height)
+                        .max_width(tab_max_width)
+                        .measure(ui)
+                        .x;
+                    let text_size = if is_renaming {
+                        let rw =
+                            GlyphonLabel::new(&rename_text_for_sizing, egui::Color32::default())
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .measure(ui)
+                                .x;
+                        egui::vec2(rw, tab_line_height)
+                    } else {
+                        egui::vec2(text_width, tab_line_height)
+                    };
 
                     // tab marker - tab status / tab number
                     let tab_marker = if status == TabStatus::Clean {
@@ -640,23 +645,19 @@ impl Workspace {
                     // create rects - place these relative to one another
                     let marker_rect = centered_galley_rect(&tab_marker);
                     let marker_rect = Align2::LEFT_TOP.anchor_size(
-                        start
-                            + egui::vec2(
-                                0.0,
-                                text.rect.height() / 2.0 - marker_rect.height() / 2.0,
-                            ),
+                        start + egui::vec2(0.0, text_size.y / 2.0 - marker_rect.height() / 2.0),
                         marker_rect.size(),
                     );
 
                     let text_rect = egui::Align2::LEFT_TOP.anchor_size(
                         start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
-                        text.size(),
+                        text_size,
                     );
 
                     let close_button_rect = centered_galley_rect(&close_button);
                     let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
                         text_rect.right_top()
-                            + vec2(5.0, (text.rect.height() - close_button_rect.height()) / 2.0),
+                            + vec2(5.0, (text_size.y - close_button_rect.height()) / 2.0),
                         close_button_rect.size(),
                     );
 
@@ -665,13 +666,6 @@ impl Workspace {
                     let right_bottom =
                         close_button_rect.right_bottom() + tab_padding.right_bottom();
                     let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
-
-                    // uncomment to see geometry debug views
-                    // let s = egui::Stroke::new(1., egui::Color32::RED);
-                    // ui.painter().rect_stroke(marker_rect, 1., s);
-                    // ui.painter().rect_stroke(text_rect, 1., s);
-                    // ui.painter().rect_stroke(close_button_rect, 1., s);
-                    // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
                     let touch_mode =
@@ -707,8 +701,38 @@ impl Workspace {
                             .linear_multiply(0.8)
                     };
 
-                    // draw the tab text
-                    ui.painter().galley(text_rect.min, text, text_color);
+                    if let Some(ref mut str) = self.tabs[t].rename {
+                        let stem_end = str.rfind('.').unwrap_or(str.len());
+                        let res = ui.put(
+                            text_rect,
+                            GlyphonTextEdit::new(str)
+                                .id(rename_id)
+                                .font_size(14.0)
+                                .select_on_focus(0, stem_end),
+                        );
+
+                        if !res.has_focus() && !res.lost_focus() {
+                            // request focus on the first frame
+                            ui.memory_mut(|m| m.request_focus(res.id));
+                        }
+
+                        if rename_submitted {
+                            result = Some(TabLabelResponse::Renamed(str.to_owned()));
+                        }
+
+                        // release focus to cancel ('esc' or click elsewhere)
+                        if res.lost_focus() {
+                            self.tabs[t].rename = None;
+                        }
+                    } else {
+                        ui.put(
+                            text_rect,
+                            GlyphonLabel::new(&title, text_color)
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .max_width(tab_max_width),
+                        );
+                    }
 
                     if close_button_clicked || tab_label_resp.middle_clicked() {
                         result = Some(TabLabelResponse::Closed);
@@ -790,53 +814,12 @@ impl Workspace {
                         }
                     }
 
-                    tab_label_resp
+                    Rect::from_min_max(
+                        text_rect.min,
+                        egui::pos2(close_button_rect.min.x - 5.0, text_rect.max.y),
+                    )
                 })
             });
-
-        // renaming
-        if let Some(ref mut str) = self.tabs[t].rename {
-            let res = ui
-                .scope_builder(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(str)
-                            .font(TextStyle::Small)
-                            .frame(false)
-                            .id(egui::Id::new("rename_tab")),
-                    )
-                })
-                .inner;
-
-            if !res.has_focus() && !res.lost_focus() {
-                // request focus on the first frame (todo: wrong but works)
-                res.request_focus();
-            }
-            if res.has_focus() {
-                // focus lock filter must be set every frame
-                ui.memory_mut(|m| {
-                    m.set_focus_lock_filter(
-                        res.id,
-                        EventFilter {
-                            tab: true, // suppress 'tab' behavior
-                            horizontal_arrows: true,
-                            vertical_arrows: true,
-                            escape: false, // press 'esc' to release focus
-                        },
-                    )
-                })
-            }
-
-            // submit
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                result = Some(TabLabelResponse::Renamed(str.to_owned()));
-                // t.rename = None; is done by code processing this response
-            }
-
-            // release focus to cancel ('esc' or click elsewhere)
-            if res.lost_focus() {
-                self.tabs[t].rename = None;
-            }
-        }
 
         if is_active && active_tab_changed {
             tab_label.response.scroll_to_me(None);
@@ -849,10 +832,6 @@ impl Workspace {
                 0.0,
                 egui::Color32::WHITE.linear_multiply(0.002),
             );
-        }
-
-        if is_active && active_tab_changed {
-            tab_label.response.scroll_to_me(None);
         }
 
         // draw separators
@@ -871,18 +850,9 @@ impl Workspace {
         );
 
         tab_label.response.on_hover_ui(|ui| {
-            let text = self.tab_status(t).summary();
-            let text: egui::WidgetText = RichText::from(text).size(15.0).into();
-            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
-            ui.add(egui::Label::new(text));
-
+            ui.label(RichText::from(self.tab_status(t).summary()).size(15.0));
             let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-            let text: egui::WidgetText = RichText::from(format!("last saved {last_saved}"))
-                .size(12.0)
-                .into();
-            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
-            ui.add(egui::Label::new(text));
-
+            ui.label(RichText::from(format!("last saved {last_saved}")).size(12.0));
             ui.ctx().request_repaint_after_secs(1.0);
         });
 
@@ -1012,6 +982,13 @@ impl Display for DocType {
     }
 }
 
+pub fn syntax_ext_for(ext: &str) -> &str {
+    match ext {
+        "jsonl" | "jsonc" => "json",
+        other => other,
+    }
+}
+
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
@@ -1020,9 +997,14 @@ impl DocType {
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
-            "go" => Self::Code,
             "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if crate::tab::markdown_editor::syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(ext))
+                .is_some() =>
+            {
+                Self::Code
+            }
             _ => Self::Unknown,
         }
     }
@@ -1036,6 +1018,14 @@ impl DocType {
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
+        }
+    }
+
+    pub fn plaintext_mode(&self) -> Option<bool> {
+        match self {
+            DocType::Markdown => Some(false),
+            DocType::PlainText | DocType::Code => Some(true),
+            _ => None,
         }
     }
 
