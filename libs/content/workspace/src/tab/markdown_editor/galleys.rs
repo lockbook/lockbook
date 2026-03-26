@@ -89,10 +89,8 @@ impl Editor {
         let owned_glyphs = if self.galleys.len() > galley_idx + 1 {
             let next_galley = &self.galleys.galleys[galley_idx + 1];
             if next_galley.range.start() == galley.range.end() && glyphs.len() > 1 {
-                // when galleys touch, the boundary belongs to the later galley;
-                // only reduce if there are at least 2 glyphs so we never get 0
-                // owned glyphs (which would snap the cursor to the galley start)
-                glyphs.len() - 1
+                // when galleys touch, the boundary belongs to the later galley
+                glyphs.len().saturating_sub(1)
             } else {
                 // doesn't touch next galley
                 glyphs.len()
