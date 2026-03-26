@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 	<key>API_LOCATION</key>
 	<string>${API_LOCATION}</string>
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
