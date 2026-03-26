@@ -78,13 +78,7 @@ impl ShapedLabel {
                 egui::pos2(rect.max.x - hint.size.x, rect.min.y),
                 hint.size,
             );
-            areas.push(TextBufferArea::new(
-                hint.buffer,
-                hint_rect,
-                hint.color,
-                ctx,
-                clip_rect,
-            ));
+            areas.push(TextBufferArea::new(hint.buffer, hint_rect, hint.color, ctx, clip_rect));
         }
 
         areas

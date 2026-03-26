@@ -16,7 +16,6 @@ pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-
 impl<'ast> Editor {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {

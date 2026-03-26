@@ -207,7 +207,7 @@ fn query_range(
         CompletionMode::Link => 1,      // [
         CompletionMode::ImageLink => 2, // ![
     };
-    let start = DocCharOffset(range.0 .0 + prefix_len);
+    let start = DocCharOffset(range.0.0 + prefix_len);
 
     // For wiki links, exclude trailing `]]` if present.
     // For regular/image links, the query is only the display text before `]`.
@@ -215,7 +215,7 @@ fn query_range(
     let end = match mode {
         CompletionMode::WikiLink => {
             let trimmed = raw.trim_end_matches(']');
-            DocCharOffset(range.0 .0 + trimmed.len())
+            DocCharOffset(range.0.0 + trimmed.len())
         }
         CompletionMode::Link | CompletionMode::ImageLink => {
             let after_prefix = &raw[prefix_len..];
@@ -575,8 +575,9 @@ impl Editor {
         let modifier = if cfg!(target_os = "macos") { "⌘" } else { "^" };
         let lq = query.trim_end_matches(".md").to_lowercase();
 
-        let shortcuts: Vec<String> =
-            (0..results.len()).map(|i| format!("{}{}", modifier, i + 1)).collect();
+        let shortcuts: Vec<String> = (0..results.len())
+            .map(|i| format!("{}{}", modifier, i + 1))
+            .collect();
 
         // Measure each name+shortcut label (shortcut is the built-in hint).
         let label_widths: Vec<f32> = results
@@ -606,8 +607,7 @@ impl Editor {
             .iter()
             .zip(label_widths.iter())
             .map(|(r, &lw)| {
-                let budget =
-                    (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
+                let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
                 abbreviate_path(&r.rel_path, budget, |text| measure_path(text))
             })
             .collect();
@@ -659,7 +659,11 @@ impl Editor {
 
         // -- Draw backgrounds ------------------------------------------------------
         self.draw_completion_popup(
-            ui, popup_rect, &row_rects, self.link_completions.selected, hover_pos,
+            ui,
+            popup_rect,
+            &row_rects,
+            self.link_completions.selected,
+            hover_pos,
         );
 
         // -- Render text -----------------------------------------------------------
@@ -693,10 +697,7 @@ impl Editor {
                 .line_height(self.layout.completion_line_height)
                 .build(ui.ctx());
             let path_rect = Rect::from_min_size(
-                Pos2::new(
-                    content_rect.max.x - shortcut_width - 8.0 - shaped.size.x,
-                    text_top,
-                ),
+                Pos2::new(content_rect.max.x - shortcut_width - 8.0 - shaped.size.x, text_top),
                 Vec2::new(shaped.size.x, self.layout.completion_line_height),
             );
             text_areas.push(shaped.text_area(path_rect, ui.ctx(), clip_rect));

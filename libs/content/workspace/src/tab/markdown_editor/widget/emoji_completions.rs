@@ -326,8 +326,9 @@ impl Editor {
             .map(|emoji| matching_shortcode(emoji, &query))
             .collect();
 
-        let hints: Vec<String> =
-            (0..results.len()).map(|i| format!("{}{}", modifier, i + 1)).collect();
+        let hints: Vec<String> = (0..results.len())
+            .map(|i| format!("{}{}", modifier, i + 1))
+            .collect();
 
         let spans: Vec<Vec<(String, bool)>> = results
             .iter()
@@ -388,7 +389,11 @@ impl Editor {
 
         // -- Draw backgrounds ------------------------------------------------------
         self.draw_completion_popup(
-            ui, popup_rect, &row_rects, self.emoji_completions.selected, hover_pos,
+            ui,
+            popup_rect,
+            &row_rects,
+            self.emoji_completions.selected,
+            hover_pos,
         );
 
         // -- Render text -----------------------------------------------------------
