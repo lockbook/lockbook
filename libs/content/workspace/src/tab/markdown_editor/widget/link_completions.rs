@@ -12,9 +12,9 @@ use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, Format};
-use crate::tab::markdown_editor::widget::utils::{
+use crate::tab::markdown_editor::widget::utils::{base_attrs, sans_fmt, to_glyphon};
+use crate::tab::markdown_editor::widget::{
     COMPLETION_FONT_SIZE, COMPLETION_LINE_HEIGHT, COMPLETION_MEASURE_WIDTH, COMPLETION_ROW_HEIGHT,
-    base_attrs, draw_completion_popup, sans_fmt, to_glyphon,
 };
 
 const MAX_RESULTS: usize = 7;
@@ -55,8 +55,9 @@ impl LinkCompletions {
         self.search_term_range = None;
 
         let Some((range, mode)) = detect_any(buffer) else { return };
-        let query = query_from_range(buffer, range, mode);
-        if self.suppressed.as_deref() == Some(query.as_str()) {
+        let qr = query_range(buffer, range, mode);
+        let query = &buffer[qr];
+        if self.suppressed.as_deref() == Some(query) {
             return;
         }
         // A complete token means the cursor navigated into existing syntax — don't activate.
@@ -70,17 +71,7 @@ impl LinkCompletions {
         }
         self.mode = mode;
         self.active = true;
-
-        // Skip past the opening syntax to get the query text range.
-        let prefix_len = match mode {
-            CompletionMode::WikiLink => 2,  // [[
-            CompletionMode::Link => 1,      // [
-            CompletionMode::ImageLink => 2, // ![
-        };
-        let query_start = DocCharOffset(range.0.0 + prefix_len);
-        // For [text](url) the query is only the text before `]`.
-        let query_end = DocCharOffset(query_start.0 + query.len());
-        self.search_term_range = Some((query_start, query_end));
+        self.search_term_range = Some(qr);
     }
 }
 
@@ -214,22 +205,33 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
     Some(((DocCharOffset(start), DocCharOffset(j)), is_image))
 }
 
-/// Extracts the search query from a detected token range, stripping link syntax.
-fn query_from_range(
+/// Returns the sub-range of `range` covering just the query text, with syntax stripped.
+fn query_range(
     buffer: &Buffer, range: (DocCharOffset, DocCharOffset), mode: CompletionMode,
-) -> String {
+) -> (DocCharOffset, DocCharOffset) {
+    let prefix_len = match mode {
+        CompletionMode::WikiLink => 2,  // [[
+        CompletionMode::Link => 1,      // [
+        CompletionMode::ImageLink => 2, // ![
+    };
+    let start = DocCharOffset(range.0 .0 + prefix_len);
+
+    // For wiki links, exclude trailing `]]` if present.
+    // For regular/image links, the query is only the display text before `]`.
     let raw = &buffer[range];
-    match mode {
-        CompletionMode::WikiLink => raw
-            .trim_start_matches('[')
-            .trim_end_matches(']')
-            .to_string(),
-        CompletionMode::Link | CompletionMode::ImageLink => {
-            // Strip leading `![` or `[`, then take only text before the first `]`.
-            let s = raw.trim_start_matches('!').trim_start_matches('[');
-            s.split(']').next().unwrap_or("").to_string()
+    let end = match mode {
+        CompletionMode::WikiLink => {
+            let trimmed = raw.trim_end_matches(']');
+            DocCharOffset(range.0 .0 + trimmed.len())
         }
-    }
+        CompletionMode::Link | CompletionMode::ImageLink => {
+            let after_prefix = &raw[prefix_len..];
+            let text_len = after_prefix.find(']').unwrap_or(after_prefix.len());
+            DocCharOffset(start.0 + text_len)
+        }
+    };
+
+    (start, end)
 }
 
 struct FileResult {
@@ -478,7 +480,8 @@ impl Editor {
         let Some(((bracket_start, replace_end), mode)) = detect_any(&self.buffer) else {
             return;
         };
-        let query = query_from_range(&self.buffer, (bracket_start, replace_end), mode);
+        let qr = query_range(&self.buffer, (bracket_start, replace_end), mode);
+        let query = self.buffer[qr].to_string();
 
         if self.link_completions.suppressed.as_deref() == Some(query.as_str()) {
             return;
@@ -662,17 +665,12 @@ impl Editor {
             }
         }
 
-        // Draw frame and row backgrounds.
-        draw_completion_popup(
-            ui.painter(),
+        self.draw_completion_popup(
+            ui,
             popup_rect,
             &row_rects,
             self.link_completions.selected,
             hover_pos,
-            ui.visuals().extreme_bg_color,
-            ui.visuals().widgets.hovered.bg_fill,
-            ui.visuals().selection.bg_fill.gamma_multiply(0.3),
-            ui.visuals().widgets.noninteractive.bg_stroke.color,
         );
 
         let text_color = ui.visuals().text_color();

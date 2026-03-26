@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Ui, UiBuilder};
+use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
@@ -15,6 +15,12 @@ pub(crate) mod inline;
 pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
+
+pub const COMPLETION_FONT_SIZE: f32 = 14.0;
+pub const COMPLETION_LINE_HEIGHT: f32 = COMPLETION_FONT_SIZE + 2.0;
+pub const COMPLETION_ROW_HEIGHT: f32 = COMPLETION_LINE_HEIGHT + 8.0;
+pub const COMPLETION_CORNER_RADIUS: u8 = 4;
+pub const COMPLETION_MEASURE_WIDTH: f32 = 1000.0;
 
 impl<'ast> Editor {
     /// Returns the range for the node.
@@ -309,6 +315,37 @@ impl<'ast> Editor {
             NodeValue::Paragraph => self.compute_bounds_paragraph(node),
             NodeValue::TableCell => self.compute_bounds_table_cell(node),
             NodeValue::ThematicBreak => {}
+        }
+    }
+
+    /// Draws the background frame and per-row highlights for a completion popup.
+    /// Text rendering is handled separately by each completion type.
+    pub fn draw_completion_popup(
+        &self, ui: &Ui, popup_rect: Rect, row_rects: &[Rect], selected: usize,
+        hover_pos: Option<egui::Pos2>,
+    ) {
+        let vis = ui.visuals();
+        let bg = vis.extreme_bg_color;
+        let hover_bg = vis.widgets.hovered.bg_fill;
+        let selected_bg = vis.selection.bg_fill.gamma_multiply(0.3);
+        let border_color = vis.widgets.noninteractive.bg_stroke.color;
+
+        let cr = CornerRadius::same(COMPLETION_CORNER_RADIUS);
+        let painter = ui.painter();
+        painter.rect(popup_rect, cr, bg, Stroke::new(1.0, border_color), StrokeKind::Outside);
+        let last = row_rects.len().saturating_sub(1);
+        for (idx, rect) in row_rects.iter().enumerate() {
+            let row_cr = CornerRadius {
+                nw: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
+                ne: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
+                sw: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
+                se: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
+            };
+            if idx == selected {
+                painter.rect_filled(*rect, row_cr, selected_bg);
+            } else if hover_pos.is_some_and(|p| rect.contains(p)) {
+                painter.rect_filled(*rect, row_cr, hover_bg);
+            }
         }
     }
 }

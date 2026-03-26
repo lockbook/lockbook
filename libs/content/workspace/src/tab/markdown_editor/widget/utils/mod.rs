@@ -1,5 +1,4 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{CornerRadius, Painter, Rect, Stroke, StrokeKind};
 use glyphon::{Attrs, Color as GlyphonColor, Family};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
 
@@ -7,11 +6,6 @@ use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
-pub const COMPLETION_FONT_SIZE: f32 = 14.0;
-pub const COMPLETION_LINE_HEIGHT: f32 = COMPLETION_FONT_SIZE + 2.0;
-pub const COMPLETION_ROW_HEIGHT: f32 = COMPLETION_LINE_HEIGHT + 8.0;
-pub const COMPLETION_CORNER_RADIUS: u8 = 4;
-pub const COMPLETION_MEASURE_WIDTH: f32 = 1000.0;
 
 pub fn to_glyphon(c: egui::Color32) -> GlyphonColor {
     GlyphonColor::rgba(c.r(), c.g(), c.b(), c.a())
@@ -37,29 +31,6 @@ pub fn sans_fmt() -> Format {
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn draw_completion_popup(
-    painter: &Painter, popup_rect: Rect, row_rects: &[Rect], selected: usize,
-    hover_pos: Option<egui::Pos2>, bg: egui::Color32, hover_bg: egui::Color32,
-    selected_bg: egui::Color32, border_color: egui::Color32,
-) {
-    let cr = CornerRadius::same(COMPLETION_CORNER_RADIUS);
-    painter.rect(popup_rect, cr, bg, Stroke::new(1.0, border_color), StrokeKind::Outside);
-    let last = row_rects.len().saturating_sub(1);
-    for (idx, rect) in row_rects.iter().enumerate() {
-        let row_cr = CornerRadius {
-            nw: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
-            ne: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
-            sw: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
-            se: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
-        };
-        if idx == selected {
-            painter.rect_filled(*rect, row_cr, selected_bg);
-        } else if hover_pos.is_some_and(|p| rect.contains(p)) {
-            painter.rect_filled(*rect, row_cr, hover_bg);
-        }
-    }
-}
 
 pub(crate) mod wrap_layout;
 

@@ -9,9 +9,9 @@ use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily, Format};
-use crate::tab::markdown_editor::widget::utils::{
+use crate::tab::markdown_editor::widget::utils::{base_attrs, sans_fmt, to_glyphon};
+use crate::tab::markdown_editor::widget::{
     COMPLETION_FONT_SIZE, COMPLETION_LINE_HEIGHT, COMPLETION_MEASURE_WIDTH, COMPLETION_ROW_HEIGHT,
-    base_attrs, draw_completion_popup, sans_fmt, to_glyphon,
 };
 
 const MAX_RESULTS: usize = 5;
@@ -389,17 +389,8 @@ impl Editor {
             }
         }
 
-        // Draw frame and row backgrounds using the egui painter (plain shapes, no text).
-        draw_completion_popup(
-            ui.painter(),
-            popup_rect,
-            &row_rects,
-            self.emoji_completions.selected,
-            hover_pos,
-            ui.visuals().extreme_bg_color,
-            ui.visuals().widgets.hovered.bg_fill,
-            ui.visuals().selection.bg_fill.gamma_multiply(0.3),
-            ui.visuals().widgets.noninteractive.bg_stroke.color,
+        self.draw_completion_popup(
+            ui, popup_rect, &row_rects, self.emoji_completions.selected, hover_pos,
         );
 
         // Build glyphon text buffers. Glyphon (not egui's text system) is required
