@@ -16,10 +16,6 @@ pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-pub const COMPLETION_FONT_SIZE: f32 = 14.0;
-pub const COMPLETION_LINE_HEIGHT: f32 = COMPLETION_FONT_SIZE + 2.0;
-pub const COMPLETION_ROW_HEIGHT: f32 = COMPLETION_LINE_HEIGHT + 8.0;
-pub const COMPLETION_CORNER_RADIUS: u8 = 4;
 
 impl<'ast> Editor {
     /// Returns the range for the node.
@@ -329,16 +325,16 @@ impl<'ast> Editor {
         let selected_bg = vis.selection.bg_fill.gamma_multiply(0.3);
         let border_color = vis.widgets.noninteractive.bg_stroke.color;
 
-        let cr = CornerRadius::same(COMPLETION_CORNER_RADIUS);
+        let cr = CornerRadius::same(self.layout.completion_corner_radius);
         let painter = ui.painter();
         painter.rect(popup_rect, cr, bg, Stroke::new(1.0, border_color), StrokeKind::Outside);
         let last = row_rects.len().saturating_sub(1);
         for (idx, rect) in row_rects.iter().enumerate() {
             let row_cr = CornerRadius {
-                nw: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
-                ne: if idx == 0 { COMPLETION_CORNER_RADIUS } else { 0 },
-                sw: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
-                se: if idx == last { COMPLETION_CORNER_RADIUS } else { 0 },
+                nw: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
+                ne: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
+                sw: if idx == last { self.layout.completion_corner_radius } else { 0 },
+                se: if idx == last { self.layout.completion_corner_radius } else { 0 },
             };
             if idx == selected {
                 painter.rect_filled(*rect, row_cr, selected_bg);

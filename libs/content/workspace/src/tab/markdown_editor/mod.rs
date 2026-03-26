@@ -192,6 +192,10 @@ pub struct MdLayout {
     pub bullet_radius: f32,
     pub row_spacing: f32,
     pub block_spacing: f32,
+    pub completion_font_size: f32,
+    pub completion_line_height: f32,
+    pub completion_row_height: f32,
+    pub completion_corner_radius: u8,
 }
 
 impl MdLayout {
@@ -206,6 +210,10 @@ impl MdLayout {
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 14.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 
@@ -220,6 +228,10 @@ impl MdLayout {
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 12.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 }
