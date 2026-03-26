@@ -4,15 +4,13 @@ on:
   release:
     types: [published]
   workflow_dispatch:
-  workflow_call:
 
 jobs:
   deploy-flatpak:
     if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, ci]
-    env: 
-      GITHUB_TOKEN: ${{ secrets.FH_PAT }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Deploy public site
-        run: nix-shell -p python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser desktop flatpak"
+    - uses: actions/checkout@v4 
+    - name: 
+      run: nix-shell -p python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser desktop flatpak"
+
