@@ -326,9 +326,13 @@ impl Editor {
             .map(|emoji| matching_shortcode(emoji, &query))
             .collect();
 
-        let hints: Vec<String> = (0..results.len())
-            .map(|i| format!("{}{}", modifier, i + 1))
-            .collect();
+        let hints: Vec<String> = if self.touch_mode {
+            Vec::new()
+        } else {
+            (0..results.len())
+                .map(|i| format!("{}{}", modifier, i + 1))
+                .collect()
+        };
 
         let spans: Vec<Vec<(String, bool)>> = results
             .iter()
@@ -338,16 +342,17 @@ impl Editor {
 
         let max_width = spans
             .iter()
-            .zip(hints.iter())
-            .map(|(s, hint)| {
+            .enumerate()
+            .map(|(i, s)| {
                 let span_refs: Vec<(&str, bool)> =
                     s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-                GlyphonLabel::new_rich(span_refs, text_color)
-                    .hint(hint, hint_color)
+                let mut label = GlyphonLabel::new_rich(span_refs, text_color)
                     .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height)
-                    .measure(ui)
-                    .x
+                    .line_height(self.layout.completion_line_height);
+                if let Some(hint) = hints.get(i) {
+                    label = label.hint(hint, hint_color);
+                }
+                label.measure(ui).x
             })
             .fold(0.0_f32, f32::max);
 
@@ -364,6 +369,7 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
+        self.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
@@ -410,11 +416,13 @@ impl Editor {
 
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-            let shaped = GlyphonLabel::new_rich(span_refs, text_color)
-                .hint(&hints[idx], hint_color)
+            let mut label = GlyphonLabel::new_rich(span_refs, text_color)
                 .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height)
-                .build(ui.ctx());
+                .line_height(self.layout.completion_line_height);
+            if let Some(hint) = hints.get(idx) {
+                label = label.hint(hint, hint_color);
+            }
+            let shaped = label.build(ui.ctx());
             text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
         }
 
