@@ -225,6 +225,7 @@ impl Roger {
         match event {
             Event::PredictedTouch { id, force, pos } => {
                 if let Some(start_touch) = self.tool_start_touch {
+                    debug!(?event);
                     if start_touch.eq(&id) {
                         self.response.hide_overlay = pos_collides_with_layout(*pos, ctx);
 
@@ -295,6 +296,11 @@ impl Roger {
                         self.response.hide_overlay = false;
                     }
                 }
+
+                if let Some(RogerEvent::ToolRun(..)) = roger_event {
+                    self.tool_hover_pos.0 = egui::pos2(f32::NEG_INFINITY, f32::NEG_INFINITY);
+                }
+
                 roger_event
             })
             .collect();
@@ -648,12 +654,12 @@ impl Roger {
             let old_layer = ctx.painter.layer_id();
 
             ctx.painter.set_layer_id(egui::LayerId {
-                order: egui::Order::Foreground, // todo: check if this is right
+                order: egui::Order::Middle, // todo: check if this is right
                 id: "pen_overlay".into(),
             });
 
             let elpased = Instant::now() - self.tool_hover_pos.1;
-            let target_opacity = if elpased > Duration::milliseconds(600) { 0.0 } else { 1.0 };
+            let target_opacity = if elpased > Duration::milliseconds(300) { 0.0 } else { 1.0 };
 
             let opacity = ui.ctx().animate_value_with_time(
                 egui::Id::new("tool_hover_indicator_ui"),

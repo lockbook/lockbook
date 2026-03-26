@@ -861,6 +861,7 @@
         var tapRecognizer: UITapGestureRecognizer?
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
+        var pinchStartTouches = [(Float, Float)]()
 
         // menu
         var menuDelegate: SvgMenuDelegate?
@@ -921,11 +922,11 @@
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-            if !UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
-                pan.minimumNumberOfTouches = 1
-            } else {
-                pan.minimumNumberOfTouches = 2
-            }
+//            if !UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
+//                pan.minimumNumberOfTouches = 1
+//            } else {
+//                pan.minimumNumberOfTouches = 2
+//            }
             pan.cancelsTouchesInView = false
 
             pan.delegate = gestureDelegate
@@ -997,24 +998,40 @@
                 self.mtkView.kineticTimer?.invalidate()
                 self.mtkView.kineticTimer = nil
             }
+            
+            if event.state == .began{
+                pinchStartTouches.removeAll()
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        pinchStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
+            }
 
             let scale = event.scale
-            let pinchCenter = event.location(in: self.mtkView)
+            let pinchCenter = event.location(in: self)
 
             if event.state == .changed {
                 let zoomDelta = Float(scale)
-
-                zoom(self.wsHandle, zoomDelta)
 
                 let viewCenter = CGPoint(x: self.mtkView.bounds.midX, y: self.mtkView.bounds.midY)
                 let offsetX = pinchCenter.x - viewCenter.x
                 let offsetY = pinchCenter.y - viewCenter.y
 
-                let panX = offsetX * (scale - 1.0)
-                let panY = offsetY * (scale - 1.0)
 
-                pan(self.wsHandle, Float(panX), Float(panY))
-
+                multi_touch(
+                    self.wsHandle,
+                    0.0,
+                    0.0,
+                    zoomDelta,
+                    Float(pinchCenter.x),
+                    Float(pinchCenter.y),
+                    pinchStartTouches.map{$0.0},
+                    pinchStartTouches.map{$0.1},
+                    UInt(pinchStartTouches.count)
+                )
+                
                 event.scale = 1.0
 
             }
@@ -1349,6 +1366,8 @@
 
         // gestures
         var panRecognizer: UIPanGestureRecognizer?
+        var panStartTouches = [(Float, Float)]()
+
 
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
@@ -1472,8 +1491,15 @@
             }
 
             if event.state == .began {
+                panStartTouches.removeAll()
                 kineticTimer?.invalidate()
                 kineticTimer = nil
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        panStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
             }
 
             var velocity = event.velocity(in: self)
@@ -1502,18 +1528,37 @@
                         self.kineticTimer = nil
                         return
                     }
+                        
+                    multi_touch(
+                        self.wsHandle,
+                        Float(velocity.x),
+                        Float(velocity.y),
+                        1.0,
+                        0.0,
+                        0.0,
+                        panStartTouches.map{$0.0},
+                        panStartTouches.map{$0.1},
+                        UInt(panStartTouches.count)
+                    )
 
-                    pan(self.wsHandle, Float(velocity.x), Float(velocity.y))
-                    mouse_gone(self.wsHandle)
-
+                    
                     self.setNeedsDisplay()
                 }
             } else {
                 let translation = event.translation(in: self)
 
-                pan(self.wsHandle, Float(translation.x), Float(translation.y))
-                mouse_moved(
-                    wsHandle, Float(event.location(in: self).x), Float(event.location(in: self).y))
+                
+                multi_touch(
+                    self.wsHandle,
+                    Float(translation.x),
+                    Float(translation.y),
+                    1.0,
+                    0.0,
+                    0.0,
+                    panStartTouches.map{$0.0},
+                    panStartTouches.map{$0.1},
+                    UInt(panStartTouches.count)
+                )
 
                 event.setTranslation(.zero, in: self)
 
@@ -1566,7 +1611,6 @@
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
                 let value = getTouchID(for: touch, createIfMissing: true)
 
                 for touch in event!.coalescedTouches(for: touch)! {
@@ -1582,7 +1626,6 @@
 
         public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
@@ -1604,7 +1647,6 @@
 
         public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
@@ -1619,7 +1661,6 @@
 
         public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
                 let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)

@@ -93,6 +93,10 @@ object Workspace {
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+    external fun touchesPredicted(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+
+    external fun mouseMoved(rustObj: Long, x: Float, y: Float)
+
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesCancelled(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun multiTouch(rustObj: Long, x: Float, y: Float, factor: Float, focusX: Float, focusY: Float, startX: FloatArray, startY: FloatArray)

@@ -148,6 +148,33 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesMoved(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesPredicted(
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let force = get_force(pressure);
+    let pos = obj.renderer.pos_from_points(x, y);
+
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::PredictedTouch { id: TouchId(id as u64), force, pos });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_mouseMoved(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerMoved(pos));
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
     _env: JNIEnv, _: JClass, obj: jlong, id: jint, x: jfloat, y: jfloat, pressure: jfloat,
 ) {

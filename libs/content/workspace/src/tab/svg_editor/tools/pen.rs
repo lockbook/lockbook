@@ -79,7 +79,6 @@ impl PenSettings {
 pub enum PathEvent {
     Draw(ToolPayload),
     PredictedDraw(ToolPayload),
-    ClearPredictedTouches,
     End(ToolPayload),
     CancelStroke,
 }
@@ -105,23 +104,19 @@ impl RogerTool for Pen {
     }
 
     fn handle_tool_event(&mut self, _: &mut egui::Ui, event: PathEvent, pen_ctx: &mut ToolContext) {
+        if self.path_builder.first_predicted_mg.is_some() {
+            self.clear_predicted_points(pen_ctx);
+        }
+
         match event {
             PathEvent::Draw(payload) => self.draw(pen_ctx, payload),
             PathEvent::End(payload) => self.end(pen_ctx, payload),
             PathEvent::CancelStroke => self.cancel_path(pen_ctx),
             PathEvent::PredictedDraw(payload) => self.predict_draw(pen_ctx, payload),
-            PathEvent::ClearPredictedTouches => self.clear_predicted_points(pen_ctx),
         }
     }
 
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, pen_ctx: &mut ToolContext<'_>) {
-        let old_layer = pen_ctx.painter.layer_id();
-
-        pen_ctx.painter.set_layer_id(egui::LayerId {
-            order: egui::Order::Foreground,
-            id: "pen_overlay".into(),
-        });
-
         let is_current_path_empty =
             if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                 path.data.is_empty()
@@ -144,8 +139,6 @@ impl RogerTool for Pen {
                 ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode),
             );
         }
-
-        pen_ctx.painter.set_layer_id(old_layer);
     }
 
     fn show_tool_ui(&mut self, _: &mut egui::Ui, _: &mut ToolContext) {}
@@ -201,22 +194,11 @@ impl Pen {
             let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
 
             if new_seg_i.is_some() {
-                if let Some(force) = payload.force {
-                    if let Some(forces) =
-                        pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id)
-                    {
-                        forces.push((force * 2. - 1.) * self.pressure_alpha);
-                    }
-                }
+                self.insert_force(pen_ctx, payload.force);
             }
         } else {
             event!(Level::TRACE, "starting a new path");
-            if let Some(force) = payload.force {
-                pen_ctx
-                    .buffer
-                    .weak_path_pressures
-                    .insert(self.current_id, vec![(force * 2. - 1.) * self.pressure_alpha]);
-            }
+            self.insert_force(pen_ctx, payload.force);
 
             let el = Element::Path(Path {
                 data: Subpath::new(vec![], false),
@@ -236,6 +218,19 @@ impl Pen {
 
             if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
                 self.path_builder.line_to(payload.pos, &mut p.data);
+            }
+        }
+    }
+
+    fn insert_force(&mut self, pen_ctx: &mut ToolContext<'_>, force: Option<f32>) {
+        if let Some(force) = force {
+            if let Some(forces) = pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id) {
+                forces.push((force * 2. - 1.) * self.pressure_alpha);
+            } else {
+                pen_ctx
+                    .buffer
+                    .weak_path_pressures
+                    .insert(self.current_id, vec![(force * 2. - 1.) * self.pressure_alpha]);
             }
         }
     }

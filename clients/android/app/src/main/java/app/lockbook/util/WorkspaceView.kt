@@ -1,5 +1,6 @@
 package app.lockbook.util
 
+import android.R
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -9,9 +10,11 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.Build
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
+import android.view.InputDevice
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -21,8 +24,12 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.OverScroller
+import android.widget.PopupMenu
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
+import androidx.input.motionprediction.MotionEventPredictor
 import app.lockbook.App
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -90,9 +97,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             distanceX: Float,
             distanceY: Float
         ): Boolean {
-            if (!isPenOnlyDraw() && e2.pointerCount == 1){
+            if (e2.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
+                !isPenOnlyDraw() && e2.pointerCount == 1){
                 return false
             }
+
             propagateFlick = true;
 
             pendingDx.getAndUpdate { it - distanceX }
@@ -148,6 +157,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
 
+
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             pendingZoom.set(1f)
@@ -155,7 +165,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val halfSpanY = detector.currentSpanY / 2f
             gestureStartPositions = arrayOf(
                 PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
-                // PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
+                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
             )
             return true
         }
@@ -168,15 +178,27 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return true
         }
 
-
+        override fun onScaleEnd(detector: ScaleGestureDetector) {
+            super.onScaleEnd(detector)
+        }
     }
 
+    val tapListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            cancelTouches(e)
+            return true
+        }
+    }
+
+    private val tapDetector: GestureDetector = GestureDetector(context, tapListener)
     private val scaleDetector: ScaleGestureDetector = ScaleGestureDetector(context, scaleListener)
 
     init {
         holder.addCallback(this)
         holder.setFormat(PixelFormat.TRANSPARENT)
     }
+
+    var motionEventPredictor = MotionEventPredictor.newInstance(this)
 
     fun startRendering() {
 
@@ -205,11 +227,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         if (event != null) {
             requestFocus()
+            motionEventPredictor.record(event)
 
             scaleDetector.onTouchEvent(event)
             scrollDetector.onTouchEvent(event)
+            tapDetector.onTouchEvent(event)
 
             forwardedTouchEvent(event, 0f)
+
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
             if (model.currentTab.value?.type?.isTextEdit() ?: true) {
@@ -218,6 +243,24 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         return true
+    }
+
+    override fun onHoverEvent(event: MotionEvent): Boolean {
+        if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
+            val density = context.resources.displayMetrics.density
+
+            when (event.actionMasked) {
+                MotionEvent.ACTION_HOVER_MOVE -> {
+                    Workspace.mouseMoved(
+                        WGPU_OBJ,
+                        event.getX(event.actionIndex) / density,
+                        event.getY(event.actionIndex) / density,
+                    )
+                }
+            }
+            return true
+        }
+        return super.onHoverEvent(event)
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
@@ -395,18 +438,27 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         redrawChannel.trySend(Unit)
     }
 
+    fun cancelTouches(event: MotionEvent) {
+        for (i in 0 until event.pointerCount) {
+            val pointerId = event.getPointerId(i)
+            val pressure = event.getPressure(i)
+            Workspace.touchesCancelled(
+                WGPU_OBJ,
+                pointerId,
+                event.getX(i),
+                event.getY(i),
+                pressure
+            )
+        }
+    }
+
     fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
         val action = event.action and MotionEvent.ACTION_MASK
         val actionIndex = event.actionIndex
-        val touchType = event.getToolType(actionIndex)
-        val pressure = if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
-            event.pressure
-        }else {
-            Float.NaN
-        }
+        val pressure = getEventPressure(event, actionIndex)
 
         when (action){
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
@@ -426,7 +478,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             }
             MotionEvent.ACTION_MOVE -> {
-                // MOVE events need to loop - all pointers moved
                 for (i in 0 until event.pointerCount) {
                     val pointerId = event.getPointerId(i)
                     Workspace.touchesMoved(
@@ -434,8 +485,21 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         pointerId,
                         event.getX(i),
                         event.getY(i) + touchOffsetY,
-                        pressure
+                        getEventPressure(event, i)
                     )
+                }
+                motionEventPredictor.predict()?.let { predicted ->
+                    val density = resources.displayMetrics.density
+                    for (i in 0 until predicted.pointerCount) {
+                        Workspace.touchesPredicted(
+                            WGPU_OBJ,
+                            predicted.getPointerId(i),
+                            predicted.getX(i) / density,
+                            predicted.getY(i) / density + touchOffsetY,
+                            getEventPressure(predicted, i)
+                        )
+                    }
+                    predicted.recycle()
                 }
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
@@ -460,10 +524,18 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-
-
-
         drawImmediately()
+    }
+
+    private fun getEventPressure(event: MotionEvent, actionIndex: Int): Float {
+        val touchType = event.getToolType(actionIndex)
+
+        val pressure = if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
+            event.pressure * 10f // hack: on the z-fold the range is 0-0.1, uplift this to 0-1
+        } else {
+            Float.NaN
+        }
+        return pressure
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {

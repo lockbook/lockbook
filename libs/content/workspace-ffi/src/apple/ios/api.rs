@@ -409,23 +409,36 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn pan(obj: *mut c_void, scroll_x: f32, scroll_y: f32) {
+pub unsafe extern "C" fn multi_touch(
+    obj: *mut c_void, x: f32, y: f32, factor: f32, focus_x: f32, focus_y: f32, start_x: *const f32,
+    start_y: *const f32, start_count: usize,
+) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.renderer.raw_input.events.push(egui::Event::MouseWheel {
-        unit: MouseWheelUnit::Point,
-        delta: vec2(scroll_x, scroll_y),
-        modifiers: egui::Modifiers::NONE,
-    });
+    let start_positions = parse_start_positions(obj, start_x, start_y, start_count);
+    let translation_delta = egui::vec2(x, y);
+    let center_pos = obj.renderer.pos_from_points(focus_x, focus_y);
+    obj.renderer
+        .context
+        .push_event(workspace_rs::Event::MultiTouchGesture {
+            rotation_delta: 0.0,
+            translation_delta,
+            zoom_factor: factor,
+            center_pos,
+            start_positions,
+        });
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn zoom(obj: *mut c_void, scale: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.renderer.raw_input.events.push(egui::Event::Zoom(scale));
+fn parse_start_positions(
+    obj: &WgpuWorkspace, start_x: *const f32, start_y: *const f32, count: usize,
+) -> Vec<egui::Pos2> {
+    (0..count)
+        .map(|i| unsafe {
+            let x = *start_x.add(i);
+            let y = *start_y.add(i);
+            obj.renderer.pos_from_points(x, y)
+        })
+        .collect()
 }
 
 /// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan

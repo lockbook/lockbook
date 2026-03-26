@@ -46,6 +46,7 @@ impl RogerTool for Eraser {
             RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
                 Some(EraseEvent::Build(payload.pos))
             }
+            RogerEvent::ToolPredictedRun(pos, _) => Some(EraseEvent::Build(pos)),
             RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
             RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
                 Some(EraseEvent::Cancel)
