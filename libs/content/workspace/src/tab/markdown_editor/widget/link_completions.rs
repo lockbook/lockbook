@@ -608,7 +608,7 @@ impl Editor {
             .zip(label_widths.iter())
             .map(|(r, &lw)| {
                 let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
-                abbreviate_path(&r.rel_path, budget, |text| measure_path(text))
+                abbreviate_path(&r.rel_path, budget, measure_path)
             })
             .collect();
 
