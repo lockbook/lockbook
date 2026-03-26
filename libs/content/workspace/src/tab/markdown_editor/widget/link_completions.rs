@@ -77,7 +77,7 @@ impl LinkCompletions {
             CompletionMode::Link => 1,      // [
             CompletionMode::ImageLink => 2, // ![
         };
-        let query_start = DocCharOffset(range.0 .0 + prefix_len);
+        let query_start = DocCharOffset(range.0.0 + prefix_len);
         // For [text](url) the query is only the text before `]`.
         let query_end = DocCharOffset(query_start.0 + query.len());
         self.search_term_range = Some((query_start, query_end));
@@ -248,7 +248,10 @@ fn search(
     let files = &cache.files;
     // Paths in markdown are relative to the parent folder of the current file,
     // matching how the image cache and existing link insertion resolve them.
-    let from_id = files.get_by_id(file_id).map(|f| f.parent).unwrap_or(file_id);
+    let from_id = files
+        .get_by_id(file_id)
+        .map(|f| f.parent)
+        .unwrap_or(file_id);
     let lq = query.trim_end_matches(".md").to_lowercase();
 
     // For image links, match against the full filename (including extension).

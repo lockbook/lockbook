@@ -409,10 +409,8 @@ impl ExtendedOutput for egui::Context {
 
     fn open_file(&self, id: Uuid, new_tab: bool) {
         self.memory_mut(|m| {
-            let mut files: Vec<(Uuid, bool)> = m
-                .data
-                .get_temp(Id::new("open_files"))
-                .unwrap_or_default();
+            let mut files: Vec<(Uuid, bool)> =
+                m.data.get_temp(Id::new("open_files")).unwrap_or_default();
             files.push((id, new_tab));
             m.data.insert_temp(Id::new("open_files"), files);
         })
@@ -529,4 +527,3 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
 
     file
 }
-
