@@ -1,12 +1,14 @@
-use comrak::nodes::{AstNode, NodeLink};
+use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{OpenUrl, Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
-use lb_rs::{Uuid, spawn};
+use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex};
 
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::show::DocType;
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::block::TitleState;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -21,13 +23,15 @@ enum DestinationTitle {
 }
 
 impl<'ast> Editor {
-    pub fn text_format_link(&self, parent: &AstNode<'_>) -> Format {
+    pub fn text_format_link(&self, parent: &AstNode<'_>, broken: bool) -> Format {
         let parent_text_format = self.text_format(parent);
-        Format { color: self.ctx.get_lb_theme().fg().blue, underline: true, ..parent_text_format }
+        let theme = self.ctx.get_lb_theme();
+        let color = if broken { theme.fg().red } else { theme.fg().blue };
+        Format { color, underline: true, ..parent_text_format }
     }
 
     pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
-        Format { family: FontFamily::Icons, ..self.text_format_link(parent) }
+        Format { family: FontFamily::Icons, ..self.text_format_link(parent, false) }
     }
 
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
@@ -59,7 +63,7 @@ impl<'ast> Editor {
                     tmp_wrap.offset += self.span_override_section(
                         &tmp_wrap,
                         &t,
-                        self.text_format_link(node.parent().unwrap()),
+                        self.text_format_link(node.parent().unwrap(), false),
                     );
                     true
                 }
@@ -112,7 +116,7 @@ impl<'ast> Editor {
                         top_left,
                         wrap,
                         trimmed,
-                        self.text_format_link(node.parent().unwrap()),
+                        self.text_format_link(node.parent().unwrap(), false),
                         Some(&t),
                         Sense::hover(),
                     ),
@@ -167,20 +171,82 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            let url = self
-                .resolve_link(&node_link.url)
-                .unwrap_or_else(|| node_link.url.clone());
-            ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
+            match self.resolve_link(&node_link.url) {
+                Some(ResolvedLink::File(id)) => {
+                    ui.ctx().open_file(id, cmd);
+                }
+                Some(ResolvedLink::External(url)) => {
+                    ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
+                }
+                None => {
+                    ui.ctx()
+                        .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
+                }
+            }
         }
 
         response
     }
 
-    pub fn resolve_link(&self, url: &str) -> Option<String> {
+    pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         let guard = self.files.read().unwrap();
         let cache = guard.as_ref()?;
         let from_id = cache.files.get_by_id(self.file_id)?.parent;
         cache.files.resolve_link(url, from_id)
+    }
+
+    pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
+        let selection = self.buffer.current.selection;
+
+        let mut file_ids = vec![];
+        let mut urls = vec![];
+
+        for node in root.descendants() {
+            let node_range = self.node_range(node);
+            if !node_range.intersects(&selection, true) {
+                continue;
+            }
+
+            let (url, is_wikilink) = {
+                let data = node.data.borrow();
+                match &data.value {
+                    NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
+                    NodeValue::Link(nl) => (nl.url.clone(), false),
+                    NodeValue::Image(ni) => (ni.url.clone(), false),
+                    _ => continue,
+                }
+            };
+
+            if is_wikilink {
+                if let Some(id) = self.resolve_wikilink(&url) {
+                    file_ids.push(id);
+                }
+                continue;
+            }
+
+            match self.resolve_link(&url) {
+                Some(ResolvedLink::File(id)) => file_ids.push(id),
+                Some(ResolvedLink::External(url)) => {
+                    urls.push(egui::OpenUrl { url, new_tab: false });
+                }
+                None => {
+                    urls.push(egui::OpenUrl { url, new_tab: false });
+                }
+            }
+        }
+
+        let new_tab = file_ids.len() + urls.len() > 1;
+        for id in file_ids {
+            ctx.open_file(id, new_tab);
+        }
+        if new_tab {
+            for url in &mut urls {
+                url.new_tab = true;
+            }
+        }
+        for url in urls {
+            ctx.open_url(url);
+        }
     }
 
     // Resolves the display title for a link with empty text.
@@ -191,29 +257,31 @@ impl<'ast> Editor {
             return DestinationTitle::Absent;
         };
 
-        if let Some(id_str) = resolved.strip_prefix("lb://") {
-            let Ok(id) = Uuid::parse_str(id_str) else {
-                return DestinationTitle::Absent;
-            };
-            let guard = self.files.read().unwrap();
-            let Some(cache) = guard.as_ref() else {
-                return DestinationTitle::Absent;
-            };
-            let Some(file) = cache.files.get_by_id(id) else {
-                return DestinationTitle::Absent;
-            };
-            return DestinationTitle::Ready(file.name.trim_end_matches(".md").to_string());
-        }
-
-        if !resolved.starts_with("http://") && !resolved.starts_with("https://") {
-            return DestinationTitle::Absent;
-        }
+        let resolved_url = match resolved {
+            ResolvedLink::File(id) => {
+                let guard = self.files.read().unwrap();
+                let Some(cache) = guard.as_ref() else {
+                    return DestinationTitle::Absent;
+                };
+                let Some(file) = cache.files.get_by_id(id) else {
+                    return DestinationTitle::Absent;
+                };
+                let title = DocType::from_name(&file.name).display_name(&file.name);
+                return DestinationTitle::Ready(title.to_string());
+            }
+            ResolvedLink::External(url)
+                if url.starts_with("http://") || url.starts_with("https://") =>
+            {
+                url
+            }
+            ResolvedLink::External(_) => return DestinationTitle::Absent,
+        };
 
         let arc = match self
             .layout_cache
             .link_titles
             .borrow_mut()
-            .entry(resolved.clone())
+            .entry(resolved_url.clone())
         {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
@@ -228,19 +296,19 @@ impl<'ast> Editor {
                         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
                     #[cfg(not(target_arch = "wasm32"))]
-                    let mut html = fetch_html(&client, &resolved, CHROME);
+                    let mut html = fetch_html(&client, &resolved_url, CHROME);
                     #[cfg(target_arch = "wasm32")]
-                    let mut html = fetch_html(&client, &resolved, CHROME).await;
+                    let mut html = fetch_html(&client, &resolved_url, CHROME).await;
 
                     // some sites (e.g. Twitter/X) only serve static content to known crawlers
                     if html.as_deref().ok().and_then(extract_html_title).is_none() {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            html = fetch_html(&client, &resolved, GOOGLEBOT);
+                            html = fetch_html(&client, &resolved_url, GOOGLEBOT);
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            html = fetch_html(&client, &resolved, GOOGLEBOT).await;
+                            html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
                         }
                     }
 

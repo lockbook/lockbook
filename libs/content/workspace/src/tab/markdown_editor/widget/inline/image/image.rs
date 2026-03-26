@@ -20,7 +20,7 @@ use super::cache::ImageState;
 
 impl<'ast> Editor {
     pub fn text_format_image(&self, parent: &AstNode<'_>) -> Format {
-        self.text_format_link(parent)
+        self.text_format_link(parent, false)
     }
 
     pub fn span_image(

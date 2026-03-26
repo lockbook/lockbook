@@ -9,8 +9,10 @@ use super::Editor;
 use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
+pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
+pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
@@ -177,9 +179,13 @@ impl<'ast> Editor {
             NodeValue::FootnoteReference(_) => self.text_format_footnote_reference(parent()),
             NodeValue::Highlight => self.text_format_highlight(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
-            NodeValue::Image(ni) => self.text_format_internal_link(parent(), &ni.url),
+            NodeValue::Image(ni) => {
+                self.text_format_link(parent(), self.resolve_link(&ni.url).is_none())
+            }
             NodeValue::LineBreak => parent_text_format(),
-            NodeValue::Link(nl) => self.text_format_internal_link(parent(), &nl.url),
+            NodeValue::Link(nl) => {
+                self.text_format_link(parent(), self.resolve_link(&nl.url).is_none())
+            }
             NodeValue::Math(_) => self.text_format_math(parent()),
             NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
             NodeValue::SoftBreak => parent_text_format(),
@@ -191,7 +197,9 @@ impl<'ast> Editor {
             NodeValue::Superscript => self.text_format_superscript(parent()),
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
-            NodeValue::WikiLink(nwl) => self.text_format_wiki_link(parent(), &nwl.url),
+            NodeValue::WikiLink(nwl) => {
+                self.text_format_link(parent(), self.resolve_wikilink(&nwl.url).is_none())
+            }
 
             // leaf_block
             NodeValue::CodeBlock(_) => self.text_format_code_block(parent()),

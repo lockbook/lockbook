@@ -32,8 +32,10 @@ use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
+use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
+use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
@@ -78,6 +80,7 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
+    pub open_file: Option<Uuid>,
 }
 
 pub struct Editor {
@@ -120,6 +123,8 @@ pub struct Editor {
     // widgets
     pub toolbar: Toolbar,
     pub find: Find,
+    pub emoji_completions: EmojiCompletions,
+    pub link_completions: LinkCompletions,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -249,6 +254,8 @@ impl Editor {
 
             toolbar: Default::default(),
             find: Default::default(),
+            emoji_completions: Default::default(),
+            link_completions: Default::default(),
 
             readonly,
             file_id,
@@ -428,6 +435,8 @@ impl Editor {
             result
         };
 
+        self.emoji_completions.update_active_state(&self.buffer);
+        self.link_completions.update_active_state(&self.buffer);
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -622,6 +631,9 @@ impl Editor {
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
+        self.show_emoji_completions(ui);
+        self.show_link_completions(ui);
+
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();

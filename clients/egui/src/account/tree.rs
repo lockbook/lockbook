@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
@@ -1094,16 +1094,8 @@ impl FileTree {
             .icon_color(icon_color);
 
         let button = if !is_renaming {
-            let display_name = if doc_type.hide_ext() {
-                Path::new(&file.name)
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or(&file.name)
-                    .to_string()
-            } else {
-                file.name.clone()
-            };
-            let mut text = WidgetText::from(display_name.as_str());
+            let display_name = doc_type.display_name(&file.name);
+            let mut text = WidgetText::from(display_name);
             if self.cut.contains(&file.id) {
                 text = text.strikethrough();
             }

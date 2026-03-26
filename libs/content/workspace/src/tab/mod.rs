@@ -19,8 +19,7 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use std::ops::IndexMut;
-use std::path::{Component, Path, PathBuf};
-use urlencoding::decode;
+use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod image_viewer;
@@ -382,6 +381,8 @@ pub trait ExtendedOutput {
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
     fn set_context_menu(&self, pos: egui::Pos2);
     fn pop_context_menu(&self) -> Option<egui::Pos2>;
+    fn open_file(&self, id: Uuid, new_tab: bool);
+    fn pop_open_files(&self) -> Vec<(Uuid, bool)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -404,6 +405,23 @@ impl ExtendedOutput for egui::Context {
 
     fn pop_context_menu(&self) -> Option<egui::Pos2> {
         self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
+    }
+
+    fn open_file(&self, id: Uuid, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut files: Vec<(Uuid, bool)> =
+                m.data.get_temp(Id::new("open_files")).unwrap_or_default();
+            files.push((id, new_tab));
+            m.data.insert_temp(Id::new("open_files"), files);
+        })
+    }
+
+    fn pop_open_files(&self) -> Vec<(Uuid, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, bool)>>(Id::new("open_files"))
+                .unwrap_or_default()
+        })
     }
 }
 
@@ -508,133 +526,4 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
         .expect("write lockbook file for image");
 
     file
-}
-
-pub fn core_get_relative_path(core: &Lb, from: Uuid, to: Uuid) -> String {
-    let from_path = core
-        .get_path_by_id(from)
-        .expect("get source file path for relative link");
-    let to_path = core
-        .get_path_by_id(to)
-        .expect("get target file path for relative link");
-    get_relative_path(&from_path, &to_path)
-}
-
-pub fn get_relative_path(from: &str, to: &str) -> String {
-    if from == to {
-        if from.ends_with('/') {
-            return "./".to_string();
-        } else {
-            return ".".to_string();
-        }
-    }
-
-    let from_path = PathBuf::from(from);
-    let to_path = PathBuf::from(to);
-
-    let mut num_common_ancestors = 0;
-    for (from_component, to_component) in from_path.components().zip(to_path.components()) {
-        if from_component != to_component {
-            break;
-        }
-        num_common_ancestors += 1;
-    }
-
-    let mut result = "../".repeat(from_path.components().count() - num_common_ancestors);
-    for to_component in to_path.components().skip(num_common_ancestors) {
-        result.push_str(to_component.as_os_str().to_str().unwrap());
-        result.push('/');
-    }
-    if !to.ends_with('/') {
-        result.pop();
-    }
-    result
-}
-
-pub fn canonicalize_path(path: &str) -> String {
-    let path = PathBuf::from(path);
-    let mut result = PathBuf::new();
-
-    for component in path.components() {
-        match component {
-            Component::Normal(component) => {
-                result.push(component);
-            }
-            Component::ParentDir => {
-                result.pop();
-            }
-            _ => {}
-        }
-    }
-
-    result.to_string_lossy().to_string()
-}
-
-pub fn core_get_by_relative_path<P: AsRef<Path>>(
-    core: &Lb, from: Uuid, path: P,
-) -> Result<File, String> {
-    let path = path.as_ref();
-    let target_path = if path.is_relative() {
-        let open_file_path = core.get_path_by_id(from).map_err(|e| e.to_string())?;
-        let target_file_path = open_file_path + "/" + &path.to_string_lossy();
-
-        canonicalize_path(&target_file_path)
-    } else {
-        path.to_string_lossy().to_string()
-    };
-
-    #[cfg(windows)]
-    let target_path = target_path.replace('\\', "/");
-
-    let target_path = decode(&target_path)
-        .map(|cow| cow.to_string())
-        .unwrap_or(target_path);
-
-    core.get_by_path(&target_path).map_err(|e| e.to_string())
-}
-
-#[cfg(test)]
-mod test {
-    #[test]
-    fn get_relative_path() {
-        use super::get_relative_path;
-
-        // to documents
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c"), ".");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d"), "d");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e"), "d/e");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/f"), "d/e/f");
-
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d"), "../d");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e"), "../d/e");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/f"), "../d/e/f");
-
-        assert_eq!(get_relative_path("/a/b/c", "/a/d"), "../../d");
-        assert_eq!(get_relative_path("/a/b/c", "/a/d/e"), "../../d/e");
-        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/f"), "../../d/e/f");
-
-        assert_eq!(get_relative_path("/a/b/c", "/d"), "../../../d");
-        assert_eq!(get_relative_path("/a/b/c", "/d/e"), "../../../d/e");
-        assert_eq!(get_relative_path("/a/b/c", "/d/e/f"), "../../../d/e/f");
-
-        // to folders
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/"), "d/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/"), "d/e/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/c/d/e/f/"), "d/e/f/");
-
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/"), "../");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/"), "../d/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/"), "../d/e/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/b/d/e/f/"), "../d/e/f/");
-
-        assert_eq!(get_relative_path("/a/b/c", "/a/"), "../../");
-        assert_eq!(get_relative_path("/a/b/c", "/a/d/"), "../../d/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/"), "../../d/e/");
-        assert_eq!(get_relative_path("/a/b/c", "/a/d/e/f/"), "../../d/e/f/");
-
-        assert_eq!(get_relative_path("/a/b/c", "/"), "../../../");
-        assert_eq!(get_relative_path("/a/b/c", "/d/"), "../../../d/");
-        assert_eq!(get_relative_path("/a/b/c", "/d/e/"), "../../../d/e/");
-        assert_eq!(get_relative_path("/a/b/c", "/d/e/f/"), "../../../d/e/f/");
-    }
 }
