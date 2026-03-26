@@ -1,4 +1,4 @@
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::tab::markdown_editor::HttpClient;
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{ColorImage, Context, TextureId, Ui};
@@ -76,9 +76,10 @@ pub fn calc<'ast>(
                     let guard = files.read().unwrap();
                     guard.as_ref().and_then(|cache| {
                         let from_id = cache.files.get_by_id(file_id)?.parent;
-                        let resolved = cache.files.resolve_link(&url, from_id)?;
-                        let id_str = resolved.strip_prefix("lb://")?;
-                        Uuid::parse_str(id_str).ok()
+                        match cache.files.resolve_link(&url, from_id)? {
+                            ResolvedLink::File(id) => Some(id),
+                            ResolvedLink::External(_) => None,
+                        }
                     })
                 };
 

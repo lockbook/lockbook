@@ -11,6 +11,11 @@ use lb_rs::model::file_metadata::FileType;
 use std::path::{Component, PathBuf};
 use urlencoding::decode;
 
+pub enum ResolvedLink {
+    File(Uuid),
+    External(String),
+}
+
 pub struct FileCache {
     pub root: File,
     pub files: Vec<File>,
@@ -157,18 +162,18 @@ pub trait FilesExt {
         self.get_by_id(current)
     }
 
-    /// Resolves a URL from a regular link or image to a navigable URL.
+    /// Resolves a URL from a regular link or image.
     ///
-    /// - `lb://uuid` — verified against cache, returned as-is if valid
-    /// - external (http/https/mailto/#) — returned as-is, never broken
+    /// - `lb://uuid` — verified against cache, returned as `File(uuid)`
+    /// - external (http/https/mailto/#) — returned as `External(url)`
     /// - relative path — resolved against `from_id`'s folder in the cache
     ///
     /// Returns None if the URL is an internal path that doesn't resolve.
-    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<String> {
+    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
         if let Some(id_str) = url.strip_prefix("lb://") {
             let id = Uuid::parse_str(id_str).ok()?;
             self.get_by_id(id)?;
-            return Some(url.to_string());
+            return Some(ResolvedLink::File(id));
         }
 
         if url.starts_with("http://")
@@ -176,7 +181,7 @@ pub trait FilesExt {
             || url.starts_with("mailto:")
             || url.starts_with('#')
         {
-            return Some(url.to_string());
+            return Some(ResolvedLink::External(url.to_string()));
         }
 
         let parent_path = self.path(from_id);
@@ -186,7 +191,7 @@ pub trait FilesExt {
             .map(|c| c.into_owned())
             .unwrap_or(canonical);
         let file = self.by_path(&decoded)?;
-        Some(format!("lb://{}", file.id))
+        Some(ResolvedLink::File(file.id))
     }
 
     /// Resolves a wikilink title to a navigable lb:// URL.
@@ -196,7 +201,7 @@ pub trait FilesExt {
     /// - on conflict, prefers the file closest to `from_id`
     ///
     /// Returns None if no matching file is found.
-    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<String> {
+    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
         let parent_path = self.path(from_id);
 
         if title.contains('/') {
@@ -205,7 +210,7 @@ pub trait FilesExt {
             let combined = format!("{}/{}", parent_path.trim_end_matches('/'), with_ext);
             let canonical = canonicalize(&combined);
             if let Some(file) = self.by_path(&canonical) {
-                return Some(format!("lb://{}", file.id));
+                return Some(file.id);
             }
         }
 
@@ -227,7 +232,7 @@ pub trait FilesExt {
 
         match candidates.len() {
             0 => None,
-            1 => Some(format!("lb://{}", candidates[0].id)),
+            1 => Some(candidates[0].id),
             _ => candidates
                 .iter()
                 .min_by_key(|f| {
@@ -235,7 +240,7 @@ pub trait FilesExt {
                         .matches("../")
                         .count()
                 })
-                .map(|f| format!("lb://{}", f.id)),
+                .map(|f| f.id),
         }
     }
 
@@ -315,11 +320,11 @@ impl FilesExt for Vec<File> {
         self.as_slice().by_path(path)
     }
 
-    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<String> {
+    fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
         self.as_slice().resolve_link(url, from_id)
     }
 
-    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<String> {
+    fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
         self.as_slice().resolve_wikilink(title, from_id)
     }
 }

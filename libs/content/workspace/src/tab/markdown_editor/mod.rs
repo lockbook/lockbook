@@ -732,8 +732,8 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor by default
-        if ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus
+        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {

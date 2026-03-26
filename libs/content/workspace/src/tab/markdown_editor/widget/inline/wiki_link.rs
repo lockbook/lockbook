@@ -3,9 +3,7 @@ use egui::{OpenUrl, Pos2, Ui};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-use crate::file_cache::FileCache;
-use crate::tab::core_get_by_relative_path;
-use crate::tab::core_get_relative_path;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::tab::markdown_editor::Editor;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -14,22 +12,14 @@ use crate::theme::palette_v2::ThemeExt as _;
 
 impl Editor {
     pub fn is_broken_internal_link(&self, url: &str) -> bool {
-        if url.starts_with("http://")
-            || url.starts_with("https://")
-            || url.starts_with("mailto:")
-            || url.starts_with('#')
-        {
-            return false;
-        }
         if let Some(&cached) = self.layout_cache.broken_links.borrow().get(url) {
             return cached;
         }
-        let from_id = self
-            .core
-            .get_file_by_id(self.file_id)
-            .map(|f| f.parent)
-            .unwrap_or(self.file_id);
-        let broken = core_get_by_relative_path(&self.core, from_id, url).is_err();
+        let broken = match self.resolve_link(url) {
+            Some(ResolvedLink::File(_)) => false,
+            Some(ResolvedLink::External(_)) => false,
+            None => true,
+        };
         self.layout_cache
             .broken_links
             .borrow_mut()
@@ -42,59 +32,17 @@ impl Editor {
     }
 
     pub fn resolve_wikilink(&self, url: &str) -> Option<Uuid> {
-        let from_id = self
-            .core
-            .get_file_by_id(self.file_id)
-            .map(|f| f.parent)
-            .unwrap_or(self.file_id);
-
-        // Disambiguation paths contain a slash. Re-add .md and resolve directly
-        // from the parent folder — the same origin used when the path was built.
-        if url.contains('/') {
-            let with_ext =
-                if url.ends_with(".md") { url.to_string() } else { format!("{}.md", url) };
-            if let Ok(file) = core_get_by_relative_path(&self.core, from_id, &with_ext) {
-                return Some(file.id);
-            }
-        }
-
         let guard = self.files.read().unwrap();
-        let FileCache { files, .. } = guard.as_ref()?;
-
-        let title_bare = url
-            .rsplit('/')
-            .next()
-            .unwrap_or(url)
-            .trim_end_matches(".md");
-
-        let candidates: Vec<_> = files
-            .iter()
-            .filter(|f| f.is_document())
-            .filter(|f| {
-                f.name
-                    .trim_end_matches(".md")
-                    .eq_ignore_ascii_case(title_bare)
-            })
-            .collect();
-
-        match candidates.len() {
-            0 => None,
-            1 => Some(candidates[0].id),
-            _ => candidates
-                .iter()
-                .min_by_key(|f| {
-                    core_get_relative_path(&self.core, from_id, f.id)
-                        .matches("../")
-                        .count()
-                })
-                .map(|f| f.id),
-        }
+        let cache = guard.as_ref()?;
+        let from_id = cache.files.get_by_id(self.file_id)?.parent;
+        cache.files.resolve_wikilink(url, from_id)
     }
 
     pub fn open_links_in_selection<'ast>(
         &self, root: &'ast AstNode<'ast>, ctx: &egui::Context,
     ) {
         let selection = self.buffer.current.selection;
+
         let mut file_ids = vec![];
         let mut urls = vec![];
 
@@ -121,23 +69,15 @@ impl Editor {
                 continue;
             }
 
-            if !url.starts_with("http://")
-                && !url.starts_with("https://")
-                && !url.starts_with("mailto:")
-                && !url.starts_with('#')
-            {
-                let from_id = self
-                    .core
-                    .get_file_by_id(self.file_id)
-                    .map(|f| f.parent)
-                    .unwrap_or(self.file_id);
-                if let Ok(file) = core_get_by_relative_path(&self.core, from_id, &url) {
-                    file_ids.push(file.id);
-                    continue;
+            match self.resolve_link(&url) {
+                Some(ResolvedLink::File(id)) => file_ids.push(id),
+                Some(ResolvedLink::External(url)) => {
+                    urls.push(egui::OpenUrl { url, new_tab: false });
+                }
+                None => {
+                    urls.push(egui::OpenUrl { url, new_tab: false });
                 }
             }
-
-            urls.push(egui::OpenUrl { url: url.to_string(), new_tab: false });
         }
 
         let new_tab = file_ids.len() + urls.len() > 1;

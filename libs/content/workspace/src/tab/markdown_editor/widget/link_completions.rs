@@ -7,8 +7,7 @@ use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::TextBufferArea;
-use crate::file_cache::FileCache;
-use crate::tab::core_get_relative_path;
+use crate::file_cache::{FileCache, FilesExt as _, relative_path};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
@@ -243,17 +242,13 @@ struct FileResult {
 }
 
 fn search(
-    core: &lb_rs::blocking::Lb, cache: &Option<FileCache>, file_id: Uuid, query: &str,
-    mode: CompletionMode,
+    cache: &Option<FileCache>, file_id: Uuid, query: &str, mode: CompletionMode,
 ) -> Vec<FileResult> {
     let Some(cache) = cache else { return Vec::new() };
     let files = &cache.files;
     // Paths in markdown are relative to the parent folder of the current file,
     // matching how the image cache and existing link insertion resolve them.
-    let from_id = core
-        .get_file_by_id(file_id)
-        .map(|f| f.parent)
-        .unwrap_or(file_id);
+    let from_id = files.get_by_id(file_id).map(|f| f.parent).unwrap_or(file_id);
     let lq = query.trim_end_matches(".md").to_lowercase();
 
     // For image links, match against the full filename (including extension).
@@ -292,7 +287,7 @@ fn search(
                 .into_iter()
                 .take(MAX_RESULTS)
                 .map(|f| {
-                    let rel_path = core_get_relative_path(core, from_id, f.id);
+                    let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
                     let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
                     FileResult { name: f.name.clone(), rel_path, insert: String::new() }
                 })
@@ -311,7 +306,7 @@ fn search(
                 continue;
             };
             let display_name = f.name.trim_end_matches(".md").to_string();
-            let rel_path = core_get_relative_path(core, from_id, f.id);
+            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
             let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
             results.push(FileResult { name: display_name, rel_path, insert: String::new() });
             if results.len() == MAX_RESULTS {
@@ -342,7 +337,7 @@ fn search(
             } else {
                 2
             };
-            let rel_path = core_get_relative_path(core, from_id, f.id);
+            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
             let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
             Some((
                 FileResult { name: display_name.clone(), rel_path, insert: String::new() },
@@ -472,7 +467,7 @@ impl Editor {
         }
 
         let cache = self.files.read().unwrap();
-        let results = search(&self.core, &cache, self.file_id, &query, mode);
+        let results = search(&cache, self.file_id, &query, mode);
         drop(cache);
         if results.is_empty() {
             return;

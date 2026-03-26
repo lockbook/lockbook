@@ -1,12 +1,14 @@
 use comrak::nodes::{AstNode, NodeLink};
 use egui::{OpenUrl, Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
-use lb_rs::{Uuid, spawn};
+use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
 use std::sync::{Arc, Mutex};
 
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::show::DocType;
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::block::TitleState;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -167,16 +169,24 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            let url = self
-                .resolve_link(&node_link.url)
-                .unwrap_or_else(|| node_link.url.clone());
-            ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
+            match self.resolve_link(&node_link.url) {
+                Some(ResolvedLink::File(id)) => {
+                    ui.ctx().open_file(id, cmd);
+                }
+                Some(ResolvedLink::External(url)) => {
+                    ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
+                }
+                None => {
+                    ui.ctx()
+                        .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
+                }
+            }
         }
 
         response
     }
 
-    pub fn resolve_link(&self, url: &str) -> Option<String> {
+    pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         let guard = self.files.read().unwrap();
         let cache = guard.as_ref()?;
         let from_id = cache.files.get_by_id(self.file_id)?.parent;
@@ -191,29 +201,31 @@ impl<'ast> Editor {
             return DestinationTitle::Absent;
         };
 
-        if let Some(id_str) = resolved.strip_prefix("lb://") {
-            let Ok(id) = Uuid::parse_str(id_str) else {
-                return DestinationTitle::Absent;
-            };
-            let guard = self.files.read().unwrap();
-            let Some(cache) = guard.as_ref() else {
-                return DestinationTitle::Absent;
-            };
-            let Some(file) = cache.files.get_by_id(id) else {
-                return DestinationTitle::Absent;
-            };
-            return DestinationTitle::Ready(file.name.trim_end_matches(".md").to_string());
-        }
-
-        if !resolved.starts_with("http://") && !resolved.starts_with("https://") {
-            return DestinationTitle::Absent;
-        }
+        let resolved_url = match resolved {
+            ResolvedLink::File(id) => {
+                let guard = self.files.read().unwrap();
+                let Some(cache) = guard.as_ref() else {
+                    return DestinationTitle::Absent;
+                };
+                let Some(file) = cache.files.get_by_id(id) else {
+                    return DestinationTitle::Absent;
+                };
+                let title = DocType::from_name(&file.name).display_name(&file.name);
+                return DestinationTitle::Ready(title.to_string());
+            }
+            ResolvedLink::External(url)
+                if url.starts_with("http://") || url.starts_with("https://") =>
+            {
+                url
+            }
+            ResolvedLink::External(_) => return DestinationTitle::Absent,
+        };
 
         let arc = match self
             .layout_cache
             .link_titles
             .borrow_mut()
-            .entry(resolved.clone())
+            .entry(resolved_url.clone())
         {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
@@ -228,19 +240,19 @@ impl<'ast> Editor {
                         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
                     #[cfg(not(target_arch = "wasm32"))]
-                    let mut html = fetch_html(&client, &resolved, CHROME);
+                    let mut html = fetch_html(&client, &resolved_url, CHROME);
                     #[cfg(target_arch = "wasm32")]
-                    let mut html = fetch_html(&client, &resolved, CHROME).await;
+                    let mut html = fetch_html(&client, &resolved_url, CHROME).await;
 
                     // some sites (e.g. Twitter/X) only serve static content to known crawlers
                     if html.as_deref().ok().and_then(extract_html_title).is_none() {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
-                            html = fetch_html(&client, &resolved, GOOGLEBOT);
+                            html = fetch_html(&client, &resolved_url, GOOGLEBOT);
                         }
                         #[cfg(target_arch = "wasm32")]
                         {
-                            html = fetch_html(&client, &resolved, GOOGLEBOT).await;
+                            html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
                         }
                     }
 

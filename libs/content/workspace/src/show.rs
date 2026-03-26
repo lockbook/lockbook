@@ -11,7 +11,7 @@ use std::mem;
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
 use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
@@ -223,12 +223,11 @@ impl Workspace {
                                 return true;
                             };
 
-                            let Some(resolved) = cache.files.resolve_link(&url.url, from_id) else {
+                            let Some(ResolvedLink::File(file_id)) =
+                                cache.files.resolve_link(&url.url, from_id)
+                            else {
                                 return true;
                             };
-
-                            let Some(id_str) = resolved.strip_prefix("lb://") else { return true };
-                            let Ok(file_id) = Uuid::parse_str(id_str) else { return true };
 
                             open_ids.push((file_id, url.new_tab));
                             false
@@ -600,15 +599,9 @@ impl Workspace {
                     let tab_line_height = 20.0;
                     let tab_max_width = 200.0;
                     let raw_title = self.tab_title(&self.tabs[t]);
-                    let title = if DocType::from_name(&raw_title).hide_ext() {
-                        std::path::Path::new(&raw_title)
-                            .file_stem()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or(&raw_title)
-                            .to_string()
-                    } else {
-                        raw_title.clone()
-                    };
+                    let title = DocType::from_name(&raw_title)
+                        .display_name(&raw_title)
+                        .to_string();
                     let text_width = GlyphonLabel::new(&title, egui::Color32::default())
                         .font_size(tab_font_size)
                         .line_height(tab_line_height)
@@ -1056,6 +1049,18 @@ impl DocType {
             DocType::Code => false,
             DocType::PDF => true,
             DocType::Unknown => false,
+        }
+    }
+
+    /// Returns the file name with the extension stripped when `hide_ext()` is true.
+    pub fn display_name<'a>(&self, name: &'a str) -> &'a str {
+        if self.hide_ext() {
+            std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name)
+        } else {
+            name
         }
     }
 }
