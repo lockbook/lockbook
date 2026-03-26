@@ -430,8 +430,21 @@ pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
         .args(["commit", "-m", &format!("release {}", version)])
         .current_dir(flatpak_repo)
         .assert_success()?;
-    Command::new("git")
-        .args(["push", "origin", version])
+    Command::new("gh")
+        .args([
+            "pr",
+            "create",
+            "--title",
+            &format!("update to {}", version),
+            "--body",
+            "",
+            "--base",
+            "master",
+            "--head",
+            version,
+            "--repo",
+            "flathub/net.lockbook.Lockbook",
+        ])
         .current_dir(flatpak_repo)
         .assert_success()?;
     Ok(())
