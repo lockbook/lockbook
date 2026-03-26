@@ -12,10 +12,11 @@ jobs:
     runs-on: [self-hosted, ci]
     env: 
       GITHUB_TOKEN: ${{ secrets.FH_PAT }}
+      GH_TOKEN: ${{ secrets.FH_PAT }}
     steps:
       - uses: actions/checkout@v4
       - name: Deploy Flatpak
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          nix-shell -p curl python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser linux desktop flatpak"
+          nix-shell -p gh curl python3 python313Packages.aiohttp python313Packages.tomlkit --command "cargo run -p lbdev -- releaser linux desktop flatpak"
