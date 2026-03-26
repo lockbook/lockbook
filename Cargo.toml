@@ -27,3 +27,8 @@ members = [
 # debug = true
 # [profile.bench]
 # debug = true
+
+# optimize all dependencies in dev mode so debug builds run at reasonable speed
+# see https://bevy-cheatbook.github.io/pitfalls/performance.html
+[profile.dev.package."*"]
+opt-level = 3
