@@ -174,15 +174,6 @@ impl Editor {
             }
         }
 
-        // Convert the byte offset back to a char offset. For ZWJ emoji sequences
-        // the font may emit one glyph per codepoint, so glyph.end can land on a
-        // codepoint boundary that is not a grapheme boundary. Round down to the
-        // nearest grapheme boundary rather than panicking.
-        let byte_offset = start + rel_offset;
-        let segs = &self.buffer.current.segs;
-        match segs.grapheme_indexes.binary_search(&byte_offset) {
-            Ok(idx) => DocCharOffset(idx),
-            Err(idx) => DocCharOffset(idx.saturating_sub(1)),
-        }
+        self.offset_to_char(start + rel_offset)
     }
 }
