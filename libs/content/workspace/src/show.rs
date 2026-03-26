@@ -447,17 +447,10 @@ impl Workspace {
         // apple: command+control+shift [ ]
         let change: i32 = self.ctx.input_mut(|input| {
             if APPLE {
-                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket)
-                    || input
-                        .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenCurlyBracket)
-                {
+                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket) {
                     -1
                 } else if input
                     .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseBracket)
-                    || input.consume_key_exact(
-                        Modifiers::MAC_CMD | CTRL | SHIFT,
-                        Key::CloseCurlyBracket,
-                    )
                 {
                     1
                 } else {
