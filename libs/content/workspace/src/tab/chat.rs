@@ -271,8 +271,11 @@ impl Chat {
                 );
                 let te_id = egui::Id::new("chat_composer");
                 let has_focus = ui.ctx().memory(|m| m.has_focus(te_id));
-                let enter_pressed =
-                    has_focus && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter));
+                let enter_pressed = has_focus
+                    && ui.input_mut(|i| {
+                        i.consume_key(egui::Modifiers::NONE, Key::Enter)
+                            || i.consume_key(egui::Modifiers::COMMAND, Key::Enter)
+                    });
 
                 let te = TextEdit::singleline(&mut self.input)
                     .id(te_id)
