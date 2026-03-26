@@ -52,7 +52,9 @@ impl Chat {
         let h_margin = 12.0_f32;
         let row_gap = 4.0_f32;
         let corner = 10_u8;
-        let max_inner_w = available_width * 0.72 - h_pad * 2.0;
+        const MAX_WIDTH: f32 = 800.0;
+        let col_width = available_width.min(MAX_WIDTH);
+        let max_inner_w = col_width * 0.72 - h_pad * 2.0;
         let top_margin = 15.0_f32;
         let bottom_pad = 15.0_f32;
 
