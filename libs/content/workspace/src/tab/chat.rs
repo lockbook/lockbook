@@ -115,13 +115,11 @@ impl Chat {
             .sum::<f32>();
 
         ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
+        let full_rect = ui.available_rect_before_wrap();
         ui.vertical(|ui| {
-            // Scroll area: takes all height except the composer, exactly as the
-            // editor does with its mobile toolbar.
-            let (_, scroll_area_rect) = ui.allocate_space(vec2(
-                available_width,
-                ui.available_height() - composer_height - composer_bottom_inset,
-            ));
+            // Scroll area: takes full height; composer overlays on top.
+            let (_, scroll_area_rect) =
+                ui.allocate_space(vec2(available_width, ui.available_height()));
             ui.scope_builder(egui::UiBuilder::new().max_rect(scroll_area_rect), |ui| {
                 ui.set_clip_rect(scroll_area_rect.intersect(ui.clip_rect()));
                 ScrollArea::vertical()
@@ -241,14 +239,18 @@ impl Chat {
                         }
 
                         let viewport_h = ui.max_rect().height();
-                        let end_pad = (viewport_h - content_h - top_margin).max(bottom_pad);
+                        let composer_total = composer_height + composer_bottom_inset;
+                        let end_pad =
+                            (viewport_h - content_h - top_margin).max(bottom_pad + composer_total);
                         ui.add_space(end_pad);
                     });
             });
 
-            // Composer: remaining height, same pattern as editor's mobile toolbar.
-            let (_, composer_rect) =
-                ui.allocate_space(vec2(available_width, composer_height + composer_bottom_inset));
+            // Composer: overlaid at the bottom of the full rect.
+            let composer_rect = Rect::from_min_max(
+                pos2(full_rect.min.x, full_rect.max.y - composer_height - composer_bottom_inset),
+                full_rect.max,
+            );
             ui.scope_builder(egui::UiBuilder::new().max_rect(composer_rect), |ui| {
                 const MAX_WIDTH: f32 = 800.0;
                 let col_width = available_width.min(MAX_WIDTH);
