@@ -586,8 +586,6 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
-    /// url → is_broken, populated on first use and cleared when text changes.
-    pub broken_links: RefCell<HashMap<String, bool>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
 
@@ -625,7 +623,6 @@ impl LayoutCache {
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.glyphon_buffers.borrow_mut().clear();
-        self.broken_links.borrow_mut().clear();
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 }

@@ -23,13 +23,15 @@ enum DestinationTitle {
 }
 
 impl<'ast> Editor {
-    pub fn text_format_link(&self, parent: &AstNode<'_>) -> Format {
+    pub fn text_format_link(&self, parent: &AstNode<'_>, broken: bool) -> Format {
         let parent_text_format = self.text_format(parent);
-        Format { color: self.ctx.get_lb_theme().fg().blue, underline: true, ..parent_text_format }
+        let theme = self.ctx.get_lb_theme();
+        let color = if broken { theme.fg().red } else { theme.fg().blue };
+        Format { color, underline: true, ..parent_text_format }
     }
 
     pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
-        Format { family: FontFamily::Icons, ..self.text_format_link(parent) }
+        Format { family: FontFamily::Icons, ..self.text_format_link(parent, false) }
     }
 
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
@@ -61,7 +63,7 @@ impl<'ast> Editor {
                     tmp_wrap.offset += self.span_override_section(
                         &tmp_wrap,
                         &t,
-                        self.text_format_link(node.parent().unwrap()),
+                        self.text_format_link(node.parent().unwrap(), false),
                     );
                     true
                 }
@@ -114,7 +116,7 @@ impl<'ast> Editor {
                         top_left,
                         wrap,
                         trimmed,
-                        self.text_format_link(node.parent().unwrap()),
+                        self.text_format_link(node.parent().unwrap(), false),
                         Some(&t),
                         Sense::hover(),
                     ),
@@ -191,6 +193,10 @@ impl<'ast> Editor {
         let cache = guard.as_ref()?;
         let from_id = cache.files.get_by_id(self.file_id)?.parent;
         cache.files.resolve_link(url, from_id)
+    }
+
+    pub fn internal_link_broken(&self, url: &str) -> bool {
+        self.resolve_link(url).is_none()
     }
 
     // Resolves the display title for a link with empty text.
