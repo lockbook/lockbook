@@ -925,14 +925,7 @@ impl Workspace {
                                             .select_on_focus(0, stem_end),
                                     )
                                 } else {
-                                    let display_name = if doc_type.hide_ext() {
-                                        std::path::Path::new(&child.name)
-                                            .file_stem()
-                                            .and_then(|s| s.to_str())
-                                            .unwrap_or(&child.name)
-                                    } else {
-                                        &child.name
-                                    };
+                                    let display_name = doc_type.display_name(&child.name);
                                     let resp = ui.add(
                                         GlyphonLabel::new(
                                             display_name,

@@ -10,7 +10,7 @@ pub mod switch;
 
 pub use button::Button;
 pub use button_group::ButtonGroup;
-pub use glyphon_label::GlyphonLabel;
+pub use glyphon_label::{GlyphonLabel, ShapedLabel};
 pub use glyphon_text_edit::GlyphonTextEdit;
 pub use icon_button::IconButton;
 pub use progress_bar::ProgressBar;

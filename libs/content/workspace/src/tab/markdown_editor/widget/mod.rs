@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{Ui, UiBuilder};
+use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, UiBuilder};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
@@ -9,8 +9,10 @@ use super::Editor;
 use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
+pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
+pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
@@ -177,9 +179,13 @@ impl<'ast> Editor {
             NodeValue::FootnoteReference(_) => self.text_format_footnote_reference(parent()),
             NodeValue::Highlight => self.text_format_highlight(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
-            NodeValue::Image(ni) => self.text_format_internal_link(parent(), &ni.url),
+            NodeValue::Image(ni) => {
+                self.text_format_link(parent(), self.resolve_link(&ni.url).is_none())
+            }
             NodeValue::LineBreak => parent_text_format(),
-            NodeValue::Link(nl) => self.text_format_internal_link(parent(), &nl.url),
+            NodeValue::Link(nl) => {
+                self.text_format_link(parent(), self.resolve_link(&nl.url).is_none())
+            }
             NodeValue::Math(_) => self.text_format_math(parent()),
             NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
             NodeValue::SoftBreak => parent_text_format(),
@@ -191,7 +197,9 @@ impl<'ast> Editor {
             NodeValue::Superscript => self.text_format_superscript(parent()),
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
-            NodeValue::WikiLink(nwl) => self.text_format_wiki_link(parent(), &nwl.url),
+            NodeValue::WikiLink(nwl) => {
+                self.text_format_link(parent(), self.resolve_wikilink(&nwl.url).is_none())
+            }
 
             // leaf_block
             NodeValue::CodeBlock(_) => self.text_format_code_block(parent()),
@@ -301,6 +309,37 @@ impl<'ast> Editor {
             NodeValue::Paragraph => self.compute_bounds_paragraph(node),
             NodeValue::TableCell => self.compute_bounds_table_cell(node),
             NodeValue::ThematicBreak => {}
+        }
+    }
+
+    /// Draws the background frame and per-row highlights for a completion popup.
+    /// Text rendering is handled separately by each completion type.
+    pub fn draw_completion_popup(
+        &self, ui: &Ui, popup_rect: Rect, row_rects: &[Rect], selected: usize,
+        hover_pos: Option<egui::Pos2>,
+    ) {
+        let vis = ui.visuals();
+        let bg = vis.extreme_bg_color;
+        let hover_bg = vis.widgets.hovered.bg_fill;
+        let selected_bg = vis.selection.bg_fill.gamma_multiply(0.3);
+        let border_color = vis.widgets.noninteractive.bg_stroke.color;
+
+        let cr = CornerRadius::same(self.layout.completion_corner_radius);
+        let painter = ui.painter();
+        painter.rect(popup_rect, cr, bg, Stroke::new(1.0, border_color), StrokeKind::Outside);
+        let last = row_rects.len().saturating_sub(1);
+        for (idx, rect) in row_rects.iter().enumerate() {
+            let row_cr = CornerRadius {
+                nw: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
+                ne: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
+                sw: if idx == last { self.layout.completion_corner_radius } else { 0 },
+                se: if idx == last { self.layout.completion_corner_radius } else { 0 },
+            };
+            if idx == selected {
+                painter.rect_filled(*rect, row_cr, selected_bg);
+            } else if hover_pos.is_some_and(|p| rect.contains(p)) {
+                painter.rect_filled(*rect, row_cr, hover_bg);
+            }
         }
     }
 }

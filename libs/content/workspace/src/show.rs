@@ -11,9 +11,9 @@ use std::mem;
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
-use crate::file_cache::FilesExt as _;
+use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, image_viewer};
+use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
@@ -223,12 +223,11 @@ impl Workspace {
                                 return true;
                             };
 
-                            let Some(resolved) = cache.files.resolve_link(&url.url, from_id) else {
+                            let Some(ResolvedLink::File(file_id)) =
+                                cache.files.resolve_link(&url.url, from_id)
+                            else {
                                 return true;
                             };
-
-                            let Some(id_str) = resolved.strip_prefix("lb://") else { return true };
-                            let Ok(file_id) = Uuid::parse_str(id_str) else { return true };
 
                             open_ids.push((file_id, url.new_tab));
                             false
@@ -236,6 +235,9 @@ impl Workspace {
                     });
                 }
                 for (id, new_tab) in open_ids {
+                    self.open_file(id, true, new_tab);
+                }
+                for (id, new_tab) in ui.ctx().pop_open_files() {
                     self.open_file(id, true, new_tab);
                 }
             });
@@ -472,11 +474,14 @@ impl Workspace {
         }
 
         // tab navigation
+        let completions_active = self
+            .current_tab_markdown()
+            .is_some_and(|md| md.emoji_completions.active || md.link_completions.active);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if input.consume_key_exact(COMMAND, key)
+                if !completions_active && input.consume_key_exact(COMMAND, key)
                     || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
                 {
                     goto_tab = Some(i.min(self.tabs.len()) - 1);
@@ -484,7 +489,7 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            if input.consume_key_exact(COMMAND, Key::Num9)
+            if !completions_active && input.consume_key_exact(COMMAND, Key::Num9)
                 || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
             {
                 goto_tab = Some(self.tabs.len() - 1);
@@ -583,15 +588,9 @@ impl Workspace {
                     let tab_line_height = 20.0;
                     let tab_max_width = 200.0;
                     let raw_title = self.tab_title(&self.tabs[t]);
-                    let title = if DocType::from_name(&raw_title).hide_ext() {
-                        std::path::Path::new(&raw_title)
-                            .file_stem()
-                            .and_then(|s| s.to_str())
-                            .unwrap_or(&raw_title)
-                            .to_string()
-                    } else {
-                        raw_title.clone()
-                    };
+                    let title = DocType::from_name(&raw_title)
+                        .display_name(&raw_title)
+                        .to_string();
                     let text_width = GlyphonLabel::new(&title, egui::Color32::default())
                         .font_size(tab_font_size)
                         .line_height(tab_line_height)
@@ -1039,6 +1038,18 @@ impl DocType {
             DocType::Code => false,
             DocType::PDF => true,
             DocType::Unknown => false,
+        }
+    }
+
+    /// Returns the file name with the extension stripped when `hide_ext()` is true.
+    pub fn display_name<'a>(&self, name: &'a str) -> &'a str {
+        if self.hide_ext() {
+            std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name)
+        } else {
+            name
         }
     }
 }

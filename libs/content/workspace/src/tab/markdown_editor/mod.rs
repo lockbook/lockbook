@@ -32,8 +32,10 @@ use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
+use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
+use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
@@ -120,6 +122,8 @@ pub struct Editor {
     // widgets
     pub toolbar: Toolbar,
     pub find: Find,
+    pub emoji_completions: EmojiCompletions,
+    pub link_completions: LinkCompletions,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -188,6 +192,10 @@ pub struct MdLayout {
     pub bullet_radius: f32,
     pub row_spacing: f32,
     pub block_spacing: f32,
+    pub completion_font_size: f32,
+    pub completion_line_height: f32,
+    pub completion_row_height: f32,
+    pub completion_corner_radius: u8,
 }
 
 impl MdLayout {
@@ -202,6 +210,10 @@ impl MdLayout {
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 14.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 
@@ -216,6 +228,10 @@ impl MdLayout {
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 12.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 }
@@ -249,6 +265,8 @@ impl Editor {
 
             toolbar: Default::default(),
             find: Default::default(),
+            emoji_completions: Default::default(),
+            link_completions: Default::default(),
 
             readonly,
             file_id,
@@ -428,6 +446,8 @@ impl Editor {
             result
         };
 
+        self.emoji_completions.update_active_state(&self.buffer);
+        self.link_completions.update_active_state(&self.buffer);
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -622,6 +642,9 @@ impl Editor {
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
+        self.show_emoji_completions(ui);
+        self.show_link_completions(ui);
+
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -721,8 +744,8 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor by default
-        if ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus
+        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {
