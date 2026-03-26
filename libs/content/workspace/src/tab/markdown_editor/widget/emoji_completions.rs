@@ -1,22 +1,18 @@
-use std::sync::{Arc, RwLock};
-
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
-use glyphon::{Buffer as GlyphonBuffer, Metrics, Shaping, Weight};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily, Format};
-use crate::tab::markdown_editor::widget::utils::{base_attrs, sans_fmt, to_glyphon};
 use crate::tab::markdown_editor::widget::{
-    COMPLETION_FONT_SIZE, COMPLETION_LINE_HEIGHT, COMPLETION_MEASURE_WIDTH, COMPLETION_ROW_HEIGHT,
+    COMPLETION_FONT_SIZE, COMPLETION_LINE_HEIGHT, COMPLETION_ROW_HEIGHT,
 };
+use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 5;
 const MIN_QUERY_LEN: usize = 2;
-const POPUP_CHROME: f32 = 56.0; // 8 left pad + label + 8 gap + ~40 hint + 8 right pad approximation
+const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 
 #[derive(Default)]
 pub struct EmojiCompletions {
@@ -59,7 +55,7 @@ impl EmojiCompletions {
         self.active = has_results;
         // +1 to skip the opening colon
         self.search_term_range =
-            if has_results { Some((DocCharOffset(range.0.0 + 1), range.1)) } else { None };
+            if has_results { Some((range.start() + 1, range.end())) } else { None };
     }
 }
 
@@ -323,50 +319,54 @@ impl Editor {
             }
         }
 
-        let fmt = sans_fmt();
-        let ppi = ui.ctx().pixels_per_point();
+        // -- Measure content -------------------------------------------------------
+        let text_color = ui.visuals().text_color();
+        let hint_color = ui.visuals().weak_text_color();
+        let modifier = if cfg!(target_os = "macos") { "⌘" } else { "^" };
 
-        // Precompute labels once — reused for measurement, background highlights, and rendering.
-        let labels: Vec<(&str, String)> = results
+        let shortcodes: Vec<&str> = results
             .iter()
-            .map(|emoji| {
-                let shortcode = matching_shortcode(emoji, &query);
-                let label = format!("{} :{shortcode}:", emoji.as_str());
-                (shortcode, label)
-            })
+            .map(|emoji| matching_shortcode(emoji, &query))
             .collect();
 
-        // Measure each label at an unconstrained width to get its natural (unwrapped) size,
-        // then derive popup_width from the widest result.
-        let max_label_width = labels
+        let hints: Vec<String> =
+            (0..results.len()).map(|i| format!("{}{}", modifier, i + 1)).collect();
+
+        let spans: Vec<Vec<(String, bool)>> = results
             .iter()
-            .map(|(_, label)| {
-                let buf = self.upsert_glyphon_buffer(
-                    label,
-                    COMPLETION_FONT_SIZE,
-                    COMPLETION_LINE_HEIGHT,
-                    COMPLETION_MEASURE_WIDTH,
-                    &fmt,
-                );
-                let buf = buf.read().unwrap();
-                buf.shaped_size(ppi).x
+            .zip(shortcodes.iter())
+            .map(|(emoji, &shortcode)| build_label_spans(emoji.as_str(), shortcode, &query))
+            .collect();
+
+        let max_width = spans
+            .iter()
+            .zip(hints.iter())
+            .map(|(s, hint)| {
+                let span_refs: Vec<(&str, bool)> =
+                    s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
+                GlyphonLabel::new_rich(span_refs, text_color)
+                    .hint(hint, hint_color)
+                    .font_size(COMPLETION_FONT_SIZE)
+                    .line_height(COMPLETION_LINE_HEIGHT)
+                    .measure(ui)
+                    .x
             })
             .fold(0.0_f32, f32::max);
-        let popup_width = max_label_width + POPUP_CHROME;
 
+        // -- Position popup --------------------------------------------------------
+        let popup_width = max_width + POPUP_PADDING;
         let popup_height = results.len() as f32 * COMPLETION_ROW_HEIGHT;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
-            cursor_top.y - popup_height // above cursor
+            cursor_top.y - popup_height
         } else {
-            cursor_bot.y // below cursor
+            cursor_bot.y
         };
         let popup_rect = Rect::from_min_size(
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
 
-        // All rows are uniform height since the popup is sized to fit without wrapping.
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
@@ -379,7 +379,7 @@ impl Editor {
             })
             .collect();
 
-        // Allocate interaction rects before drawing — click detection doesn't depend on draw order.
+        // -- Interaction -----------------------------------------------------------
         let hover_pos = ui.input(|i| i.pointer.hover_pos());
         let mut clicked: Option<usize> = None;
         for (idx, _) in results.iter().enumerate() {
@@ -389,129 +389,43 @@ impl Editor {
             }
         }
 
+        // -- Draw backgrounds ------------------------------------------------------
         self.draw_completion_popup(
             ui, popup_rect, &row_rects, self.emoji_completions.selected, hover_pos,
         );
 
-        // Build glyphon text buffers. Glyphon (not egui's text system) is required
-        // so that emoji codepoints are shaped and rendered correctly.
-        let text_color = ui.visuals().text_color();
-        let hint_color = ui.visuals().weak_text_color();
+        // -- Render text -----------------------------------------------------------
         let clip_rect = ui.clip_rect();
-
-        let hint_fmt = Format {
-            family: FontFamily::Sans,
-            bold: false,
-            italic: false,
-            color: hint_color,
-            underline: false,
-            strikethrough: false,
-            background: egui::Color32::TRANSPARENT,
-            border: egui::Color32::TRANSPARENT,
-            spoiler: false,
-            superscript: false,
-            subscript: false,
-        };
-
-        // Measure hint width once — all "^N" strings are the same width.
-        let hint_text_width = {
-            let sample = format!("^{}", results.len());
-            let buf = self.upsert_glyphon_buffer(
-                &sample,
-                COMPLETION_FONT_SIZE - 2.0,
-                COMPLETION_LINE_HEIGHT,
-                COMPLETION_MEASURE_WIDTH,
-                &hint_fmt,
-            );
-            let buf = buf.read().unwrap();
-            buf.shaped_size(ppi).x
-        };
-
-        let normal_color = to_glyphon(text_color);
-
         let mut text_areas: Vec<TextBufferArea> = Vec::new();
 
-        for (idx, (shortcode, _label)) in labels.iter().enumerate() {
+        for (idx, spans) in spans.iter().enumerate() {
             let rect = row_rects[idx];
             let text_top = rect.min.y + 4.0;
-
-            let label_rect = Rect::from_min_size(
+            let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(max_label_width, COMPLETION_LINE_HEIGHT),
+                Vec2::new(popup_width - 16.0, COMPLETION_LINE_HEIGHT),
             );
 
-            // Build a rich-text buffer with bold shortcode text.
-            let spans = build_label_spans(results[idx].as_str(), shortcode, &query);
-            let font_size_px = COMPLETION_FONT_SIZE * ppi;
-            let line_height_px = COMPLETION_LINE_HEIGHT * ppi;
-            let mut b = GlyphonBuffer::new(
-                &mut self.font_system.lock().unwrap(),
-                Metrics::new(font_size_px, line_height_px),
-            );
-            b.set_size(
-                &mut self.font_system.lock().unwrap(),
-                Some(COMPLETION_MEASURE_WIDTH * ppi),
-                None,
-            );
-            let default_attrs = base_attrs();
-            b.set_rich_text(
-                &mut self.font_system.lock().unwrap(),
-                spans.iter().map(|(text, bold)| {
-                    let attrs = if *bold {
-                        base_attrs().color(normal_color).weight(Weight::BOLD)
-                    } else {
-                        base_attrs().color(normal_color)
-                    };
-                    (text.as_str(), attrs)
-                }),
-                &default_attrs,
-                Shaping::Advanced,
-                None,
-            );
-            b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
-            let label_buf = Arc::new(RwLock::new(b));
-
-            text_areas.push(TextBufferArea::new(
-                label_buf,
-                label_rect,
-                normal_color,
-                ui.ctx(),
-                clip_rect,
-            ));
-
-            let hint = format!("{}{}", if cfg!(target_os = "macos") { "⌘" } else { "^" }, idx + 1);
-            // Position rect so its right edge sits at popup right - 8, making the
-            // left-aligned glyphon text appear right-aligned within the popup.
-            let hint_rect = Rect::from_min_size(
-                Pos2::new(rect.max.x - hint_text_width - 8.0, text_top),
-                Vec2::new(hint_text_width, COMPLETION_LINE_HEIGHT),
-            );
-            let hint_buf = self.upsert_glyphon_buffer(
-                &hint,
-                COMPLETION_FONT_SIZE - 2.0,
-                COMPLETION_LINE_HEIGHT,
-                COMPLETION_MEASURE_WIDTH,
-                &hint_fmt,
-            );
-            text_areas.push(TextBufferArea::new(
-                hint_buf,
-                hint_rect,
-                to_glyphon(hint_color),
-                ui.ctx(),
-                clip_rect,
-            ));
+            let span_refs: Vec<(&str, bool)> =
+                spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
+            let shaped = GlyphonLabel::new_rich(span_refs, text_color)
+                .hint(&hints[idx], hint_color)
+                .font_size(COMPLETION_FONT_SIZE)
+                .line_height(COMPLETION_LINE_HEIGHT)
+                .build(ui.ctx());
+            text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
         }
 
-        // Submit as a second callback after the editor's main text callback so the
-        // popup text composites on top of the document text.
+        // Submit after the editor's main text callback so the popup composites on top.
         ui.painter()
             .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                 ui.max_rect(),
                 crate::GlyphonRendererCallback::new(text_areas),
             ));
 
+        // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            self.apply_emoji_completion(colon_offset, replace_end, labels[idx].0);
+            self.apply_emoji_completion(colon_offset, replace_end, shortcodes[idx]);
         }
     }
 

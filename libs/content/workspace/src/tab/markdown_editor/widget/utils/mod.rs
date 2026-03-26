@@ -1,36 +1,8 @@
 use comrak::nodes::{AstNode, NodeValue};
-use glyphon::{Attrs, Color as GlyphonColor, Family};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
 
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
-
-
-pub fn to_glyphon(c: egui::Color32) -> GlyphonColor {
-    GlyphonColor::rgba(c.r(), c.g(), c.b(), c.a())
-}
-
-pub fn base_attrs() -> Attrs<'static> {
-    Attrs::new().family(Family::SansSerif)
-}
-
-pub fn sans_fmt() -> Format {
-    Format {
-        family: FontFamily::Sans,
-        bold: false,
-        italic: false,
-        color: egui::Color32::WHITE,
-        underline: false,
-        strikethrough: false,
-        background: egui::Color32::TRANSPARENT,
-        border: egui::Color32::TRANSPARENT,
-        spoiler: false,
-        superscript: false,
-        subscript: false,
-    }
-}
-
 
 pub(crate) mod wrap_layout;
 

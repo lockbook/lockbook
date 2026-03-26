@@ -1,15 +1,27 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use egui::{Response, Sense, Ui};
-use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping};
+use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 
 use crate::{GlyphonRendererCallback, TextBufferArea};
 
-/// An egui widget that renders text through glyphon so that emoji and
-/// non-Latin scripts work correctly in file names.
+/// A text label rendered through glyphon so that emoji, non-Latin scripts, and
+/// mixed bold/normal spans work correctly.
+///
+/// Optionally includes a right-aligned hint (e.g. a keyboard shortcut) that is
+/// rendered in a separate color and smaller font. When the label is placed in a
+/// rect wider than its natural size, extra space goes between the main text and
+/// the hint.
+///
+/// Two rendering paths:
+/// - **egui layout**: `ui.add(label)` — allocates space and paints immediately.
+/// - **manual placement**: `label.build(ctx)` → [`ShapedLabel`] — returns the
+///   shaped buffers and measured size so callers can position it at an arbitrary
+///   rect and batch multiple labels into a single paint callback.
 pub struct GlyphonLabel<'a> {
-    text: &'a str,
+    spans: Vec<(&'a str, bool)>,
     color: egui::Color32,
+    hint: Option<(&'a str, egui::Color32)>,
     font_size: f32,
     /// Total row height in logical pixels, passed to glyphon metrics and used
     /// for the allocated height. Defaults to `font_size * 1.4`.
@@ -20,16 +32,104 @@ pub struct GlyphonLabel<'a> {
     sense: Sense,
 }
 
+/// The result of shaping a [`GlyphonLabel`]. Contains the sized glyphon buffers
+/// ready for placement at an arbitrary screen rect.
+pub struct ShapedLabel {
+    main: ShapedBuffer,
+    hint: Option<ShapedBuffer>,
+    /// Minimum size in logical pixels: main width + gap + hint width.
+    pub size: egui::Vec2,
+}
+
+struct ShapedBuffer {
+    buffer: Arc<RwLock<Buffer>>,
+    size: egui::Vec2,
+    color: glyphon::Color,
+}
+
+/// Gap between main text and hint in logical pixels.
+const HINT_GAP: f32 = 8.0;
+
+impl ShapedLabel {
+    /// Size of the hint text, if any.
+    pub fn hint_size(&self) -> Option<egui::Vec2> {
+        self.hint.as_ref().map(|h| h.size)
+    }
+
+    /// Creates [`TextBufferArea`]s positioned within `rect`.
+    /// Main text is left-aligned, hint (if any) is right-aligned.
+    /// Extra width beyond `self.size.x` goes between the two.
+    pub fn text_areas(
+        self, rect: egui::Rect, ctx: &egui::Context, clip_rect: egui::Rect,
+    ) -> Vec<TextBufferArea> {
+        let mut areas = Vec::with_capacity(2);
+
+        let main_rect = egui::Rect::from_min_size(rect.min, self.main.size);
+        areas.push(TextBufferArea::new(
+            self.main.buffer,
+            main_rect,
+            self.main.color,
+            ctx,
+            clip_rect,
+        ));
+
+        if let Some(hint) = self.hint {
+            let hint_rect = egui::Rect::from_min_size(
+                egui::pos2(rect.max.x - hint.size.x, rect.min.y),
+                hint.size,
+            );
+            areas.push(TextBufferArea::new(
+                hint.buffer,
+                hint_rect,
+                hint.color,
+                ctx,
+                clip_rect,
+            ));
+        }
+
+        areas
+    }
+
+    /// Convenience for labels without hints — returns a single [`TextBufferArea`].
+    pub fn text_area(
+        self, rect: egui::Rect, ctx: &egui::Context, clip_rect: egui::Rect,
+    ) -> TextBufferArea {
+        TextBufferArea::new(self.main.buffer, rect, self.main.color, ctx, clip_rect)
+    }
+}
+
 impl<'a> GlyphonLabel<'a> {
+    /// Plain text label.
     pub fn new(text: &'a str, color: egui::Color32) -> Self {
         Self {
-            text,
+            spans: vec![(text, false)],
             color,
+            hint: None,
             font_size: 14.0,
             line_height: None,
             max_width: f32::MAX,
             sense: Sense::hover(),
         }
+    }
+
+    /// Label with mixed bold/normal spans for search match highlighting.
+    /// Each span is `(text, bold)`.
+    pub fn new_rich(spans: Vec<(&'a str, bool)>, color: egui::Color32) -> Self {
+        Self {
+            spans,
+            color,
+            hint: None,
+            font_size: 14.0,
+            line_height: None,
+            max_width: f32::MAX,
+            sense: Sense::hover(),
+        }
+    }
+
+    /// Adds a right-aligned hint (e.g. a keyboard shortcut) rendered in a
+    /// smaller font and the given color.
+    pub fn hint(self, text: &'a str, color: egui::Color32) -> Self {
+        Self { hint: Some((text, color)), ..self }
     }
 
     pub fn font_size(self, font_size: f32) -> Self {
@@ -53,27 +153,71 @@ impl<'a> GlyphonLabel<'a> {
     }
 
     /// Returns the rendered size in logical pixels without placing the widget.
-    /// Useful when the width is needed before layout, such as sizing a rename
-    /// field.
     pub fn measure(&self, ui: &egui::Ui) -> egui::Vec2 {
-        self.shape(ui.ctx()).1
+        self.build(ui.ctx()).size
     }
 
-    fn shape(&self, ctx: &egui::Context) -> (Arc<RwLock<Buffer>>, egui::Vec2) {
+    /// Shapes the text and returns the buffers + measured size for manual placement.
+    pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
         let font_system = ctx
             .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
             .expect("GlyphonLabel used outside of a wgpu context");
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
 
+        let main = Self::shape_buffer(
+            &font_system,
+            ppi,
+            &self.spans,
+            self.color,
+            self.font_size,
+            line_height,
+            self.max_width,
+        );
+
+        let hint = self.hint.map(|(text, color)| {
+            let hint_font_size = self.font_size - 2.0;
+            Self::shape_buffer(
+                &font_system,
+                ppi,
+                &[(text, false)],
+                color,
+                hint_font_size,
+                line_height,
+                f32::MAX,
+            )
+        });
+
+        let width = match &hint {
+            Some(h) => main.size.x + HINT_GAP + h.size.x,
+            None => main.size.x,
+        };
+        let height = match &hint {
+            Some(h) => main.size.y.max(h.size.y),
+            None => main.size.y,
+        };
+
+        ShapedLabel { main, hint, size: egui::vec2(width, height) }
+    }
+
+    fn shape_buffer(
+        font_system: &Arc<Mutex<FontSystem>>, ppi: f32, spans: &[(&str, bool)],
+        color: egui::Color32, font_size: f32, line_height: f32, max_width: f32,
+    ) -> ShapedBuffer {
         let mut fs = font_system.lock().unwrap();
-        let mut buf = Buffer::new(&mut fs, Metrics::new(self.font_size * ppi, line_height * ppi));
-        buf.set_size(&mut fs, Some(self.max_width * ppi), None);
-        buf.set_text(
+        let mut buf = Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
+        buf.set_size(&mut fs, Some(max_width * ppi), None);
+
+        let base = Attrs::new().family(Family::SansSerif);
+        buf.set_rich_text(
             &mut fs,
-            self.text,
-            &Attrs::new().family(Family::SansSerif),
+            spans.iter().map(|&(text, bold)| {
+                let attrs = if bold { base.clone().weight(Weight::BOLD) } else { base.clone() };
+                (text, attrs)
+            }),
+            &base,
             Shaping::Advanced,
+            None,
         );
         buf.shape_until_scroll(&mut fs, false);
 
@@ -82,32 +226,29 @@ impl<'a> GlyphonLabel<'a> {
             .layout_runs()
             .fold((0.0f32, 0u32), |(w, n), r| (w.max(r.line_w), n + 1));
         let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
-        (Arc::new(RwLock::new(buf)), size)
+
+        let c = color;
+        ShapedBuffer {
+            buffer: Arc::new(RwLock::new(buf)),
+            size,
+            color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
+        }
     }
 }
 
 impl egui::Widget for GlyphonLabel<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
-        let (buffer, text_size) = self.shape(ui.ctx());
-
-        let (rect, response) = ui.allocate_exact_size(
-            egui::vec2(text_size.x, self.line_height.unwrap_or(self.font_size * 1.4)),
-            self.sense,
-        );
+        let shaped = self.build(ui.ctx());
+        let alloc_height = self.line_height.unwrap_or(self.font_size * 1.4);
+        let (rect, response) =
+            ui.allocate_exact_size(egui::vec2(shaped.size.x, alloc_height), self.sense);
 
         if ui.is_rect_visible(rect) {
-            let c = self.color;
-            let area = TextBufferArea::new(
-                buffer,
-                rect,
-                glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
-                ui.ctx(),
-                rect,
-            );
+            let areas = shaped.text_areas(rect, ui.ctx(), rect);
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     rect,
-                    GlyphonRendererCallback::new(vec![area]),
+                    GlyphonRendererCallback::new(areas),
                 ));
         }
 

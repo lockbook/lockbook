@@ -20,7 +20,6 @@ pub const COMPLETION_FONT_SIZE: f32 = 14.0;
 pub const COMPLETION_LINE_HEIGHT: f32 = COMPLETION_FONT_SIZE + 2.0;
 pub const COMPLETION_ROW_HEIGHT: f32 = COMPLETION_LINE_HEIGHT + 8.0;
 pub const COMPLETION_CORNER_RADIUS: u8 = 4;
-pub const COMPLETION_MEASURE_WIDTH: f32 = 1000.0;
 
 impl<'ast> Editor {
     /// Returns the range for the node.
