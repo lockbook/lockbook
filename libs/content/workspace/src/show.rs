@@ -32,6 +32,8 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
+        
+        self.show_search_modal();
 
         if self.is_empty() {
             if self.show_tabs {
