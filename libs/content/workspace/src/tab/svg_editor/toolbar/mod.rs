@@ -4,10 +4,10 @@ mod tools_island;
 mod viewport_island;
 
 use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
+use crate::tab::svg_editor::tools::DynRogerTool;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
 use crate::tab::svg_editor::tools::shapes::ShapesTool;
-use crate::tab::svg_editor::tools::{DynRogerTool, RogerTool};
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -23,7 +23,6 @@ use lb_rs::model::svg::element::DynamicColor;
 use tracing::debug;
 use viewport_island::ViewportPopover;
 
-use super::gesture_handler::GestureHandler;
 use super::history::History;
 use super::renderer::Renderer;
 use super::tools::{eraser::Eraser, pen::Pen};
@@ -44,7 +43,6 @@ pub struct Toolbar {
     pub selection: Selection,
     pub shapes_tool: ShapesTool,
     pub previous_tool: Option<Tool>,
-    pub gesture_handler: GestureHandler,
 
     pub hide_overlay: bool,
     pub show_tool_popover: bool,
@@ -261,7 +259,6 @@ impl Toolbar {
             eraser: Default::default(),
             selection: Default::default(),
             previous_tool: Default::default(),
-            gesture_handler: Default::default(),
             hide_overlay: Default::default(),
             show_tool_popover: Default::default(),
             layout: Default::default(),
@@ -280,8 +277,13 @@ impl Toolbar {
 
         let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
-        let target_opacity =
-            if self.hide_overlay { 0.0 } else { if self.roger_interrupt { 0.3 } else { 1.0 } };
+        let target_opacity = if self.hide_overlay {
+            0.0
+        } else if self.roger_interrupt {
+            0.3
+        } else {
+            1.0
+        };
         let opacity =
             ui.ctx()
                 .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
@@ -369,7 +371,7 @@ impl Toolbar {
     }
 
     pub fn get_rects(&self) -> Vec<egui::Rect> {
-        let overlay = || -> Vec<Option<egui::Rect>> {
+        let overlay = {
             if self.hide_overlay {
                 vec![self.layout.overlay_toggle]
             } else {
@@ -394,7 +396,7 @@ impl Toolbar {
                 islands
                 // todo: handle mini map!!
             }
-        }();
+        };
 
         overlay
             .iter()

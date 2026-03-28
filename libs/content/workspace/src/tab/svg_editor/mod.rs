@@ -57,8 +57,6 @@ pub struct SVGEditor {
     painter: egui::Painter,
     has_queued_save_request: bool,
     pub viewport_settings: ViewportSettings,
-    /// don't allow zooming or panning
-    allow_viewport_changes: bool,
     pub settings: CanvasSettings,
     input_ctx: InputContext,
 
@@ -204,7 +202,6 @@ impl SVGEditor {
             input_ctx: InputContext::default(),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
-            allow_viewport_changes: false,
             settings,
             viewport_settings,
             cfg,

@@ -250,12 +250,6 @@ impl Pen {
                 return;
             }
 
-            // todo: bring back path snapping on user long press
-            if path.len() > 2 && false {
-                self.path_builder
-                    .snap(pen_ctx.viewport_settings.master_transform, path);
-            }
-
             pen_ctx
                 .history
                 .save(crate::tab::svg_editor::Event::Insert(vec![InsertElement {

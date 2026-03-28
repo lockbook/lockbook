@@ -80,7 +80,7 @@ impl SelectionHandles {
     }
 
     fn show(&self, ui: &mut egui::Ui) {
-        for (i, &(rect, scale_op)) in self.handles.iter().enumerate() {
+        for &(rect, _) in self.handles.iter() {
             ui.painter().rect(
                 rect,
                 egui::CornerRadius::same(2),
@@ -93,7 +93,7 @@ impl SelectionHandles {
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-enum SelectionOperation {
+pub enum SelectionOperation {
     Translation,
     EastScale,
     WestScale,
@@ -451,13 +451,12 @@ impl RogerTool for Selection {
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         ui.scope_builder(
-            UiBuilder::new()
-                .layer_id(egui::LayerId {
-                    order: egui::Order::Foreground,
-                    id: "selection_overlay".into(),
-                })
-                .max_rect(selection_ctx.viewport_settings.container_rect),
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Background,
+                id: "selection_overlay".into(),
+            }),
             |ui| {
+                ui.set_clip_rect(selection_ctx.viewport_settings.working_rect);
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(
                         laso_rect,
@@ -633,7 +632,7 @@ impl Selection {
         let tooltip_rect = egui::Rect { min, max: min };
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
-                order: egui::Order::Tooltip,
+                order: egui::Order::Foreground,
                 id: "selection_tooltip".into(),
             }),
             |ui| {

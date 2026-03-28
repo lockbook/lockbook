@@ -1,7 +1,7 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
-use jni::sys::{jboolean, jfloat, jfloatArray, jint, jlong, jobjectArray, jstring};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;

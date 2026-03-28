@@ -63,7 +63,7 @@ impl RogerTool for ShapesTool {
     }
 
     fn handle_tool_event(
-        &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, shapes_ctx: &mut ToolContext,
+        &mut self, _: &mut egui::Ui, event: Self::ToolEvent, shapes_ctx: &mut ToolContext,
     ) {
         match event {
             ShapeEvent::End => {

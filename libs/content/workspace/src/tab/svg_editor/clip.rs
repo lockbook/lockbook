@@ -7,6 +7,7 @@ use resvg::usvg::{NonZeroRect, Transform};
 
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::History;
+use crate::tab::svg_editor::tools::selection::SelectedElement;
 use crate::tab::{ClipContent, ExtendedInput as _};
 
 use super::element::PromoteBufferWeakImages;
@@ -143,10 +144,10 @@ impl SVGEditor {
 
                         self.toolbar.active_tool = Tool::Selection;
 
-                        // self.toolbar.selection.selected_elements = new_ids
-                        //     .iter()
-                        //     .map(|&id| SelectedElement { id, transform: Default::default() })
-                        //     .collect();
+                        self.toolbar.selection.selected_elements = new_ids
+                            .iter()
+                            .map(|&id| SelectedElement { id, transform: Default::default() })
+                            .collect();
                     }
                 }
             }

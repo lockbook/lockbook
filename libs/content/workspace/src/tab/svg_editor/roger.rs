@@ -4,7 +4,7 @@ use std::{collections::HashMap, slice::Iter};
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
 use time::Duration;
-use tracing::{debug, warn};
+use tracing::warn;
 use web_time::Instant;
 
 use crate::{
@@ -81,9 +81,7 @@ struct MouseProps {
 enum ButtonType {
     Primary,
     Secondary,
-    Tertiary,
     Middle,
-    Back,
     Extra1,
     Extra2,
 }
@@ -103,7 +101,7 @@ pub enum RogerEvent {
 
 struct ViewportChange;
 impl ViewportChange {
-    // todo: center according to the active touches, or the hover pos
+    #[allow(clippy::new_ret_no_self)]
     fn new(roger: &Roger, event: &egui::Event, cancel_tool: bool) -> RogerEvent {
         if cancel_tool {
             return RogerEvent::ViewportChangeWithToolCancel;
@@ -125,11 +123,10 @@ impl ViewportChange {
                     if count != 0 { sum / count as f32 } else { egui::Pos2::ZERO }
                 };
 
-                let transform = transform
-                    .post_translate((1.0 - factor) * origin_pos.x, (1.0 - factor) * origin_pos.y);
                 transform
+                    .post_translate((1.0 - factor) * origin_pos.x, (1.0 - factor) * origin_pos.y)
             }
-            egui::Event::MouseWheel { unit, delta, modifiers } => {
+            egui::Event::MouseWheel { unit: _, delta, modifiers: _ } => {
                 Transform::identity().post_translate(delta.x, delta.y)
             }
             _ => Transform::identity(),
@@ -137,6 +134,7 @@ impl ViewportChange {
         RogerEvent::ViewportChange(transform)
     }
 
+    #[cfg(test)]
     fn identity() -> RogerEvent {
         RogerEvent::ViewportChange(Transform::identity())
     }
@@ -223,7 +221,7 @@ impl Roger {
         match event {
             Event::PredictedTouch { id, force, pos } => {
                 if let Some(start_touch) = self.tool_start_touch {
-                    if start_touch.eq(&id) {
+                    if start_touch.eq(id) {
                         self.response.hide_overlay = pos_collides_with_layout(*pos, ctx);
 
                         return Some(RogerEvent::ToolPredictedRun(*pos, *force));
@@ -391,19 +389,19 @@ impl Roger {
             egui::Event::MouseWheel { .. } => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(ViewportChange::new(&self, event, false));
+                    return Some(ViewportChange::new(self, event, false));
                 }
 
                 None
             }
             egui::Event::Touch { device_id, id, phase, pos, force } => {
                 self.is_touch_frame = true;
-                return self.touch_to_roger_event(device_id, id, pos, phase, force, ctx);
+                self.touch_to_roger_event(device_id, id, pos, phase, force, ctx)
             }
             egui::Event::Zoom(..) => {
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(ViewportChange::new(&self, event, false));
+                    return Some(ViewportChange::new(self, event, false));
                 }
                 None
             }
@@ -483,7 +481,7 @@ impl Roger {
                         if self.config.pencil_only_drawing {
                             // one finger touch trigers a gesture, and so does two fingers
                             self.viewport_changing = Some(Instant::now());
-                            return Some(ViewportChange::new(&self, event, false));
+                            return Some(ViewportChange::new(self, event, false));
                         } else {
                             let elapsed = Instant::now() - last_touch.start;
                             // todo: source constant from pen impl
@@ -494,7 +492,7 @@ impl Roger {
                                 self.viewport_changing = Some(Instant::now());
                                 self.tool_start_touch = None;
                                 self.tool_running = None;
-                                return Some(ViewportChange::new(&self, event, true));
+                                return Some(ViewportChange::new(self, event, true));
                             } else if Some(last_touch.id) == self.tool_start_touch {
                                 // else: the two fingers are spaced out. the first one runs the tool
                                 // the second one will be ignored
@@ -523,13 +521,11 @@ impl Roger {
                 if self.config.pencil_only_drawing {
                     if !is_curr_touch_pen {
                         self.viewport_changing = Some(Instant::now());
-                        return Some(ViewportChange::new(&self, event, false));
-                    } else {
-                        if self.tool_running.is_none() {
-                            self.tool_running = Some(Instant::now());
-                            self.tool_start_touch = Some(curr_touch_id);
-                            return Some(RogerEvent::ToolStart(payload));
-                        }
+                        return Some(ViewportChange::new(self, event, false));
+                    } else if self.tool_running.is_none() {
+                        self.tool_running = Some(Instant::now());
+                        self.tool_start_touch = Some(curr_touch_id);
+                        return Some(RogerEvent::ToolStart(payload));
                     }
                 } else if self.tool_running.is_none() {
                     self.tool_running = Some(Instant::now());
@@ -563,7 +559,7 @@ impl Roger {
 
                 if self.viewport_changing.is_some() {
                     self.viewport_changing = Some(Instant::now());
-                    return Some(ViewportChange::new(&self, event, false));
+                    return Some(ViewportChange::new(self, event, false));
                 }
             }
             egui::TouchPhase::End => {
@@ -839,7 +835,6 @@ mod tests {
     #[test]
     fn button_then_mousewheel() {
         let mut roger = Roger::new(RogerConfig::default());
-        let layout = LayoutContext::default();
 
         let payload = ToolPayload { pos: egui::Pos2::ZERO, force: None, id: None };
 

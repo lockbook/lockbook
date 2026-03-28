@@ -1,6 +1,4 @@
-use egui::{
-    Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, TouchDeviceId, TouchId, TouchPhase, vec2,
-};
+use egui::{Key, Modifiers, PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};

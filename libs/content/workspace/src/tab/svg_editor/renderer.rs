@@ -117,52 +117,52 @@ impl Renderer {
 
                 match el {
                     Element::Path(path) => {
-                        // let stale_mesh = if let Some(MeshShape { scale, .. }) =
-                        //     self.mesh_cache.get(id)
-                        // {
-                        //     let current_el_scale = path.transform.sx * self.viewport_transform.sx;
-                        //     let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
-                        //     diff > 5.0 && is_main_canvas_render
-                        // } else {
-                        //     false
-                        // };
+                        let stale_mesh = if let Some(MeshShape { scale, .. }) =
+                            self.mesh_cache.get(id)
+                        {
+                            let current_el_scale = path.transform.sx * self.viewport_transform.sx;
+                            let diff = current_el_scale.max(*scale) / current_el_scale.min(*scale);
+                            diff > 5.0 && is_main_canvas_render
+                        } else {
+                            false
+                        };
 
-                        // if path.deleted
-                        //     || (!path.diff_state.opacity_changed
-                        //         && !path.diff_state.data_changed
-                        //         && !path.diff_state.delete_changed
-                        //         && path.diff_state.transformed.is_none()
-                        //         && !dark_mode_changed
-                        //         && !stale_mesh
-                        //         && !self.request_rerender
-                        //         && !fit_content_transform_changed)
-                        // {
-                        //     return None;
-                        // }
+                        if path.deleted
+                            || (!path.diff_state.opacity_changed
+                                && !path.diff_state.data_changed
+                                && !path.diff_state.delete_changed
+                                && path.diff_state.transformed.is_none()
+                                && !dark_mode_changed
+                                && !stale_mesh
+                                && !self.request_rerender
+                                && !fit_content_transform_changed)
+                        {
+                            return None;
+                        }
 
-                        // if let Some(transform) = path.diff_state.transformed {
-                        //     let mut re_tess = false;
-                        //     // if we're rendering using the master transform then this is  part of the main
-                        //     // canvas render loop, not mini map or an external user like an editor preview.
-                        //     // each transform is recorded on the master transform plane, and applying it
-                        //     // to another plane would be incorrect. so just re-tesselate instead.
-                        //     // todo: figure out how to convert the transform between planes to
-                        //     // avoid re-tesselation.
-                        //     if !is_main_canvas_render {
-                        //         if buffer.master_transform_changed {
-                        //             return None;
-                        //         } else {
-                        //             re_tess = true;
-                        //         }
-                        //     };
+                        if let Some(transform) = path.diff_state.transformed {
+                            let mut re_tess = false;
+                            // if we're rendering using the master transform then this is  part of the main
+                            // canvas render loop, not mini map or an external user like an editor preview.
+                            // each transform is recorded on the master transform plane, and applying it
+                            // to another plane would be incorrect. so just re-tesselate instead.
+                            // todo: figure out how to convert the transform between planes to
+                            // avoid re-tesselation.
+                            if !is_main_canvas_render {
+                                if buffer.master_transform_changed {
+                                    return None;
+                                } else {
+                                    re_tess = true;
+                                }
+                            };
 
-                        //     if !re_tess
-                        //         && transform.sx == transform.sy
-                        //         && self.mesh_cache.contains_key(id)
-                        //     {
-                        //         return Some((*id, RenderOp::Transform(transform)));
-                        //     }
-                        // }
+                            if !re_tess
+                                && transform.sx == transform.sy
+                                && self.mesh_cache.contains_key(id)
+                            {
+                                return Some((*id, RenderOp::Transform(transform)));
+                            }
+                        }
                         tesselate_path(
                             path,
                             id,
