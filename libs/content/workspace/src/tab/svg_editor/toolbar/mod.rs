@@ -66,6 +66,7 @@ struct ToolbarLayout {
     zoom_pct_btn: Option<egui::Rect>, // within the viewport popover. used to center the popover above the button
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
+    bring_back_btn: Option<egui::Rect>,
     mini_map: Option<egui::Rect>,
 }
 #[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
@@ -377,6 +378,7 @@ impl Toolbar {
                     self.layout.overlay_toggle,
                     self.layout.tools_island,
                     self.layout.viewport_island,
+                    self.layout.bring_back_btn,
                     self.selection.layout.container_tooltip,
                     self.selection.layout.popover,
                 ];

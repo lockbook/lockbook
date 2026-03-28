@@ -51,7 +51,6 @@ struct TouchInfo {
     id: egui::TouchId,
     start: Instant,
     is_active: bool,
-    collides_with_layout: bool,
     has_force: bool,
     lifetime_distance: f32,
     frame_delta: egui::Vec2,
@@ -59,7 +58,7 @@ struct TouchInfo {
 }
 
 impl TouchInfo {
-    fn new(id: TouchId, pos: egui::Pos2, force: Option<f32>, collides_with_layout: bool) -> Self {
+    fn new(id: TouchId, pos: egui::Pos2, force: Option<f32>) -> Self {
         Self {
             id,
             start: Instant::now(),
@@ -68,7 +67,6 @@ impl TouchInfo {
             lifetime_distance: 0.0,
             frame_delta: egui::Vec2::ZERO,
             last_pos: pos,
-            collides_with_layout,
         }
     }
 }
@@ -225,7 +223,6 @@ impl Roger {
         match event {
             Event::PredictedTouch { id, force, pos } => {
                 if let Some(start_touch) = self.tool_start_touch {
-                    debug!(?event);
                     if start_touch.eq(&id) {
                         self.response.hide_overlay = pos_collides_with_layout(*pos, ctx);
 
@@ -279,7 +276,7 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
-                debug!(?event, ?roger_event, ?self, "roger event generation");
+                // debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
@@ -457,8 +454,7 @@ impl Roger {
             egui::TouchPhase::Start => {
                 let last_touches_have_pen = self.touches.iter().any(|t| t.has_force);
                 let collides = pos_collides_with_layout(pos, ctx);
-                self.touches
-                    .push(TouchInfo::new(curr_touch_id, pos, force, collides));
+                self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
                 if collides || !ctx.draw_area.contains(pos) {
                     warn!(
                         ?pos,

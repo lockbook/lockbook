@@ -34,15 +34,62 @@ pub struct Selection {
     laso_rect: Option<egui::Rect>,
     pub layout: Layout,
     show_selection_popover: bool,
-    suggested_op: Option<SelectionOperation>,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub properties: Option<ElementEditableProperties>,
+    selection_container: Option<egui::Rect>,
+    selection_handles: Option<SelectionHandles>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct ElementEditableProperties {
     pub stroke: Option<Stroke>,
     pub opacity: f32,
+}
+struct SelectionHandles {
+    handles: [(egui::Rect, SelectionOperation); 8],
+}
+impl Default for SelectionHandles {
+    fn default() -> Self {
+        Self {
+            handles: [
+                (egui::Rect::ZERO, SelectionOperation::NorthScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthScale),
+                (egui::Rect::ZERO, SelectionOperation::EastScale),
+                (egui::Rect::ZERO, SelectionOperation::WestScale),
+                (egui::Rect::ZERO, SelectionOperation::NorthEastScale),
+                (egui::Rect::ZERO, SelectionOperation::NorthWestScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthEastScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthWestScale),
+            ],
+        }
+    }
+}
+
+impl SelectionHandles {
+    fn from_corners(corners: [(egui::Pos2, SelectionOperation); 8]) -> Self {
+        let mut selection = SelectionHandles::default();
+        for (i, (pos, op)) in corners.iter().enumerate() {
+            let handle_side_length = 8.0; // handle is a square
+            let rect = egui::Rect {
+                min: egui::pos2(pos.x - handle_side_length / 2.0, pos.y - handle_side_length / 2.0),
+                max: egui::pos2(pos.x + handle_side_length / 2.0, pos.y + handle_side_length / 2.0),
+            };
+            selection.handles[i] = (rect, *op);
+        }
+        selection
+    }
+
+    fn show(&self, ui: &mut egui::Ui) {
+        for (i, &(rect, scale_op)) in self.handles.iter().enumerate() {
+            ui.painter().rect(
+                rect,
+                egui::CornerRadius::same(2),
+                egui::Color32::WHITE,
+                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
+                egui::epaint::StrokeKind::Inside,
+            );
+        }
+    }
 }
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,7 +126,7 @@ pub enum SelectionEvent {
     LasoBuild(BuildPayload),
     EndLaso,
     SelectAll,
-    StartTransform,
+    StartTransform(SelectionOperation),
     Transform(egui::Pos2),
     EndTransform,
     Delete,
@@ -91,11 +138,6 @@ pub struct BuildPayload {
     pub modifiers: egui::Modifiers,
 }
 
-struct SelectionInputState {
-    delta: egui::Vec2,
-    is_multi_touch: bool,
-}
-
 impl RogerTool for Selection {
     type ToolEvent = SelectionEvent;
 
@@ -103,10 +145,11 @@ impl RogerTool for Selection {
         match roger_event {
             RogerEvent::ToolStart(payload) => {
                 // we're hovering over an element
-                debug!(?self.suggested_op, " tool start");
+                let suggested_op = self.compute_suggested_op(payload.pos);
+                debug!(?suggested_op, " tool start");
 
-                if self.suggested_op.is_some() {
-                    return Some(SelectionEvent::StartTransform);
+                if let Some(op) = suggested_op {
+                    return Some(SelectionEvent::StartTransform(op));
                 }
 
                 Some(SelectionEvent::StartLaso(BuildPayload {
@@ -114,18 +157,13 @@ impl RogerTool for Selection {
                     modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to roger event
                 }))
             }
-            RogerEvent::ToolRun(payload) => {
-                debug!(?self.current_op, "tool run");
-                match self.current_op {
-                    SelectionOperation::LasoBuild(_) => {
-                        Some(SelectionEvent::LasoBuild(BuildPayload {
-                            pos: payload.pos,
-                            modifiers: egui::Modifiers::NONE,
-                        }))
-                    }
-                    _ => Some(SelectionEvent::Transform(payload.pos)),
-                }
-            }
+            RogerEvent::ToolRun(payload) => match self.current_op {
+                SelectionOperation::LasoBuild(_) => Some(SelectionEvent::LasoBuild(BuildPayload {
+                    pos: payload.pos,
+                    modifiers: egui::Modifiers::NONE,
+                })),
+                _ => Some(SelectionEvent::Transform(payload.pos)),
+            },
             RogerEvent::ToolEnd(_) => match self.current_op {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
@@ -138,8 +176,8 @@ impl RogerTool for Selection {
         &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, selection_ctx: &mut ToolContext,
     ) {
         match event {
-            SelectionEvent::StartTransform => {
-                self.current_op = self.suggested_op.unwrap_or(SelectionOperation::Idle);
+            SelectionEvent::StartTransform(op) => {
+                self.current_op = op;
             }
             SelectionEvent::Transform(pos) => {
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
@@ -412,8 +450,6 @@ impl RogerTool for Selection {
     fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        self.suggested_op = None;
-
         ui.scope_builder(
             UiBuilder::new()
                 .layer_id(egui::LayerId {
@@ -430,7 +466,7 @@ impl RogerTool for Selection {
                     );
                 };
 
-                self.suggested_op = self.show_selection_rects(ui, selection_ctx);
+                self.show_selection_rects(ui, selection_ctx);
             },
         );
     }
@@ -456,6 +492,26 @@ impl Selection {
             .apply_event(&delete_event, selection_ctx.buffer);
         selection_ctx.history.save(delete_event);
         self.clear_selection_els();
+    }
+
+    fn compute_suggested_op(&self, pos: egui::Pos2) -> Option<SelectionOperation> {
+        if let Some(handles) = &self.selection_handles {
+            for (rect, op) in handles.handles.iter() {
+                let rect = rect.expand(10.0);
+                if rect.contains(pos) {
+                    return Some(*op);
+                }
+            }
+        }
+
+        if let Some(container) = self.selection_container {
+            let container = container.expand(5.0);
+            if container.contains(pos) {
+                return Some(SelectionOperation::Translation);
+            }
+        }
+
+        None
     }
 
     fn get_laso_selected_els(
@@ -505,14 +561,13 @@ impl Selection {
         }
     }
 
-    fn show_selection_rects(
-        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
-    ) -> Option<SelectionOperation> {
+    fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         if self.selected_elements.is_empty() {
-            return None;
+            self.selection_container = None;
+            self.selection_handles = None;
+            return;
         }
         let container = self.get_container_rect(selection_ctx.buffer);
-        let mut op = None;
 
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
@@ -527,7 +582,7 @@ impl Selection {
                 }
             }
 
-            op = self.show_selection_container(ui, container);
+            self.show_selection_container(ui, container);
         }
 
         ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
@@ -546,7 +601,7 @@ impl Selection {
         }
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
-            return None;
+            return;
         }
 
         let opacity = if self.current_op == SelectionOperation::Idle { 1.0 } else { 0.0 };
@@ -611,8 +666,6 @@ impl Selection {
         if opacity == 0.0 {
             self.layout.container_tooltip = None;
         }
-
-        op
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
@@ -728,11 +781,7 @@ impl Selection {
         );
     }
 
-    fn show_selection_container(
-        &self, ui: &mut egui::Ui, rect: egui::Rect,
-    ) -> Option<SelectionOperation> {
-        let mut out = None;
-
+    fn show_selection_container(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
         let corners = [
             (rect.min, SelectionOperation::NorthWestScale),
             (rect.max, SelectionOperation::SouthEastScale),
@@ -744,43 +793,9 @@ impl Selection {
             (rect.right_center(), SelectionOperation::EastScale),
         ];
 
-        let res =
-            ui.interact(rect.expand(5.0), "selection_container_rect".into(), egui::Sense::drag());
-        let should_translate =
-            out.is_none() && (res.dragged() || res.drag_started() || res.clicked());
-
-        for (i, &(anchor, scale_op)) in corners.iter().enumerate() {
-            let handle_side_length = 8.0; // handle is a square
-            let anchor = egui::pos2(anchor.x, anchor.y);
-            let rect = egui::Rect {
-                min: egui::pos2(
-                    anchor.x - handle_side_length / 2.0,
-                    anchor.y - handle_side_length / 2.0,
-                ),
-                max: egui::pos2(
-                    anchor.x + handle_side_length / 2.0,
-                    anchor.y + handle_side_length / 2.0,
-                ),
-            };
-
-            ui.painter().rect(
-                rect,
-                egui::CornerRadius::same(2),
-                egui::Color32::WHITE,
-                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
-                egui::epaint::StrokeKind::Inside,
-            );
-
-            let res = ui.interact(
-                rect.expand(5.0),
-                egui::Id::new(format!("{scale_op:#?}{i}")),
-                egui::Sense::drag(),
-            );
-
-            if res.dragged() || res.drag_started() || res.clicked() {
-                out = Some(scale_op);
-            }
-        }
+        let selection_handles = SelectionHandles::from_corners(corners);
+        selection_handles.show(ui);
+        self.selection_handles = Some(selection_handles);
 
         ui.painter().rect_stroke(
             rect,
@@ -788,11 +803,7 @@ impl Selection {
             egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
             egui::epaint::StrokeKind::Inside,
         );
-        if out.is_none() && should_translate {
-            out = Some(SelectionOperation::Translation);
-        }
-
-        out
+        self.selection_container = Some(rect);
     }
 
     fn push_selection_el(&mut self, el: SelectedElement) {

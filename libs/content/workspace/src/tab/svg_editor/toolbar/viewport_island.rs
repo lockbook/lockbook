@@ -86,6 +86,7 @@ impl Toolbar {
         }
 
         if let Some(res) = show_bring_back_btn(ui, tlbr_ctx, viewport_island_rect) {
+            self.layout.bring_back_btn = Some(res.rect);
             island_res = island_res.union(res);
         }
 
@@ -409,18 +410,11 @@ impl Toolbar {
 
         ui.horizontal(|ui| {
             ui.label("Show mini map");
-            ui.add_space(10.0);
-            if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
-                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
-            }
-            // ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            //     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            //         switch(ui, &mut self.gesture_handler.is_zoom_locked);
-            //     });
-            //     ui.add_space(10.0);
-
-            //     ui.label("Zoom lock");
-            // });
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
+            });
         });
 
         if cfg!(target_os = "android") {
@@ -433,7 +427,9 @@ impl Toolbar {
             ui.horizontal(|ui| {
                 ui.label("Draw only with pen");
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    switch(ui, &mut tlbr_ctx.settings.pencil_only_drawing);
+                    if switch(ui, &mut tlbr_ctx.settings.pencil_only_drawing).changed() {
+                        tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                    };
                 })
             });
         }
