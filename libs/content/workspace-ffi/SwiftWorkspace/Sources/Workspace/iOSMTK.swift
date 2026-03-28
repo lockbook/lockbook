@@ -918,22 +918,23 @@
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
-                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-//            if !UIPencilInteraction.prefersPencilOnlyDrawing {  // todo: update when prefersPencilOnlyDrawing changes
-//                pan.minimumNumberOfTouches = 1
-//            } else {
-//                pan.minimumNumberOfTouches = 2
-//            }
             pan.cancelsTouchesInView = false
-
             pan.delegate = gestureDelegate
             self.addGestureRecognizer(pan)
-
             self.panRecognizer = pan
+            
+            updatePanTouchRequirements()
 
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(updatePanTouchRequirements),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+            
             // gestures: pinch
             let pinch = UIPinchGestureRecognizer(
                 target: self, action: #selector(self.handlePinch(_:)))
@@ -954,6 +955,12 @@
             self.menuInteraction = menuInteraction
         }
 
+        @objc private func updatePanTouchRequirements() {
+            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 1 : 2
+            
+            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
+        }
+        
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let menuInteraction = menuInteraction else { return }
 
@@ -1038,8 +1045,6 @@
         }
 
         public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            // set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
-
             // let's cancel the kinetic pan. don't nullify it so that the tap handler
             // will know not to show the edit menu
             if self.mtkView.kineticTimer != nil {
@@ -1394,7 +1399,7 @@
         var scrollSensitivity = 50.0
         var scrollId = 0
         var kineticTimer: Timer?
-
+        
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
 
@@ -1424,8 +1429,29 @@
             self.delegate = mtkDelegate
             self.preferredFramesPerSecond = 120
             self.isUserInteractionEnabled = true
+            
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidBecomeActive),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidEnterBackground),
+                name: UIApplication.didEnterBackgroundNotification,
+                object: nil
+            )
         }
 
+        @objc private func appDidBecomeActive() {
+            self.isPaused = false
+        }
+
+        @objc private func appDidEnterBackground() {
+            self.isPaused = true
+        }
+        
         required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }

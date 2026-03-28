@@ -278,6 +278,7 @@ impl Pen {
                     if let Some(last_force) = forces.last() {
                         forces.push(*last_force);
                     }
+                    println!("added predicted force, count");
                 }
             }
 
@@ -300,6 +301,7 @@ impl Pen {
                     {
                         forces.pop();
                     }
+                    println!("removed predicted force");
                 }
                 self.path_builder.first_predicted_mg = None;
             } else {

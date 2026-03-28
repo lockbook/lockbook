@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
-use egui::{TouchPhase, UiBuilder};
+use egui::UiBuilder;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
@@ -61,10 +61,6 @@ enum SelectionOperation {
     Idle,
 }
 
-pub enum SelectionPropogatedEvent {
-    Copy,
-}
-
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
@@ -82,7 +78,6 @@ pub enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
-    CancelLaso,
     SelectAll,
     StartTransform,
     Transform(egui::Pos2),
@@ -135,9 +130,6 @@ impl RogerTool for Selection {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },
-            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
-                Some(SelectionEvent::CancelLaso)
-            }
             _ => None,
         }
     }
@@ -395,9 +387,6 @@ impl RogerTool for Selection {
                 self.current_op = SelectionOperation::Idle;
                 self.laso_rect = None;
             }
-            SelectionEvent::CancelLaso => {
-                self.cancel_lasso();
-            }
             SelectionEvent::SelectAll => {
                 let new_selection_els = selection_ctx
                     .buffer
@@ -424,15 +413,19 @@ impl RogerTool for Selection {
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         self.suggested_op = None;
-        let mut child_ui = ui.child_ui(ui.clip_rect(), egui::Layout::default(), None);
-        child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        child_ui.with_layer_id(
-            egui::LayerId { order: egui::Order::Foreground, id: "selection_overlay".into() },
+
+        ui.scope_builder(
+            UiBuilder::new()
+                .layer_id(egui::LayerId {
+                    order: egui::Order::Foreground,
+                    id: "selection_overlay".into(),
+                })
+                .max_rect(selection_ctx.viewport_settings.container_rect),
             |ui| {
                 if let Some(laso_rect) = self.laso_rect {
                     ui.painter().rect_filled(
                         laso_rect,
-                        egui::Rounding::ZERO,
+                        0.0,
                         ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
                     );
                 };
@@ -443,14 +436,6 @@ impl RogerTool for Selection {
     }
 }
 impl Selection {
-    pub fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {}
-
-    fn cancel_lasso(&mut self) {
-        // todo: undo/nullify the effects of the laso operation
-        self.current_op = SelectionOperation::Idle;
-        self.laso_rect = None;
-    }
-
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
         let elements = self
             .selected_elements
@@ -761,7 +746,8 @@ impl Selection {
 
         let res =
             ui.interact(rect.expand(5.0), "selection_container_rect".into(), egui::Sense::drag());
-        let should_translate = out.is_none() && (res.dragged() || res.drag_started());
+        let should_translate =
+            out.is_none() && (res.dragged() || res.drag_started() || res.clicked());
 
         for (i, &(anchor, scale_op)) in corners.iter().enumerate() {
             let handle_side_length = 8.0; // handle is a square
@@ -791,7 +777,7 @@ impl Selection {
                 egui::Sense::drag(),
             );
 
-            if res.dragged() || res.drag_started() {
+            if res.dragged() || res.drag_started() || res.clicked() {
                 out = Some(scale_op);
             }
         }
