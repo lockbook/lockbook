@@ -22,11 +22,13 @@ pub struct Search {
     search_shown: bool,
     search_type: SearchType,
     query: String,
-    background_state: Arc<Mutex<BackgroundSearch>>,
+    background_state: Option<SearchSession>,
 }
 
-#[derive(Default)]
-pub struct BackgroundSearch {}
+pub struct SearchSession {
+    engine: Nucleo<Entry>,
+    
+}
 
 #[derive(Default, Eq, PartialEq)]
 pub enum SearchType {
@@ -35,6 +37,7 @@ pub enum SearchType {
     Content,
     // inspo:
     // All,
+    // Tabs
     // Commands,
     // Semantic
 }
@@ -156,7 +159,7 @@ impl Search {
         };
         let nucleo: Nucleo<Entry> = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1);
 
-        nucleo.injector().push(value, fill_columns)
+        //nucleo.injector().push(value, fill_columns)
     }
 
     fn process_keys(&mut self, ctx: &Context) {
