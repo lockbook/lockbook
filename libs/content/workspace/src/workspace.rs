@@ -120,7 +120,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
-            search: Default::default(),
+            search: Search::new()
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();

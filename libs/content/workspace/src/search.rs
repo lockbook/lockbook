@@ -1,9 +1,14 @@
-use std::f32::INFINITY;
+use std::{
+    f32::INFINITY,
+    sync::{Arc, Mutex},
+};
 
 use egui::{
     Button, Color32, Context, CornerRadius, Frame, Key, Label, Margin, Modifiers, Pos2, RichText,
     Rounding, Spacing, Stroke, TextEdit, Ui, UiBuilder, Vec2, Widget,
 };
+use lb_rs::Uuid;
+use nucleo::Nucleo;
 
 use crate::{
     show::InputStateExt,
@@ -17,7 +22,11 @@ pub struct Search {
     search_shown: bool,
     search_type: SearchType,
     query: String,
+    background_state: Arc<Mutex<BackgroundSearch>>,
 }
+
+#[derive(Default)]
+pub struct BackgroundSearch {}
 
 #[derive(Default, Eq, PartialEq)]
 pub enum SearchType {
@@ -28,6 +37,14 @@ pub enum SearchType {
     // All,
     // Commands,
     // Semantic
+}
+
+impl Search {
+    pub fn new(ctx: &Context) -> Self {
+        let s = Self::default();
+        s.spawn_worker(ctx);
+        s
+    }
 }
 
 impl Workspace {
@@ -46,7 +63,7 @@ impl Workspace {
                 .frame(
                     Frame::window(&self.ctx.style())
                         .fill(theme.neutral_bg_secondary())
-                        .stroke(Stroke::new(1., theme.neutral_bg()))
+                        //.stroke(Stroke::new(1., theme.neutral_bg()))
                         .corner_radius(CornerRadius::ZERO)
                         .inner_margin(Margin::ZERO),
                 )
@@ -61,6 +78,8 @@ impl Workspace {
 
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
+
+            // Tab strip
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
 
@@ -93,6 +112,7 @@ impl Workspace {
                 ui.allocate_space(Vec2::new(ui.available_width(), 0.));
             });
 
+            // Search bar
             Frame::new()
                 .fill(theme.neutral_bg())
                 .outer_margin(Margin::symmetric(5, 5))
@@ -115,7 +135,6 @@ impl Workspace {
                             .response;
 
                         resp.request_focus();
-
                     });
                     ui.allocate_space(ui.available_size());
                 })
@@ -123,7 +142,23 @@ impl Workspace {
     }
 }
 
+struct Entry {
+    id: Uuid,
+    name: String,
+    path: String,
+}
+
 impl Search {
+    fn spawn_worker(&self, ctx: &Context) {
+        let ctx = ctx.clone();
+        let notify = move || {
+            ctx.request_repaint();
+        };
+        let nucleo: Nucleo<Entry> = Nucleo::new(nucleo::Config::DEFAULT, Arc::new(notify), None, 1);
+
+        nucleo.injector().push(value, fill_columns)
+    }
+
     fn process_keys(&mut self, ctx: &Context) {
         ctx.input_mut(|w| {
             if w.consume_key_exact(Modifiers::COMMAND | Modifiers::SHIFT, Key::O) {
