@@ -9,9 +9,9 @@ use tracing::{Level, event, trace};
 use web_time::Instant;
 
 use crate::tab::svg_editor::InsertElement;
-use crate::tab::svg_editor::roger::{RogerEvent, ToolPayload};
+use crate::tab::svg_editor::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::RogerTool;
+use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::tools::path_builder::PathBuilder;
 use crate::theme::palette::ThemePalette;
 
@@ -83,21 +83,22 @@ pub enum PathEvent {
     CancelStroke,
 }
 
-impl RogerTool for Pen {
+impl InputControllerTool for Pen {
     type ToolEvent = PathEvent;
 
-    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent> {
-        match roger_event {
-            RogerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
-            RogerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
-            RogerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
-            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
-                Some(PathEvent::CancelStroke)
-            }
-            RogerEvent::ToolHover(_) => None,
-            RogerEvent::ViewportChange(_) => None,
-            RogerEvent::Gesture(_) => None,
-            RogerEvent::ToolPredictedRun(pos2, force) => {
+    fn controller_event_to_tool_event(
+        &self, controller_event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent> {
+        match controller_event {
+            InputControllerEvent::ToolStart(tool_payload) => Some(PathEvent::Draw(tool_payload)),
+            InputControllerEvent::ToolRun(tool_payload) => Some(PathEvent::Draw(tool_payload)),
+            InputControllerEvent::ToolEnd(tool_payload) => Some(PathEvent::End(tool_payload)),
+            InputControllerEvent::ToolCancel
+            | InputControllerEvent::ViewportChangeWithToolCancel => Some(PathEvent::CancelStroke),
+            InputControllerEvent::ToolHover(_) => None,
+            InputControllerEvent::ViewportChange(_) => None,
+            InputControllerEvent::Gesture(_) => None,
+            InputControllerEvent::ToolPredictedRun(pos2, force) => {
                 Some(PathEvent::PredictedDraw(ToolPayload { pos: pos2, force, id: None }))
             }
         }

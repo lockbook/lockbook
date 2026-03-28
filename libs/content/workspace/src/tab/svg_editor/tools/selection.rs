@@ -14,12 +14,12 @@ use lb_rs::model::svg::buffer::serialize_inner;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
-use crate::tab::svg_editor::roger::RogerEvent;
+use crate::tab::svg_editor::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
-use crate::tab::svg_editor::tools::{RogerTool, selection};
+use crate::tab::svg_editor::tools::{InputControllerTool, selection};
 use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
 use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
@@ -137,12 +137,14 @@ pub struct BuildPayload {
     pub modifiers: egui::Modifiers,
 }
 
-impl RogerTool for Selection {
+impl InputControllerTool for Selection {
     type ToolEvent = SelectionEvent;
 
-    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent> {
-        match roger_event {
-            RogerEvent::ToolStart(payload) => {
+    fn controller_event_to_tool_event(
+        &self, controller_event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent> {
+        match controller_event {
+            InputControllerEvent::ToolStart(payload) => {
                 // we're hovering over an element
                 let suggested_op = self.compute_suggested_op(payload.pos);
 
@@ -152,17 +154,17 @@ impl RogerTool for Selection {
 
                 Some(SelectionEvent::StartLaso(BuildPayload {
                     pos: payload.pos,
-                    modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to roger event
+                    modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to controller event
                 }))
             }
-            RogerEvent::ToolRun(payload) => match self.current_op {
+            InputControllerEvent::ToolRun(payload) => match self.current_op {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::LasoBuild(BuildPayload {
                     pos: payload.pos,
                     modifiers: egui::Modifiers::NONE,
                 })),
                 _ => Some(SelectionEvent::Transform(payload.pos)),
             },
-            RogerEvent::ToolEnd(_) => match self.current_op {
+            InputControllerEvent::ToolEnd(_) => match self.current_op {
                 SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
                 _ => Some(SelectionEvent::EndTransform),
             },

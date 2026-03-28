@@ -3,7 +3,7 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::tab::svg_editor::tools::DynRogerTool;
+use crate::tab::svg_editor::tools::DynInputControllerTool;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
 use crate::tab::svg_editor::tools::shapes::ShapesTool;
@@ -50,7 +50,7 @@ pub struct Toolbar {
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
 
-    pub roger_interrupt: bool,
+    pub input_controller_interrupt: bool,
 }
 
 #[derive(Default)]
@@ -227,7 +227,7 @@ impl Toolbar {
         }
     }
 
-    pub fn active_tool_mut(&mut self) -> &mut dyn DynRogerTool {
+    pub fn active_tool_mut(&mut self) -> &mut dyn DynInputControllerTool {
         match self.active_tool {
             Tool::Pen => &mut self.pen,
             Tool::Eraser => &mut self.eraser,
@@ -264,7 +264,7 @@ impl Toolbar {
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
             shapes_tool: Default::default(),
-            roger_interrupt: false,
+            input_controller_interrupt: false,
         }
     }
 
@@ -278,7 +278,7 @@ impl Toolbar {
 
         let target_opacity = if self.hide_overlay {
             0.0
-        } else if self.roger_interrupt {
+        } else if self.input_controller_interrupt {
             0.3
         } else {
             1.0
@@ -296,7 +296,7 @@ impl Toolbar {
 
         let overlay_toggle_res = ui
             .scope(|ui| {
-                if !self.roger_interrupt {
+                if !self.input_controller_interrupt {
                     ui.set_opacity(1.0);
                 }
                 self.show_overlay_toggle(ui, tlbr_ctx)

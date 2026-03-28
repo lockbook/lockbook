@@ -1,4 +1,4 @@
-use crate::tab::svg_editor::{roger::RogerEvent, toolbar::ToolContext};
+use crate::tab::svg_editor::{input_controller::InputControllerEvent, toolbar::ToolContext};
 
 pub mod eraser;
 mod path_builder;
@@ -6,9 +6,11 @@ pub mod pen;
 pub mod selection;
 pub mod shapes;
 
-pub trait RogerTool {
+pub trait InputControllerTool {
     type ToolEvent;
-    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent>;
+    fn controller_event_to_tool_event(
+        &self, controller_event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent>;
     fn handle_tool_event(
         &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, ctx: &mut ToolContext,
     );
@@ -18,24 +20,28 @@ pub trait RogerTool {
 }
 
 // Object-safe version that erases the event type
-pub trait DynRogerTool {
-    fn process_roger_event(&mut self, ui: &mut egui::Ui, event: RogerEvent, ctx: &mut ToolContext);
+pub trait DynInputControllerTool {
+    fn process_controller_event(
+        &mut self, ui: &mut egui::Ui, event: InputControllerEvent, ctx: &mut ToolContext,
+    );
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, ctx: &mut ToolContext<'_>);
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, ctx: &mut ToolContext);
 }
 
-impl<T: RogerTool> DynRogerTool for T {
-    fn process_roger_event(&mut self, ui: &mut egui::Ui, event: RogerEvent, ctx: &mut ToolContext) {
-        if let Some(ev) = self.roger_to_tool_event(event) {
+impl<T: InputControllerTool> DynInputControllerTool for T {
+    fn process_controller_event(
+        &mut self, ui: &mut egui::Ui, event: InputControllerEvent, ctx: &mut ToolContext,
+    ) {
+        if let Some(ev) = self.controller_event_to_tool_event(event) {
             self.handle_tool_event(ui, ev, ctx);
         }
     }
 
     fn show_hover_point(&self, ui: &mut egui::Ui, pos: egui::Pos2, ctx: &mut ToolContext<'_>) {
-        RogerTool::show_hover_point(self, ui, pos, ctx);
+        InputControllerTool::show_hover_point(self, ui, pos, ctx);
     }
 
     fn show_tool_ui(&mut self, ui: &mut egui::Ui, ctx: &mut ToolContext) {
-        RogerTool::show_tool_ui(self, ui, ctx);
+        InputControllerTool::show_tool_ui(self, ui, ctx);
     }
 }

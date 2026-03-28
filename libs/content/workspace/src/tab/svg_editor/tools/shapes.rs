@@ -7,7 +7,7 @@ use resvg::usvg::Transform;
 
 use crate::{
     tab::svg_editor::{
-        Event, InsertElement, roger::RogerEvent, toolbar::ToolContext, tools::RogerTool,
+        Event, InsertElement, input_controller::InputControllerEvent, toolbar::ToolContext, tools::InputControllerTool,
         util::pos_to_dvec,
     },
     theme::icons::Icon,
@@ -46,16 +46,16 @@ pub enum ShapeEvent {
     Cancel,
 }
 
-impl RogerTool for ShapesTool {
+impl InputControllerTool for ShapesTool {
     type ToolEvent = ShapeEvent;
 
-    fn roger_to_tool_event(&self, event: RogerEvent) -> Option<Self::ToolEvent> {
+    fn controller_event_to_tool_event(&self, event: InputControllerEvent) -> Option<Self::ToolEvent> {
         match event {
-            RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
+            InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
                 Some(ShapeEvent::Build(payload.pos))
             }
-            RogerEvent::ToolEnd(_) => Some(ShapeEvent::End),
-            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
+            InputControllerEvent::ToolEnd(_) => Some(ShapeEvent::End),
+            InputControllerEvent::ToolCancel | InputControllerEvent::ViewportChangeWithToolCancel => {
                 Some(ShapeEvent::Cancel)
             }
             _ => None,

@@ -4,8 +4,8 @@ mod element;
 mod history;
 mod viewport;
 
+mod input_controller;
 mod renderer;
-mod roger;
 mod toolbar;
 mod tools;
 mod util;
@@ -15,7 +15,9 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
+use crate::tab::svg_editor::input_controller::{
+    InputController, InputControllerConfig, LayoutContext,
+};
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;
 use crate::theme::palette::ThemePalette;
@@ -48,7 +50,7 @@ pub struct SVGEditor {
     history: History,
     pub toolbar: Toolbar,
 
-    roger: Roger,
+    input_controller: InputController,
     lb: Lb,
     pub open_file: Uuid,
     has_islands_interaction: bool,
@@ -204,7 +206,10 @@ impl SVGEditor {
             viewport_settings,
             cfg,
             read_only,
-            roger: Roger::new(RogerConfig::new(settings.pencil_only_drawing, read_only)),
+            input_controller: InputController::new(InputControllerConfig::new(
+                settings.pencil_only_drawing,
+                read_only,
+            )),
         }
     }
 
@@ -233,7 +238,7 @@ impl SVGEditor {
                 }
             }
         }
-        self.roger.sync_canvas_settings(&self.settings);
+        self.input_controller.sync_canvas_settings(&self.settings);
 
         self.process_events(ui);
 
@@ -361,24 +366,24 @@ impl SVGEditor {
 
         active_tool.show_tool_ui(ui, &mut tool_context);
 
-        for event in self.roger.process(ui, &layout_ctx) {
-            if let roger::RogerEvent::ViewportChange(transform) = event {
+        for event in self.input_controller.process(ui, &layout_ctx) {
+            if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
                 transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
-            } else if let roger::RogerEvent::Gesture(num_touches) = event {
+            } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
                 if num_touches == 2 {
                     tool_context.history.undo(tool_context.buffer)
                 } else if num_touches == 3 {
                     tool_context.history.redo(tool_context.buffer)
                 }
             } else {
-                active_tool.process_roger_event(ui, event, &mut tool_context);
+                active_tool.process_controller_event(ui, event, &mut tool_context);
             }
         }
 
-        self.roger
+        self.input_controller
             .show_hover_indicator(ui, &mut tool_context, active_tool);
 
-        self.toolbar.roger_interrupt = self.roger.should_hide_overlay();
+        self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {

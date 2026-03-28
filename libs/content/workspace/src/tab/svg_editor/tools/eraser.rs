@@ -4,9 +4,9 @@ use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
 
 use crate::tab::svg_editor::DeleteElement;
-use crate::tab::svg_editor::roger::RogerEvent;
+use crate::tab::svg_editor::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::toolbar::ToolContext;
-use crate::tab::svg_editor::tools::RogerTool;
+use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::util::pointer_intersects_element;
 
 pub struct Eraser {
@@ -38,19 +38,20 @@ pub enum EraseEvent {
 
 pub const DEFAULT_ERASER_RADIUS: f32 = 5.0;
 
-impl RogerTool for Eraser {
+impl InputControllerTool for Eraser {
     type ToolEvent = EraseEvent;
 
-    fn roger_to_tool_event(&self, roger_event: RogerEvent) -> Option<Self::ToolEvent> {
-        match roger_event {
-            RogerEvent::ToolStart(payload) | RogerEvent::ToolRun(payload) => {
+    fn controller_event_to_tool_event(
+        &self, controller_event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent> {
+        match controller_event {
+            InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
                 Some(EraseEvent::Build(payload.pos))
             }
-            RogerEvent::ToolPredictedRun(pos, _) => Some(EraseEvent::Build(pos)),
-            RogerEvent::ToolEnd(_) => Some(EraseEvent::End),
-            RogerEvent::ToolCancel | RogerEvent::ViewportChangeWithToolCancel => {
-                Some(EraseEvent::Cancel)
-            }
+            InputControllerEvent::ToolPredictedRun(pos, _) => Some(EraseEvent::Build(pos)),
+            InputControllerEvent::ToolEnd(_) => Some(EraseEvent::End),
+            InputControllerEvent::ToolCancel
+            | InputControllerEvent::ViewportChangeWithToolCancel => Some(EraseEvent::Cancel),
             _ => None,
         }
     }
