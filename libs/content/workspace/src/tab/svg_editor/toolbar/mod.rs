@@ -3,11 +3,11 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
 use crate::tab::svg_editor::tools::DynRogerTool;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
 use crate::tab::svg_editor::tools::shapes::ShapesTool;
+use crate::tab::svg_editor::viewport::calc_elements_bounds;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;

@@ -7,7 +7,6 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
-use crate::tab::svg_editor::gesture_handler::get_rect_identity_transform;
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
@@ -16,6 +15,7 @@ use crate::tab::svg_editor::tools::pen::{
 };
 use crate::tab::svg_editor::tools::shapes::ShapeType;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
+use crate::tab::svg_editor::viewport::get_rect_identity_transform;
 use crate::tab::svg_editor::{CanvasSettings, Tool};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;

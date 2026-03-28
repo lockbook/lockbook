@@ -136,7 +136,8 @@ impl RogerTool for Pen {
             pen_ctx.painter.circle_filled(
                 pos,
                 radius,
-                ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode),
+                ThemePalette::resolve_dynamic_color(self.active_color, ui.visuals().dark_mode)
+                    .linear_multiply(self.active_opacity),
             );
         }
     }

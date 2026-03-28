@@ -86,46 +86,6 @@ pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
     egui::Rect { min: transform_point(rect.min, t), max: transform_point(rect.max, t) }
 }
 
-pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec2> {
-    let num_touches = ui.input(|r| {
-        if let Some(multi_touch) = r.multi_touch() {
-            multi_touch.num_touches
-        } else if r
-            .events
-            .iter()
-            .any(|e| matches!(e, egui::Event::Touch { .. }))
-        {
-            1
-        } else {
-            0
-        }
-    });
-
-    if !pencil_only_drawing && num_touches == 1 {
-        return None;
-    }
-
-    // if cfg!(target_os = "ios") {
-    //     return None;
-    // }
-
-    ui.input(|r| {
-        if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {
-            Some(r.smooth_scroll_delta)
-        } else if let Some(touch_gesture) = r.multi_touch() {
-            if touch_gesture.translation_delta.x.abs() > 0.0
-                || touch_gesture.translation_delta.y.abs() > 0.0
-            {
-                Some(touch_gesture.translation_delta)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    })
-}
-
 pub fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
@@ -162,31 +122,24 @@ pub fn draw_dashed_line(
     stroke: egui::Stroke,
 ) {
     let start = edges[0];
-
     let end = edges[1];
-
     let vec = end - start;
 
     let length = vec.length();
-
     let dir = vec / length;
 
     let dash_gap = dash_length + gap_length;
-
     let dash_count = (length / dash_gap).floor() as usize;
 
     for i in 0..dash_count {
         let dash_start = start + dir * (i as f32 * dash_gap);
-
         let dash_end = dash_start + dir * dash_length.min(length - i as f32 * dash_gap);
 
         painter.line_segment([dash_start, dash_end], stroke);
     }
 
     // Draw the remaining part if there's space
-
     let remaining = length - dash_count as f32 * dash_gap;
-
     if remaining > 0.0 {
         let last_dash_start = start + dir * (dash_count as f32 * dash_gap);
 

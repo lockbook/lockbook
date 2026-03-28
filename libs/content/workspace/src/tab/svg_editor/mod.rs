@@ -1,8 +1,8 @@
 mod background;
 mod clip;
 mod element;
-mod gesture_handler;
 mod history;
+mod viewport;
 
 mod renderer;
 mod roger;
@@ -15,9 +15,9 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::roger::{LayoutContext, Roger, RogerConfig};
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::tab::svg_editor::viewport::transform_canvas;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 

@@ -3,13 +3,13 @@ use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
-use crate::tab::svg_editor::gesture_handler::{
-    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-    zoom_percentage_to_transform,
-};
 use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
+use crate::tab::svg_editor::viewport::{
+    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+    zoom_percentage_to_transform,
+};
 use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;

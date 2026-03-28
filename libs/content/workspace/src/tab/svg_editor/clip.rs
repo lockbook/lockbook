@@ -11,7 +11,7 @@ use crate::tab::svg_editor::tools::selection::SelectedElement;
 use crate::tab::{ClipContent, ExtendedInput as _};
 
 use super::element::PromoteBufferWeakImages;
-use super::gesture_handler::get_rect_identity_transform;
+use super::viewport::get_rect_identity_transform;
 // use super::tools::selection::SelectedElement;
 use super::util::transform_rect;
 use super::{InsertElement, SVGEditor, Tool};

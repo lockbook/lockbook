@@ -4,7 +4,7 @@ use std::{collections::HashMap, slice::Iter};
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
 use time::Duration;
-use tracing::warn;
+use tracing::{debug, warn};
 use web_time::Instant;
 
 use crate::{
@@ -203,6 +203,24 @@ impl Roger {
 
         roger_events.extend(extended_roger_events);
 
+        // coalesce all transform events into one.
+        let mut transform_sum = Transform::identity();
+        roger_events = roger_events
+            .into_iter()
+            .filter_map(|e| {
+                if let RogerEvent::ViewportChange(t) = e {
+                    transform_sum = transform_sum.post_concat(t);
+                    None
+                } else {
+                    Some(e)
+                }
+            })
+            .collect::<Vec<RogerEvent>>();
+
+        if !transform_sum.is_identity() {
+            roger_events.push(RogerEvent::ViewportChange(transform_sum));
+        }
+
         roger_events
     }
 
@@ -274,7 +292,7 @@ impl Roger {
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
 
-                // debug!(?event, ?roger_event, ?self, "roger event generation");
+                debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
