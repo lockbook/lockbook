@@ -4,7 +4,6 @@ use std::{collections::HashMap, slice::Iter};
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
 use time::Duration;
-use tracing::{debug, warn};
 use web_time::Instant;
 
 use crate::{
@@ -207,12 +206,12 @@ impl Roger {
         let mut transform_sum = Transform::identity();
         roger_events = roger_events
             .into_iter()
-            .filter_map(|e| {
+            .filter(|e| {
                 if let RogerEvent::ViewportChange(t) = e {
-                    transform_sum = transform_sum.post_concat(t);
-                    None
+                    transform_sum = transform_sum.post_concat(*t);
+                    false
                 } else {
-                    Some(e)
+                    true
                 }
             })
             .collect::<Vec<RogerEvent>>();
@@ -254,15 +253,11 @@ impl Roger {
                 start_positions,
                 center_pos,
             } => {
-                let all_touches_collide = start_positions
-                    .iter()
-                    .all(|pos| pos_collides_with_layout(*pos, ctx));
+                let invalid_touch_positions = start_positions.iter().any(|pos| {
+                    pos_collides_with_layout(*pos, ctx) || !ctx.draw_area.contains(*pos)
+                });
 
-                if all_touches_collide {
-                    warn!(
-                        ?start_positions,
-                        "ignoring gesture event because all touches collide with layout"
-                    );
+                if invalid_touch_positions {
                     return None;
                 }
                 let transform = Transform::identity()
@@ -275,7 +270,6 @@ impl Roger {
 
                 if self.tool_running.is_none() {
                     self.viewport_changing = Some(Instant::now());
-                    warn!(?transform, "viewport change from gesture event");
                     return Some(RogerEvent::ViewportChange(transform));
                 }
                 None
@@ -291,8 +285,6 @@ impl Roger {
         let result: Vec<RogerEvent> = events
             .filter_map(|event| {
                 let roger_event = self.ui_to_roger_event(event, layout);
-
-                debug!(?event, ?roger_event, ?self, "roger event generation");
 
                 if self.config.is_read_only
                     && !matches!(roger_event, Some(RogerEvent::ViewportChange(_)))
@@ -358,19 +350,9 @@ impl Roger {
 
                         return Some(RogerEvent::ToolStart(payload));
                     }
-                } else {
-                    let exists = self.buttons.remove(&button).is_some();
-                    if !exists {
-                        warn!(
-                            "Mouse Button {:?} at position {:?} released without being pressed",
-                            button, pos
-                        );
-                    }
-
-                    if button == *run_button {
-                        self.tool_running = None;
-                        return Some(RogerEvent::ToolEnd(payload));
-                    }
+                } else if button == *run_button {
+                    self.tool_running = None;
+                    return Some(RogerEvent::ToolEnd(payload));
                 }
                 None
             }
@@ -472,10 +454,6 @@ impl Roger {
                 let collides = pos_collides_with_layout(pos, ctx);
                 self.touches.push(TouchInfo::new(curr_touch_id, pos, force));
                 if collides || !ctx.draw_area.contains(pos) {
-                    warn!(
-                        ?pos,
-                        "ignoring touch start that collides with layout or is outside of draw area"
-                    );
                     return None;
                 }
 
@@ -484,9 +462,6 @@ impl Roger {
                         if self.tool_running.is_some() {
                             // this is non pen only mode, let the finger continue to run the tool,
                             // and ignore the pen input if the pen comes in after the touch
-                            warn!(
-                                "ignoring pen input because it came in after the touch, and we're not in pencil only mode"
-                            );
                             return None;
                         }
                         self.viewport_changing = None;
@@ -520,21 +495,9 @@ impl Roger {
                     }
 
                     if last_touches_have_pen {
-                        warn!(
-                            "ignoring touch input because the last touch had pen input, and we're in pencil only mode"
-                        );
                         return None;
                     }
                 }
-
-                // there's only one touch, but maybe there's a mousewheel event. exmaple ipad touchpad?
-                // and we're viewport changing. respect that
-                // if self.viewport_changing.is_some() {
-                //     warn!(
-                //         "ignoring touch input because we're currently viewport changing, and this is a touch start"
-                //     );
-                //     return None;
-                // }
 
                 if self.config.pencil_only_drawing {
                     if !is_curr_touch_pen {
@@ -595,16 +558,12 @@ impl Roger {
                     } else {
                         self.touches[i].is_active = false;
                     }
-                } else {
-                    warn!(?id, ?force, "ending a touch that didn't start")
                 }
 
                 if self.touches.iter().all(|t| !t.is_active) {
                     // not sure if this is needed
                     self.viewport_changing = None;
-                    warn!(
-                        "ending viewport change because all touches are inactive. this is a fallback in case the touch end events got messed up and the viewport change didn't end"
-                    );
+
                     let total_distance: f32 =
                         self.touches.iter().map(|t| t.lifetime_distance).sum();
 
@@ -617,17 +576,9 @@ impl Roger {
                 }
 
                 let active_touches = self.touches.iter().filter(|t| t.is_active).count();
-                if self.config.pencil_only_drawing && active_touches == 0 {
-                    self.viewport_changing = None;
-                    warn!(
-                        ?active_touches,
-                        "ending viewport change because there are no active touches"
-                    )
-                } else if !self.config.pencil_only_drawing && active_touches <= 1 {
-                    warn!(
-                        ?active_touches,
-                        "ending viewport change because there are less than 2 active touches"
-                    );
+                if self.config.pencil_only_drawing && active_touches == 0
+                    || !self.config.pencil_only_drawing && active_touches <= 1
+                {
                     self.viewport_changing = None;
                 }
 
@@ -649,8 +600,6 @@ impl Roger {
                     if self.viewport_changing.is_some() {
                         self.viewport_changing = None;
                     }
-                } else {
-                    warn!(?id, ?force, "cancelling a touch that didn't start")
                 }
             }
         }

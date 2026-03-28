@@ -36,7 +36,7 @@ use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
 use tools::pen::PenSettings;
-use tracing::{Level, debug, info, span};
+use tracing::{Level, info, span};
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -181,8 +181,6 @@ impl SVGEditor {
         if read_only {
             info!(id=?open_file, "creating canvas with read only mode");
         }
-
-        debug!(?settings.pencil_only_drawing, "building canvas with");
 
         Self {
             buffer,

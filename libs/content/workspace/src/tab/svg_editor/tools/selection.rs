@@ -8,7 +8,6 @@ use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
-use tracing::debug;
 
 use lb_rs::model::svg::buffer::serialize_inner;
 
@@ -146,7 +145,6 @@ impl RogerTool for Selection {
             RogerEvent::ToolStart(payload) => {
                 // we're hovering over an element
                 let suggested_op = self.compute_suggested_op(payload.pos);
-                debug!(?suggested_op, " tool start");
 
                 if let Some(op) = suggested_op {
                     return Some(SelectionEvent::StartTransform(op));

@@ -20,7 +20,6 @@ use egui::UiBuilder;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::DynamicColor;
-use tracing::debug;
 use viewport_island::ViewportPopover;
 
 use super::history::History;
@@ -548,7 +547,6 @@ impl SVGEditor {
             self.toolbar.layout.viewport_popover,
             self.toolbar.layout.mini_map,
         ];
-        debug!(?islands, "3asba");
         for island in islands.iter() {
             if island.unwrap_or(egui::Rect::ZERO).contains(pointer) {
                 return true;
