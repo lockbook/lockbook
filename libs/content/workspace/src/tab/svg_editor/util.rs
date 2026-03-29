@@ -1,13 +1,7 @@
-use std::collections::HashSet;
-
-use crate::Event;
-use crate::tab::ExtendedInput;
-
 use super::element::BoundedElement;
 use super::{CanvasSettings, ViewportSettings};
 
 use bezier_rs::{Bezier, Subpath};
-use egui::TouchPhase;
 use glam::DVec2;
 use lb_rs::model::svg::WeakRect;
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId};
@@ -92,88 +86,6 @@ pub fn transform_rect(rect: egui::Rect, t: Transform) -> egui::Rect {
     egui::Rect { min: transform_point(rect.min, t), max: transform_point(rect.max, t) }
 }
 
-pub fn is_multi_touch(ui: &mut egui::Ui) -> bool {
-    let mut custom_multi_touch = false;
-    ui.input(|r| {
-        if r.multi_touch().is_some() {
-            custom_multi_touch = true;
-            return;
-        }
-        let mut touch_ids = HashSet::new();
-        for e in r.events.iter() {
-            if let egui::Event::Touch { device_id: _, id, phase, pos: _, force: _ } = *e {
-                if phase != TouchPhase::Cancel {
-                    touch_ids.insert(id.0);
-                    if touch_ids.len() > 1 {
-                        custom_multi_touch = true;
-                        break;
-                    }
-                }
-            }
-        }
-    });
-    custom_multi_touch
-}
-
-pub fn is_scroll(ui: &mut egui::Ui) -> bool {
-    let mut is_scroll = false;
-
-    ui.input(|r| {
-        for e in r.events.iter() {
-            if let egui::Event::MouseWheel { unit: _, delta: _, modifiers: _ } = *e {
-                is_scroll = true;
-            }
-        }
-    });
-    is_scroll
-}
-
-pub fn get_pan(ui: &mut egui::Ui, pencil_only_drawing: bool) -> Option<egui::Vec2> {
-    let num_touches = ui.input(|r| {
-        if let Some(multi_touch) = r.multi_touch() {
-            multi_touch.num_touches
-        } else if r
-            .events
-            .iter()
-            .any(|e| matches!(e, egui::Event::Touch { .. }))
-        {
-            1
-        } else {
-            0
-        }
-    });
-
-    if !pencil_only_drawing && num_touches == 1 {
-        return None;
-    }
-
-    for event in ui.ctx().read_events() {
-        if let Event::KineticPan { x, y } = event {
-            return Some(egui::vec2(x, y));
-        }
-    }
-
-    if cfg!(target_os = "ios") {
-        return None;
-    }
-
-    ui.input(|r| {
-        if r.smooth_scroll_delta.x.abs() > 0.0 || r.smooth_scroll_delta.y.abs() > 0.0 {
-            Some(r.smooth_scroll_delta)
-        } else if let Some(touch_gesture) = r.multi_touch() {
-            if touch_gesture.translation_delta.x.abs() > 0.0
-                || touch_gesture.translation_delta.y.abs() > 0.0
-            {
-                Some(touch_gesture.translation_delta)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    })
-}
-
 pub fn devc_to_point(dvec: DVec2) -> Point {
     Point::new(dvec.x as f32, dvec.y as f32)
 }
@@ -210,31 +122,24 @@ pub fn draw_dashed_line(
     stroke: egui::Stroke,
 ) {
     let start = edges[0];
-
     let end = edges[1];
-
     let vec = end - start;
 
     let length = vec.length();
-
     let dir = vec / length;
 
     let dash_gap = dash_length + gap_length;
-
     let dash_count = (length / dash_gap).floor() as usize;
 
     for i in 0..dash_count {
         let dash_start = start + dir * (i as f32 * dash_gap);
-
         let dash_end = dash_start + dir * dash_length.min(length - i as f32 * dash_gap);
 
         painter.line_segment([dash_start, dash_end], stroke);
     }
 
     // Draw the remaining part if there's space
-
     let remaining = length - dash_count as f32 * dash_gap;
-
     if remaining > 0.0 {
         let last_dash_start = start + dir * (dash_count as f32 * dash_gap);
 

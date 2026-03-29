@@ -117,6 +117,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
     implementation 'androidx.window:window:1.5.1'
+    implementation 'androidx.input:input-motionprediction:1.0.0'
 
     // Testing Libraries
     testImplementation "junit:junit:$junit_version"

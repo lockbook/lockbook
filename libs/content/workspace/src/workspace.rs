@@ -21,9 +21,8 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
-use crate::show::DocType;
-
 use crate::output::Response;
+use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};

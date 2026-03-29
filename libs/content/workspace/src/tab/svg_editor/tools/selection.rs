@@ -1,42 +1,42 @@
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
-use egui::{TouchPhase, UiBuilder};
+use egui::UiBuilder;
 use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
-use lb_rs::model::svg::buffer::get_pen_colors;
+use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
 use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 
-use super::element::BoundedElement;
-use super::util::transform_rect;
 use lb_rs::model::svg::buffer::serialize_inner;
 
 use crate::tab::svg_editor::clip::duplicate_elements;
-use crate::tab::svg_editor::history;
-use crate::tab::svg_editor::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::element::BoundedElement;
+use crate::tab::svg_editor::history::{self, TransformElement};
+use crate::tab::svg_editor::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::toolbar::{
-    show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+    ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
+use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
+use crate::tab::svg_editor::tools::{InputControllerTool, selection};
+use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
+use crate::tab::svg_editor::{DeleteElement, Event};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
-
-use super::history::TransformElement;
-use super::toolbar::ToolContext;
-use super::util::{is_multi_touch, pointer_intersects_element};
-use super::{Buffer, DeleteElement, Event};
 
 #[derive(Default)]
 pub struct Selection {
     pub selected_elements: Vec<SelectedElement>,
     current_op: SelectionOperation,
     laso_rect: Option<egui::Rect>,
-    layout: Layout,
+    pub layout: Layout,
     show_selection_popover: bool,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
     pub properties: Option<ElementEditableProperties>,
+    selection_container: Option<egui::Rect>,
+    selection_handles: Option<SelectionHandles>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -44,9 +44,55 @@ pub struct ElementEditableProperties {
     pub stroke: Option<Stroke>,
     pub opacity: f32,
 }
+struct SelectionHandles {
+    handles: [(egui::Rect, SelectionOperation); 8],
+}
+impl Default for SelectionHandles {
+    fn default() -> Self {
+        Self {
+            handles: [
+                (egui::Rect::ZERO, SelectionOperation::NorthScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthScale),
+                (egui::Rect::ZERO, SelectionOperation::EastScale),
+                (egui::Rect::ZERO, SelectionOperation::WestScale),
+                (egui::Rect::ZERO, SelectionOperation::NorthEastScale),
+                (egui::Rect::ZERO, SelectionOperation::NorthWestScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthEastScale),
+                (egui::Rect::ZERO, SelectionOperation::SouthWestScale),
+            ],
+        }
+    }
+}
+
+impl SelectionHandles {
+    fn from_corners(corners: [(egui::Pos2, SelectionOperation); 8]) -> Self {
+        let mut selection = SelectionHandles::default();
+        for (i, (pos, op)) in corners.iter().enumerate() {
+            let handle_side_length = 8.0; // handle is a square
+            let rect = egui::Rect {
+                min: egui::pos2(pos.x - handle_side_length / 2.0, pos.y - handle_side_length / 2.0),
+                max: egui::pos2(pos.x + handle_side_length / 2.0, pos.y + handle_side_length / 2.0),
+            };
+            selection.handles[i] = (rect, *op);
+        }
+        selection
+    }
+
+    fn show(&self, ui: &mut egui::Ui) {
+        for &(rect, _) in self.handles.iter() {
+            ui.painter().rect(
+                rect,
+                egui::CornerRadius::same(2),
+                egui::Color32::WHITE,
+                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
+                egui::epaint::StrokeKind::Inside,
+            );
+        }
+    }
+}
 
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-enum SelectionOperation {
+pub enum SelectionOperation {
     Translation,
     EastScale,
     WestScale,
@@ -61,10 +107,6 @@ enum SelectionOperation {
     Idle,
 }
 
-enum SelectionPropogatedEvent {
-    Copy,
-}
-
 #[derive(Clone, Debug)]
 pub struct SelectedElement {
     pub id: Uuid,
@@ -72,263 +114,72 @@ pub struct SelectedElement {
 }
 
 #[derive(Default)]
-struct Layout {
-    container_tooltip: Option<egui::Rect>,
-    popover: Option<egui::Rect>,
+pub struct Layout {
+    pub container_tooltip: Option<egui::Rect>,
+    pub popover: Option<egui::Rect>,
 }
 
-impl Layout {
-    fn has_ui_interaction(&self, maybe_interact_pos: Option<egui::Pos2>) -> bool {
-        let pos = match maybe_interact_pos {
-            Some(val) => val,
-            None => return false,
-        };
-
-        if let Some(tooltip_rect) = self.container_tooltip {
-            if tooltip_rect.contains(pos) {
-                return true;
-            }
-        }
-        if let Some(popover_rect) = self.popover {
-            if popover_rect.contains(pos) {
-                return true;
-            }
-        }
-
-        false
-    }
-}
 #[derive(Debug)]
-enum SelectionEvent {
+pub enum SelectionEvent {
     StartLaso(BuildPayload),
     LasoBuild(BuildPayload),
     EndLaso,
-    CancelLaso,
     SelectAll,
-    StartTransform,
+    StartTransform(SelectionOperation),
     Transform(egui::Pos2),
     EndTransform,
     Delete,
     Copy,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct BuildPayload {
-    pos: egui::Pos2,
-    modifiers: egui::Modifiers,
+pub struct BuildPayload {
+    pub pos: egui::Pos2,
+    pub modifiers: egui::Modifiers,
 }
 
-struct SelectionInputState {
-    transform_occured: bool,
-    suggested_op: Option<SelectionOperation>,
-    delta: egui::Vec2,
-    is_multi_touch: bool,
-}
+impl InputControllerTool for Selection {
+    type ToolEvent = SelectionEvent;
 
-impl Selection {
-    pub fn handle_input(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
-        let is_multi_touch = is_multi_touch(ui);
+    fn controller_event_to_tool_event(
+        &self, controller_event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent> {
+        match controller_event {
+            InputControllerEvent::ToolStart(payload) => {
+                // we're hovering over an element
+                let suggested_op = self.compute_suggested_op(payload.pos);
 
-        let mut suggested_op = None;
-        let mut child_ui = ui.new_child(
-            UiBuilder::new()
-                .max_rect(ui.clip_rect())
-                .layout(egui::Layout::default()),
-        );
-        child_ui.set_clip_rect(selection_ctx.viewport_settings.container_rect);
-        child_ui.scope_builder(
-            UiBuilder::new().layer_id(egui::LayerId {
-                order: egui::Order::Foreground,
-                id: "selection_overlay".into(),
-            }),
-            |ui| {
-                if let Some(laso_rect) = self.laso_rect {
-                    ui.painter().rect_filled(
-                        laso_rect,
-                        egui::CornerRadius::ZERO,
-                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
-                    );
-                };
+                if let Some(op) = suggested_op {
+                    return Some(SelectionEvent::StartTransform(op));
+                }
 
-                suggested_op = self.show_selection_rects(ui, selection_ctx);
+                Some(SelectionEvent::StartLaso(BuildPayload {
+                    pos: payload.pos,
+                    modifiers: egui::Modifiers::NONE, // todo: should add tool payload modifiers to controller event
+                }))
+            }
+            InputControllerEvent::ToolRun(payload) => match self.current_op {
+                SelectionOperation::LasoBuild(_) => Some(SelectionEvent::LasoBuild(BuildPayload {
+                    pos: payload.pos,
+                    modifiers: egui::Modifiers::NONE,
+                })),
+                _ => Some(SelectionEvent::Transform(payload.pos)),
             },
-        );
-
-        if selection_ctx.toolbar_has_interaction {
-            self.cancel_lasso();
-            return;
-        }
-
-        // an event that can needs handling with ui access.
-        let mut selection_propagted_event = None;
-        ui.input(|r| {
-            let mut input_state = SelectionInputState {
-                transform_occured: false,
-                delta: r.pointer.delta(),
-                is_multi_touch,
-                suggested_op,
-            };
-
-            for e in r.events.iter() {
-                if input_state.is_multi_touch
-                    || (selection_ctx.settings.pencil_only_drawing
-                        && selection_ctx.is_locked_vw_pen_only)
-                {
-                    break;
-                }
-
-                if self.layout.has_ui_interaction(r.pointer.interact_pos()) {
-                    break;
-                }
-
-                if let Some(selection_event) = self.map_ui_event(e, selection_ctx, &input_state) {
-                    if let Some(event) = self.handle_selection_event(
-                        selection_event,
-                        selection_ctx,
-                        &mut input_state,
-                    ) {
-                        selection_propagted_event = Some(event);
-                    }
-                }
-            }
-        });
-
-        if let Some(event) = selection_propagted_event {
-            match event {
-                SelectionPropogatedEvent::Copy => self.copy_selection(ui, selection_ctx),
-            }
-        };
-    }
-
-    fn cancel_lasso(&mut self) {
-        // todo: undo/nullify the effects of the laso operation
-        self.current_op = SelectionOperation::Idle;
-        self.laso_rect = None;
-    }
-
-    fn map_ui_event(
-        &self, event: &egui::Event, selection_ctx: &mut ToolContext,
-        input_state: &SelectionInputState,
-    ) -> Option<SelectionEvent> {
-        match self.current_op {
-            SelectionOperation::Idle => {
-                match *event {
-                    egui::Event::PointerButton { pos, button, pressed, modifiers } => {
-                        if selection_ctx.settings.pencil_only_drawing {
-                            return None;
-                        }
-
-                        if button != egui::PointerButton::Primary {
-                            return None;
-                        }
-                        if pressed {
-                            // if the pos is inside of the current selection rect + feathering, then this is the start of a new drag
-                            if input_state.suggested_op.is_some() && modifiers.is_none() {
-                                return Some(SelectionEvent::StartTransform);
-                            } else {
-                                // if we're in prefer draw with pencil mode, then we shouldn't start build operation
-                                // if the event is coming from the finger and not the pen
-
-                                return Some(SelectionEvent::StartLaso(BuildPayload {
-                                    pos,
-                                    modifiers,
-                                }));
-                            }
-                        }
-                    }
-                    egui::Event::Touch { device_id: _, id: _, phase, pos, force } => {
-                        if phase != egui::TouchPhase::Start {
-                            return None;
-                        }
-                        // only handle touch when in pencil only mode
-                        if !selection_ctx.settings.pencil_only_drawing {
-                            return None;
-                        }
-                        // ensure that it's pencil touch and not finger touch
-                        force?;
-
-                        if input_state.suggested_op.is_some() {
-                            return Some(SelectionEvent::StartTransform);
-                        } else {
-                            // if we're in prefer draw with pencil mode, then we shouldn't start build operation
-                            // if the event is coming from the finger and not the pen
-
-                            return Some(SelectionEvent::StartLaso(BuildPayload {
-                                pos,
-                                modifiers: egui::Modifiers::NONE,
-                            }));
-                        }
-                    }
-                    egui::Event::Key { key, physical_key: _, pressed, repeat, modifiers } => {
-                        if key == egui::Key::A && modifiers.command && pressed && !repeat {
-                            return Some(SelectionEvent::SelectAll);
-                        }
-
-                        if key == egui::Key::Delete || key == egui::Key::Backspace {
-                            return Some(SelectionEvent::Delete);
-                        }
-                    }
-                    egui::Event::Copy => {
-                        return Some(SelectionEvent::Copy);
-                    }
-                    _ => {}
-                }
-            }
-            SelectionOperation::LasoBuild(_) => match *event {
-                egui::Event::PointerMoved(pos) => {
-                    return Some(SelectionEvent::LasoBuild(BuildPayload {
-                        pos,
-                        modifiers: egui::Modifiers::NONE,
-                    }));
-                }
-                egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
-                    if button != egui::PointerButton::Primary {
-                        return None;
-                    }
-                    if !pressed {
-                        return Some(SelectionEvent::EndLaso);
-                    }
-                }
-                egui::Event::Touch { phase: TouchPhase::Cancel, .. } => {
-                    return Some(SelectionEvent::CancelLaso);
-                }
-                _ => {}
+            InputControllerEvent::ToolEnd(_) => match self.current_op {
+                SelectionOperation::LasoBuild(_) => Some(SelectionEvent::EndLaso),
+                _ => Some(SelectionEvent::EndTransform),
             },
-            _ => {
-                match *event {
-                    egui::Event::PointerMoved(pos2) => {
-                        // what edge is the pos in, set the cursor icon accordingly
-                        // issue transform command based on the position delta
-                        return Some(SelectionEvent::Transform(pos2));
-                    }
-                    egui::Event::PointerButton { pos: _, button, pressed, modifiers: _ } => {
-                        if button != egui::PointerButton::Primary {
-                            return None;
-                        }
-                        if !pressed {
-                            // end the transform / save to history
-                            return Some(SelectionEvent::EndTransform);
-                        }
-                    }
-                    _ => {}
-                }
-            }
+            _ => None,
         }
-
-        None
     }
 
-    fn handle_selection_event(
-        &mut self, selection_event: SelectionEvent, selection_ctx: &mut ToolContext,
-        r: &mut SelectionInputState,
-    ) -> Option<SelectionPropogatedEvent> {
-        match selection_event {
-            SelectionEvent::StartTransform => {
-                self.current_op = r.suggested_op.unwrap_or(SelectionOperation::Idle);
+    fn handle_tool_event(
+        &mut self, ui: &mut egui::Ui, event: Self::ToolEvent, selection_ctx: &mut ToolContext,
+    ) {
+        match event {
+            SelectionEvent::StartTransform(op) => {
+                self.current_op = op;
             }
             SelectionEvent::Transform(pos) => {
-                if r.transform_occured || r.is_multi_touch {
-                    return None;
-                }
                 let container_rect = self.get_container_rect(selection_ctx.buffer);
 
                 let min_allowed = egui::vec2(10.0, 10.0);
@@ -337,7 +188,8 @@ impl Selection {
                     // see what edge
                     let transform = match self.current_op {
                         SelectionOperation::Translation => {
-                            Transform::identity().post_translate(r.delta.x, r.delta.y)
+                            let pointer_delta = ui.input(|r| r.pointer.delta());
+                            Transform::identity().post_translate(pointer_delta.x, pointer_delta.y)
                         }
                         SelectionOperation::Idle => Transform::identity(),
                         SelectionOperation::EastScale => {
@@ -475,8 +327,6 @@ impl Selection {
                         s_el.transform = s_el.transform.post_concat(transform);
                     }
                 }
-
-                r.transform_occured = true;
             }
             SelectionEvent::EndTransform => {
                 self.current_op = SelectionOperation::Idle;
@@ -504,7 +354,9 @@ impl Selection {
                     })
                     .collect();
                 if !events.is_empty() {
-                    selection_ctx.history.save(Event::Transform(events));
+                    selection_ctx
+                        .history
+                        .save(history::Event::Transform(events));
                 }
             }
             SelectionEvent::StartLaso(build_payload) => {
@@ -573,9 +425,6 @@ impl Selection {
                 self.current_op = SelectionOperation::Idle;
                 self.laso_rect = None;
             }
-            SelectionEvent::CancelLaso => {
-                self.cancel_lasso();
-            }
             SelectionEvent::SelectAll => {
                 let new_selection_els = selection_ctx
                     .buffer
@@ -594,11 +443,34 @@ impl Selection {
             SelectionEvent::Delete => {
                 self.delete_selection(selection_ctx);
             }
-            SelectionEvent::Copy => return Some(SelectionPropogatedEvent::Copy),
+            SelectionEvent::Copy => self.copy_selection(ui, selection_ctx),
         }
-        None
     }
 
+    fn show_hover_point(&self, _: &mut egui::Ui, _: egui::Pos2, _: &mut ToolContext<'_>) {}
+
+    fn show_tool_ui(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
+        ui.scope_builder(
+            UiBuilder::new().layer_id(egui::LayerId {
+                order: egui::Order::Background,
+                id: "selection_overlay".into(),
+            }),
+            |ui| {
+                ui.set_clip_rect(selection_ctx.viewport_settings.working_rect);
+                if let Some(laso_rect) = self.laso_rect {
+                    ui.painter().rect_filled(
+                        laso_rect,
+                        0.0,
+                        ui.visuals().widgets.active.bg_fill.linear_multiply(0.1),
+                    );
+                };
+
+                self.show_selection_rects(ui, selection_ctx);
+            },
+        );
+    }
+}
+impl Selection {
     fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
         let elements = self
             .selected_elements
@@ -613,12 +485,32 @@ impl Selection {
             })
             .collect();
 
-        let delete_event = super::Event::Delete(elements);
+        let delete_event = Event::Delete(elements);
         selection_ctx
             .history
             .apply_event(&delete_event, selection_ctx.buffer);
         selection_ctx.history.save(delete_event);
         self.clear_selection_els();
+    }
+
+    fn compute_suggested_op(&self, pos: egui::Pos2) -> Option<SelectionOperation> {
+        if let Some(handles) = &self.selection_handles {
+            for (rect, op) in handles.handles.iter() {
+                let rect = rect.expand(10.0);
+                if rect.contains(pos) {
+                    return Some(*op);
+                }
+            }
+        }
+
+        if let Some(container) = self.selection_container {
+            let container = container.expand(5.0);
+            if container.contains(pos) {
+                return Some(SelectionOperation::Translation);
+            }
+        }
+
+        None
     }
 
     fn get_laso_selected_els(
@@ -668,14 +560,13 @@ impl Selection {
         }
     }
 
-    fn show_selection_rects(
-        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
-    ) -> Option<SelectionOperation> {
+    fn show_selection_rects(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) {
         if self.selected_elements.is_empty() {
-            return None;
+            self.selection_container = None;
+            self.selection_handles = None;
+            return;
         }
         let container = self.get_container_rect(selection_ctx.buffer);
-        let mut op = None;
 
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
@@ -690,7 +581,7 @@ impl Selection {
                 }
             }
 
-            op = self.show_selection_container(ui, container);
+            self.show_selection_container(ui, container);
         }
 
         ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
@@ -709,7 +600,7 @@ impl Selection {
         }
 
         if let SelectionOperation::LasoBuild(_) = self.current_op {
-            return None;
+            return;
         }
 
         let opacity = if self.current_op == SelectionOperation::Idle { 1.0 } else { 0.0 };
@@ -741,7 +632,7 @@ impl Selection {
         let tooltip_rect = egui::Rect { min, max: min };
         ui.scope_builder(
             UiBuilder::new().layer_id(egui::LayerId {
-                order: egui::Order::Tooltip,
+                order: egui::Order::Foreground,
                 id: "selection_tooltip".into(),
             }),
             |ui| {
@@ -774,8 +665,6 @@ impl Selection {
         if opacity == 0.0 {
             self.layout.container_tooltip = None;
         }
-
-        op
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
@@ -891,11 +780,7 @@ impl Selection {
         );
     }
 
-    fn show_selection_container(
-        &self, ui: &mut egui::Ui, rect: egui::Rect,
-    ) -> Option<SelectionOperation> {
-        let mut out = None;
-
+    fn show_selection_container(&mut self, ui: &mut egui::Ui, rect: egui::Rect) {
         let corners = [
             (rect.min, SelectionOperation::NorthWestScale),
             (rect.max, SelectionOperation::SouthEastScale),
@@ -907,42 +792,9 @@ impl Selection {
             (rect.right_center(), SelectionOperation::EastScale),
         ];
 
-        let res =
-            ui.interact(rect.expand(5.0), "selection_container_rect".into(), egui::Sense::drag());
-        let should_translate = out.is_none() && (res.dragged() || res.drag_started());
-
-        for (i, &(anchor, scale_op)) in corners.iter().enumerate() {
-            let handle_side_length = 8.0; // handle is a square
-            let anchor = egui::pos2(anchor.x, anchor.y);
-            let rect = egui::Rect {
-                min: egui::pos2(
-                    anchor.x - handle_side_length / 2.0,
-                    anchor.y - handle_side_length / 2.0,
-                ),
-                max: egui::pos2(
-                    anchor.x + handle_side_length / 2.0,
-                    anchor.y + handle_side_length / 2.0,
-                ),
-            };
-
-            ui.painter().rect(
-                rect,
-                egui::CornerRadius::same(2),
-                egui::Color32::WHITE,
-                egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
-                egui::epaint::StrokeKind::Inside,
-            );
-
-            let res = ui.interact(
-                rect.expand(5.0),
-                egui::Id::new(format!("{scale_op:#?}{i}")),
-                egui::Sense::drag(),
-            );
-
-            if res.dragged() || res.drag_started() {
-                out = Some(scale_op);
-            }
-        }
+        let selection_handles = SelectionHandles::from_corners(corners);
+        selection_handles.show(ui);
+        self.selection_handles = Some(selection_handles);
 
         ui.painter().rect_stroke(
             rect,
@@ -950,11 +802,7 @@ impl Selection {
             egui::Stroke { width: 1.0, color: ui.visuals().widgets.active.bg_fill },
             egui::epaint::StrokeKind::Inside,
         );
-        if out.is_none() && should_translate {
-            out = Some(SelectionOperation::Translation);
-        }
-
-        out
+        self.selection_container = Some(rect);
     }
 
     fn push_selection_el(&mut self, el: SelectedElement) {
@@ -1000,41 +848,41 @@ impl Selection {
 
             if let Some(stroke) = &mut properties.stroke {
                 let colors = get_pen_colors();
-                ui.horizontal_wrapped(|ui|{
+                ui.horizontal_wrapped(|ui| {
                     colors.iter().for_each(|&c| {
                         let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                        let active_color =
-                            ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
+                        let active_color = ThemePalette::resolve_dynamic_color(
+                            stroke.color,
+                            ui.visuals().dark_mode,
+                        );
 
                         let color_btn = show_color_btn(ui, color, active_color, None);
                         if color_btn.clicked() || color_btn.drag_started() {
                             let event = history::Event::StrokeChange(
-                                self
-                                    .selected_elements
+                                self.selected_elements
                                     .iter()
-                                    .filter_map(
-                                        |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                            if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                            {
-                                                let old_stroke = el.stroke();
-                                                stroke.color = c;
-                                                if let Some(mut el_stroke) = el.stroke(){
-                                                    el_stroke.color = c;
-                                                    el.set_stroke(*stroke);
-                                                    buffer_changed = true;
-                                                    Some(history::StrokeChangeElement {
-                                                        id: s_el.id,
-                                                        old_stroke,
-                                                        new_stroke: Some(el_stroke),
-                                                    })
-                                                }else{
-                                                    None
-                                                }
+                                    .filter_map(|s_el: &selection::SelectedElement| {
+                                        if let Some(el) =
+                                            selection_ctx.buffer.elements.get_mut(&s_el.id)
+                                        {
+                                            let old_stroke = el.stroke();
+                                            stroke.color = c;
+                                            if let Some(mut el_stroke) = el.stroke() {
+                                                el_stroke.color = c;
+                                                el.set_stroke(*stroke);
+                                                buffer_changed = true;
+                                                Some(history::StrokeChangeElement {
+                                                    id: s_el.id,
+                                                    old_stroke,
+                                                    new_stroke: Some(el_stroke),
+                                                })
                                             } else {
                                                 None
                                             }
-                                        },
-                                    )
+                                        } else {
+                                            None
+                                        }
+                                    })
                                     .collect(),
                             );
                             selection_ctx.history.save(event);
@@ -1073,24 +921,20 @@ impl Selection {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
                             .iter()
-                            .filter_map(
-                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                    if let Some(el) =
-                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                    {
-                                        Some(history::StrokeChangeElement {
-                                            id: s_el.id,
-                                            old_stroke: self
-                                                .selection_stroke_snashot
-                                                .get(&s_el.id)
-                                                .copied(),
-                                            new_stroke: el.stroke(),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                },
-                            )
+                            .filter_map(|s_el: &selection::SelectedElement| {
+                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                                    Some(history::StrokeChangeElement {
+                                        id: s_el.id,
+                                        old_stroke: self
+                                            .selection_stroke_snashot
+                                            .get(&s_el.id)
+                                            .copied(),
+                                        new_stroke: el.stroke(),
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
                             .collect(),
                     );
                     self.selection_stroke_snashot.clear();
@@ -1131,24 +975,20 @@ impl Selection {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
                             .iter()
-                            .filter_map(
-                                |s_el: &crate::tab::svg_editor::selection::SelectedElement| {
-                                    if let Some(el) =
-                                        selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                    {
-                                        Some(history::StrokeChangeElement {
-                                            id: s_el.id,
-                                            old_stroke: self
-                                                .selection_stroke_snashot
-                                                .get(&s_el.id)
-                                                .copied(),
-                                            new_stroke: el.stroke(),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                },
-                            )
+                            .filter_map(|s_el: &selection::SelectedElement| {
+                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                                    Some(history::StrokeChangeElement {
+                                        id: s_el.id,
+                                        old_stroke: self
+                                            .selection_stroke_snashot
+                                            .get(&s_el.id)
+                                            .copied(),
+                                        new_stroke: el.stroke(),
+                                    })
+                                } else {
+                                    None
+                                }
+                            })
                             .collect(),
                     );
                     self.selection_stroke_snashot.clear();

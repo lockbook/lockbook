@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.PointF
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -18,6 +19,7 @@ import android.view.GestureDetector
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
@@ -27,6 +29,7 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import android.widget.OverScroller
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -58,6 +61,7 @@ import com.afollestad.recyclical.withItem
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
+import kotlin.collections.plus
 import kotlin.getValue
 import kotlin.math.abs
 
@@ -509,7 +513,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             return super.onScroll(e1, e2, distanceX, distanceY)
         }
     }
-
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
     companion object {
@@ -651,6 +654,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
         if (event != null) {
             workspaceView.forwardedTouchEvent(event, touchYOffset)
         }
+
 
         workspaceView.drawImmediately()
 
