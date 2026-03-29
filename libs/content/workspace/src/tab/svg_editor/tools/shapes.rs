@@ -7,8 +7,8 @@ use resvg::usvg::Transform;
 
 use crate::{
     tab::svg_editor::{
-        Event, InsertElement, input_controller::InputControllerEvent, toolbar::ToolContext, tools::InputControllerTool,
-        util::pos_to_dvec,
+        Event, InsertElement, input_controller::InputControllerEvent, toolbar::ToolContext,
+        tools::InputControllerTool, util::pos_to_dvec,
     },
     theme::icons::Icon,
 };
@@ -49,15 +49,16 @@ pub enum ShapeEvent {
 impl InputControllerTool for ShapesTool {
     type ToolEvent = ShapeEvent;
 
-    fn controller_event_to_tool_event(&self, event: InputControllerEvent) -> Option<Self::ToolEvent> {
+    fn controller_event_to_tool_event(
+        &self, event: InputControllerEvent,
+    ) -> Option<Self::ToolEvent> {
         match event {
             InputControllerEvent::ToolStart(payload) | InputControllerEvent::ToolRun(payload) => {
                 Some(ShapeEvent::Build(payload.pos))
             }
             InputControllerEvent::ToolEnd(_) => Some(ShapeEvent::End),
-            InputControllerEvent::ToolCancel | InputControllerEvent::ViewportChangeWithToolCancel => {
-                Some(ShapeEvent::Cancel)
-            }
+            InputControllerEvent::ToolCancel
+            | InputControllerEvent::ViewportChangeWithToolCancel => Some(ShapeEvent::Cancel),
             _ => None,
         }
     }
