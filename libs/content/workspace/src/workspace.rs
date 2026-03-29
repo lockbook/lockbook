@@ -133,6 +133,8 @@ impl Workspace {
 
         let core = ws.core.clone();
         let ctx = ctx.clone();
+
+        #[cfg(not(target_family = "wasm"))]
         spawn!(lb_frames(ctx, core));
 
         ws
