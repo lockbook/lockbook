@@ -969,7 +969,7 @@
         }
 
         @objc private func updatePanTouchRequirements() {
-            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 1 : 2
+            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 0 : 2
             
             set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
         }
@@ -1027,16 +1027,7 @@
                         pinchStartTouches.append((Float(p.x), Float(p.y)))
                     }
                 }
-            }
-            
-            if event.state == .began{
-                pinchStartTouches.removeAll()
-                for i in 0..<(sender?.numberOfTouches ?? 0){
-                    let point = sender?.location(ofTouch: i, in: self)
-                    if let p = point {
-                        pinchStartTouches.append((Float(p.x), Float(p.y)))
-                    }
-                }
+                event.scale = 1.0
             }
 
             let scale = event.scale
@@ -1046,9 +1037,6 @@
                 let zoomDelta = Float(scale)
 
                 let viewCenter = CGPoint(x: mtkView.bounds.midX, y: mtkView.bounds.midY)
-                let offsetX = pinchCenter.x - viewCenter.x
-                let offsetY = pinchCenter.y - viewCenter.y
-
 
                 multi_touch(
                     wsHandle,
