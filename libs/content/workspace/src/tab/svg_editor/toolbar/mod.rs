@@ -3,16 +3,18 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use std::ops::RangeInclusive;
-use std::sync::Arc;
-
-use crate::tab::svg_editor::gesture_handler::calc_elements_bounds;
-use crate::tab::svg_editor::shapes::ShapesTool;
+use crate::tab::svg_editor::tools::DynInputControllerTool;
+use crate::tab::svg_editor::tools::pen::PenSettings;
+use crate::tab::svg_editor::tools::selection::Selection;
+use crate::tab::svg_editor::tools::shapes::ShapesTool;
+use crate::tab::svg_editor::viewport::calc_elements_bounds;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
+use std::ops::RangeInclusive;
+use std::sync::Arc;
 
 use egui::UiBuilder;
 use lb_rs::model::svg::buffer::Buffer;
@@ -20,12 +22,10 @@ use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::DynamicColor;
 use viewport_island::ViewportPopover;
 
-use super::gesture_handler::GestureHandler;
 use super::history::History;
-use super::pen::PenSettings;
 use super::renderer::Renderer;
-use super::selection::Selection;
-use super::{CanvasSettings, Eraser, Pen, ViewportSettings};
+use super::tools::{eraser::Eraser, pen::Pen};
+use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
 const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
@@ -42,7 +42,6 @@ pub struct Toolbar {
     pub selection: Selection,
     pub shapes_tool: ShapesTool,
     pub previous_tool: Option<Tool>,
-    pub gesture_handler: GestureHandler,
 
     pub hide_overlay: bool,
     pub show_tool_popover: bool,
@@ -50,6 +49,8 @@ pub struct Toolbar {
     layout: ToolbarLayout,
     pub viewport_popover: Option<ViewportPopover>,
     renderer: Renderer,
+
+    pub input_controller_interrupt: bool,
 }
 
 #[derive(Default)]
@@ -59,9 +60,10 @@ struct ToolbarLayout {
     viewport_island: Option<egui::Rect>,
     viewport_popover: Option<egui::Rect>,
     tool_popover: Option<egui::Rect>,
-    zoom_pct_btn: Option<egui::Rect>,
+    zoom_pct_btn: Option<egui::Rect>, // within the viewport popover. used to center the popover above the button
     zoom_stops_popover: Option<egui::Rect>,
     overlay_toggle: Option<egui::Rect>,
+    bring_back_btn: Option<egui::Rect>,
     mini_map: Option<egui::Rect>,
 }
 #[derive(PartialEq, Eq, Copy, Clone, Debug, Default)]
@@ -78,12 +80,8 @@ pub struct ToolContext<'a> {
     pub painter: &'a mut egui::Painter,
     pub buffer: &'a mut Buffer,
     pub history: &'a mut History,
-    pub allow_viewport_changes: &'a mut bool,
-    pub is_touch_frame: bool,
     pub settings: &'a mut CanvasSettings,
-    pub is_locked_vw_pen_only: bool,
     pub viewport_settings: &'a mut ViewportSettings,
-    pub toolbar_has_interaction: bool,
 }
 
 pub struct ToolbarContext<'a> {
@@ -205,7 +203,7 @@ macro_rules! set_tool {
             $obj.layout.tool_popover = None;
 
             if (matches!($new_tool, Tool::Selection)) {
-                $obj.selection = $crate::tab::svg_editor::selection::Selection::default();
+                $obj.selection = $crate::tab::svg_editor::tools::selection::Selection::default();
             }
             $obj.previous_tool = Some($obj.active_tool);
             $obj.active_tool = $new_tool;
@@ -226,6 +224,16 @@ impl Toolbar {
         set_tool!(self, new_tool);
         if !self.show_tool_popover {
             self.hide_tool_popover(settings, cfg);
+        }
+    }
+
+    pub fn active_tool_mut(&mut self) -> &mut dyn DynInputControllerTool {
+        match self.active_tool {
+            Tool::Pen => &mut self.pen,
+            Tool::Eraser => &mut self.eraser,
+            Tool::Selection => &mut self.selection,
+            Tool::Highlighter => &mut self.highlighter,
+            Tool::Shapes => &mut self.shapes_tool,
         }
     }
 
@@ -250,13 +258,13 @@ impl Toolbar {
             eraser: Default::default(),
             selection: Default::default(),
             previous_tool: Default::default(),
-            gesture_handler: Default::default(),
             hide_overlay: Default::default(),
             show_tool_popover: Default::default(),
             layout: Default::default(),
             viewport_popover: Default::default(),
             show_at_cursor_tool_popover: None,
             shapes_tool: Default::default(),
+            input_controller_interrupt: false,
         }
     }
 
@@ -268,7 +276,16 @@ impl Toolbar {
 
         let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
-        let opacity = if self.hide_overlay { 0.0 } else { 1.0 };
+        let target_opacity = if self.hide_overlay {
+            0.0
+        } else if self.input_controller_interrupt {
+            0.3
+        } else {
+            1.0
+        };
+        let opacity =
+            ui.ctx()
+                .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
 
         ui.set_opacity(opacity);
 
@@ -279,7 +296,9 @@ impl Toolbar {
 
         let overlay_toggle_res = ui
             .scope(|ui| {
-                ui.set_opacity(1.0);
+                if !self.input_controller_interrupt {
+                    ui.set_opacity(1.0);
+                }
                 self.show_overlay_toggle(ui, tlbr_ctx)
             })
             .inner;
@@ -348,6 +367,40 @@ impl Toolbar {
             *has_islands_interaction = true;
         }
         res
+    }
+
+    pub fn get_rects(&self) -> Vec<egui::Rect> {
+        let overlay = {
+            if self.hide_overlay {
+                vec![self.layout.overlay_toggle]
+            } else {
+                let mut islands = vec![
+                    self.layout.history_island,
+                    self.layout.overlay_toggle,
+                    self.layout.tools_island,
+                    self.layout.viewport_island,
+                    self.layout.bring_back_btn,
+                    self.selection.layout.container_tooltip,
+                    self.selection.layout.popover,
+                ];
+                if self.show_tool_popover {
+                    islands.push(self.layout.tool_popover);
+                };
+                if let Some(popover) = self.viewport_popover {
+                    match popover {
+                        ViewportPopover::More => islands.push(self.layout.viewport_popover),
+                        ViewportPopover::ZoomStops => islands.push(self.layout.zoom_stops_popover),
+                    };
+                };
+                islands
+                // todo: handle mini map!!
+            }
+        };
+
+        overlay
+            .iter()
+            .filter_map(|&i| i)
+            .collect::<Vec<egui::Rect>>()
     }
 
     fn handle_keyboard_shortcuts(

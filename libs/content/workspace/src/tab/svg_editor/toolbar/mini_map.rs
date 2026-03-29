@@ -1,9 +1,9 @@
 use resvg::usvg::Transform;
 
-use crate::tab::svg_editor::gesture_handler::transform_canvas;
 use crate::tab::svg_editor::renderer::RenderOptions;
 use crate::tab::svg_editor::toolbar::{MINI_MAP_WIDTH, Toolbar, ToolbarContext};
-use crate::tab::svg_editor::util::{get_pan, transform_rect};
+use crate::tab::svg_editor::util::transform_rect;
+use crate::tab::svg_editor::viewport::transform_canvas;
 use crate::tab::svg_editor::{CanvasSettings, ViewportSettings};
 const SCROLLBAR_WIDTH: f32 = 15.0;
 
@@ -126,25 +126,20 @@ impl Toolbar {
         let mut has_transformed_canvas = false;
 
         if let Some(click_pos) = ui.input(|r| r.pointer.interact_pos()) {
-            let maybe_delta = if (res.clicked() || res.drag_started())
-                && !viewport_rect.contains(click_pos)
-            {
-                Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
-            } else if res.dragged() {
-                let delta_factor = if mini_map_full_height > mini_map_rect.height() {
-                    mini_map_rect.height() / mini_map_full_height
-                } else {
-                    1.0
-                };
+            let maybe_delta =
+                if (res.clicked() || res.drag_started()) && !viewport_rect.contains(click_pos) {
+                    Some((viewport_rect.center() - click_pos) / out.absolute_transform.sx)
+                } else if res.dragged() {
+                    let delta_factor = if mini_map_full_height > mini_map_rect.height() {
+                        mini_map_rect.height() / mini_map_full_height
+                    } else {
+                        1.0
+                    };
 
-                Some(
-                    -get_pan(ui, tlbr_ctx.settings.pencil_only_drawing).unwrap_or(res.drag_delta())
-                        / out.absolute_transform.sx
-                        / delta_factor,
-                )
-            } else {
-                None
-            };
+                    Some(-res.drag_delta() / out.absolute_transform.sx / delta_factor)
+                } else {
+                    None
+                };
 
             let transform =
                 maybe_delta.map(|delta| Transform::default().post_translate(delta.x, delta.y));

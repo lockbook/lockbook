@@ -873,6 +873,7 @@
         var tapRecognizer: UITapGestureRecognizer?
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
+        var pinchStartTouches = [(Float, Float)]()
 
         // menu
         var menuDelegate: SvgMenuDelegate?
@@ -929,22 +930,23 @@
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
-                // NSNumber(value: UITouch.TouchType.pencil.rawValue),
                 NSNumber(value: UITouch.TouchType.indirectPointer.rawValue),
             ]
             pan.allowedScrollTypesMask = .all
-            if UIPencilInteraction.prefersPencilOnlyDrawing { // TODO: update when prefersPencilOnlyDrawing changes
-                pan.minimumNumberOfTouches = 1
-            } else {
-                pan.minimumNumberOfTouches = 2
-            }
             pan.cancelsTouchesInView = false
-
             pan.delegate = gestureDelegate
             addGestureRecognizer(pan)
-
             panRecognizer = pan
+            
+            updatePanTouchRequirements()
 
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(updatePanTouchRequirements),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+            
             // gestures: pinch
             let pinch = UIPinchGestureRecognizer(
                 target: self, action: #selector(handlePinch(_:))
@@ -966,6 +968,12 @@
             self.menuInteraction = menuInteraction
         }
 
+        @objc private func updatePanTouchRequirements() {
+            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 1 : 2
+            
+            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
+        }
+        
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let menuInteraction else { return }
 
@@ -1010,6 +1018,26 @@
                 mtkView.kineticTimer?.invalidate()
                 mtkView.kineticTimer = nil
             }
+            
+            if event.state == .began{
+                pinchStartTouches.removeAll()
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        pinchStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
+            }
+            
+            if event.state == .began{
+                pinchStartTouches.removeAll()
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        pinchStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
+            }
 
             let scale = event.scale
             let pinchCenter = event.location(in: mtkView)
@@ -1017,24 +1045,28 @@
             if event.state == .changed {
                 let zoomDelta = Float(scale)
 
-                zoom(wsHandle, zoomDelta)
-
                 let viewCenter = CGPoint(x: mtkView.bounds.midX, y: mtkView.bounds.midY)
                 let offsetX = pinchCenter.x - viewCenter.x
                 let offsetY = pinchCenter.y - viewCenter.y
 
-                let panX = offsetX * (scale - 1.0)
-                let panY = offsetY * (scale - 1.0)
 
-                pan(wsHandle, Float(panX), Float(panY))
-
+                multi_touch(
+                    wsHandle,
+                    0.0,
+                    0.0,
+                    zoomDelta,
+                    Float(pinchCenter.x),
+                    Float(pinchCenter.y),
+                    pinchStartTouches.map{$0.0},
+                    pinchStartTouches.map{$0.1},
+                    UInt(pinchStartTouches.count)
+                )
+                
                 event.scale = 1.0
             }
         }
 
         override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
-
             // let's cancel the kinetic pan. don't nullify it so that the tap handler
             // will know not to show the edit menu
             if mtkView.kineticTimer != nil {
@@ -1365,8 +1397,14 @@
         var pointerInteraction: UIPointerInteraction?
         var pointerDelegate: UIPointerInteractionDelegate?
 
+        // touch ids
+        private var touchMap = [ObjectIdentifier: UInt64]()
+        private var nextTouchID: UInt64 = 0
+
         /// gestures
         var panRecognizer: UIPanGestureRecognizer?
+        var panStartTouches = [(Float, Float)]()
+
 
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
@@ -1393,7 +1431,7 @@
         var scrollSensitivity = 50.0
         var scrollId = 0
         var kineticTimer: Timer?
-
+        
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
 
@@ -1424,10 +1462,30 @@
             delegate = mtkDelegate
             preferredFramesPerSecond = 120
             isUserInteractionEnabled = true
+
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidBecomeActive),
+                name: UIApplication.didBecomeActiveNotification,
+                object: nil
+            )
+            NotificationCenter.default.addObserver(
+                self,
+                selector: #selector(appDidEnterBackground),
+                name: UIApplication.didEnterBackgroundNotification,
+                object: nil
+            )
         }
 
-        @available(*, unavailable)
-        required init(coder _: NSCoder) {
+        @objc private func appDidBecomeActive() {
+            self.isPaused = false
+        }
+
+        @objc private func appDidEnterBackground() {
+            self.isPaused = true
+        }
+
+        required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
 
@@ -1494,8 +1552,15 @@
             }
 
             if event.state == .began {
+                panStartTouches.removeAll()
                 kineticTimer?.invalidate()
                 kineticTimer = nil
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        panStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
             }
 
             var velocity = event.velocity(in: self)
@@ -1524,18 +1589,36 @@
                         kineticTimer = nil
                         return
                     }
+                        
+                    multi_touch(
+                        wsHandle,
+                        Float(velocity.x),
+                        Float(velocity.y),
+                        1.0,
+                        0.0,
+                        0.0,
+                        panStartTouches.map{$0.0},
+                        panStartTouches.map{$0.1},
+                        UInt(panStartTouches.count)
+                    )
 
-                    pan(wsHandle, Float(velocity.x), Float(velocity.y))
-                    mouse_gone(wsHandle)
-
-                    setNeedsDisplay()
+                    
+                    self.setNeedsDisplay()
                 }
             } else {
                 let translation = event.translation(in: self)
 
-                pan(wsHandle, Float(translation.x), Float(translation.y))
-                mouse_moved(
-                    wsHandle, Float(event.location(in: self).x), Float(event.location(in: self).y)
+                
+                multi_touch(
+                    wsHandle,
+                    Float(translation.x),
+                    Float(translation.y),
+                    1.0,
+                    0.0,
+                    0.0,
+                    panStartTouches.map{$0.0},
+                    panStartTouches.map{$0.1},
+                    UInt(panStartTouches.count)
                 )
 
                 event.setTranslation(.zero, in: self)
@@ -1574,8 +1657,7 @@
 
         override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch, createIfMissing: true)
 
                 for touch in event!.coalescedTouches(for: touch)! {
                     let location = touch.preciseLocation(in: self)
@@ -1589,10 +1671,23 @@
             setNeedsDisplay(frame)
         }
 
+        private func getTouchID(for touch: UITouch, createIfMissing: Bool = false) -> UInt64 {
+            let key = ObjectIdentifier(touch)
+            if let existingID = touchMap[key] {
+                return existingID
+            }
+            if createIfMissing {
+                let newID = nextTouchID
+                touchMap[key] = newID
+                nextTouchID += 1
+                return newID
+            }
+            return 0 
+        }
+
         override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
@@ -1613,12 +1708,13 @@
 
         override public func touchesEnded(_ touches: Set<UITouch>, with _: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                 touches_ended(wsHandle, value, Float(location.x), Float(location.y), Float(force))
+
+                touchMap.removeValue(forKey: ObjectIdentifier(touch))
             }
 
             setNeedsDisplay(frame)
@@ -1626,8 +1722,7 @@
 
         override public func touchesCancelled(_ touches: Set<UITouch>, with _: UIEvent?) {
             for touch in touches {
-                let point = Unmanaged.passUnretained(touch).toOpaque()
-                let value = UInt64(UInt(bitPattern: point))
+                let value = getTouchID(for: touch)
 
                 let location = touch.preciseLocation(in: self)
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0

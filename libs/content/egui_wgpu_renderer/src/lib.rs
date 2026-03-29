@@ -86,6 +86,10 @@ impl<'w> RendererState<'w> {
         egui::Pos2 { x: x / self.screen.pixels_per_point, y: y / self.screen.pixels_per_point }
     }
 
+    pub fn vec_from_pixels(&self, x: f32, y: f32) -> egui::Vec2 {
+        egui::Vec2 { x: x / self.screen.pixels_per_point, y: y / self.screen.pixels_per_point }
+    }
+
     pub fn pos_from_points(&self, x: f32, y: f32) -> egui::Pos2 {
         let z = self.context.zoom_factor();
         egui::Pos2 { x: x / z, y: y / z }

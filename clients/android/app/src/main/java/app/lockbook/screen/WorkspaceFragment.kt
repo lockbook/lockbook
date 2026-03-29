@@ -58,6 +58,7 @@ import com.afollestad.recyclical.withItem
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
+import kotlin.collections.plus
 import kotlin.getValue
 import kotlin.math.abs
 
@@ -509,7 +510,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             return super.onScroll(e1, e2, distanceX, distanceY)
         }
     }
-
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
     companion object {

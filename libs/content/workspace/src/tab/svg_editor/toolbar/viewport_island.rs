@@ -3,13 +3,13 @@ use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
-use crate::tab::svg_editor::gesture_handler::{
-    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-    zoom_percentage_to_transform,
-};
 use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
+use crate::tab::svg_editor::viewport::{
+    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+    zoom_percentage_to_transform,
+};
 use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -86,6 +86,7 @@ impl Toolbar {
         }
 
         if let Some(res) = show_bring_back_btn(ui, tlbr_ctx, viewport_island_rect) {
+            self.layout.bring_back_btn = Some(res.rect);
             island_res = island_res.union(res);
         }
 
@@ -409,19 +410,30 @@ impl Toolbar {
 
         ui.horizontal(|ui| {
             ui.label("Show mini map");
-            ui.add_space(10.0);
-            if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
-                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
-            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    switch(ui, &mut self.gesture_handler.is_zoom_locked);
-                });
-                ui.add_space(10.0);
-
-                ui.label("Zoom lock");
+                if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
             });
         });
+
+        if cfg!(target_os = "android") {
+            ui.add_space(5.0);
+
+            ui.add(egui::Separator::default().shrink(ui.available_width()));
+
+            ui.add_space(5.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Draw only with pen");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if switch(ui, &mut tlbr_ctx.settings.pencil_only_drawing).changed() {
+                        tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                    };
+                })
+            });
+        }
+
         ui.add_space(10.0);
     }
 

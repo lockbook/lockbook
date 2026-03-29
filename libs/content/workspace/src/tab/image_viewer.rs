@@ -1,7 +1,7 @@
+use std::collections::HashMap;
+
 use egui::Image;
 use lb_rs::{LbErrKind, LbResult, Uuid, model::errors::Unexpected};
-
-use super::svg_editor::SVGEditor;
 
 pub struct ImageViewer {
     pub id: Uuid,
@@ -29,7 +29,7 @@ impl ImageViewer {
         let original_image_size = tlr.as_ref().ok().and_then(|t| t.size());
         let ui_size = self.img.calc_size(ui.available_size(), original_image_size);
 
-        let touch_positions = SVGEditor::get_touch_positions(ui);
+        let touch_positions = get_touch_positions(ui);
         let pos_cardinality = touch_positions.len();
 
         let mut sum_pos = egui::Pos2::default();
@@ -104,4 +104,19 @@ pub fn is_supported_image_fmt(ext: &str) -> bool {
         "tga", "tiff", "webp",
     ];
     IMG_FORMATS.contains(&ext)
+}
+
+fn get_touch_positions(ui: &mut egui::Ui) -> HashMap<u64, egui::Pos2> {
+    ui.input(|r| {
+        let mut touch_positions = HashMap::new();
+        for e in r.events.iter() {
+            if let egui::Event::Touch { device_id: _, id, phase, pos, force: _ } = *e {
+                if phase != egui::TouchPhase::Cancel {
+                    touch_positions.insert(id.0, pos);
+                }
+            }
+        }
+
+        touch_positions
+    })
 }
