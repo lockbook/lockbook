@@ -111,7 +111,6 @@ impl<'a> Button<'a> {
                 });
 
                 let font_size = ui
-                    .ctx()
                     .style()
                     .text_styles
                     .get(&text_style)
