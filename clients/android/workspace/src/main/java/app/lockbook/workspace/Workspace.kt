@@ -49,13 +49,6 @@ public data class AndroidResponse(
     @SerialName("doc_created")
     val docCreated: String,
 
-    @SerialName("status_updated")
-    val statusUpdated: Boolean,
-    @SerialName("refresh_files")
-    val refreshFiles: Boolean,
-
-    @SerialName("new_folder_btn_pressed")
-    val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
     val tabTitleClicked: Boolean,
     @SerialName("tabs_changed")

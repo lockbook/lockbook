@@ -362,13 +362,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 model._msg.value = status.msg
                 model.lastSyncStatusUpdate = System.currentTimeMillis()
             }
-            if (response.newFolderBtnPressed) {
-                model._newFolderBtnPressed.postValue(Unit)
-            }
-
-            if (response.refreshFiles) {
-                model._refreshFiles.postValue(Unit)
-            }
 
             if (!response.docCreated.isNullUUID()) {
                 model._createFile.postValue(response.docCreated)

@@ -27,7 +27,6 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -197,10 +196,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             this
         ) { update ->
             updateMainScreenUI(update)
-        }
-
-        workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id))
         }
 
         workspaceModel.tabTitleClicked.observe(this) {

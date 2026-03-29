@@ -57,17 +57,9 @@ class WorkspaceViewModel : ViewModel() {
     val msg: LiveData<String>
         get() = _msg
 
-    val _refreshFiles = SingleMutableLiveData<Unit>()
-    val refreshFiles: LiveData<Unit>
-        get() = _refreshFiles
-
     val _hideMaterialToolbar = SingleMutableLiveData<Float>()
     val hideMaterialToolbar: LiveData<Float>
         get() = _hideMaterialToolbar
-
-    val _newFolderBtnPressed = SingleMutableLiveData<Unit>()
-    val newFolderBtnPressed: LiveData<Unit>
-        get() = _newFolderBtnPressed
 
     val _tabTitleClicked = SingleMutableLiveData<Unit>()
     val tabTitleClicked: LiveData<Unit>
