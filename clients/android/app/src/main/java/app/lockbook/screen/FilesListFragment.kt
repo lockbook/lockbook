@@ -193,10 +193,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(uiUpdate)
         }
 
-        workspaceModel.refreshFiles.observe(viewLifecycleOwner) {
-            model.reloadFiles()
-        }
-
         workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
             binding.listFilesRefresh.isRefreshing = false
         }

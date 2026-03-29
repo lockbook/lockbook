@@ -39,7 +39,6 @@ public class Lb {
 
     public static native Usage getUsage() throws LbError;
     public static native Usage.UsageItemMetric getUncompressedUsage() throws LbError;
-    public static native SyncStatus calculateWork() throws LbError;
     public static native String[] getLocalChanges() throws LbError;
     public static native void sync(SyncProgress syncProgress) throws LbError;
     public static native File[] getPendingShares() throws LbError;
