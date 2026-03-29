@@ -2,9 +2,11 @@ use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
-use std::sync::{Arc, Mutex};
+use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, RwLock};
 use web_time::Instant;
 
+use crate::file_cache::FileCache;
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -25,14 +27,37 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 use serde::{Deserialize, Serialize};
-use syntect::highlighting::ThemeSet;
+use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 use syntect_assets::assets::HighlightingAssets;
 use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
+use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
 use widget::inline::image::cache::ImageCache;
+use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
+
+static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
+static SYNTAX_THEME: OnceLock<Theme> = OnceLock::new();
+
+pub fn syntax_set() -> &'static SyntaxSet {
+    SYNTAX_SET.get_or_init(|| {
+        HighlightingAssets::from_binary()
+            .get_syntax_set()
+            .unwrap()
+            .clone()
+    })
+}
+
+pub fn syntax_theme() -> &'static Theme {
+    SYNTAX_THEME.get_or_init(|| {
+        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
+        let cursor = Cursor::new(theme_bytes);
+        let mut buffer = BufReader::new(cursor);
+        ThemeSet::load_from_reader(&mut buffer).unwrap()
+    })
+}
 
 pub mod bounds;
 mod galleys;
@@ -64,18 +89,18 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
     pub layout: MdLayout,
 
     // theme
     dark_mode: bool, // supports change detection
-    syntax_set: SyntaxSet,
-    syntax_theme: syntect::highlighting::Theme,
 
     // input
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
     pub plaintext_mode: bool,
+    pub syntax_ext: String,
     pub touch_mode: bool,
     pub readonly: bool,
 
@@ -97,6 +122,8 @@ pub struct Editor {
     // widgets
     pub toolbar: Toolbar,
     pub find: Find,
+    pub emoji_completions: EmojiCompletions,
+    pub link_completions: LinkCompletions,
 
     // selection state
     /// During drag operations, stores the selection that would be applied
@@ -146,11 +173,13 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
 }
 
 pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
+    pub ext: String,
 }
 
 pub struct MdLayout {
@@ -163,6 +192,10 @@ pub struct MdLayout {
     pub bullet_radius: f32,
     pub row_spacing: f32,
     pub block_spacing: f32,
+    pub completion_font_size: f32,
+    pub completion_line_height: f32,
+    pub completion_row_height: f32,
+    pub completion_corner_radius: u8,
 }
 
 impl MdLayout {
@@ -177,6 +210,10 @@ impl MdLayout {
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 14.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 
@@ -185,12 +222,16 @@ impl MdLayout {
             margin: 45.0,
             max_width: 1000.0,
             inline_padding: 3.0,
-            row_height: 14.0,
+            row_height: 16.0,
             block_padding: 10.0,
             indent: 26.0,
             bullet_radius: 2.0,
             row_spacing: 6.0,
             block_spacing: 12.0,
+            completion_font_size: 14.0,
+            completion_line_height: 16.0,
+            completion_row_height: 24.0,
+            completion_corner_radius: 4,
         }
     }
 }
@@ -205,18 +246,10 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, font_system } = res;
-        let MdConfig { plaintext_mode, readonly } = cfg;
+        let MdResources { ctx, core, persistence, font_system, files } = res;
+        let MdConfig { plaintext_mode, readonly, ext } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
-        let highlighting_assets = HighlightingAssets::from_binary();
-        let syntax_set = highlighting_assets.get_syntax_set().unwrap().clone();
-
-        let theme_bytes = include_bytes!("assets/placeholders.tmTheme").as_ref();
-        let cursor = Cursor::new(theme_bytes);
-        let mut buffer = BufReader::new(cursor);
-        let syntax_theme = ThemeSet::load_from_reader(&mut buffer).unwrap();
-
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
@@ -226,19 +259,21 @@ impl Editor {
             ctx,
             persistence,
             font_system,
+            files,
 
             dark_mode,
-            syntax_set,
-            syntax_theme,
 
             toolbar: Default::default(),
             find: Default::default(),
+            emoji_completions: Default::default(),
+            link_completions: Default::default(),
 
             readonly,
             file_id,
             hmac,
             initialized: Default::default(),
             plaintext_mode,
+            syntax_ext: ext,
             touch_mode,
             layout,
 
@@ -258,7 +293,8 @@ impl Editor {
 
             in_progress_selection: None,
 
-            virtual_keyboard_shown: Default::default(),
+            // this is used to toggle the mobile toolbar
+            virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
             unprocessed_scroll: Default::default(),
 
@@ -291,8 +327,9 @@ impl Editor {
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
                 font_system: Arc::new(Mutex::new(crate::make_font_system())),
+                files: Arc::new(RwLock::new(None)),
             },
-            MdConfig { plaintext_mode: false, readonly: false },
+            MdConfig { plaintext_mode: false, readonly: false, ext: String::new() },
         )
     }
 
@@ -337,7 +374,7 @@ impl Editor {
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
         options.extension.footnotes = true;
-        options.extension.front_matter_delimiter = None; // todo: is this a good place for metadata?
+        options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
         options.extension.highlight = true;
@@ -409,6 +446,8 @@ impl Editor {
             result
         };
 
+        self.emoji_completions.update_active_state(&self.buffer);
+        self.link_completions.update_active_state(&self.buffer);
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -441,6 +480,7 @@ impl Editor {
             &self.client,
             &self.core,
             self.file_id,
+            &self.files,
             ui,
         );
 
@@ -462,7 +502,9 @@ impl Editor {
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.readonly && self.virtual_keyboard_shown {
+                    let toolbar_height = if !self.readonly
+                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                    {
                         MOBILE_TOOL_BAR_SIZE
                     } else {
                         0.
@@ -511,7 +553,7 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.readonly && self.virtual_keyboard_shown {
+                    if !self.readonly && (self.virtual_keyboard_shown || self.toolbar.menu_open) {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
@@ -597,9 +639,12 @@ impl Editor {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     ui.max_rect(),
-                    crate::GlyphonRendererCallback { buffers: text_areas },
+                    crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
+        self.show_emoji_completions(ui);
+        self.show_link_completions(ui);
+
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
@@ -699,8 +744,8 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor by default
-        if ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus
+        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {
@@ -808,6 +853,18 @@ impl Editor {
                     let color = theme.bg().get_color(theme.prefs().primary);
                     self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
+
+                    if self.focused(ui.ctx()) {
+                        if let Some([top, bot]) = self.cursor_line(selection.1) {
+                            let cursor_rect = egui::Rect::from_min_max(top, bot);
+                            ui.output_mut(|o| {
+                                o.ime = Some(egui::output::IMEOutput {
+                                    rect: ui.max_rect(),
+                                    cursor_rect,
+                                });
+                            });
+                        }
+                    }
                 }
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);

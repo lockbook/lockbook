@@ -3,6 +3,7 @@ use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ffi::{CString, c_char};
 use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
+use super::super::macos::response::CUrls;
 use super::super::response::*;
 
 #[repr(C)]
@@ -10,17 +11,14 @@ pub struct IOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
-    pub url_opened: *mut c_char,
+    pub urls_opened: CUrls,
     pub open_camera: bool,
     pub has_virtual_keyboard_shown: bool,
     pub virtual_keyboard_shown: bool,
 
     // widget response
     pub selected_file: CUuid,
-    pub refresh_files: bool,
     pub doc_created: CUuid,
-    pub new_folder_btn_pressed: bool,
-    pub status_updated: bool,
     pub tabs_changed: bool,
 
     pub text_updated: bool,
@@ -36,14 +34,12 @@ impl From<crate::Response> for IOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
-                    file_renamed,
+                    file_renamed: _,
                     file_moved: _,
-                    new_folder_clicked,
+                    file_deleted: _,
+                    new_folder_clicked: _,
                     tab_title_clicked,
                     file_created,
-                    settings_updated: _,
-                    sync_done,
-                    status_updated,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
@@ -54,7 +50,7 @@ impl From<crate::Response> for IOSResponse {
                 },
             redraw_in,
             copied_text,
-            url_opened,
+            urls_opened,
             cursor: _,
             virtual_keyboard_shown,
             window_title: _,
@@ -66,19 +62,21 @@ impl From<crate::Response> for IOSResponse {
             Some(Ok(ref f)) if f.is_document() => f.id.into(),
             _ => Uuid::nil().into(),
         };
-        let url_opened = url_opened
+        let url_ptrs: Vec<*mut c_char> = urls_opened
+            .into_iter()
             .map(|u| CString::new(u).unwrap().into_raw())
-            .unwrap_or(std::ptr::null_mut());
+            .collect();
+        let urls_opened = CUrls {
+            size: url_ptrs.len() as i32,
+            urls: Box::into_raw(url_ptrs.into_boxed_slice()) as *const *mut c_char,
+        };
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
-            refresh_files: sync_done.is_some() || file_renamed.is_some() || file_created.is_some(),
             doc_created,
-            new_folder_btn_pressed: new_folder_clicked,
-            status_updated,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
-            url_opened,
+            urls_opened,
             open_camera,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,

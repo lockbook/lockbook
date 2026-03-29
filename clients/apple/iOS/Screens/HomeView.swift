@@ -15,7 +15,7 @@ struct HomeView: View {
     @State var selectedTab: TabType = .home
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
-        self._homeState = StateObject(
+        _homeState = StateObject(
             wrappedValue: HomeState(
                 workspaceOutput: workspaceOutput,
                 filesModel: filesModel
@@ -36,7 +36,7 @@ struct HomeView: View {
                             selectedTab: $selectedTab,
                             tabContent: { tabType in
                                 switch tabType {
-                                    case .home:
+                                case .home:
                                     NavigationStack {
                                         filesHome
                                             .closeSidebarToolbar()
@@ -72,7 +72,7 @@ struct HomeView: View {
                             )
                             .introspectSplitViewController {
                                 splitView in
-                                self.syncFloatingState(
+                                syncFloatingState(
                                     splitView: splitView
                                 )
                             }
@@ -120,7 +120,6 @@ struct HomeView: View {
         .environmentObject(settingsModel)
     }
 
-    @ViewBuilder
     var filesHome: some View {
         SearchContainerView(filesModel: filesModel) {
             FilesHomeView()
@@ -129,7 +128,7 @@ struct HomeView: View {
                     content: {
                         VStack {
                             UsageBar()
-                            
+
                             StatusBarView()
                         }
                     }
@@ -146,7 +145,6 @@ struct HomeView: View {
         )
     }
 
-    @ViewBuilder
     var detail: some View {
         DetailView()
             .navigationDestination(isPresented: $homeState.showSettings) {
@@ -160,7 +158,7 @@ struct HomeView: View {
     func syncFloatingState(splitView: UISplitViewController) {
         let isFloating =
             splitView.displayMode == .oneOverSecondary
-            || splitView.displayMode == .twoOverSecondary
+                || splitView.displayMode == .twoOverSecondary
 
         if homeState.isSidebarFloating != isFloating {
             DispatchQueue.main.async {
@@ -199,7 +197,7 @@ struct FilesHomeView: View {
                                 SuggestedDocsView(filesModel: filesModel)
                             }
                         )
-                        
+
                         Section(
                             header: Text("Files")
                                 .bold()
@@ -228,7 +226,7 @@ struct FilesHomeView: View {
                             homeState.triggerOutOfSpaceAlert()
                         }
                     }
-                    
+
                     workspaceInput.requestSync()
                 }
                 .environmentObject(filesModel)
@@ -256,7 +254,7 @@ struct FilesHomeView: View {
         }
     }
 
-    var selectionToolbarItem: ToolbarItem<(), Button<AnyView>> {
+    var selectionToolbarItem: ToolbarItem<Void, Button<AnyView>> {
         switch filesModel.selectedFilesState {
         case .selected(explicitly: _, implicitly: _):
             ToolbarItem(placement: .topBarLeading) {

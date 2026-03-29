@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterEx
 use crate::tab::markdown_editor::Editor;
 
 pub(crate) mod code_block;
+pub(crate) mod front_matter;
 pub(crate) mod heading;
 pub(crate) mod html_block;
 pub(crate) mod paragraph;

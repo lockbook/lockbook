@@ -11,7 +11,7 @@ async fn get_document() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let old = core
         .begin_tx()
         .await
@@ -59,7 +59,7 @@ async fn get_document_not_found() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").await.unwrap().id;
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
     let mut old = core
         .begin_tx()
         .await

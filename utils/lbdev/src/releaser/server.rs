@@ -109,7 +109,7 @@ fn check_server_status() -> CliResult<()> {
     thread::sleep(Duration::from_secs(5));
     println!("checking on server status");
     Command::new("curl")
-        .args(["https://api.prod.lockbook.net/get-build-info"])
+        .args(["https://app.lockbook.net/get-build-info"])
         .assert_success()
 }
 

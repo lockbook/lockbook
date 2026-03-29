@@ -416,7 +416,7 @@ impl<'ast> Editor {
     /// generally need additional consideration for optional indentation etc.
     pub fn node_intersects_selection(&self, node: &'ast AstNode<'ast>) -> bool {
         self.node_range(node)
-            .intersects(&self.buffer.current.selection, true)
+            .intersects(&self.buffer.current.selection, false)
     }
 
     pub fn node_contains_selection(&self, node: &'ast AstNode<'ast>) -> bool {

@@ -1,8 +1,7 @@
-import SwiftUI
-
-import Combine
-import SwiftWorkspace
 import AppKit
+import Combine
+import SwiftUI
+import SwiftWorkspace
 
 struct SharedWithMeView: View {
     @EnvironmentObject var homeState: HomeState
@@ -15,7 +14,7 @@ struct SharedWithMeView: View {
         workspaceInput: WorkspaceInputState,
         workspaceOutput: WorkspaceOutputState
     ) {
-        self._fileTreeModel = StateObject(
+        _fileTreeModel = StateObject(
             wrappedValue: FileTreeViewModel(
                 filesModel: filesModel,
                 workspaceInput: workspaceInput,
@@ -39,7 +38,6 @@ struct SharedWithMeView: View {
         .navigationTitle("Shared with me")
     }
 
-    @ViewBuilder
     private func sharedByUsers(
         pendingShares: [String: [File]]
     ) -> some View {

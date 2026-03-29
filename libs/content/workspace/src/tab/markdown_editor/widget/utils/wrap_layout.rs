@@ -1,9 +1,14 @@
 use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
+
+struct SplitRow {
+    text: String,
+    range: (DocCharOffset, DocCharOffset),
+}
 use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -122,6 +127,90 @@ impl Editor {
         self.text_mid_span(wrap, 0., text, text_format)
     }
 
+    /// Splits text into rows. For override text all rows share `range`; for
+    /// source text each row gets its sub-range (cloned from the buffer).
+    fn split_rows(
+        &self, override_text: Option<&str>, range: (DocCharOffset, DocCharOffset), font_size: f32,
+        wrap: &Wrap, text_format: &Format,
+    ) -> Vec<SplitRow> {
+        let text = override_text.unwrap_or(&self.buffer[range]);
+        let is_override = override_text.is_some();
+
+        let first_row_bytes = {
+            let tmp = self.upsert_glyphon_buffer(
+                text,
+                font_size,
+                font_size,
+                wrap.row_remaining(),
+                text_format,
+            );
+            let tmp = tmp.read().unwrap();
+            tmp.layout_runs()
+                .next()
+                .and_then(|run| run.glyphs.last())
+                .map(|g| g.end)
+                .unwrap_or(text.len())
+        };
+
+        let first_row_str = text[..first_row_bytes].to_string();
+        let remaining_str = text[first_row_bytes..].to_string();
+
+        let first_row_range = if is_override {
+            range
+        } else {
+            let start = self.offset_to_byte(range.start());
+            self.range_to_char((start, start + first_row_bytes))
+        };
+
+        let mut split = vec![SplitRow { text: first_row_str, range: first_row_range }];
+
+        if !remaining_str.is_empty() {
+            let remaining_start_byte = if is_override {
+                Default::default() // unused
+            } else {
+                let remaining_range = (first_row_range.end(), range.end());
+                self.range_to_byte(remaining_range).start()
+            };
+
+            let run_byte_ranges: Vec<(usize, usize)> = {
+                let tmp = self.upsert_glyphon_buffer(
+                    &remaining_str,
+                    font_size,
+                    font_size,
+                    wrap.width,
+                    text_format,
+                );
+                let tmp = tmp.read().unwrap();
+                tmp.layout_runs()
+                    .map(|run| {
+                        let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
+                        let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
+                        (start, end)
+                    })
+                    .collect()
+            };
+
+            for (start, end) in run_byte_ranges {
+                let skip_leading_space = remaining_str[start..].starts_with(' ');
+                let text_start = if skip_leading_space { start + 1 } else { start };
+                let row_range = if is_override {
+                    range
+                } else {
+                    self.range_to_char((
+                        remaining_start_byte + text_start,
+                        remaining_start_byte + end,
+                    ))
+                };
+                split.push(SplitRow {
+                    text: remaining_str[text_start..end].to_string(),
+                    range: row_range,
+                });
+            }
+        }
+
+        split
+    }
+
     /// Show source text specified by the given range or override text. In the
     /// override case, clicking the text will select the given range.
     ///
@@ -160,146 +249,47 @@ impl Editor {
             glyphon::Color::rgba(r, g, b, a)
         };
 
-        // find where the first row breaks by shaping with row remaining width
-        let (first_row_range, remaining_range) = if override_text.is_some() {
-            // todo: only first row of override text gets shown
-            // this is fine-ish because override text is only used for single
-            // glyphs (emoji shortcodes, link buttons) or whole-line text (alert
-            // types)
-            (range, range.end().into_range())
-        } else {
-            let tmp = self.upsert_glyphon_buffer(
-                text,
-                font_size,
-                font_size,
-                wrap.row_remaining(),
-                &text_format,
-            );
-            let tmp = tmp.read().unwrap();
-
-            let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
-                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
-            } else {
-                text.len()
-            };
-
-            let first_row_start_byte = self.offset_to_byte(range.start());
-            let first_row_range =
-                self.range_to_char((first_row_start_byte, first_row_start_byte + first_row_bytes));
-            let remaining_range = (first_row_range.end(), range.end());
-
-            (first_row_range, remaining_range)
-        };
-        let first_row_text = override_text.unwrap_or(&self.buffer[first_row_range]);
-        let remaining_text = override_text
-            .map(|_| "")
-            .unwrap_or(&self.buffer[remaining_range]);
-
-        // collect rows
-        struct RowData {
+        struct ShapedRow {
             buffer: std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>,
             size: Vec2,
             pos: Pos2,
+            rect: Rect,
+            range: (DocCharOffset, DocCharOffset),
         }
-        let mut rows: Vec<RowData> = Vec::new();
 
-        {
-            // collect rows: first row
-            let row = self.upsert_glyphon_buffer(
-                first_row_text,
+        // split
+        let split = self.split_rows(override_text, range, font_size, wrap, &text_format);
+        let split_len = split.len();
+
+        // shape
+        let mut shaped: Vec<ShapedRow> = Vec::new();
+        for (i, row) in split.into_iter().enumerate() {
+            let buffer = self.upsert_glyphon_buffer(
+                &row.text,
                 font_size,
                 font_size,
                 wrap.row_remaining(),
                 &text_format,
             );
-            let size = row.read().unwrap().shaped_size(ppi);
+            let size = buffer.read().unwrap().shaped_size(ppi);
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
                     wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
                 );
             let rect = Rect::from_min_size(pos, size);
-
-            let row_range = if override_text.is_some() { range } else { first_row_range };
-            let advance = if !remaining_text.is_empty() { wrap.row_remaining() } else { size.x };
-
-            wrap.add_range(row_range);
+            let advance = if i < split_len - 1 { wrap.row_remaining() } else { size.x };
+            wrap.add_range(row.range);
             wrap.offset += advance;
-            self.galleys.push(GalleyInfo {
-                is_override: override_text.is_some(),
-                range: row_range,
-                buffer: row.clone(),
-                rect,
-                padded,
-            });
-            rows.push(RowData { buffer: row, size, pos });
+            shaped.push(ShapedRow { buffer, size, pos, rect, range: row.range });
         }
 
-        if !remaining_text.is_empty() {
-            // collect rows: remaining rows
-            let tmp = self.upsert_glyphon_buffer(
-                remaining_text,
-                font_size,
-                font_size,
-                wrap.width,
-                &text_format,
-            );
-            let tmp = tmp.read().unwrap();
-            let runs_count = tmp.layout_runs().count();
-            let remaining_range_bytes = self.range_to_byte(remaining_range);
-            for (i, run) in tmp.layout_runs().enumerate() {
-                let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-                let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                let row_range = if remaining_text[start..].starts_with(' ') {
-                    self.range_to_char((
-                        remaining_range_bytes.start() + start + 1,
-                        remaining_range_bytes.start() + end,
-                    ))
-                } else {
-                    self.range_to_char((
-                        remaining_range_bytes.start() + start,
-                        remaining_range_bytes.start() + end,
-                    ))
-                };
-
-                let row_text = &self.buffer[row_range];
-                let row = self.upsert_glyphon_buffer(
-                    row_text,
-                    font_size,
-                    font_size,
-                    wrap.width,
-                    &text_format,
-                );
-
-                let size = row.read().unwrap().shaped_size(ppi);
-                let pos = top_left
-                    + Vec2::new(
-                        wrap.row_offset(),
-                        wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
-                    );
-                let rect = Rect::from_min_size(pos, size);
-
-                let advance = if i < runs_count - 1 { wrap.row_remaining() } else { size.x };
-
-                wrap.add_range(row_range);
-                wrap.offset += advance;
-                self.galleys.push(GalleyInfo {
-                    is_override: override_text.is_some(),
-                    range: row_range,
-                    buffer: row.clone(),
-                    rect,
-                    padded,
-                });
-                rows.push(RowData { buffer: row, size, pos });
-            }
-        }
-
-        // interact with all rows
+        // sense
         let mut response = Response::default();
-        for row in &rows {
-            let rect = Rect::from_min_size(row.pos, row.size);
-            let interact_rect =
-                rect.expand2(Vec2::new(self.layout.inline_padding, self.layout.row_spacing / 2.));
+        for row in &shaped {
+            let interact_rect = row
+                .rect
+                .expand2(Vec2::new(self.layout.inline_padding, self.layout.row_spacing / 2.));
             let id = ui.id().with((row.pos.x.to_bits(), row.pos.y.to_bits()));
             let egui_resp = ui.interact(interact_rect, id, sense);
             response.hovered |= egui_resp.hovered();
@@ -309,18 +299,24 @@ impl Editor {
             }
         }
 
-        // render
+        // draw
         let color = if text_format.spoiler && !response.hovered {
             glyphon::Color::rgba(0, 0, 0, 0)
         } else {
             color
         };
-        for row in rows {
-            let rect = Rect::from_min_size(row.pos, row.size);
-            if ui.clip_rect().intersects(rect) {
+        for row in shaped {
+            self.galleys.push(GalleyInfo {
+                is_override: override_text.is_some(),
+                range: row.range,
+                buffer: row.buffer.clone(),
+                rect: row.rect,
+                padded,
+            });
+            if ui.clip_rect().intersects(row.rect) {
                 self.text_areas.push(TextBufferArea::new(
-                    row.buffer.clone(),
-                    rect,
+                    row.buffer,
+                    row.rect,
                     color,
                     ui.ctx(),
                     ui.clip_rect(),
@@ -363,73 +359,32 @@ impl Editor {
         } else {
             wrap.row_height
         };
-        let row_remaining = wrap.row_end() - (wrap.offset + pre_span);
 
-        let (first_row_text, remaining_text) = {
-            let tmp =
-                self.upsert_glyphon_buffer(text, font_size, font_size, row_remaining, &text_format);
-            let tmp = tmp.read().unwrap();
-            let first_row_bytes = if let Some(first_row) = tmp.layout_runs().next() {
-                if let Some(last_glyph) = first_row.glyphs.last() { last_glyph.end } else { 0 }
+        let mut wrap = Wrap { offset: wrap.offset + pre_span, ..wrap.clone() };
+        let split = self.split_rows(Some(text), Default::default(), font_size, &wrap, &text_format);
+        let split_len = split.len();
+
+        let mut span = 0.0;
+        for (i, row) in split.iter().enumerate() {
+            let advance = if i < split_len - 1 {
+                wrap.row_remaining()
             } else {
-                text.len()
+                self.upsert_glyphon_buffer(
+                    &row.text,
+                    font_size,
+                    font_size,
+                    wrap.row_remaining(),
+                    &text_format,
+                )
+                .read()
+                .unwrap()
+                .shaped_size(ppi)
+                .x
             };
-            (text[..first_row_bytes].to_string(), text[first_row_bytes..].to_string())
-        };
-
-        // first row
-        let first_row_size = {
-            let row = self.upsert_glyphon_buffer(
-                &first_row_text,
-                font_size,
-                font_size,
-                row_remaining,
-                &text_format,
-            );
-            let guard = row.read().unwrap();
-            guard.shaped_size(ppi)
-        };
-
-        if remaining_text.is_empty() {
-            // fits on current row: return rendered width
-            first_row_size.x
-        } else {
-            // wraps: consume rest of current row + remaining rows
-            let mut span = row_remaining;
-
-            let tmp = self.upsert_glyphon_buffer(
-                &remaining_text,
-                font_size,
-                font_size,
-                wrap.width,
-                &text_format,
-            );
-            let tmp = tmp.read().unwrap();
-            let runs_count = tmp.layout_runs().count();
-            for (i, run) in tmp.layout_runs().enumerate() {
-                let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-                let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                let row_text = if remaining_text[start..].starts_with(' ') {
-                    &remaining_text[start + 1..end]
-                } else {
-                    &remaining_text[start..end]
-                };
-                let size = self
-                    .upsert_glyphon_buffer(row_text, font_size, font_size, wrap.width, &text_format)
-                    .read()
-                    .unwrap()
-                    .shaped_size(ppi);
-                if i < runs_count - 1 {
-                    // wrapping row: consume the full row
-                    span += wrap.width;
-                } else {
-                    // final row: advance by rendered width only
-                    span += size.x;
-                }
-            }
-
-            span
+            span += advance;
+            wrap.offset += advance;
         }
+        span
     }
 
     /// Returns the span of post-text padding for inline code, spoilers, etc.
@@ -483,7 +438,7 @@ impl Editor {
     }
 }
 
-trait BufferExt {
+pub trait BufferExt {
     fn shaped_size(&self, ppi: f32) -> Vec2;
 }
 

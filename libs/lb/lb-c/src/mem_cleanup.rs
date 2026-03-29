@@ -5,11 +5,10 @@ use lb_rs::Uuid;
 use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
-use crate::lb_work::LbSyncRes;
 use crate::{
     LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
     LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes,
-    LbStatus, LbSubscriptionInfoRes, LbUncompressedRes, LbUsageMetricsRes,
+    LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -150,17 +149,6 @@ pub extern "C" fn lb_free_file_list_res(files: LbFileListRes) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_free_sync_res(sync_res: LbSyncRes) {
-    if !sync_res.err.is_null() {
-        lb_free_err(sync_res.err);
-    }
-
-    if !sync_res.work.work.is_null() {
-        drop(rvec(sync_res.work.work, sync_res.work.len));
-    }
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn lb_free_doc_res(doc: LbDocRes) {
     if !doc.err.is_null() {
         lb_free_err(doc.err);
@@ -212,17 +200,6 @@ pub extern "C" fn lb_free_usage_metrics(usage: LbUsageMetricsRes) {
 
     if !usage.usages.server_used_human.is_null() {
         unsafe { drop(CString::from_raw(usage.usages.server_used_human)) }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_free_uncompressed_usage(usage: LbUncompressedRes) {
-    if !usage.err.is_null() {
-        lb_free_err(usage.err);
-    }
-
-    if !usage.uncompressed_human.is_null() {
-        unsafe { drop(CString::from_raw(usage.uncompressed_human)) }
     }
 }
 

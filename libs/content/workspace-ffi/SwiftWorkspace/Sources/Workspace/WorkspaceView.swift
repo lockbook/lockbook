@@ -6,8 +6,8 @@ import SwiftUI
 
 #if os(iOS)
     import GameController
-    import UIKit
     import ObjectiveC.runtime
+    import UIKit
 
     public struct WorkspaceView: UIViewControllerRepresentable {
         @EnvironmentObject public var workspaceInput: WorkspaceInputState
@@ -16,21 +16,21 @@ import SwiftUI
 
         public init() {}
 
-        public func makeUIViewController(context: Context)
+        public func makeUIViewController(context _: Context)
             -> ContainerController
         {
-            return ContainerController(
+            ContainerController(
                 workspaceInput: workspaceInput,
                 workspaceOutput: workspaceOutput
             )
         }
 
         public func updateUIViewController(
-            _ uiViewController: ContainerController,
-            context: Context
+            _: ContainerController,
+            context _: Context
         ) {}
 
-        // Tiny hosting container that manages adding/removing the preserved workspace instance
+        /// Tiny hosting container that manages adding/removing the preserved workspace instance
         public class ContainerController: UIViewController {
             let workspaceInput: WorkspaceInputState
             let workspaceOutput: WorkspaceOutputState
@@ -45,17 +45,18 @@ import SwiftUI
                 super.init(nibName: nil, bundle: nil)
             }
 
-            public required init?(coder: NSCoder) {
+            @available(*, unavailable)
+            public required init?(coder _: NSCoder) {
                 fatalError("not supported")
             }
 
-            public override func viewDidLoad() {
+            override public func viewDidLoad() {
                 let workspaceController: WorkspaceController
 
                 if let wsHandle = workspaceInput.wsHandle {
                     workspaceController =
                         objc_getAssociatedObject(UIApplication.shared, wsHandle)
-                        as! WorkspaceController
+                            as! WorkspaceController
                 } else {
                     let new = WorkspaceController(
                         workspaceInput: workspaceInput,
@@ -100,7 +101,7 @@ import SwiftUI
             workspaceInput: WorkspaceInputState,
             workspaceOutput: WorkspaceOutputState
         ) {
-            self.inputManager = iOSMTKInputManager(
+            inputManager = iOSMTKInputManager(
                 workspaceInput,
                 workspaceOutput
             )
@@ -152,7 +153,8 @@ import SwiftUI
             view = inputManager
         }
 
-        required init?(coder: NSCoder) {
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
     }
@@ -160,7 +162,7 @@ import SwiftUI
     public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
         public var mtkView: iOSMTK
 
-        var currentWrapper: UIView? = nil
+        var currentWrapper: UIView?
         var tabCount: Int = 0
 
         init(
@@ -187,7 +189,8 @@ import SwiftUI
             ])
         }
 
-        required init?(coder aDecoder: NSCoder) {
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
 
@@ -196,99 +199,98 @@ import SwiftUI
             newTabCount: Int
         ) {
             mtkView.tabSwitchTask = { [weak self] in
-
                 guard let self else {
                     return
                 }
 
-                self.mtkView.onSelectionChanged = nil
-                self.mtkView.onTextChanged = nil
+                mtkView.onSelectionChanged = nil
+                mtkView.onTextChanged = nil
 
-                self.tabCount = newTabCount
+                tabCount = newTabCount
 
-                let headerSize = self.mtkView.docHeaderSize
+                let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector:
-                    if self.currentWrapper == nil {
+                    if currentWrapper == nil {
                         return
                     }
 
-                    self.currentWrapper?.removeFromSuperview()
+                    currentWrapper?.removeFromSuperview()
 
-                    self.currentWrapper = nil
-                    self.mtkView.currentWrapper = nil
+                    currentWrapper = nil
+                    mtkView.currentWrapper = nil
                 case .Svg, .Image, .Graph:
-                    if let currentWrapper = self.currentWrapper
+                    if let currentWrapper = currentWrapper
                         as? SvgView,
                         currentWrapper.currentHeaderSize
-                            == headerSize
+                        == headerSize
                     {
-                        self.mtkView.onTextChanged?()
+                        mtkView.onTextChanged?()
                         return
                     }
 
-                    self.currentWrapper?.removeFromSuperview()
+                    currentWrapper?.removeFromSuperview()
 
                     let drawingWrapper = SvgView(
-                        mtkView: self.mtkView,
+                        mtkView: mtkView,
                         headerSize: headerSize
                     )
-                    self.currentWrapper = drawingWrapper
-                    self.mtkView.currentWrapper = drawingWrapper
+                    currentWrapper = drawingWrapper
+                    mtkView.currentWrapper = drawingWrapper
 
                     drawingWrapper
                         .translatesAutoresizingMaskIntoConstraints = false
-                    self.addSubview(drawingWrapper)
+                    addSubview(drawingWrapper)
                     NSLayoutConstraint.activate([
                         drawingWrapper.topAnchor.constraint(
-                            equalTo: self.topAnchor,
+                            equalTo: topAnchor,
                             constant: headerSize
                         ),
                         drawingWrapper.leftAnchor.constraint(
-                            equalTo: self.leftAnchor
+                            equalTo: leftAnchor
                         ),
                         drawingWrapper.rightAnchor.constraint(
-                            equalTo: self.rightAnchor
+                            equalTo: rightAnchor
                         ),
                         drawingWrapper.bottomAnchor.constraint(
-                            equalTo: self.bottomAnchor
+                            equalTo: bottomAnchor
                         ),
                     ])
                 case .PlainText, .Markdown:
-                    if let currentWrapper = self.currentWrapper
+                    if let currentWrapper = currentWrapper
                         as? MdView,
                         currentWrapper.currentHeaderSize
-                            == headerSize
+                        == headerSize
                     {
                         return
                     }
 
-                    self.currentWrapper?.removeFromSuperview()
+                    currentWrapper?.removeFromSuperview()
 
                     let textWrapper = MdView(
-                        mtkView: self.mtkView,
+                        mtkView: mtkView,
                         headerSize: headerSize
                     )
-                    self.currentWrapper = textWrapper
-                    self.mtkView.currentWrapper = textWrapper
+                    currentWrapper = textWrapper
+                    mtkView.currentWrapper = textWrapper
 
                     textWrapper.translatesAutoresizingMaskIntoConstraints =
                         false
-                    self.addSubview(textWrapper)
+                    addSubview(textWrapper)
                     NSLayoutConstraint.activate([
                         textWrapper.topAnchor.constraint(
-                            equalTo: self.topAnchor,
+                            equalTo: topAnchor,
                             constant: headerSize
                         ),
                         textWrapper.leftAnchor.constraint(
-                            equalTo: self.leftAnchor
+                            equalTo: leftAnchor
                         ),
                         textWrapper.rightAnchor.constraint(
-                            equalTo: self.rightAnchor
+                            equalTo: rightAnchor
                         ),
                         textWrapper.bottomAnchor.constraint(
-                            equalTo: self.keyboardLayoutGuide.topAnchor,
+                            equalTo: keyboardLayoutGuide.topAnchor,
                             constant: -MdView.TOOL_BAR_HEIGHT
                         ),
                     ])
@@ -358,12 +360,12 @@ import SwiftUI
         }
 
         public func updateNSView(
-            _ nsView: MacMTK,
-            context: NSViewRepresentableContext<WorkspaceView>
+            _: MacMTK,
+            context _: NSViewRepresentableContext<WorkspaceView>
         ) {}
 
-        public static func == (lhs: WorkspaceView, rhs: WorkspaceView) -> Bool {
-            return true
+        public static func == (_: WorkspaceView, _: WorkspaceView) -> Bool {
+            true
         }
     }
 #endif

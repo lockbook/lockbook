@@ -1,6 +1,7 @@
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
 
 use crate::theme::icons::Icon;
+use crate::widgets::GlyphonLabel;
 
 #[derive(Default)]
 pub struct Button<'a> {
@@ -109,11 +110,37 @@ impl<'a> Button<'a> {
                     galley
                 });
 
-                let maybe_text_galley = self.text.map(|text| {
-                    let galley =
-                        text.into_galley(ui, Some(TextWrapMode::Extend), wrap_width, text_style);
-                    width += galley.size().x;
-                    galley
+                let font_size = ui
+                    .ctx()
+                    .style()
+                    .text_styles
+                    .get(&text_style)
+                    .map(|f| f.size)
+                    .unwrap_or(14.0);
+
+                // Extract the raw text string so we can measure it for layout
+                // and then render it with the post-allocation interaction color.
+                let maybe_text_str: Option<String> = self.text.map(|text| match &text {
+                    WidgetText::RichText(rt) => rt.text().to_owned(),
+                    WidgetText::LayoutJob(job) => job
+                        .sections
+                        .iter()
+                        .map(|s| &job.text[s.byte_range.clone()])
+                        .collect(),
+                    WidgetText::Galley(g) => g.job.text.clone(),
+                    WidgetText::Text(s) => s.to_string(),
+                });
+
+                // Measure once; reused below for text_rect to avoid a second shape pass.
+                let text_width = maybe_text_str.as_deref().map(|text_str| {
+                    let w = GlyphonLabel::new(text_str, egui::Color32::default())
+                        .font_size(font_size)
+                        .line_height(text_height)
+                        .max_width(wrap_width)
+                        .measure(ui)
+                        .x;
+                    width += w;
+                    w
                 });
 
                 if self.hexpand {
@@ -198,9 +225,16 @@ impl<'a> Button<'a> {
                         }
                     }
 
-                    if let Some(text) = maybe_text_galley {
-                        ui.painter()
-                            .galley(text_pos, text, text_visuals.text_color())
+                    if let (Some(ref text_str), Some(w)) = (&maybe_text_str, text_width) {
+                        let text_rect =
+                            egui::Rect::from_min_size(text_pos, egui::vec2(w, text_height));
+                        ui.put(
+                            text_rect,
+                            GlyphonLabel::new(text_str, text_visuals.text_color())
+                                .font_size(font_size)
+                                .line_height(text_height)
+                                .max_width(wrap_width),
+                        );
                     }
                 }
 

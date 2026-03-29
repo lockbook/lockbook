@@ -28,9 +28,9 @@ async fn new_file() {
         .share_file(folder.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert_stuff(&cores[0], &cores[1]).await;
     assert::all_pending_shares(&cores[1], &["folder"]).await;
@@ -56,9 +56,9 @@ async fn new_files() {
         .share_file(e.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert_stuff(&cores[0], &cores[1]).await;
     assert::all_pending_shares(&cores[1], &["a", "e"]).await;
@@ -78,8 +78,8 @@ async fn new_files() {
         .delete(&cores[0].get_by_path("a/b/c").await.unwrap().id)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
-    cores[1].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
+    cores[1].sync().await.unwrap();
 
     let mut names = cores[1]
         .get_pending_share_files()
@@ -109,9 +109,9 @@ async fn edited_document() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert_stuff(&cores[0], &cores[1]).await;
     assert::all_pending_shares(&cores[1], &["document"]).await;
@@ -134,9 +134,9 @@ async fn preview_pending_share() {
         .share_file(document.id, &accounts[1].username, ShareMode::Write)
         .await
         .unwrap();
-    cores[0].sync(None).await.unwrap();
+    cores[0].sync().await.unwrap();
 
-    cores[1].sync(None).await.unwrap();
+    cores[1].sync().await.unwrap();
 
     assert_stuff(&cores[0], &cores[1]).await;
     assert_eq!(cores[1].read_document(document.id, false).await.unwrap(), b"document content");

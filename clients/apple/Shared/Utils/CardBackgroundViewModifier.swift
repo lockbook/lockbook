@@ -2,7 +2,7 @@ import SwiftUI
 
 struct CardBackgroundViewModifier: ViewModifier {
     let background: Color
-    
+
     func body(content: Content) -> some View {
         content
             .background(

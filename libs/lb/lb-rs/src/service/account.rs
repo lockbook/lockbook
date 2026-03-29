@@ -6,6 +6,7 @@ use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
+use crate::service::events::Actor;
 use crate::{DEFAULT_API_LOCATION, Lb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
@@ -58,16 +59,17 @@ impl Lb {
 
         tx.end();
 
-        self.events.meta_changed();
-
         if welcome_doc {
             let welcome_doc = self
                 .create_file("welcome.md", &root_id, FileType::Document)
                 .await?;
             self.write_document(welcome_doc.id, Self::WELCOME_MESSAGE.as_bytes())
                 .await?;
-            self.sync(None).await?;
+            self.sync().await?;
         }
+
+        self.events.meta_changed(Actor::User);
+        self.events.signed_in();
 
         Ok(account)
     }
@@ -152,16 +154,16 @@ impl Lb {
 
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.export_account_private_key_v1()
+        self.export_account_private_key_v2()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn export_account_private_key_v1(&self) -> LbResult<String> {
         let account = self.get_account()?;
         let encoded: Vec<u8> = bincode::serialize(account).map_err(core_err_unexpected)?;
         Ok(base64::encode(encoded))
     }
 
-    #[allow(dead_code)]
     pub(crate) fn export_account_private_key_v2(&self) -> LbResult<String> {
         let account = self.get_account()?;
         Ok(base64::encode(account.private_key.serialize()))
@@ -173,7 +175,7 @@ impl Lb {
     }
 
     pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_private_key_v1()?;
+        let acct_secret = self.export_account_private_key_v2()?;
         qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
             .map_err(|err| core_err_unexpected(err).into())
     }

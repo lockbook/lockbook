@@ -7,23 +7,23 @@ struct OnboardingView: View {
             VStack(alignment: .leading) {
                 HStack {
                     LogoView()
-                    
+
                     Spacer()
                 }
-                                    
+
                 Text("Lockbook")
                     .font(.largeTitle)
                     .fontWeight(.bold)
                     .padding(.leading)
-                
+
                 Text("The private note-taking platform.")
                     .font(.title2)
                     .padding(.leading)
 
                 subText
-                
+
                 Spacer()
-                
+
                 NavigationLink(destination: {
                     OnboardingTwoView()
                 }, label: {
@@ -34,7 +34,7 @@ struct OnboardingView: View {
                 })
                 .buttonStyle(.borderedProminent)
                 .padding(.bottom, 6)
-                
+
                 NavigationLink(destination: {
                     ImportAccountView()
                 }, label: {
@@ -45,7 +45,7 @@ struct OnboardingView: View {
                 })
                 .buttonStyle(.bordered)
                 .padding(.bottom)
-                
+
                 Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                     .foregroundColor(.gray)
                     .font(.caption2)
@@ -55,22 +55,20 @@ struct OnboardingView: View {
             .modifier(OnboardingOneHorizontalPadding())
         }
     }
-    
-    
-    
+
     var subText: some View {
         #if os(iOS)
-        Text("The perfect place to record, sync, and share your thoughts.")
-            .font(.body)
-            .frame(maxWidth: 270)
-            .padding(.top)
-            .padding(.leading, 12)
+            Text("The perfect place to record, sync, and share your thoughts.")
+                .font(.body)
+                .frame(maxWidth: 270)
+                .padding(.top)
+                .padding(.leading, 12)
         #else
-        Text("The perfect place to record, sync, and share your thoughts.")
-            .font(.body)
-            .frame(maxWidth: 270)
-            .padding(.top)
-            .padding(.leading)
+            Text("The perfect place to record, sync, and share your thoughts.")
+                .font(.body)
+                .frame(maxWidth: 270)
+                .padding(.top)
+                .padding(.leading)
         #endif
     }
 }
@@ -78,16 +76,16 @@ struct OnboardingView: View {
 struct OnboardingOneHorizontalPadding: ViewModifier {
     func body(content: Content) -> some View {
         #if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .phone {
-            content
-                .padding(.horizontal)
-        } else {
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                content
+                    .padding(.horizontal)
+            } else {
+                content
+                    .padding(.horizontal, 25)
+            }
+        #else
             content
                 .padding(.horizontal, 25)
-        }
-        #else
-        content
-            .padding(.horizontal, 25)
         #endif
     }
 }
@@ -100,10 +98,10 @@ private struct OnboardingTwoView: View {
     @State var username: String = ""
     @State var createdAccount = false
     @State var showAccountInformation: String? = nil
-    
+
     @State var error: String? = nil
     @State var working: Bool = false
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             Text("Create a username")
@@ -112,25 +110,25 @@ private struct OnboardingTwoView: View {
 
             Text("Use letters **(A-Z)** and numbers **(0-9)**. Special characters aren’t allowed.")
                 .padding(.top)
-            
+
             Text("You cannot change your username later.")
                 .padding(.top, 6)
-            
+
             TextField("Username", text: $username)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
                 .autocapitalizationDisabled()
                 .onSubmit(createAccount)
                 .padding(.top, 20)
-            
-            if let error = error {
+
+            if let error {
                 Text(error)
                     .foregroundStyle(.red)
                     .fontWeight(.bold)
                     .lineLimit(2, reservesSpace: false)
                     .padding(.top, 5)
             }
-                        
+
             Button(action: {
                 createAccount()
             }, label: {
@@ -142,7 +140,7 @@ private struct OnboardingTwoView: View {
             .buttonStyle(.borderedProminent)
             .disabled(username.isEmpty || working)
             .padding(.top)
-            
+
             Spacer()
         }
         .padding(.top, 35)
@@ -152,25 +150,24 @@ private struct OnboardingTwoView: View {
             OnboardingThreeView(username: username)
         })
     }
-    
+
     func createAccount() {
         working = true
         error = nil
-        let apiUrl = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
-        
+        let apiUrl = AppState.LB_API_URL ?? "https://app.lockbook.net"
+
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = AppState.lb.createAccount(username: username, apiUrl: apiUrl, welcomeDoc: true)
             DispatchQueue.main.async {
                 switch operation {
                 case .success:
-                    self.createdAccount = true
-                case .failure(let err):
+                    createdAccount = true
+                case let .failure(err):
                     working = false
                     error = err.msg
                 }
             }
         }
-
     }
 }
 
@@ -180,26 +177,25 @@ private struct OnboardingTwoView: View {
 
 private struct OnboardingThreeView: View {
     let username: String
-    
+
     @State var storedSecurely = false
     @State var working = false
-    
+
     var body: some View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading) {
-                    
                     Text("Your account key")
                         .font(.title)
                         .fontWeight(.bold)
                         .padding(.bottom)
-                                        
+
                     Text("This key confirms your identity and keeps your account secure. It's **confidential** and **cannot** be recovered if lost. You can always access your key in the **settings**.")
-                    
+
                     Spacer()
-                    
+
                     AccountPhraseView()
-                    
+
                     Toggle(isOn: $storedSecurely, label: {
                         Text("I've stored my account key in safe place.")
                             .font(.callout)
@@ -208,7 +204,7 @@ private struct OnboardingThreeView: View {
                     .toggleStyle(iOSCheckboxToggleStyle())
                     .padding(.top)
                     .padding(.bottom)
-                    
+
                     Button {
                         copyCompactKey()
                     } label: {
@@ -219,7 +215,7 @@ private struct OnboardingThreeView: View {
                     }
                     .buttonStyle(.bordered)
                     .padding(.bottom, 6)
-                    
+
                     Button {
                         goToMainScreen()
                     } label: {
@@ -239,13 +235,13 @@ private struct OnboardingThreeView: View {
         }
         .navigationBarBackButtonHidden()
     }
-    
+
     func copyCompactKey() {
         if case let .success(text) = AppState.lb.exportAccountPrivateKey() {
             ClipboardHelper.copyToClipboard(text)
         }
     }
-    
+
     func goToMainScreen() {
         working = true
         AppState.shared.isLoggedIn = true
@@ -260,7 +256,7 @@ struct iOSCheckboxToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
             Image(systemName: configuration.isOn ? "checkmark.square" : "square")
-            
+
             configuration.label
         }
         .contentShape(Rectangle())
@@ -274,29 +270,29 @@ private struct ImportAccountView: View {
     @State var accountKey = ""
     @State var working = false
     @State var error: String? = nil
-    
+
     @State var unsavedAPIURL: String = ""
     @State var apiURL: String = ""
     @State var importedAccount: Bool = false
-    
+
     @State var showAPIURLSheet: Bool = false
     @State var showQRScanner: Bool = false
-    
+
     @State var compactSheetHeight: CGFloat = 0
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             Text("Enter your key")
                 .font(.title)
                 .fontWeight(.bold)
-            
+
             Text("Enter your phrase or private key, or scan your key QR from another device.")
                 .padding(.top)
-            
+
             Text("If you enter a phrase, please separate each word by a space or comma.")
                 .padding(.top, 3)
                 .padding(.bottom)
-            
+
             HStack {
                 SecureField("Phrase or compact key", text: $accountKey)
                     .disableAutocorrection(true)
@@ -313,16 +309,15 @@ private struct ImportAccountView: View {
                 qrScanner
             }
             .padding(.top)
-            
-            if let error = error {
+
+            if let error {
                 Text(error)
                     .foregroundStyle(.red)
                     .fontWeight(.bold)
                     .lineLimit(2, reservesSpace: false)
                     .padding(.top, 5)
             }
-            
-            
+
             Button {
                 importAccount(isAutoImporting: false)
             } label: {
@@ -334,12 +329,12 @@ private struct ImportAccountView: View {
             .buttonStyle(.borderedProminent)
             .padding(.top)
             .disabled(accountKey.isEmpty || working)
-            
+
             Spacer()
-            
+
             HStack {
                 Spacer()
-                
+
                 Button(action: {
                     showAPIURLSheet = true
                 }, label: {
@@ -358,39 +353,39 @@ private struct ImportAccountView: View {
             ImportAccountSyncView()
         })
     }
-    
+
     var apiURLSheet: some View {
         #if os(iOS)
-        EmptyView()
-            .optimizedSheet(isPresented: $showAPIURLSheet, compactSheetHeight: $compactSheetHeight, width: 500, height: 160) {
-                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-            }
+            EmptyView()
+                .optimizedSheet(isPresented: $showAPIURLSheet, compactSheetHeight: $compactSheetHeight, width: 500, height: 160) {
+                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                }
         #else
-        EmptyView()
-            .sheet(isPresented: $showAPIURLSheet) {
-                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                    .frame(width: 300, height: 140)
-            }
+            EmptyView()
+                .sheet(isPresented: $showAPIURLSheet) {
+                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                        .frame(width: 300, height: 140)
+                }
         #endif
     }
-    
+
     var qrScanner: some View {
         #if os(iOS)
-        Button(action: {
-            showQRScanner = true
-        }, label: {
-            Image(systemName: "qrcode.viewfinder")
-                .font(.title)
-                .foregroundStyle(Color.accentColor)
-        })
-        .sheet(isPresented: $showQRScanner) {
-            CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
-        }
+            Button(action: {
+                showQRScanner = true
+            }, label: {
+                Image(systemName: "qrcode.viewfinder")
+                    .font(.title)
+                    .foregroundStyle(Color.accentColor)
+            })
+            .sheet(isPresented: $showQRScanner) {
+                CodeScannerView(codeTypes: [.qr], simulatedData: "This is simulated data", completion: handleScan)
+            }
         #else
-        EmptyView()
+            EmptyView()
         #endif
     }
-    
+
     func importAccount(isAutoImporting: Bool) {
         working = true
         let apiUrl: String? = if apiURL == "" {
@@ -398,17 +393,17 @@ private struct ImportAccountView: View {
         } else {
             apiURL
         }
-        
+
         DispatchQueue.global(qos: .userInitiated).async {
             let res = AppState.lb.importAccount(key: accountKey, apiUrl: apiUrl)
             DispatchQueue.main.async {
                 working = false
-                
+
                 switch res {
                 case .success:
                     working = false
                     importedAccount = true
-                case .failure(let err):
+                case let .failure(err):
                     if !isAutoImporting {
                         error = err.msg
                     }
@@ -416,17 +411,17 @@ private struct ImportAccountView: View {
             }
         }
     }
-    
+
     #if os(iOS)
-    func handleScan(result: Result<String, CodeScannerView.ScanError>) {
-        showQRScanner = false
-        switch result {
-        case .success(let key):
-            accountKey = key
-        case .failure(_):
-            error = "Could not scan account key QR."
+        func handleScan(result: Result<String, CodeScannerView.ScanError>) {
+            showQRScanner = false
+            switch result {
+            case let .success(key):
+                accountKey = key
+            case .failure:
+                error = "Could not scan account key QR."
+            }
         }
-    }
     #endif
 }
 
@@ -435,19 +430,19 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://api.prod.lockbook.net"
-    
+    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://app.lockbook.net"
+
     @Environment(\.dismiss) private var dismiss
-    
+
     var body: some View {
         VStack(spacing: 10) {
             HStack {
                 Text("API URL")
                     .bold()
-                
+
                 Spacer()
             }
-            
+
             TextField("\(defaultAPIURL)", text: $unsavedAPIURL)
                 .textFieldStyle(.roundedBorder)
                 .autocorrectionDisabled()
@@ -461,7 +456,7 @@ struct SetAPIURLView: View {
                     dismiss()
                 }
                 .padding(.bottom, 20)
-            
+
             Button {
                 apiURL = unsavedAPIURL
                 dismiss()
@@ -486,17 +481,17 @@ struct SetAPIURLView: View {
 
 struct ImportAccountSyncView: View {
     @StateObject var model = ImportAccountSyncViewModel()
-    
+
     var body: some View {
         VStack(spacing: 20) {
             Spacer()
-            
+
             if let error = model.error {
                 Text(error)
                     .foregroundColor(.red)
-                
+
                 Spacer()
-                
+
                 Button {
                     model.sync()
                 } label: {
@@ -507,13 +502,10 @@ struct ImportAccountSyncView: View {
                 }
                 .buttonStyle(.bordered)
             } else {
-                ProgressView(value: model.syncProgress)
-                    .frame(maxWidth: 700)
-                
-                Text(model.syncMsg)
-                    .foregroundColor(.secondary)
+                ProgressView("Signing In")
+                    .progressViewStyle(.circular)
             }
-            
+
             Spacer()
         }
         .padding(.top, 35)
@@ -524,37 +516,26 @@ struct ImportAccountSyncView: View {
 }
 
 class ImportAccountSyncViewModel: ObservableObject {
-    @Published var syncMsg: String = "..."
-    @Published var syncProgress: Float = 0
-    
     @Published var error: String? = nil
-    
+
     init() {
         sync()
     }
-    
+
     func sync() {
         DispatchQueue.global(qos: .userInteractive).async {
-            let result = AppState.lb.sync { total, progress, id, msg in
-                DispatchQueue.main.async {
-                    self.syncProgress = Float(progress) / Float(total)
-                    self.syncMsg = msg
-                }
-            }
-            
+            let result = AppState.lb.sync()
             DispatchQueue.main.async {
                 switch result {
-                case .success(_):
+                case .success:
                     AppState.shared.isLoggedIn = true
-                case .failure(let err):
+                case let .failure(err):
                     self.error = err.msg
                 }
             }
         }
     }
-    
 }
-
 
 #Preview("Import Account Sync") {
     ImportAccountSyncView()

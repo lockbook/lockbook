@@ -1,13 +1,12 @@
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
-use egui::text_edit::TextEditState;
 use egui::{
-    Color32, Context, DragAndDrop, Event, EventFilter, Id, Key, LayerId, Modifiers, Order, Pos2,
-    Rect, Sense, TextEdit, Ui, UiBuilder, Vec2, WidgetText, vec2,
+    Color32, DragAndDrop, Event, Id, Key, LayerId, Modifiers, Order, Pos2, Rect, Sense, Ui,
+    UiBuilder, Vec2, WidgetText, vec2,
 };
 use egui_notify::Toasts;
 use lb::Uuid;
@@ -20,7 +19,7 @@ use workspace_rs::file_cache::FilesExt;
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette_v2::ThemeExt as _;
-use workspace_rs::widgets::Button;
+use workspace_rs::widgets::{Button, GlyphonTextEdit};
 
 #[derive(Debug, Default)]
 pub struct FileTree {
@@ -480,7 +479,7 @@ impl FileTree {
             }) {
                 if let Some(cursor) = self.cursor {
                     let cursor = self.files.get_by_id(cursor).unwrap().clone();
-                    self.init_rename(ui.ctx(), &cursor);
+                    self.init_rename(&cursor);
                 }
             }
 
@@ -729,62 +728,16 @@ impl FileTree {
         let file_tree_id = Id::new("file_tree");
         let focused = ui.memory(|m| m.has_focus(file_tree_id));
 
-        // renaming
-        if is_renaming {
-            ui.spacing_mut().indent = indent;
-            ui.visuals_mut().indent_has_left_vline = false;
-            let rename_resp = ui
-                .indent("rename_file_indent", |ui| {
-                    ui.add(
-                        TextEdit::singleline(&mut self.rename_buffer)
-                            .frame(false)
-                            .margin(ui.spacing().button_padding + Self::BTN_MARGIN)
-                            .id(Id::new("rename_file")),
-                    )
-                })
-                .inner;
+        // process events before showing so the rename buffer is up-to-date when
+        // show_file_cell uses its width for layout.
+        let rename_id = Id::new("rename_file");
+        let rename_submitted = if is_renaming {
+            GlyphonTextEdit::process_events(ui, rename_id, &mut self.rename_buffer)
+        } else {
+            false
+        };
 
-            ui.painter().rect_stroke(
-                rename_resp.rect.expand(5.0),
-                Self::BTN_ROUNDING,
-                egui::Stroke::new(1.0, ui.style().visuals.widgets.active.bg_fill),
-                egui::epaint::StrokeKind::Inside,
-            );
-
-            if !rename_resp.has_focus() && !rename_resp.lost_focus() {
-                // request focus on the first frame (todo: wrong but works)
-                rename_resp.request_focus();
-            }
-            if rename_resp.has_focus() {
-                // focus lock filter must be set every frame
-                ui.memory_mut(|m| {
-                    m.set_focus_lock_filter(
-                        rename_resp.id,
-                        EventFilter {
-                            tab: true, // suppress 'tab' behavior
-                            horizontal_arrows: true,
-                            vertical_arrows: true,
-                            escape: false, // press 'esc' to release focus
-                        },
-                    )
-                })
-            }
-
-            // submit
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                resp.rename_request = Some((id, self.rename_buffer.clone()));
-                self.rename_target = None;
-            }
-
-            // release focus to cancel ('esc' or click elsewhere)
-            if rename_resp.lost_focus() {
-                self.rename_target = None;
-            }
-
-            return resp; // note: early return
-        }
-
-        // render
+        // show_file_cell handles both normal display and the rename overlay.
         let file_resp = self.show_file_cell(ui, &file, indent, focused);
 
         if is_expanded {
@@ -796,10 +749,34 @@ impl FileTree {
                 scroll_to_cursor,
             ));
         }
+
+        // handle submit rename
+        if is_renaming {
+            let rename_has_focus = ui.memory(|m| m.has_focus(rename_id));
+            let rename_lost_focus =
+                ui.memory(|m| m.had_focus_last_frame(rename_id)) && !rename_has_focus;
+            let escape_pressed = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+
+            if !rename_has_focus && !rename_lost_focus {
+                // Grant focus on the first frame of renaming; don't re-steal
+                // it after the user has deliberately clicked away.
+                ui.memory_mut(|m| m.request_focus(rename_id));
+            }
+
+            if rename_submitted {
+                resp.rename_request = Some((id, self.rename_buffer.clone()));
+                self.rename_target = None;
+            } else if rename_lost_focus || escape_pressed {
+                self.rename_target = None;
+            }
+            // skip drag 'n' drop / click interactions
+            return resp;
+        }
+
         // init rename
         // no renames for pending shares
         if file_resp.double_clicked() {
-            self.init_rename(ui.ctx(), &file);
+            self.init_rename(&file);
         }
         // select
         else if file_resp.clicked() {
@@ -1051,23 +1028,15 @@ impl FileTree {
     }
 
     fn show_file_cell(
-        &self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
+        &mut self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
-        let doc_type = DocType::from_name(&file.name);
-        let mut text = if doc_type.hide_ext() {
-            let wo = Path::new(&file.name)
-                .file_stem()
-                .map(|stem| stem.to_str().unwrap())
-                .unwrap_or(&file.name);
-            WidgetText::from(wo)
-        } else {
-            WidgetText::from(&file.name)
-        };
 
-        if self.cut.contains(&file.id) {
-            text = text.strikethrough();
-        }
+        let is_renaming = self.rename_target == Some(file.id)
+            && file.id != self.pending_shares_id
+            && file.id != self.suggested_docs_folder_id;
+        let doc_type =
+            DocType::from_name(if is_renaming { &self.rename_buffer } else { &file.name });
 
         let mut default_fill = Color32::TRANSPARENT;
         if self.selected.contains(&file.id) {
@@ -1085,29 +1054,12 @@ impl FileTree {
         if self.cursor == Some(file.id) && focused {
             default_fill = ui.style().visuals.selection.bg_fill;
         }
-        let button = Button::default()
-            .text(text)
-            .default_fill(default_fill)
-            .rounding(Self::BTN_ROUNDING)
-            .margin(Self::BTN_MARGIN)
-            .frame(true)
-            .hexpand(true)
-            .indent(indent)
-            .padding(vec2(15., 7.));
 
-        let icon_size = 19.0;
-
-        let file_resp = if file.is_document() {
-            let icon = doc_type.to_icon().size(icon_size);
-            let file_resp = button
-                .icon(&icon)
-                .icon_color(theme.neutral_fg_secondary())
-                .show(ui);
-
-            file_resp
+        let icon_size = 19.;
+        let (icon, icon_color) = if file.is_document() {
+            (doc_type.to_icon().size(icon_size), theme.neutral_fg_secondary())
         } else {
             let is_shared = !file.shares.is_empty();
-
             let icon = if file.id == self.pending_shares_id {
                 Icon::PEOPLE
             } else if file.id == self.suggested_docs_folder_id {
@@ -1120,20 +1072,76 @@ impl FileTree {
                 Icon::FOLDER
             }
             .size(icon_size);
-
-            let file_resp = button
-                .icon(&icon)
-                .icon_color(if file.id == self.suggested_docs_folder_id {
-                    theme.fg().get_color(theme.prefs().tertiary)
-                } else if is_shared || file.id == self.pending_shares_id {
-                    theme.fg().get_color(theme.prefs().secondary)
-                } else {
-                    theme.fg().get_color(theme.prefs().primary)
-                })
-                .show(ui);
-
-            file_resp
+            let color = if file.id == self.suggested_docs_folder_id {
+                theme.fg().get_color(theme.prefs().tertiary)
+            } else if is_shared || file.id == self.pending_shares_id {
+                theme.fg().get_color(theme.prefs().secondary)
+            } else {
+                theme.fg().get_color(theme.prefs().primary)
+            };
+            (icon, color)
         };
+
+        let button = Button::default()
+            .default_fill(default_fill)
+            .rounding(Self::BTN_ROUNDING)
+            .margin(Self::BTN_MARGIN)
+            .frame(true)
+            .hexpand(true)
+            .indent(indent)
+            .padding(vec2(15., 7.))
+            .icon(&icon)
+            .icon_color(icon_color);
+
+        let button = if !is_renaming {
+            let display_name = doc_type.display_name(&file.name);
+            let mut text = WidgetText::from(display_name);
+            if self.cut.contains(&file.id) {
+                text = text.strikethrough();
+            }
+            button.text(text)
+        } else {
+            button
+        };
+
+        let file_resp = button.show(ui);
+
+        if is_renaming {
+            // place the GlyphonTextEdit exactly where the button would have
+            let rename_id = Id::new("rename_file");
+            let stem_end = self
+                .rename_buffer
+                .rfind('.')
+                .unwrap_or(self.rename_buffer.len());
+            let font_size = ui
+                .ctx()
+                .style()
+                .text_styles
+                .get(&egui::TextStyle::Body)
+                .map(|f| f.size)
+                .unwrap_or(14.0);
+            let line_height = font_size * 1.4;
+            let btn_padding = vec2(15., 7.);
+
+            let text_field_rect = Rect::from_min_max(
+                egui::pos2(
+                    file_resp.rect.min.x + btn_padding.x + indent + icon_size + btn_padding.x / 2.0,
+                    file_resp.rect.center().y - line_height / 2.0,
+                ),
+                egui::pos2(
+                    file_resp.rect.max.x - btn_padding.x,
+                    file_resp.rect.center().y + line_height / 2.0,
+                ),
+            );
+
+            ui.place(
+                text_field_rect,
+                GlyphonTextEdit::new(&mut self.rename_buffer)
+                    .id(rename_id)
+                    .font_size(font_size)
+                    .select_on_focus(0, stem_end),
+            );
+        }
 
         file_resp
     }
@@ -1240,7 +1248,7 @@ impl FileTree {
             ui.separator();
 
             if ui.button("Rename").clicked() {
-                self.init_rename(ui.ctx(), file);
+                self.init_rename(file);
                 ui.close();
             }
 
@@ -1311,22 +1319,9 @@ impl FileTree {
         resp
     }
 
-    fn init_rename(&mut self, ctx: &Context, file: &File) {
+    fn init_rename(&mut self, file: &File) {
         self.rename_target = Some(file.id);
         self.rename_buffer = file.name.clone();
-
-        let name = &self.rename_buffer;
-        let end_pos = name.rfind('.').unwrap_or(name.len());
-
-        let mut rename_edit_state = TextEditState::default();
-        rename_edit_state
-            .cursor
-            .set_char_range(Some(egui::text::CCursorRange {
-                primary: egui::text::CCursor::new(end_pos),
-                secondary: egui::text::CCursor::new(0),
-                h_pos: None,
-            }));
-        TextEdit::store_state(ctx, Id::new("rename_file"), rename_edit_state);
     }
 
     const BTN_ROUNDING: f32 = 5.0;

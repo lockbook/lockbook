@@ -328,7 +328,7 @@ async fn downgrade_denied() {
             .unwrap();
         core.write_document(file.id, &bytes).await.unwrap();
 
-        core.sync(None).await.unwrap();
+        core.sync().await.unwrap();
     }
 
     // switch account tier to premium
@@ -357,7 +357,7 @@ async fn downgrade_denied() {
         .map(|_| rand::random::<u8>())
         .collect();
     core.write_document(file.id, &content).await.unwrap();
-    core.sync(None).await.unwrap();
+    core.sync().await.unwrap();
 
     // attempt to cancel subscription but fail
     let result = core
@@ -378,7 +378,7 @@ async fn downgrade_denied() {
     for child in children {
         core.delete(&child.id).await.unwrap();
 
-        core.sync(None).await.unwrap();
+        core.sync().await.unwrap();
 
         if core.get_usage().await.unwrap().server_usage.exact < FREE_TIER_USAGE_SIZE {
             break;

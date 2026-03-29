@@ -3,15 +3,16 @@ use crate::releaser::utils::{lb_repo, lb_version};
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
-use std::fs::{File, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
-    upload_deb_gh()?;
     update_aur()?;
     update_snap()?;
     upload_gh()?;
+    update_flatpak()?;
     Ok(())
 }
 
@@ -277,6 +278,174 @@ pub fn push_aur() -> CliResult<()> {
     Command::new("git")
         .args(["push", "github", "master"])
         .current_dir("../aur-lockbook-desktop")
+        .assert_success()?;
+    Ok(())
+}
+
+pub fn overwrite_flatpak_manifest(
+    url: &str, sha256: &str, manifest_location: &str,
+) -> CliResult<()> {
+    let manifest = format!(
+        r#"{{
+    "app-id": "net.lockbook.Lockbook",
+    "runtime": "org.freedesktop.Platform",
+    "runtime-version": "25.08",
+    "sdk": "org.freedesktop.Sdk",
+    "sdk-extensions": [
+        "org.freedesktop.Sdk.Extension.rust-stable"
+    ],
+    "build-options": {{
+        "append-path": "/usr/lib/sdk/rust-stable/bin"
+    }},
+    "command": "lockbook-desktop",
+    "finish-args": [
+       "--socket=x11",
+       "--device=dri",
+       "--share=network",
+       "--share=ipc"
+    ],
+    "modules": [
+        {{
+            "name": "lockbook",
+            "buildsystem": "simple",
+            "build-options": {{
+                "env": {{
+                    "CARGO_HOME": "/run/build/lockbook/cargo"
+                }}
+            }},
+            "build-commands": [
+                "cargo build --release --offline -p lockbook-linux",
+                "install -Dm755 target/release/lockbook-linux /app/bin/lockbook-desktop",
+                "install -Dm644 docs/graphics/logo.svg /app/share/icons/hicolor/scalable/apps/net.lockbook.Lockbook.svg",
+                "install -Dm644 utils/dev/flatpak-package/lockbook-desktop.desktop /app/share/applications/net.lockbook.Lockbook.desktop",
+                "install -Dm644 utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml /app/share/appdata/net.lockbook.Lockbook.appdata.xml",
+                "install -Dm0644 UNLICENSE -t /app/share/licenses/net.lockbook.Lockbook/"
+            ],
+            "sources": [
+                {{
+                    "type": "archive",
+                    "url": "{url}",
+                    "sha256": "{sha256}"
+                }},
+                "cargo-sources.json"
+            ]
+        }}
+    ]
+}}"#
+    );
+
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(manifest_location)
+        .unwrap();
+    file.write_all(manifest.as_bytes()).unwrap();
+    Ok(())
+}
+
+pub fn update_flatpak() -> CliResult<()> {
+    let version = lb_version();
+    let flatpak_builder_tools_directory = "/tmp/flatpak_builder_tools_directory".to_string();
+    let released_lb_tarball_url =
+        format!("https://github.com/lockbook/lockbook/archive/refs/tags/{version}.tar.gz");
+    let released_lb_tarball_dl_location = format!("/tmp/released_lb_tarball-{version}.tar.gz");
+    let flatpak_repo_directory = "/tmp/lb_flatpak_repo".to_string();
+
+    if Path::new(&flatpak_builder_tools_directory).exists() {
+        fs::remove_dir_all(&flatpak_builder_tools_directory).unwrap();
+    }
+    if Path::new(&flatpak_repo_directory).exists() {
+        fs::remove_dir_all(&flatpak_repo_directory).unwrap();
+    }
+
+    Command::new("git")
+        .args([
+            "clone",
+            "--depth=1",
+            "https://github.com/flatpak/flatpak-builder-tools.git",
+            &flatpak_builder_tools_directory,
+        ])
+        .assert_success()?;
+
+    Command::new("git")
+        .args([
+            "clone",
+            "--depth=1",
+            &format!("https://parth:{}@github.com/flathub/net.lockbook.Lockbook", Github::env().0),
+            &flatpak_repo_directory,
+        ])
+        .assert_success()?;
+
+    Command::new("curl")
+        .args(["-fL", &released_lb_tarball_url, "-o", &released_lb_tarball_dl_location])
+        .assert_success()?;
+
+    let sha256_output = Command::new("sh")
+        .args(["-c", &format!("sha256sum {released_lb_tarball_dl_location} | awk '{{print $1}}'")])
+        .output()
+        .unwrap();
+    let sha256 = String::from_utf8(sha256_output.stdout)
+        .unwrap()
+        .trim()
+        .to_string();
+
+    overwrite_flatpak_manifest(
+        &released_lb_tarball_url,
+        &sha256,
+        &format!("{flatpak_repo_directory}/net.lockbook.Lockbook.json"),
+    )?;
+
+    let lock_file_location = Path::new("Cargo.lock")
+        .canonicalize()
+        .unwrap()
+        .to_string_lossy()
+        .to_string();
+
+    Command::new("python3")
+        .args([
+            "flatpak-cargo-generator.py",
+            &lock_file_location,
+            "-o",
+            &format!("{flatpak_repo_directory}/cargo-sources.json"),
+        ])
+        .current_dir(format!("{flatpak_builder_tools_directory}/cargo"))
+        .assert_success()?;
+
+    push_flatpak(&version, &flatpak_repo_directory)?;
+
+    Ok(())
+}
+
+pub fn push_flatpak(version: &str, flatpak_repo: &str) -> CliResult<()> {
+    Command::new("git")
+        .args(["checkout", "-b", version])
+        .current_dir(flatpak_repo)
+        .assert_success()?;
+    Command::new("git")
+        .args(["add", "-A"])
+        .current_dir(flatpak_repo)
+        .assert_success()?;
+    Command::new("git")
+        .args(["commit", "-m", &format!("release {}", version)])
+        .current_dir(flatpak_repo)
+        .assert_success()?;
+    Command::new("gh")
+        .args([
+            "pr",
+            "create",
+            "--title",
+            &format!("update to {}", version),
+            "--body",
+            "",
+            "--base",
+            "master",
+            "--head",
+            version,
+            "--repo",
+            "flathub/net.lockbook.Lockbook",
+        ])
+        .current_dir(flatpak_repo)
         .assert_success()?;
     Ok(())
 }

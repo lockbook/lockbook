@@ -2,13 +2,12 @@ use lb_rs::model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
 use lb_rs::model::usage::bytes_to_human;
-use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
+use lb_rs::service::usage::UsageMetrics;
 
 use crate::widgets::ProgressBar;
 
 pub fn subscription(
     ui: &mut egui::Ui, maybe_sub_info: &Option<SubscriptionInfo>, metrics: &UsageMetrics,
-    maybe_uncompressed: Option<&UsageItemMetric>,
 ) -> Option<SubscriptionResponse> {
     let stroke_color = ui.visuals().extreme_bg_color;
     let bg = ui.visuals().faint_bg_color;
@@ -21,7 +20,7 @@ pub fn subscription(
         .show(ui, |ui| {
             let resp = subscription_info(ui, maybe_sub_info);
             ui.add_space(12.0);
-            usage_bar(ui, metrics, maybe_uncompressed);
+            usage_bar(ui, metrics);
             resp
         })
         .inner
@@ -68,9 +67,7 @@ fn draw_app_store(
     None
 }
 
-fn usage_bar(
-    ui: &mut egui::Ui, metrics: &UsageMetrics, maybe_uncompressed: Option<&UsageItemMetric>,
-) {
+fn usage_bar(ui: &mut egui::Ui, metrics: &UsageMetrics) {
     let used = metrics.server_usage.exact as f32;
     let available = metrics.data_cap.exact as f32;
     let human_usage = bytes_to_human(used as u64);
@@ -88,26 +85,7 @@ fn usage_bar(
 
     ui.add_space(5.0);
 
-    let pbar_resp = ProgressBar::new().percent(percent).show(ui);
-
-    if let Some(uncompressed) = maybe_uncompressed {
-        pbar_resp.on_hover_ui(|ui| {
-            egui::Grid::new("compression_stats").show(ui, |ui| {
-                let compr_ratio = match metrics.server_usage.exact {
-                    0 => "0".to_string(),
-                    _ => format!("{:.2}x", uncompressed.exact as f32 / used),
-                };
-
-                ui.label("Uncompressed Usage: ");
-                ui.label(&uncompressed.readable);
-                ui.end_row();
-
-                ui.label("Compression Ratio: ");
-                ui.label(&compr_ratio);
-                ui.end_row();
-            });
-        });
-    }
+    ProgressBar::new().percent(percent).show(ui);
 }
 
 pub enum SubscriptionResponse {

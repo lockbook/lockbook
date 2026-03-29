@@ -3,16 +3,16 @@ import SwiftWorkspace
 
 struct SettingsView: View {
     @ObservedObject var model = SettingsViewModel()
-    
+
     @State var confirmLogout = false
     @State var confirmCancelSubscription = false
     @State var confirmDeleteAccount = false
-    
+
     @State var showAccountKeys = false
     @State var navigateToUpgradeAccount = false
-    
+
     @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
-    
+
     var body: some View {
         Form {
             Section("Account") {
@@ -25,7 +25,7 @@ struct SettingsView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 Button(action: {
                     AuthHelper.authenticateWithBiometricsOrPasscode { success in
                         showAccountKeys = success
@@ -33,9 +33,9 @@ struct SettingsView: View {
                 }, label: {
                     Text("Reveal Account Keys")
                 })
-                
+
                 Button(role: .destructive, action: {
-                    self.confirmLogout = true
+                    confirmLogout = true
                 }, label: {
                     Text("Logout")
                 })
@@ -45,7 +45,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            
+
             Section("Usage") {
                 if let isPremium = model.isPremium {
                     HStack {
@@ -53,14 +53,14 @@ struct SettingsView: View {
                         Spacer()
                         Text(isPremium ? "Premium" : "Free")
                     }
-                    
+
                     if !isPremium {
                         NavigationLink("Upgrade now") {
                             UpgradeAccountView(settingsModel: model)
                         }
                     }
                 }
-                
+
                 if let usage = model.usage {
                     VStack {
                         HStack {
@@ -68,7 +68,7 @@ struct SettingsView: View {
                             Spacer()
                             Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
                         }
-                        
+
                         ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
                             .padding(.top, 10)
                             .padding(.bottom, 8)
@@ -76,17 +76,17 @@ struct SettingsView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 Picker("Display Mode", selection: $usageBarMode) {
                     ForEach(UsageBarDisplayMode.allCases) { mode in
                         Text(mode.label).tag(mode)
                     }
                 }
                 .pickerStyle(.menu)
-                
+
                 if model.isPremium == true {
                     Button("Cancel Subscription", role: .destructive) {
-                        self.confirmCancelSubscription = true
+                        confirmCancelSubscription = true
                     }
                     .confirmationDialog("Are you sure you want to cancel your subscription?", isPresented: $confirmCancelSubscription, titleVisibility: .visible) {
                         Button("Confirm", role: .destructive) {
@@ -95,7 +95,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            
+
             Section(header: Text("Privacy")) {
                 Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
                     .foregroundColor(Color.accentColor)
@@ -112,7 +112,7 @@ struct SettingsView: View {
                     }
                 }
             }
-            
+
             Section("Debug") {
                 if let account = model.account {
                     HStack {
@@ -126,7 +126,7 @@ struct SettingsView: View {
                 } else {
                     ProgressView()
                 }
-                
+
                 NavigationLink(destination: DebugView()) {
                     Text("Debug Info")
                 }
@@ -187,12 +187,9 @@ struct AccountKeysView: View {
     }
 }
 
-
 #Preview {
     NavigationStack {
         SettingsView()
     }
     .withCommonPreviewEnvironment()
 }
-
-

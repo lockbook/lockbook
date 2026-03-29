@@ -145,7 +145,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -1607,6 +1607,15 @@ name = "constant_time_eq"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21a53c0a4d288377e7415b53dcfc3c04da5cdc2cc95c8d5ac178b58f0b861ad6"
+
+[[package]]
+name = "content_inspector"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7bda66e858c683005a53a9a60c69a4aca7eeaa45d124526e389f7aec8e62f38"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "convert_case"
@@ -4258,7 +4267,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "lb-rs",
 ]
@@ -4270,7 +4279,7 @@ source = "git+https://github.com/lockbook/lb-fonts#d777ff8ab8bf198ebaf6b3406daba
 
 [[package]]
 name = "lb-fs"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4282,7 +4291,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4290,7 +4299,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -4424,7 +4433,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4632,7 +4641,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "cli-rs 0.2.0",
  "colored 3.0.0",
@@ -4646,7 +4655,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4668,7 +4677,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "egui 0.32.3",
  "egui_wgpu_renderer",
@@ -4686,7 +4695,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-server"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4725,7 +4734,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "clipboard-win 4.5.0",
  "egui 0.32.3",
@@ -6283,6 +6292,7 @@ dependencies = [
  "tracing",
  "tracing-wasm",
  "wasm-bindgen-futures",
+ "wgpu",
  "workspace",
 ]
 
@@ -7929,7 +7939,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -9163,6 +9173,7 @@ dependencies = [
  "thiserror 2.0.12",
  "wgpu-core-deps-apple",
  "wgpu-core-deps-emscripten",
+ "wgpu-core-deps-wasm",
  "wgpu-core-deps-windows-linux-android",
  "wgpu-hal",
  "wgpu-types",
@@ -9182,6 +9193,15 @@ name = "wgpu-core-deps-emscripten"
 version = "25.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f09ad7aceb3818e52539acc679f049d3475775586f3f4e311c30165cf2c00445"
+dependencies = [
+ "wgpu-hal",
+]
+
+[[package]]
+name = "wgpu-core-deps-wasm"
+version = "25.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eca8809ad123f6c7f2c5e01a2c7117c4fdfd02f70bd422ee2533f69dfa98756c"
 dependencies = [
  "wgpu-hal",
 ]
@@ -9853,7 +9873,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "eframe",
  "egui_extras 0.32.3",
@@ -9869,7 +9889,7 @@ checksum = "d7249219f66ced02969388cf2bb044a09756a083d0fab1e566056b04d9fbcaa5"
 
 [[package]]
 name = "workspace"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9878,11 +9898,13 @@ dependencies = [
  "colored 2.1.0",
  "colors-transform",
  "comrak",
- "egui 0.32.3",
+ "content_inspector",
+ "egui",
  "egui_animation",
  "egui_extras 0.28.1",
  "egui_wgpu_renderer",
- "epaint 0.32.3",
+ "emojis",
+ "epaint",
  "futures",
  "glam",
  "glyphon",
@@ -9922,7 +9944,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.3.11"
+version = "26.3.22"
 dependencies = [
  "egui 0.32.3",
  "egui_extras 0.32.3",

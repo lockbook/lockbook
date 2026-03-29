@@ -2,9 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::Lb;
-
-use super::sync::SyncIncrement;
+use crate::{Lb, LbErrKind};
 
 #[derive(Clone)]
 pub struct EventSubs {
@@ -16,22 +14,24 @@ pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
     /// message to be sent (unless a document was deleted).
-    MetadataChanged,
+    MetadataChanged(Actor),
 
     /// The contents of this document have changed either by this lb
     /// library or as a result of sync
-    DocumentWritten(Uuid, Option<Actor>),
+    DocumentWritten(Uuid, Actor),
 
     PendingSharesChanged,
 
     Sync(SyncIncrement),
 
     StatusUpdated,
+
+    UserSignedIn,
 }
 
 #[derive(Debug, Clone)]
 pub enum Actor {
-    Workspace,
+    User,
     Sync,
 }
 
@@ -47,20 +47,25 @@ impl EventSubs {
         self.queue(Event::PendingSharesChanged);
     }
 
-    pub(crate) fn meta_changed(&self) {
-        self.queue(Event::MetadataChanged);
+    pub(crate) fn meta_changed(&self, actor: Actor) {
+        self.queue(Event::MetadataChanged(actor));
     }
 
-    pub(crate) fn doc_written(&self, id: Uuid, actor: Option<Actor>) {
+    pub(crate) fn doc_written(&self, id: Uuid, actor: Actor) {
         self.queue(Event::DocumentWritten(id, actor));
     }
 
-    pub(crate) fn sync(&self, s: SyncIncrement) {
+    pub(crate) fn sync_update(&self, s: SyncIncrement) {
         self.queue(Event::Sync(s));
     }
 
     pub(crate) fn status_updated(&self) {
         self.queue(Event::StatusUpdated);
+    }
+
+    /// executed after root and account are created
+    pub(crate) fn signed_in(&self) {
+        self.queue(Event::UserSignedIn);
     }
 
     fn queue(&self, evt: Event) {
@@ -74,4 +79,12 @@ impl Lb {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }
+}
+
+#[derive(Debug, Clone)]
+pub enum SyncIncrement {
+    SyncStarted,
+    PullingDocument(Uuid, bool),
+    PushingDocument(Uuid, bool),
+    SyncFinished(Option<LbErrKind>),
 }

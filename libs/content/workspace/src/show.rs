@@ -1,9 +1,8 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
-    Align2, DragAndDrop, EventFilter, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef,
-    Rect, RichText, Sense, TextStyle, TextWrapMode, UiBuilder, ViewportCommand, include_image,
-    vec2,
+    Align2, DragAndDrop, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText,
+    Sense, TextWrapMode, UiBuilder, ViewportCommand, include_image, vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -12,18 +11,20 @@ use std::mem;
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
+use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
-use crate::tab::{ContentState, TabContent, TabStatus, core_get_by_relative_path, image_viewer};
+use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
-use crate::widgets::IconButton;
+use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
+use lb_rs::Uuid;
 
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
-            self.user_last_seen = Instant::now();
+            self.core.app_foregrounded();
         }
 
         self.set_tooltip_visibility(ui);
@@ -31,7 +32,6 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
-        self.status.message = self.status_message();
 
         if self.is_empty() {
             if self.show_tabs {
@@ -139,8 +139,7 @@ impl Workspace {
             }
 
             ui.centered_and_justified(|ui| {
-                let mut open_id = None;
-                let mut new_tab = false;
+                let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
                     match &mut tab.content {
@@ -203,36 +202,42 @@ impl Workspace {
                     }
 
                     ui.ctx().output_mut(|w| {
-                        let open_url_cmd_idx = w
-                            .commands
-                            .iter()
-                            .position(|c| matches!(c, egui::OutputCommand::OpenUrl(_)));
-                        if let Some(idx) = open_url_cmd_idx {
-                            let egui::OutputCommand::OpenUrl(url) = w.commands[idx].clone() else {
-                                return;
-                            };
+                        w.commands.retain(|c| {
+                            let egui::OutputCommand::OpenUrl(url) = c else { return true };
+
+                            // lb://uuid — direct internal link
+                            if let Some(id_str) = url.url.strip_prefix("lb://") {
+                                if let Ok(id) = Uuid::parse_str(id_str) {
+                                    open_ids.push((id, url.new_tab));
+                                }
+                                return false;
+                            }
 
                             // only intercept open urls for tabs representing files
-                            let Some(id) = id else { return };
+                            let Some(id) = id else { return true };
 
-                            // lookup this file so we can get the parent
-                            let Ok(file) = self.core.get_file_by_id(id) else { return };
-
-                            // evaluate relative path based on parent location
-                            let Ok(file) =
-                                core_get_by_relative_path(&self.core, file.parent, &url.url)
-                            else {
-                                return;
+                            let files_arc = std::sync::Arc::clone(&self.files);
+                            let files_guard = files_arc.read().unwrap();
+                            let Some(cache) = files_guard.as_ref() else { return true };
+                            let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
+                                return true;
                             };
 
-                            // if all that found something then open within lockbook
-                            open_id = Some(file.id);
-                            new_tab = url.new_tab;
-                            w.commands.remove(idx);
-                        }
+                            let Some(ResolvedLink::File(file_id)) =
+                                cache.files.resolve_link(&url.url, from_id)
+                            else {
+                                return true;
+                            };
+
+                            open_ids.push((file_id, url.new_tab));
+                            false
+                        });
                     });
                 }
-                if let Some(id) = open_id {
+                for (id, new_tab) in open_ids {
+                    self.open_file(id, true, new_tab);
+                }
+                for (id, new_tab) in ui.ctx().pop_open_files() {
                     self.open_file(id, true, new_tab);
                 }
             });
@@ -302,25 +307,6 @@ impl Workspace {
 
                                                 self.out.tab_title_clicked = true;
                                                 let active_name = self.tab_title(&self.tabs[i]);
-
-                                                let mut rename_edit_state =
-                                                    egui::text_edit::TextEditState::default();
-                                                rename_edit_state.cursor.set_char_range(Some(
-                                                    egui::text::CCursorRange {
-                                                        primary: egui::text::CCursor::new(
-                                                            active_name
-                                                                .rfind('.')
-                                                                .unwrap_or(active_name.len()),
-                                                        ),
-                                                        secondary: egui::text::CCursor::new(0),
-                                                        h_pos: None,
-                                                    },
-                                                ));
-                                                egui::TextEdit::store_state(
-                                                    ui.ctx(),
-                                                    egui::Id::new("rename_tab"),
-                                                    rename_edit_state,
-                                                );
                                                 self.tabs[i].rename = Some(active_name);
                                             } else {
                                                 self.tabs[i].rename = None;
@@ -488,11 +474,14 @@ impl Workspace {
         }
 
         // tab navigation
+        let completions_active = self
+            .current_tab_markdown()
+            .is_some_and(|md| md.emoji_completions.active || md.link_completions.active);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if input.consume_key_exact(COMMAND, key)
+                if !completions_active && input.consume_key_exact(COMMAND, key)
                     || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
                 {
                     goto_tab = Some(i.min(self.tabs.len()) - 1);
@@ -500,7 +489,7 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            if input.consume_key_exact(COMMAND, Key::Num9)
+            if !completions_active && input.consume_key_exact(COMMAND, Key::Num9)
                 || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
             {
                 goto_tab = Some(self.tabs.len() - 1);
@@ -578,27 +567,47 @@ impl Workspace {
 
         let tab_padding = egui::Margin::symmetric(10, 10);
 
+        let rename_id = egui::Id::new("rename_tab").with(t);
+        let mut rename_submitted = false;
+        if let Some(ref mut str) = self.tabs[t].rename {
+            rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
+        }
+        let rename_text_for_sizing = self.tabs[t].rename.clone().unwrap_or_default();
         let tab_label = egui::Frame::default()
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                let mut ui_builder = UiBuilder::new();
-                if self.tabs[t].rename.is_some() {
-                    ui_builder = ui_builder.invisible();
-                }
-                ui.scope_builder(ui_builder, |ui| {
+                let is_renaming = self.tabs[t].rename.is_some();
+                ui.scope_builder(UiBuilder::new(), |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
                     // create galleys - text layout
 
                     // tab label - the actual file name
-                    let text: egui::WidgetText = self.tab_title(&self.tabs[t]).into();
-                    let text = text.into_galley(
-                        ui,
-                        Some(TextWrapMode::Truncate),
-                        200.0,
-                        egui::TextStyle::Body,
-                    );
+                    let tab_font_size = 14.0;
+                    let tab_line_height = 20.0;
+                    let tab_max_width = 200.0;
+                    let raw_title = self.tab_title(&self.tabs[t]);
+                    let title = DocType::from_name(&raw_title)
+                        .display_name(&raw_title)
+                        .to_string();
+                    let text_width = GlyphonLabel::new(&title, egui::Color32::default())
+                        .font_size(tab_font_size)
+                        .line_height(tab_line_height)
+                        .max_width(tab_max_width)
+                        .measure(ui)
+                        .x;
+                    let text_size = if is_renaming {
+                        let rw =
+                            GlyphonLabel::new(&rename_text_for_sizing, egui::Color32::default())
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .measure(ui)
+                                .x;
+                        egui::vec2(rw, tab_line_height)
+                    } else {
+                        egui::vec2(text_width, tab_line_height)
+                    };
 
                     // tab marker - tab status / tab number
                     let tab_marker = if status == TabStatus::Clean {
@@ -635,23 +644,19 @@ impl Workspace {
                     // create rects - place these relative to one another
                     let marker_rect = centered_galley_rect(&tab_marker);
                     let marker_rect = Align2::LEFT_TOP.anchor_size(
-                        start
-                            + egui::vec2(
-                                0.0,
-                                text.rect.height() / 2.0 - marker_rect.height() / 2.0,
-                            ),
+                        start + egui::vec2(0.0, text_size.y / 2.0 - marker_rect.height() / 2.0),
                         marker_rect.size(),
                     );
 
                     let text_rect = egui::Align2::LEFT_TOP.anchor_size(
                         start + egui::vec2(tab_marker.rect.width() + 7.0, 0.0),
-                        text.size(),
+                        text_size,
                     );
 
                     let close_button_rect = centered_galley_rect(&close_button);
                     let close_button_rect = egui::Align2::LEFT_TOP.anchor_size(
                         text_rect.right_top()
-                            + vec2(5.0, (text.rect.height() - close_button_rect.height()) / 2.0),
+                            + vec2(5.0, (text_size.y - close_button_rect.height()) / 2.0),
                         close_button_rect.size(),
                     );
 
@@ -660,13 +665,6 @@ impl Workspace {
                     let right_bottom =
                         close_button_rect.right_bottom() + tab_padding.right_bottom();
                     let tab_label_rect = Rect::from_min_max(left_top, right_bottom);
-
-                    // uncomment to see geometry debug views
-                    // let s = egui::Stroke::new(1., egui::Color32::RED);
-                    // ui.painter().rect_stroke(marker_rect, 1., s);
-                    // ui.painter().rect_stroke(text_rect, 1., s);
-                    // ui.painter().rect_stroke(close_button_rect, 1., s);
-                    // ui.painter().rect_stroke(tab_label_rect, 1., s);
 
                     // render & process input
                     let touch_mode =
@@ -702,8 +700,38 @@ impl Workspace {
                             .linear_multiply(0.8)
                     };
 
-                    // draw the tab text
-                    ui.painter().galley(text_rect.min, text, text_color);
+                    if let Some(ref mut str) = self.tabs[t].rename {
+                        let stem_end = str.rfind('.').unwrap_or(str.len());
+                        let res = ui.put(
+                            text_rect,
+                            GlyphonTextEdit::new(str)
+                                .id(rename_id)
+                                .font_size(14.0)
+                                .select_on_focus(0, stem_end),
+                        );
+
+                        if !res.has_focus() && !res.lost_focus() {
+                            // request focus on the first frame
+                            ui.memory_mut(|m| m.request_focus(res.id));
+                        }
+
+                        if rename_submitted {
+                            result = Some(TabLabelResponse::Renamed(str.to_owned()));
+                        }
+
+                        // release focus to cancel ('esc' or click elsewhere)
+                        if res.lost_focus() {
+                            self.tabs[t].rename = None;
+                        }
+                    } else {
+                        ui.put(
+                            text_rect,
+                            GlyphonLabel::new(&title, text_color)
+                                .font_size(tab_font_size)
+                                .line_height(tab_line_height)
+                                .max_width(tab_max_width),
+                        );
+                    }
 
                     if close_button_clicked || tab_label_resp.middle_clicked() {
                         result = Some(TabLabelResponse::Closed);
@@ -785,53 +813,12 @@ impl Workspace {
                         }
                     }
 
-                    tab_label_resp
+                    Rect::from_min_max(
+                        text_rect.min,
+                        egui::pos2(close_button_rect.min.x - 5.0, text_rect.max.y),
+                    )
                 })
             });
-
-        // renaming
-        if let Some(ref mut str) = self.tabs[t].rename {
-            let res = ui
-                .scope_builder(UiBuilder::new().max_rect(tab_label.response.rect), |ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(str)
-                            .font(TextStyle::Small)
-                            .frame(false)
-                            .id(egui::Id::new("rename_tab")),
-                    )
-                })
-                .inner;
-
-            if !res.has_focus() && !res.lost_focus() {
-                // request focus on the first frame (todo: wrong but works)
-                res.request_focus();
-            }
-            if res.has_focus() {
-                // focus lock filter must be set every frame
-                ui.memory_mut(|m| {
-                    m.set_focus_lock_filter(
-                        res.id,
-                        EventFilter {
-                            tab: true, // suppress 'tab' behavior
-                            horizontal_arrows: true,
-                            vertical_arrows: true,
-                            escape: false, // press 'esc' to release focus
-                        },
-                    )
-                })
-            }
-
-            // submit
-            if ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                result = Some(TabLabelResponse::Renamed(str.to_owned()));
-                // t.rename = None; is done by code processing this response
-            }
-
-            // release focus to cancel ('esc' or click elsewhere)
-            if res.lost_focus() {
-                self.tabs[t].rename = None;
-            }
-        }
 
         if is_active && active_tab_changed {
             tab_label.response.scroll_to_me(None);
@@ -844,10 +831,6 @@ impl Workspace {
                 0.0,
                 egui::Color32::WHITE.linear_multiply(0.002),
             );
-        }
-
-        if is_active && active_tab_changed {
-            tab_label.response.scroll_to_me(None);
         }
 
         // draw separators
@@ -866,18 +849,9 @@ impl Workspace {
         );
 
         tab_label.response.on_hover_ui(|ui| {
-            let text = self.tab_status(t).summary();
-            let text: egui::WidgetText = RichText::from(text).size(15.0).into();
-            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
-            ui.add(egui::Label::new(text));
-
+            ui.label(RichText::from(self.tab_status(t).summary()).size(15.0));
             let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-            let text: egui::WidgetText = RichText::from(format!("last saved {last_saved}"))
-                .size(12.0)
-                .into();
-            let text = text.into_galley(ui, Some(TextWrapMode::Extend), 0., egui::TextStyle::Body);
-            ui.add(egui::Label::new(text));
-
+            ui.label(RichText::from(format!("last saved {last_saved}")).size(12.0));
             ui.ctx().request_repaint_after_secs(1.0);
         });
 
@@ -1007,6 +981,13 @@ impl Display for DocType {
     }
 }
 
+pub fn syntax_ext_for(ext: &str) -> &str {
+    match ext {
+        "jsonl" | "jsonc" => "json",
+        other => other,
+    }
+}
+
 impl DocType {
     pub fn from_name(name: &str) -> Self {
         let ext = name.split('.').next_back().unwrap_or_default();
@@ -1015,9 +996,14 @@ impl DocType {
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
-            "go" => Self::Code,
             "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if crate::tab::markdown_editor::syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(ext))
+                .is_some() =>
+            {
+                Self::Code
+            }
             _ => Self::Unknown,
         }
     }
@@ -1034,6 +1020,14 @@ impl DocType {
         }
     }
 
+    pub fn plaintext_mode(&self) -> Option<bool> {
+        match self {
+            DocType::Markdown => Some(false),
+            DocType::PlainText | DocType::Code => Some(true),
+            _ => None,
+        }
+    }
+
     pub fn hide_ext(&self) -> bool {
         match self {
             DocType::PlainText => false,
@@ -1044,6 +1038,18 @@ impl DocType {
             DocType::Code => false,
             DocType::PDF => true,
             DocType::Unknown => false,
+        }
+    }
+
+    /// Returns the file name with the extension stripped when `hide_ext()` is true.
+    pub fn display_name<'a>(&self, name: &'a str) -> &'a str {
+        if self.hide_ext() {
+            std::path::Path::new(name)
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(name)
+        } else {
+            name
         }
     }
 }

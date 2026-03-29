@@ -1,69 +1,71 @@
 #if os(iOS)
-    import UIKit
-    import MetalKit
     import Bridge
-    import SwiftUI
+    import GameController
+    import MetalKit
     import MobileCoreServices
+    import SwiftUI
+    import UIKit
     import UniformTypeIdentifiers
 
-    import GameController
-
     // MARK: - MdView
+
     public class MdView: UIView, UITextInput {
         public static let TOOL_BAR_HEIGHT: CGFloat = 42
         public static let FLOATING_CURSOR_OFFSET_HEIGHT: CGFloat = 0.6
 
         let mtkView: iOSMTK
-        var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
+        var wsHandle: UnsafeMutableRawPointer? {
+            mtkView.wsHandle
+        }
 
         // text input
         let textInteraction = UITextInteraction(for: .editable)
         public var inputDelegate: UITextInputDelegate?
         public lazy var tokenizer: UITextInputTokenizer = LBTokenizer(wsHandle: self.wsHandle)
 
-        // pan (iPad trackpad support)
+        /// pan (iPad trackpad support)
         let panRecognizer = UIPanGestureRecognizer()
 
         // undo/redo
         let undo = iOSUndoManager()
-        public override var undoManager: UndoManager? {
-            return undo
+        override public var undoManager: UndoManager? {
+            undo
         }
 
-        // drop
+        /// drop
         var dropDelegate: UIDropInteractionDelegate?
 
-        // ?
+        /// ?
         let currentHeaderSize: Double
 
         // interactive refinement (floating cursor)
         var interactiveRefinementInProgress = false
-        var lastFloatingCursorRect: CGRect? = nil
-        var floatingCursor: UIView = UIView()
+        var lastFloatingCursorRect: CGRect?
+        var floatingCursor: UIView = .init()
         var floatingCursorWidth = 1.0
         var floatingCursorNewStartX = 0.0
         var floatingCursorNewEndX = 0.0
         var floatingCursorNewStartY = 0.0
         var floatingCursorNewEndY = 0.0
-        var autoScroll: Timer? = nil
+        var autoScroll: Timer?
 
-        // range adjustment (selection handles)
+        /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
-            self.currentHeaderSize = headerSize
+            currentHeaderSize = headerSize
 
             super.init(frame: .infinite)
 
-            self.clipsToBounds = true
-            self.isUserInteractionEnabled = true
+            clipsToBounds = true
+            isUserInteractionEnabled = true
 
             // text input
             textInteraction.textInput = self
-            self.addInteraction(textInteraction)
+            addInteraction(textInteraction)
 
-            for gestureRecognizer in self.gestureRecognizers ?? [] {
+            for gestureRecognizer in gestureRecognizers ?? [] {
                 // receive touch events immediately even if they are part of any recognized gestures
                 // this supports checkboxes and other interactive markdown elements in the text area (crudely)
                 gestureRecognizer.delaysTouchesBegan = false
@@ -74,7 +76,8 @@
                     // send interactive refinements to our handler
                     // this is the intended way to support a floating cursor
                     gestureRecognizer.addTarget(
-                        self, action: #selector(handleInteractiveRefinement(_:)))
+                        self, action: #selector(handleInteractiveRefinement(_:))
+                    )
 
                     // workspace gets priority on single taps; see checkCancelCursorPlacement()
                     gestureRecognizer.cancelsTouchesInView = false
@@ -87,7 +90,8 @@
                     // send range adjustments to our handler
                     // this supports automatic scrolling when dragging selection handles
                     gestureRecognizer.addTarget(
-                        self, action: #selector(handleRangeAdjustment(_:)))
+                        self, action: #selector(handleRangeAdjustment(_:))
+                    )
                 case "UITextInteractionNameLinkTap":
                     break
                 default:
@@ -106,19 +110,20 @@
             panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
             panRecognizer.allowedScrollTypesMask = .all
             panRecognizer.maximumNumberOfTouches = 0
-            self.addGestureRecognizer(panRecognizer)
+            addGestureRecognizer(panRecognizer)
 
             // drop
-            self.dropDelegate = MdDropDelegate(
-                mtkView: mtkView, textDelegate: inputDelegate!, textInput: self)
-            let dropInteraction = UIDropInteraction(delegate: self.dropDelegate!)
-            self.addInteraction(dropInteraction)
+            dropDelegate = MdDropDelegate(
+                mtkView: mtkView, textDelegate: inputDelegate!, textInput: self
+            )
+            let dropInteraction = UIDropInteraction(delegate: dropDelegate!)
+            addInteraction(dropInteraction)
 
             // undo/redo
-            self.undo.textWrapper = self
-            self.undo.wsHandle = self.wsHandle
-            self.undo.mtkView = mtkView
-            self.undo.inputDelegate = inputDelegate
+            undo.textWrapper = self
+            undo.wsHandle = wsHandle
+            undo.mtkView = mtkView
+            undo.inputDelegate = inputDelegate
 
             // interactive refinement (floating cursor)
             if #available(iOS 17.4, *) {
@@ -171,44 +176,44 @@
                 rangeAdjustmentInProgress = true
             case .changed:
                 let location = recognizer.location(in: recognizer.view)
-                self.scrollTo(location.y)
+                scrollTo(location.y)
             case .ended, .cancelled, .failed:
                 rangeAdjustmentInProgress = false
             default:
                 break
             }
-
         }
 
-        required init(coder: NSCoder) {
+        @available(*, unavailable)
+        required init(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
 
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesBegan(touches, with: event)
-            self.checkCancelCursorPlacement(touches)
+            checkCancelCursorPlacement(touches)
         }
 
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesMoved(touches, with: event)
-            self.checkCancelCursorPlacement(touches)
+            checkCancelCursorPlacement(touches)
         }
 
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesEnded(touches, with: event)
-            self.checkCancelCursorPlacement(touches)
+            checkCancelCursorPlacement(touches)
         }
 
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesCancelled(touches, with: event)
         }
 
         private func checkCancelCursorPlacement(_ touches: Set<UITouch>) {
             // consumed workspace touches (e.g. tapping to stop a kinetic scroll or toggle a checkbox) preclude cursor placement
             for touch in touches {
-                let location = touch.location(in: self.mtkView)
-                if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y)) {
-                    for gestureRecognizer in self.gestureRecognizers ?? [] {
+                let location = touch.location(in: mtkView)
+                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                    for gestureRecognizer in gestureRecognizers ?? [] {
                         switch gestureRecognizer.name {
                         case "UITextInteractionNameSingleTap":
                             gestureRecognizer.state = .failed
@@ -224,11 +229,11 @@
 
         public func beginFloatingCursor(at point: CGPoint) {
             tintColor = traitCollection.userInterfaceStyle == .light ? .lightGray : .gray
-            self.floatingCursorNewEndX = self.bounds.size.width
-            self.floatingCursorNewEndY = self.bounds.size.height
+            floatingCursorNewEndX = bounds.size.width
+            floatingCursorNewEndY = bounds.size.height
 
             setFloatingCursorLoc(point: point, animate: false)
-            self.bringSubviewToFront(floatingCursor)
+            bringSubviewToFront(floatingCursor)
             floatingCursor.isHidden = false
         }
 
@@ -265,10 +270,11 @@
                             textInputWrapper.floatingCursor.frame = CGRect(
                                 x: cursorRect.origin.x, y: cursorRect.origin.y,
                                 width: textInputWrapper.floatingCursorWidth,
-                                height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                                height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT
+                            )
                         }
                     },
-                    completion: { [weak self] finished in
+                    completion: { [weak self] _ in
                         if let textWrapper = self {
                             textWrapper.floatingCursor.isHidden = true
                             textWrapper.tintColor = .systemBlue
@@ -281,7 +287,8 @@
                             textWrapper.floatingCursorNewStartY = 0
                             textWrapper.floatingCursorNewEndY = textWrapper.bounds.size.height
                         }
-                    })
+                    }
+                )
             }
         }
 
@@ -291,10 +298,10 @@
 
             lastFloatingCursorRect = cursorRect
 
-            let x = point.x - self.floatingCursorNewStartX
-            let y = point.y - self.floatingCursorNewStartY
+            let x = point.x - floatingCursorNewStartX
+            let y = point.y - floatingCursorNewStartY
 
-            self.scrollTo(y)
+            scrollTo(y)
 
             if animate {
                 UIView.animate(
@@ -304,13 +311,16 @@
                             textWrapper.floatingCursor.frame = CGRect(
                                 x: x, y: y - (cursorRect.height / 2),
                                 width: textWrapper.floatingCursorWidth,
-                                height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                                height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT
+                            )
                         }
-                    })
+                    }
+                )
             } else {
                 floatingCursor.frame = CGRect(
                     x: x, y: y - (cursorRect.height / 2), width: floatingCursorWidth,
-                    height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT)
+                    height: cursorRect.height + Self.FLOATING_CURSOR_OFFSET_HEIGHT
+                )
             }
         }
 
@@ -318,10 +328,10 @@
             let scrollUp = y >= bounds.height - 20
             let scrollDown = y <= 20
 
-            if (scrollUp || scrollDown) && autoScroll == nil {
+            if scrollUp || scrollDown, autoScroll == nil {
                 autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
                     [self] timer in
-                    if floatingCursor.isHidden && !rangeAdjustmentInProgress {
+                    if floatingCursor.isHidden, !rangeAdjustmentInProgress {
                         timer.invalidate()
                     }
 
@@ -332,14 +342,14 @@
                     mtkView.drawImmediately()
                 }
             } else if let autoScroll,
-                !scrollUp && !scrollDown
+                      !scrollUp, !scrollDown
             {
                 autoScroll.invalidate()
                 self.autoScroll = nil
             }
         }
 
-        public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        override public func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
             if action == #selector(cut(_:)) || action == #selector(copy(_:)) {
                 return selectedTextRange?.isEmpty == false
             }
@@ -362,8 +372,8 @@
 
         @objc func replace(_ sender: Any?) {
             guard let replacement = sender as? NSObject,
-                let range = replacement.value(forKey: "range") as? UITextRange,
-                let replacementText = replacement.value(forKey: "replacementText") as? NSString
+                  let range = replacement.value(forKey: "range") as? UITextRange,
+                  let replacementText = replacement.value(forKey: "replacementText") as? NSString
             else {
                 return
             }
@@ -382,7 +392,7 @@
 
         public func insertText(_ text: String) {
             guard (markedTextRange ?? selectedTextRange) as? LBTextRange != nil,
-                !text.isEmpty
+                  !text.isEmpty
             else {
                 return
             }
@@ -474,8 +484,10 @@
                 CTextRange(
                     none: false,
                     start: CTextPosition(none: false, pos: UInt(selectedRange.lowerBound)),
-                    end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))),
-                markedText)
+                    end: CTextPosition(none: false, pos: UInt(selectedRange.upperBound))
+                ),
+                markedText
+            )
             mtkView.drawImmediately()
             inputDelegate?.textDidChange(self)
         }
@@ -544,26 +556,23 @@
             -> ComparisonResult
         {
             guard let left = (position as? LBTextPos)?.c.pos,
-                let right = (other as? LBTextPos)?.c.pos
+                  let right = (other as? LBTextPos)?.c.pos
             else {
                 return ComparisonResult.orderedAscending
             }
 
-            let res: ComparisonResult
-            if left < right {
-                res = ComparisonResult.orderedAscending
+            return if left < right {
+                ComparisonResult.orderedAscending
             } else if left == right {
-                res = ComparisonResult.orderedSame
+                ComparisonResult.orderedSame
             } else {
-                res = ComparisonResult.orderedDescending
+                ComparisonResult.orderedDescending
             }
-            return res
         }
 
         public func offset(from: UITextPosition, to toPosition: UITextPosition) -> Int {
-
             guard let left = (from as? LBTextPos)?.c.pos,
-                let right = (toPosition as? LBTextPos)?.c.pos
+                  let right = (toPosition as? LBTextPos)?.c.pos
             else {
                 return 0
             }
@@ -571,7 +580,7 @@
             return Int(right) - Int(left)
         }
 
-        public func position(within range: UITextRange, farthestIn direction: UITextLayoutDirection)
+        public func position(within _: UITextRange, farthestIn _: UITextLayoutDirection)
             -> UITextPosition?
         {
             unimplemented()
@@ -579,20 +588,20 @@
         }
 
         public func characterRange(
-            byExtending position: UITextPosition, in direction: UITextLayoutDirection
+            byExtending _: UITextPosition, in _: UITextLayoutDirection
         ) -> UITextRange? {
             unimplemented()
             return nil
         }
 
         public func baseWritingDirection(
-            for position: UITextPosition, in direction: UITextStorageDirection
+            for _: UITextPosition, in _: UITextStorageDirection
         ) -> NSWritingDirection {
-            return NSWritingDirection.leftToRight
+            NSWritingDirection.leftToRight
         }
 
         public func setBaseWritingDirection(
-            _ writingDirection: NSWritingDirection, for range: UITextRange
+            _ writingDirection: NSWritingDirection, for _: UITextRange
         ) {
             if writingDirection != .leftToRight {
                 unimplemented()
@@ -604,7 +613,8 @@
             let result = first_rect(wsHandle, range)
             return CGRect(
                 x: result.min_x, y: result.min_y - mtkView.docHeaderSize,
-                width: result.max_x - result.min_x, height: result.max_y - result.min_y)
+                width: result.max_x - result.min_x, height: result.max_y - result.min_y
+            )
         }
 
         public func caretRect(for position: UITextPosition) -> CGRect {
@@ -612,7 +622,8 @@
             let result = cursor_rect_at_position(wsHandle, position)
             return CGRect(
                 x: result.min_x, y: result.min_y - mtkView.docHeaderSize, width: 1,
-                height: result.max_y - result.min_y)
+                height: result.max_y - result.min_y
+            )
         }
 
         public func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
@@ -623,22 +634,21 @@
 
             free_selection_rects(result)
 
-            let selectionRects: [UITextSelectionRect] = buffer.enumerated().map { (index, rect) in
+            return buffer.enumerated().map { index, rect in
                 let new_rect = CRect(
                     min_x: rect.min_x, min_y: rect.min_y - mtkView.docHeaderSize, max_x: rect.max_x,
-                    max_y: rect.max_y - mtkView.docHeaderSize)
+                    max_y: rect.max_y - mtkView.docHeaderSize
+                )
 
                 return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
             }
-
-            return selectionRects
         }
 
         public func closestPosition(to point: CGPoint) -> UITextPosition? {
             let (x, y) =
                 floatingCursor.isHidden
-                ? (point.x, point.y)
-                : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
+                    ? (point.x, point.y)
+                    : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
 
             let point = CPoint(x: x, y: y + mtkView.docHeaderSize)
             let result = position_at_point(wsHandle, point)
@@ -646,20 +656,18 @@
             return LBTextPos(c: result)
         }
 
-        public func closestPosition(to point: CGPoint, within range: UITextRange) -> UITextPosition?
-        {
+        public func closestPosition(to _: CGPoint, within _: UITextRange) -> UITextPosition? {
             unimplemented()
             return nil
         }
 
-        public func characterRange(at point: CGPoint) -> UITextRange? {
+        public func characterRange(at _: CGPoint) -> UITextRange? {
             unimplemented()
             return nil
         }
 
         public var hasText: Bool {
-            let res = has_text(wsHandle)
-            return res
+            has_text(wsHandle)
         }
 
         public var isEditable: Bool {
@@ -683,27 +691,27 @@
             inputDelegate?.selectionDidChange(self)
         }
 
-        public override func cut(_ sender: Any?) {
+        override public func cut(_: Any?) {
             guard let range = (markedTextRange ?? selectedTextRange) as? LBTextRange,
-                !range.isEmpty
+                  !range.isEmpty
             else {
                 return
             }
 
             inputDelegate?.textWillChange(self)
             inputDelegate?.selectionWillChange(self)
-            clipboard_cut(self.wsHandle)
+            clipboard_cut(wsHandle)
             mtkView.drawImmediately()
             inputDelegate?.selectionDidChange(self)
             inputDelegate?.textDidChange(self)
         }
 
-        public override func copy(_ sender: Any?) {
-            clipboard_copy(self.wsHandle)
-            setNeedsDisplay(self.frame)
+        override public func copy(_: Any?) {
+            clipboard_copy(wsHandle)
+            setNeedsDisplay(frame)
         }
 
-        public override func paste(_ sender: Any?) {
+        override public func paste(_: Any?) {
             if let image = UIPasteboard.general.image {
                 importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
@@ -711,13 +719,13 @@
             }
         }
 
-        public override func selectAll(_ sender: Any?) {
+        override public func selectAll(_: Any?) {
             if !hasText {
                 return
             }
 
             inputDelegate?.selectionWillChange(self)
-            select_all(self.wsHandle)
+            select_all(wsHandle)
             mtkView.drawImmediately()
             inputDelegate?.selectionDidChange(self)
         }
@@ -729,19 +737,20 @@
             return str
         }
 
-        public override var canBecomeFirstResponder: Bool {
-            return true
+        override public var canBecomeFirstResponder: Bool {
+            true
         }
 
         override public var keyCommands: [UIKeyCommand]? {
             let deleteWord = UIKeyCommand(
                 input: UIKeyCommand.inputDelete, modifierFlags: [.alternate],
-                action: #selector(deleteWord))
+                action: #selector(deleteWord)
+            )
 
             deleteWord.wantsPriorityOverSystemBehavior = true
 
             return [
-                deleteWord
+                deleteWord,
             ]
         }
 
@@ -754,14 +763,14 @@
             inputDelegate?.selectionDidChange(self)
         }
 
-        public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        override public func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             let forward = mtkView.handleKeyEvent(presses, with: event, pressBegan: true)
             if forward {
                 super.pressesBegan(presses, with: event)
             }
         }
 
-        public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        override public func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             let forward = mtkView.handleKeyEvent(presses, with: event, pressBegan: false)
             if forward {
                 super.pressesEnded(presses, with: event)
@@ -775,6 +784,7 @@
     }
 
     // MARK: - MdDropDelegate
+
     public class MdDropDelegate: NSObject, UIDropInteractionDelegate {
         weak var mtkView: iOSMTK?
         weak var textDelegate: UITextInputDelegate?
@@ -787,7 +797,7 @@
         }
 
         public func dropInteraction(
-            _ interaction: UIDropInteraction, canHandle session: UIDropSession
+            _: UIDropInteraction, canHandle session: UIDropSession
         ) -> Bool {
             guard session.items.count == 1 else { return false }
 
@@ -797,16 +807,16 @@
         }
 
         public func dropInteraction(
-            _ interaction: UIDropInteraction, sessionDidUpdate session: UIDropSession
+            _: UIDropInteraction, sessionDidUpdate _: UIDropSession
         ) -> UIDropProposal {
-            return UIDropProposal(operation: .copy)
+            UIDropProposal(operation: .copy)
         }
 
         public func dropInteraction(
-            _ interaction: UIDropInteraction, performDrop session: UIDropSession
+            _: UIDropInteraction, performDrop session: UIDropSession
         ) {
-            guard let mtkView = mtkView else { return }
-            guard let textDelegate = textDelegate else { return }
+            guard let mtkView else { return }
+            guard let textDelegate else { return }
 
             textDelegate.textWillChange(textInput)
             textDelegate.selectionWillChange(textInput)
@@ -829,8 +839,7 @@
                 }
             }
 
-            if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String])
-            {
+            if session.hasItemsConforming(toTypeIdentifiers: [UTType.fileURL.identifier as String]) {
                 _ = session.loadObjects(ofClass: URL.self) { urlItems in
                     for url in urlItems {
                         mtkView.importContent(.url(url), isPaste: true)
@@ -845,11 +854,14 @@
     }
 
     // MARK: - SvgView
+
     public class SvgView: UIView {
         let mtkView: iOSMTK
-        var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
+        var wsHandle: UnsafeMutableRawPointer? {
+            mtkView.wsHandle
+        }
 
-        // pointer
+        /// pointer
         var pointerInteraction: UIPointerInteraction?
 
         // pencil
@@ -867,12 +879,12 @@
         var menuDelegate: SvgMenuDelegate?
         var menuInteraction: UIEditMenuInteraction?
 
-        // ?
+        /// ?
         let currentHeaderSize: Double
 
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
-            self.currentHeaderSize = headerSize
+            currentHeaderSize = headerSize
 
             super.init(frame: .infinite)
 
@@ -881,7 +893,7 @@
             // pointer
             let pointerInteraction = UIPointerInteraction(delegate: mtkView.pointerDelegate)
 
-            self.addInteraction(pointerInteraction)
+            addInteraction(pointerInteraction)
 
             self.pointerInteraction = pointerInteraction
 
@@ -896,10 +908,10 @@
             self.pencilInteraction = pencilInteraction
 
             // gestures
-            self.gestureDelegate = SvgGestureDelegate()
+            gestureDelegate = SvgGestureDelegate()
 
             // gestures: tap
-            let tap = UITapGestureRecognizer(target: self, action: #selector(self.handleTap(_:)))
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
             tap.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -909,12 +921,12 @@
             tap.numberOfTouchesRequired = 1
             tap.cancelsTouchesInView = false
 
-            self.addGestureRecognizer(tap)
+            addGestureRecognizer(tap)
 
-            self.tapRecognizer = tap
+            tapRecognizer = tap
 
             // gestures: pan
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(self.handlePan(_:)))
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
             pan.allowedTouchTypes = [
                 NSNumber(value: UITouch.TouchType.direct.rawValue),
                 NSNumber(value: UITouch.TouchType.indirect.rawValue),
@@ -923,8 +935,8 @@
             pan.allowedScrollTypesMask = .all
             pan.cancelsTouchesInView = false
             pan.delegate = gestureDelegate
-            self.addGestureRecognizer(pan)
-            self.panRecognizer = pan
+            addGestureRecognizer(pan)
+            panRecognizer = pan
             
             updatePanTouchRequirements()
 
@@ -937,19 +949,20 @@
             
             // gestures: pinch
             let pinch = UIPinchGestureRecognizer(
-                target: self, action: #selector(self.handlePinch(_:)))
+                target: self, action: #selector(handlePinch(_:))
+            )
             pinch.cancelsTouchesInView = false
 
             pinch.delegate = gestureDelegate
-            self.addGestureRecognizer(pinch)
+            addGestureRecognizer(pinch)
 
-            self.pinchRecognizer = pinch
+            pinchRecognizer = pinch
 
             // menu
             let menuDelegate = SvgMenuDelegate()
             let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
 
-            self.addInteraction(menuInteraction)
+            addInteraction(menuInteraction)
 
             self.menuDelegate = menuDelegate
             self.menuInteraction = menuInteraction
@@ -962,19 +975,19 @@
         }
         
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
-            guard let menuInteraction = menuInteraction else { return }
+            guard let menuInteraction else { return }
 
             if gesture.state != .ended { return }
 
-            if self.mtkView.kineticTimer != nil {
-                self.mtkView.kineticTimer?.invalidate()
-                self.mtkView.kineticTimer = nil
+            if mtkView.kineticTimer != nil {
+                mtkView.kineticTimer?.invalidate()
+                mtkView.kineticTimer = nil
                 return
             }
 
             // Check if we have any valid actions before presenting
-            let location = gesture.location(in: self.mtkView)
-            if will_consume_touch(self.wsHandle, Float(location.x), Float(location.y))
+            let location = gesture.location(in: mtkView)
+            if will_consume_touch(wsHandle, Float(location.x), Float(location.y))
                 || (!UIPasteboard.general.hasStrings && !UIPasteboard.general.hasImages)
             {
                 return
@@ -984,7 +997,7 @@
             menuInteraction.presentEditMenu(with: config)
         }
 
-        public override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        override public func canPerformAction(_ action: Selector, withSender _: Any?) -> Bool {
             if action == #selector(paste(_:)) {
                 return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
             }
@@ -1001,9 +1014,19 @@
                 return
             }
 
-            if self.mtkView.kineticTimer != nil {
-                self.mtkView.kineticTimer?.invalidate()
-                self.mtkView.kineticTimer = nil
+            if mtkView.kineticTimer != nil {
+                mtkView.kineticTimer?.invalidate()
+                mtkView.kineticTimer = nil
+            }
+            
+            if event.state == .began{
+                pinchStartTouches.removeAll()
+                for i in 0..<(sender?.numberOfTouches ?? 0){
+                    let point = sender?.location(ofTouch: i, in: self)
+                    if let p = point {
+                        pinchStartTouches.append((Float(p.x), Float(p.y)))
+                    }
+                }
             }
             
             if event.state == .began{
@@ -1017,18 +1040,18 @@
             }
 
             let scale = event.scale
-            let pinchCenter = event.location(in: self)
+            let pinchCenter = event.location(in: mtkView)
 
             if event.state == .changed {
                 let zoomDelta = Float(scale)
 
-                let viewCenter = CGPoint(x: self.mtkView.bounds.midX, y: self.mtkView.bounds.midY)
+                let viewCenter = CGPoint(x: mtkView.bounds.midX, y: mtkView.bounds.midY)
                 let offsetX = pinchCenter.x - viewCenter.x
                 let offsetY = pinchCenter.y - viewCenter.y
 
 
                 multi_touch(
-                    self.wsHandle,
+                    wsHandle,
                     0.0,
                     0.0,
                     zoomDelta,
@@ -1040,34 +1063,32 @@
                 )
                 
                 event.scale = 1.0
-
             }
         }
 
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
             // let's cancel the kinetic pan. don't nullify it so that the tap handler
             // will know not to show the edit menu
-            if self.mtkView.kineticTimer != nil {
-                self.mtkView.kineticTimer?.invalidate()
+            if mtkView.kineticTimer != nil {
+                mtkView.kineticTimer?.invalidate()
             }
 
             mtkView.touchesBegan(touches, with: event)
         }
 
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesMoved(touches, with: event)
         }
 
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesEnded(touches, with: event)
         }
 
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             mtkView.touchesCancelled(touches, with: event)
-
         }
 
-        public override func paste(_ sender: Any?) {
+        override public func paste(_: Any?) {
             if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
@@ -1075,12 +1096,14 @@
             }
         }
 
-        required init(coder: NSCoder) {
+        @available(*, unavailable)
+        required init(coder _: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
     }
 
     // MARK: - SvgGestureDelegate
+
     public class SvgGestureDelegate: NSObject, UIGestureRecognizerDelegate {
         public func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
@@ -1100,6 +1123,7 @@
     }
 
     // MARK: - SvgPencilDelegate
+
     public class SvgPencilDelegate: NSObject, UIPencilInteractionDelegate {
         weak var mtkView: iOSMTK?
 
@@ -1109,18 +1133,18 @@
 
         @available(iOS 17.5, *)
         public func pencilInteraction(
-            _ interaction: UIPencilInteraction,
+            _: UIPencilInteraction,
             didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze
         ) {
-            guard let mtkView = mtkView else { return }
+            guard let mtkView else { return }
 
             if squeeze.phase == .ended {
                 show_tool_popover_at_cursor(mtkView.wsHandle)
             }
         }
 
-        public func pencilInteractionDidTap(_ interaction: UIPencilInteraction) {
-            guard let mtkView = mtkView else { return }
+        public func pencilInteractionDidTap(_: UIPencilInteraction) {
+            guard let mtkView else { return }
 
             switch UIPencilInteraction.preferredTapAction {
             case .ignore, .showColorPalette, .showInkAttributes:
@@ -1138,9 +1162,11 @@
     }
 
     // MARK: - SvgEditMenuDelegate
+
     public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
 
     // MARK: - iOSMTKViewDelegate
+
     public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
         weak var mtkView: iOSMTK?
 
@@ -1148,17 +1174,18 @@
             self.mtkView = mtkView
         }
 
-        public func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
-            guard let mtkView = self.mtkView else { return }
+        public func mtkView(_: MTKView, drawableSizeWillChange size: CGSize) {
+            guard let mtkView else { return }
             let wsHandle = mtkView.wsHandle
 
             resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(scale()))
+                wsHandle, Float(size.width), Float(size.height), Float(scale())
+            )
             mtkView.setNeedsDisplay()
         }
 
-        public func draw(in view: MTKView) {
-            guard let mtkView = self.mtkView else { return }
+        public func draw(in _: MTKView) {
+            guard let mtkView else { return }
             let wsHandle = mtkView.wsHandle
 
             if mtkView.tabSwitchTask != nil {
@@ -1211,30 +1238,31 @@
                 }
             }
 
-            if currentTab == .Welcome && mtkView.currentOpenDoc != nil {
+            if currentTab == .Welcome, mtkView.currentOpenDoc != nil {
                 mtkView.currentOpenDoc = nil
                 mtkView.workspaceOutput?.openDoc = nil
             }
 
             if let currentWrapper = mtkView.currentWrapper as? MdView,
-                currentTab == .Markdown
+               currentTab == .Markdown
             {
-                if output.has_virtual_keyboard_shown && !output.virtual_keyboard_shown
-                    && currentWrapper.floatingCursor.isHidden
+                if output.has_virtual_keyboard_shown, !output.virtual_keyboard_shown,
+                   currentWrapper.floatingCursor.isHidden
                 {
                     UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                        #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+                    )
                 }
 
                 if output.scroll_updated {
                     mtkView.onSelectionChanged?()
                 }
 
-                if output.text_updated && !mtkView.ignoreTextUpdate {
+                if output.text_updated, !mtkView.ignoreTextUpdate {
                     mtkView.onTextChanged?()
                 }
 
-                if output.selection_updated && !mtkView.ignoreSelectionUpdate {
+                if output.selection_updated, !mtkView.ignoreSelectionUpdate {
                     mtkView.onSelectionChanged?()
                 }
 
@@ -1250,24 +1278,24 @@
                 }
             }
 
-            //      FIXME:  Can we just do this in rust?
+            //      FIXME: Can we just do this in rust?
             let newFile = UUID(uuid: output.doc_created._0)
             if !newFile.isNil() {
                 mtkView.workspaceInput?.openFile(id: newFile)
             }
 
-            if output.new_folder_btn_pressed {
-                mtkView.workspaceOutput?.newFolderButtonPressed = ()
-            }
-
-            if let openedUrl = output.url_opened {
-                let url = textFromPtr(s: openedUrl)
-
-                if let url = URL(string: url),
-                    UIApplication.shared.canOpenURL(url)
-                {
-                    mtkView.workspaceOutput?.urlOpened = url
+            if output.urls_opened.size > 0 {
+                var urls: [URL] = []
+                for i in 0..<Int(output.urls_opened.size) {
+                    if let ptr = output.urls_opened.urls[i],
+                       let url = URL(string: textFromPtr(s: ptr)),
+                       UIApplication.shared.canOpenURL(url)
+                    {
+                        urls.append(url)
+                    }
                 }
+                mtkView.workspaceOutput?.urlsOpened = urls
+                free_urls(output.urls_opened)
             }
 
             if output.open_camera {
@@ -1286,13 +1314,15 @@
             if mtkView.isPaused {
                 let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
                 let redrawInInterval = DispatchTimeInterval.milliseconds(
-                    Int(truncatingIfNeeded: min(500, redrawIn)))
+                    Int(truncatingIfNeeded: min(500, redrawIn))
+                )
 
                 let newRedrawTask = DispatchWorkItem {
                     mtkView.drawImmediately()
                 }
                 DispatchQueue.main.asyncAfter(
-                    deadline: .now() + redrawInInterval, execute: newRedrawTask)
+                    deadline: .now() + redrawInInterval, execute: newRedrawTask
+                )
                 mtkView.redrawTask = newRedrawTask
             }
 
@@ -1305,6 +1335,7 @@
     }
 
     // MARK: - iOSPointerDelegate
+
     public class iOSPointerDelegate: NSObject, UIPointerInteractionDelegate {
         weak var mtkView: iOSMTK?
 
@@ -1316,7 +1347,7 @@
             _ interaction: UIPointerInteraction, regionFor request: UIPointerRegionRequest,
             defaultRegion: UIPointerRegion
         ) -> UIPointerRegion? {
-            guard let mtkView = self.mtkView else { return defaultRegion }
+            guard let mtkView else { return defaultRegion }
             let wsHandle = mtkView.wsHandle
 
             let offsetY: CGFloat =
@@ -1333,19 +1364,19 @@
         }
 
         public func pointerInteraction(
-            _ interaction: UIPointerInteraction, willEnter region: UIPointerRegion,
-            animator: any UIPointerInteractionAnimating
+            _: UIPointerInteraction, willEnter _: UIPointerRegion,
+            animator _: any UIPointerInteractionAnimating
         ) {
-            guard let mtkView = self.mtkView else { return }
+            guard let mtkView else { return }
 
             mtkView.cursorTracked = true
         }
 
         public func pointerInteraction(
-            _ interaction: UIPointerInteraction, willExit region: UIPointerRegion,
-            animator: any UIPointerInteractionAnimating
+            _: UIPointerInteraction, willExit _: UIPointerRegion,
+            animator _: any UIPointerInteractionAnimating
         ) {
-            guard let mtkView = self.mtkView else { return }
+            guard let mtkView else { return }
 
             mtkView.cursorTracked = false
             mouse_gone(mtkView.wsHandle)
@@ -1353,13 +1384,14 @@
     }
 
     // MARK: - iOSMTK
+
     public class iOSMTK: MTKView {
         public static let TAB_BAR_HEIGHT: CGFloat = 40
         public static let TITLE_BAR_HEIGHT: CGFloat = 33
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
         public var wsHandle: UnsafeMutableRawPointer?
-        weak var currentWrapper: UIView? = nil
+        weak var currentWrapper: UIView?
 
         // pointer
         var pointerInteraction: UIPointerInteraction?
@@ -1369,29 +1401,29 @@
         private var touchMap = [ObjectIdentifier: UInt64]()
         private var nextTouchID: UInt64 = 0
 
-        // gestures
+        /// gestures
         var panRecognizer: UIPanGestureRecognizer?
         var panStartTouches = [(Float, Float)]()
 
 
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
-        var redrawTask: DispatchWorkItem? = nil
+        var redrawTask: DispatchWorkItem?
 
         // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
-        var currentOpenDoc: UUID? = nil  // todo: duplicated in ws output
-        var currentSelectedFolder: UUID? = nil  // duplicated in ws output
+        var currentOpenDoc: UUID? // TODO: duplicated in ws output
+        var currentSelectedFolder: UUID? // duplicated in ws output
 
         // view hierarchy management
-        var tabSwitchTask: (() -> Void)? = nil  // facilitates switching wrapper views in response to tab change
-        var onSelectionChanged: (() -> Void)? = nil  // only populated when wrapper is markdown
-        var onTextChanged: (() -> Void)? = nil  // also only populated when wrapper is markdown
-        var ignoreSelectionUpdate = false  // don't invoke corresponding handler when drawing immediately
-        var ignoreTextUpdate = false  // also don't invoke corresponding handler when drawing immediately
+        var tabSwitchTask: (() -> Void)? // facilitates switching wrapper views in response to tab change
+        var onSelectionChanged: (() -> Void)? // only populated when wrapper is markdown
+        var onTextChanged: (() -> Void)? // also only populated when wrapper is markdown
+        var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
+        var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
         var docHeaderSize: Double {
-            return !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
+            !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
         }
 
         // kinetic scroll
@@ -1407,29 +1439,30 @@
             let pointerDelegate = iOSPointerDelegate(mtkView: self)
             let pointer = UIPointerInteraction(delegate: pointerDelegate)
 
-            self.addInteraction(pointer)
+            addInteraction(pointer)
 
             self.pointerDelegate = pointerDelegate
-            self.pointerInteraction = pointer
+            pointerInteraction = pointer
 
             // gestures
             let pan = UIPanGestureRecognizer(
-                target: self, action: #selector(self.handleTrackpadScroll(_:)))
+                target: self, action: #selector(handleTrackpadScroll(_:))
+            )
             pan.allowedScrollTypesMask = .all
             pan.maximumNumberOfTouches = 0
 
-            self.addGestureRecognizer(pan)
-            self.panRecognizer = pan
+            addGestureRecognizer(pan)
+            panRecognizer = pan
 
             // mtk
-            self.mtkDelegate = iOSMTKViewDelegate(mtkView: self)
+            mtkDelegate = iOSMTKViewDelegate(mtkView: self)
 
-            self.isPaused = false
-            self.enableSetNeedsDisplay = false
-            self.delegate = mtkDelegate
-            self.preferredFramesPerSecond = 120
-            self.isUserInteractionEnabled = true
-            
+            isPaused = false
+            enableSetNeedsDisplay = false
+            delegate = mtkDelegate
+            preferredFramesPerSecond = 120
+            isUserInteractionEnabled = true
+
             NotificationCenter.default.addObserver(
                 self,
                 selector: #selector(appDidBecomeActive),
@@ -1451,7 +1484,7 @@
         @objc private func appDidEnterBackground() {
             self.isPaused = true
         }
-        
+
         required init(coder: NSCoder) {
             fatalError("init(coder:) has not been implemented")
         }
@@ -1479,7 +1512,7 @@
                     velocity.x *= Self.POINTER_DECELERATION_RATE
                     velocity.y *= Self.POINTER_DECELERATION_RATE
 
-                    if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                    if abs(velocity.x) < 0.1, abs(velocity.y) < 0.1 {
                         timer.invalidate()
                         return
                     }
@@ -1488,29 +1521,31 @@
                         mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                     }
                     scroll_wheel(
-                        self.wsHandle, Float(velocity.x), Float(velocity.y), false, false, false,
-                        false)
+                        wsHandle, Float(velocity.x), Float(velocity.y), false, false, false,
+                        false
+                    )
                     if !cursorTracked {
                         mouse_gone(wsHandle)
                     }
 
-                    self.setNeedsDisplay()
+                    setNeedsDisplay()
                 }
             } else {
                 if !cursorTracked {
                     mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
                 }
                 scroll_wheel(
-                    wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false)
+                    wsHandle, Float(velocity.x), Float(velocity.y), false, false, false, false
+                )
                 if !cursorTracked {
                     mouse_gone(wsHandle)
                 }
             }
 
-            self.setNeedsDisplay()
+            setNeedsDisplay()
         }
 
-        // used in canvas
+        /// used in canvas
         @objc func handlePan(_ sender: UIPanGestureRecognizer? = nil) {
             guard let event = sender, event.state != .cancelled, event.state != .failed else {
                 return
@@ -1536,11 +1571,11 @@
             if event.state == .ended {
                 let currentScrollId = Int(Date().timeIntervalSince1970)
                 scrollId = currentScrollId
-                touches_ended(wsHandle, UInt64.random(in: UInt64.min...UInt64.max), 0.0, 0.0, 0.0)
+                touches_ended(wsHandle, UInt64.random(in: UInt64.min ... UInt64.max), 0.0, 0.0, 0.0)
 
                 kineticTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
                     [weak self] timer in
-                    guard let self = self else {
+                    guard let self else {
                         timer.invalidate()
                         self?.kineticTimer = nil
                         return
@@ -1549,14 +1584,14 @@
                     velocity.x *= Self.POINTER_DECELERATION_RATE
                     velocity.y *= Self.POINTER_DECELERATION_RATE
 
-                    if abs(velocity.x) < 0.1 && abs(velocity.y) < 0.1 {
+                    if abs(velocity.x) < 0.1, abs(velocity.y) < 0.1 {
                         timer.invalidate()
-                        self.kineticTimer = nil
+                        kineticTimer = nil
                         return
                     }
                         
                     multi_touch(
-                        self.wsHandle,
+                        wsHandle,
                         Float(velocity.x),
                         Float(velocity.y),
                         1.0,
@@ -1575,7 +1610,7 @@
 
                 
                 multi_touch(
-                    self.wsHandle,
+                    wsHandle,
                     Float(translation.x),
                     Float(translation.y),
                     1.0,
@@ -1587,16 +1622,16 @@
                 )
 
                 event.setTranslation(.zero, in: self)
-
             }
 
-            self.setNeedsDisplay()
+            setNeedsDisplay()
         }
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(
-                Unmanaged.passUnretained(self.layer).toOpaque())
-            self.wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
+                Unmanaged.passUnretained(layer).toOpaque()
+            )
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
             workspaceInput?.wsHandle = wsHandle
         }
 
@@ -1607,18 +1642,33 @@
             ignoreSelectionUpdate = true
             ignoreTextUpdate = true
 
-            self.isPaused = true
-            self.enableSetNeedsDisplay = false
+            isPaused = true
+            enableSetNeedsDisplay = false
 
-            self.mtkDelegate?.draw(in: self)
+            mtkDelegate?.draw(in: self)
 
             ignoreSelectionUpdate = false
             ignoreTextUpdate = false
         }
 
-        override public func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?)
-        {
-            setNeedsDisplay(self.frame)
+        override public func traitCollectionDidChange(_: UITraitCollection?) {
+            setNeedsDisplay(frame)
+        }
+
+        override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+            for touch in touches {
+                let value = getTouchID(for: touch, createIfMissing: true)
+
+                for touch in event!.coalescedTouches(for: touch)! {
+                    let location = touch.preciseLocation(in: self)
+                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
+                    touches_began(
+                        wsHandle, value, Float(location.x), Float(location.y), Float(force)
+                    )
+                }
+            }
+
+            setNeedsDisplay(frame)
         }
 
         private func getTouchID(for touch: UITouch, createIfMissing: Bool = false) -> UInt64 {
@@ -1635,22 +1685,7 @@
             return 0 
         }
 
-        public override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            for touch in touches {
-                let value = getTouchID(for: touch, createIfMissing: true)
-
-                for touch in event!.coalescedTouches(for: touch)! {
-                    let location = touch.preciseLocation(in: self)
-                    let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
-                    touches_began(
-                        wsHandle, value, Float(location.x), Float(location.y), Float(force))
-                }
-            }
-
-            self.setNeedsDisplay(self.frame)
-        }
-
-        public override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
             for touch in touches {
                 let value = getTouchID(for: touch)
 
@@ -1661,17 +1696,17 @@
                     let location = touch.preciseLocation(in: self)
                     let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
                     touches_predicted(
-                        wsHandle, value, Float(location.x), Float(location.y), Float(force))
+                        wsHandle, value, Float(location.x), Float(location.y), Float(force)
+                    )
                 }
 
                 touches_moved(wsHandle, value, Float(location.x), Float(location.y), Float(force))
-
             }
 
-            self.setNeedsDisplay(self.frame)
+            setNeedsDisplay(frame)
         }
 
-        public override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesEnded(_ touches: Set<UITouch>, with _: UIEvent?) {
             for touch in touches {
                 let value = getTouchID(for: touch)
 
@@ -1682,10 +1717,10 @@
                 touchMap.removeValue(forKey: ObjectIdentifier(touch))
             }
 
-            self.setNeedsDisplay(self.frame)
+            setNeedsDisplay(frame)
         }
 
-        public override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        override public func touchesCancelled(_ touches: Set<UITouch>, with _: UIEvent?) {
             for touch in touches {
                 let value = getTouchID(for: touch)
 
@@ -1693,21 +1728,21 @@
                 let force = touch.force != 0 ? touch.force / touch.maximumPossibleForce : 0
 
                 touches_cancelled(
-                    wsHandle, value, Float(location.x), Float(location.y), Float(force))
-
+                    wsHandle, value, Float(location.x), Float(location.y), Float(force)
+                )
             }
 
-            self.setNeedsDisplay(self.frame)
+            setNeedsDisplay(frame)
         }
 
-        public override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        override public func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             let forward = handleKeyEvent(presses, with: event, pressBegan: true)
             if forward {
                 super.pressesBegan(presses, with: event)
             }
         }
 
-        public override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        override public func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
             let forward = handleKeyEvent(presses, with: event, pressBegan: false)
             if forward {
                 super.pressesEnded(presses, with: event)
@@ -1715,7 +1750,7 @@
         }
 
         /// Returns whether the event should be forwarded up the inheritance hierarchy
-        func handleKeyEvent(_ presses: Set<UIPress>, with event: UIPressesEvent?, pressBegan: Bool)
+        func handleKeyEvent(_ presses: Set<UIPress>, with _: UIPressesEvent?, pressBegan: Bool)
             -> Bool
         {
             var forward = true
@@ -1734,14 +1769,14 @@
                 let option = key.modifierFlags.contains(.alternate)
                 let command = key.modifierFlags.contains(.command)
 
-                if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab)
-                {
+                if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab) {
                     forward = false
                 }
 
                 ios_key_event(
-                    wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan)
-                self.setNeedsDisplay(self.frame)
+                    wsHandle, key.keyCode.rawValue, shift, ctrl, option, command, pressBegan
+                )
+                setNeedsDisplay(frame)
             }
 
             return forward
@@ -1749,7 +1784,7 @@
 
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
             switch importFormat {
-            case .url(let url):
+            case let .url(url):
                 if url.pathExtension.lowercased() == "png" {
                     guard let data = try? Data(contentsOf: url) else {
                         return
@@ -1759,22 +1794,22 @@
                 } else {
                     clipboard_send_file(wsHandle, url.path(percentEncoded: false), isPaste)
                 }
-            case .image(let image):
+            case let .image(image):
                 let image = image.normalizedImage()
                 if let data = image.pngData() ?? image.jpegData(compressionQuality: 1.0) {
                     workspaceInput?.pasteImage(data: data, isPaste: isPaste)
                 }
-            case .text(let text):
+            case let .text(text):
                 clipboard_paste(wsHandle, text)
             }
         }
 
         func isDarkMode() -> Bool {
-            return traitCollection.userInterfaceStyle != .light
+            traitCollection.userInterfaceStyle != .light
         }
 
         func isCompact() -> Bool {
-            return traitCollection.horizontalSizeClass == .compact
+            traitCollection.horizontalSizeClass == .compact
         }
 
         deinit {
@@ -1787,8 +1822,8 @@
             //        exit(-69)
         }
 
-        public override var canBecomeFocused: Bool {
-            return true
+        override public var canBecomeFocused: Bool {
+            true
         }
     }
 
@@ -1799,6 +1834,7 @@
     }
 
     // MARK: - LBTokenizer
+
     class LBTokenizer: NSObject, UITextInputTokenizer {
         let wsHandle: UnsafeMutableRawPointer?
 
@@ -1863,12 +1899,13 @@
     }
 
     // MARK: - iOSUndoManager
-    class iOSUndoManager: UndoManager {
-        public var wsHandle: UnsafeMutableRawPointer? = nil
 
-        weak var textWrapper: MdView? = nil
-        weak var mtkView: iOSMTK? = nil
-        weak var inputDelegate: UITextInputDelegate? = nil
+    class iOSUndoManager: UndoManager {
+        var wsHandle: UnsafeMutableRawPointer?
+
+        weak var textWrapper: MdView?
+        weak var mtkView: iOSMTK?
+        weak var inputDelegate: UITextInputDelegate?
 
         override var canUndo: Bool {
             can_undo(wsHandle)
@@ -1898,6 +1935,7 @@
     }
 
     // MARK: - FFI Wrappers
+
     class LBTextRange: UITextRange {
         let c: CTextRange
 
@@ -1906,19 +1944,19 @@
         }
 
         override var start: UITextPosition {
-            return LBTextPos(c: c.start)
+            LBTextPos(c: c.start)
         }
 
         override var end: UITextPosition {
-            return LBTextPos(c: c.end)
+            LBTextPos(c: c.end)
         }
 
         override var isEmpty: Bool {
-            return c.start.pos >= c.end.pos
+            c.start.pos >= c.end.pos
         }
 
         var length: Int {
-            return Int(c.start.pos - c.end.pos)
+            Int(c.start.pos - c.end.pos)
         }
     }
 
@@ -1933,7 +1971,7 @@
     class LBTextSelectionRect: UITextSelectionRect {
         let loc: Int
         let size: Int
-        public let cRect: CRect
+        let cRect: CRect
 
         init(cRect: CRect, loc: Int, size: Int) {
             self.cRect = cRect
@@ -1942,22 +1980,26 @@
         }
 
         override var writingDirection: NSWritingDirection {
-            return .leftToRight
+            .leftToRight
         }
+
         override var containsStart: Bool {
-            return loc == 0
+            loc == 0
         }
+
         override var containsEnd: Bool {
-            return loc == (size - 1)
+            loc == (size - 1)
         }
+
         override var isVertical: Bool {
-            return false
+            false
         }
 
         override var rect: CGRect {
-            return CGRect(
+            CGRect(
                 x: cRect.min_x, y: cRect.min_y, width: cRect.max_x - cRect.min_x,
-                height: cRect.max_y - cRect.min_y)
+                height: cRect.max_y - cRect.min_y
+            )
         }
     }
 

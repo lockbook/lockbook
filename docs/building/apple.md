@@ -30,6 +30,13 @@ After building the native libs:
 ## Launching via `lbdev`
 XCode needs to be able to do these things before `lbdev` will start to work.
 
-`lbdev apple run macos` will build all the rust and swift and run the macOS app to the current Macbook.
+`lbdev apple run macos` will build all the rust and swift and run the macOS app to the current Macbook. 
 
-`lbdev apple run ios <device>`  allows you to select an iOS device and send a build to it. This is mostly a shortcut for people who have setup these devices already in XCode. 
+`lbdev apple run ios <device>`  allows you to select an iOS device and send a build to it. This is mostly a shortcut for people who have setup these devices already in XCode.
+
+## Can't run in Xcode?
+
+1. **Run `lbdev apple ws all` first** – Xcode needs the native libs. From repo root: `cargo install --path utils/lbdev` then `lbdev apple ws all`.
+2. **Open the workspace** – Open `clients/apple/Lockbook.xcworkspace` (not `lockbook.xcodeproj`).
+3. **Signing** – Xcode → Signing & Capabilities → set Team to your Apple ID. The project uses team `39ZS78S25U`; if you're not on that team, change it to yours or use "Sign to Run Locally" for simulators.
+5. **macOS code signing** – If macOS fails with "No signing certificate", either add your "Mac Development" cert in Keychain, or build with: `xcodebuild ... CODE_SIGN_IDENTITY="-" build`. 

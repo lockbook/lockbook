@@ -3,14 +3,13 @@ import Combine
 import SwiftUI
 
 public class WorkspaceOutputState: ObservableObject {
-
     // Should I be using combine state classes for these? Helps reduce refreshes
     @Published public var openDoc: UUID? = nil
     @Published public var selectedFolder: UUID? = nil
     @Published public var newFolderButtonPressed: () = ()
     @Published public var currentTab: WorkspaceTab = .Welcome
     @Published public var renameOpenDoc: () = ()
-    @Published public var urlOpened: URL? = nil
+    @Published public var urlsOpened: [URL] = []
     @Published public var openCamera: Bool = false
 
     // Tab count includes non-files
@@ -23,11 +22,11 @@ public class WorkspaceOutputState: ObservableObject {
 }
 
 public class WorkspaceInputState: ObservableObject {
-    public var coreHandle: UnsafeMutableRawPointer? = nil
-    public var wsHandle: UnsafeMutableRawPointer? = nil
+    public var coreHandle: UnsafeMutableRawPointer?
+    public var wsHandle: UnsafeMutableRawPointer?
 
-    public var redraw = PassthroughSubject<(), Never>()
-    public var focus = PassthroughSubject<(), Never>()
+    public var redraw = PassthroughSubject<Void, Never>()
+    public var focus = PassthroughSubject<Void, Never>()
     //    maybe make unfocus variable
 
     public init(coreHandle: UnsafeMutableRawPointer?) {
@@ -88,10 +87,10 @@ public class WorkspaceInputState: ObservableObject {
         close_all_tabs(wsHandle)
         redraw.send(())
     }
-    
+
     public func pasteImage(data: Data, isPaste: Bool) {
         guard let wsHandle else { return }
-        
+
         let imgPtr = data.withUnsafeBytes {
             (pointer: UnsafeRawBufferPointer) -> UnsafePointer<UInt8> in
             return pointer.baseAddress!.assumingMemoryBound(to: UInt8.self)
@@ -105,16 +104,16 @@ public class WorkspaceInputState: ObservableObject {
         guard let wsHandle else { return }
 
         switch fileOp {
-        case .Delete(let id):
+        case let .Delete(id):
             close_tab(wsHandle, id.uuidString)
-        case .Rename(let id, let newName):
+        case let .Rename(id, newName):
             tab_renamed(wsHandle, id.uuidString, newName)
         }
 
         redraw.send(())
     }
 
-    // IDEALLY PROVIDED WITHIN WORKSPACE RESP
+    /// IDEALLY PROVIDED WITHIN WORKSPACE RESP
     public func getTabsIds() -> [UUID] {
         guard let wsHandle else { return [] }
 
@@ -123,9 +122,9 @@ public class WorkspaceInputState: ObservableObject {
             UnsafeBufferPointer(start: result.ids, count: Int(result.size))
         )
 
-        let newBuffer = buffer.map({ id in
-            return UUID(uuid: id._0)
-        })
+        let newBuffer = buffer.map { id in
+            UUID(uuid: id._0)
+        }
 
         free_tab_ids(result)
 
@@ -158,14 +157,14 @@ func createTempDir() -> URL? {
     return tempTempURL
 }
 
-extension WorkspaceInputState {
-    public static var preview: WorkspaceInputState {
-        return WorkspaceInputState()
+public extension WorkspaceInputState {
+    static var preview: WorkspaceInputState {
+        WorkspaceInputState()
     }
 }
 
-extension WorkspaceOutputState {
-    public static var preview: WorkspaceOutputState {
-        return WorkspaceOutputState()
+public extension WorkspaceOutputState {
+    static var preview: WorkspaceOutputState {
+        WorkspaceOutputState()
     }
 }

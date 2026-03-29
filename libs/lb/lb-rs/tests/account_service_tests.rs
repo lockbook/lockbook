@@ -189,40 +189,6 @@ async fn import_account_nonexistent() {
 }
 
 #[tokio::test]
-async fn import_account_public_key_mismatch() {
-    let bad_account_string = {
-        let core1 = test_core().await;
-        let core2 = test_core().await;
-        let core3 = test_core().await;
-
-        let account1 = core1
-            .create_account(&random_name(), &url(), false)
-            .await
-            .unwrap();
-
-        let mut account2 = core2
-            .create_account(&random_name(), &url(), false)
-            .await
-            .unwrap();
-        account2.username = account1.username;
-
-        core3.keychain.cache_account(account2).await.unwrap();
-        core3.export_account_private_key().unwrap()
-    };
-
-    let core4 = test_core().await;
-
-    assert!(matches!(
-        core4
-            .import_account(&bad_account_string, Some(&url()))
-            .await
-            .unwrap_err()
-            .kind,
-        LbErrKind::UsernamePublicKeyMismatch
-    ));
-}
-
-#[tokio::test]
 async fn export_account() {
     let core = test_core().await;
     core.create_account(&random_name(), &url(), false)

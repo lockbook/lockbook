@@ -29,6 +29,16 @@ impl<'ast> Editor {
     pub fn translate_egui_keyboard_event(
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
+        // When the emoji popup is open, swallow vertical navigation and Enter so
+        // they are handled by show_emoji_completions instead of moving the cursor.
+        if self.emoji_completions.active || self.link_completions.active {
+            if let egui::Event::Key { key, pressed: true, .. } = &event {
+                if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::Enter) {
+                    return None;
+                }
+            }
+        }
+
         match event {
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown) =>
@@ -136,6 +146,12 @@ impl<'ast> Editor {
                         backwards: key == Key::Backspace,
                     },
                 })
+            }
+            egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
+                if !cfg!(target_os = "ios") && modifiers.command =>
+            {
+                self.open_links_in_selection(root, &self.ctx);
+                None
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>

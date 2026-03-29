@@ -16,12 +16,13 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, RwLock};
-use tracing::{debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
-use crate::output::{Response, WsStatus};
+use crate::output::Response;
+use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
@@ -43,17 +44,15 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub landing_page: LandingPage,
-    pub user_last_seen: Instant,
     pub account: Option<Account>,
 
     // Files and task status
     pub tasks: TaskManager,
-    pub files: Option<FileCache>,
+    pub files: Arc<RwLock<Option<FileCache>>>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
     // Output
-    pub status: WsStatus,
     pub out: Response,
 
     // Resources & configuration
@@ -71,6 +70,10 @@ pub struct Workspace {
     pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
+
+    // Transient rename state for the landing page file table
+    pub landing_rename_target: Option<lb_rs::Uuid>,
+    pub landing_rename_buffer: String,
 }
 
 impl Workspace {
@@ -80,16 +83,16 @@ impl Workspace {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files = FileCache::new(core).log_and_ignore();
+        let files = Arc::new(RwLock::new(FileCache::new(core).log_and_ignore()));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
 
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
             landing_page: cfg.get_landing_page(),
-            user_last_seen: Instant::now(),
             account: core.get_account().cloned().ok(),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
@@ -97,7 +100,6 @@ impl Workspace {
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
-            status: Default::default(),
             out: Default::default(),
 
             cfg,
@@ -111,6 +113,8 @@ impl Workspace {
             landing_page_first_frame: true,
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
+            landing_rename_target: None,
+            landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
         };
 
@@ -126,6 +130,10 @@ impl Workspace {
             info!(id = ?current_tab, "setting persisted current tab");
             ws.make_current_by_id(current_tab);
         }
+
+        let core = ws.core.clone();
+        let ctx = ctx.clone();
+        spawn!(lb_frames(ctx, core));
 
         ws
     }
@@ -335,52 +343,60 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
-        match self.lb_rx.try_recv() {
-            Ok(evt) => match evt {
-                Event::MetadataChanged => {
-                    self.files = FileCache::new(&self.core).log_and_ignore();
-                    if let Some(files) = &self.files {
-                        let mut tabs_to_delete = vec![];
-                        for tab in &self.tabs {
-                            if let Some(id) = tab.id() {
-                                if !files
-                                    .files
-                                    .iter()
-                                    .chain(&files.shared)
-                                    .any(|f| Some(f.id) == tab.id())
-                                {
-                                    tabs_to_delete.push(id);
+        loop {
+            match self.lb_rx.try_recv() {
+                Ok(evt) => match evt {
+                    Event::MetadataChanged(_) => {
+                        *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
+                        let files_arc = Arc::clone(&self.files);
+                        let files_guard = files_arc.read().unwrap();
+                        if let Some(files) = files_guard.as_ref() {
+                            let mut tabs_to_delete = vec![];
+                            for tab in &self.tabs {
+                                if let Some(id) = tab.id() {
+                                    if !files
+                                        .files
+                                        .iter()
+                                        .chain(&files.shared)
+                                        .any(|f| Some(f.id) == tab.id())
+                                    {
+                                        tabs_to_delete.push(id);
+                                    }
+                                }
+                            }
+
+                            for id in tabs_to_delete {
+                                if let Some(idx) = self.get_idx_by_id(id) {
+                                    self.remove_tab(idx);
                                 }
                             }
                         }
-
-                        for id in tabs_to_delete {
-                            if let Some(idx) = self.get_idx_by_id(id) {
-                                self.remove_tab(idx);
+                    }
+                    Event::DocumentWritten(id, Actor::Sync) => {
+                        self.core.app_foregrounded();
+                        for i in 0..self.tabs.len() {
+                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                self.open_file(id, false, false);
                             }
                         }
                     }
+                    _ => {}
+                },
+                #[cfg(not(target_family = "wasm"))]
+                Err(TryRecvError::Empty) => {
+                    break;
                 }
-                Event::DocumentWritten(id, Some(Actor::Sync)) => {
-                    self.user_last_seen = Instant::now();
-                    for i in 0..self.tabs.len() {
-                        if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                            self.open_file(id, false, false);
-                        }
-                    }
+                Err(e) => {
+                    eprintln!("cannot recv events from lb-rs {e:?}");
+                    break;
                 }
-                _ => {}
-            },
-            #[cfg(not(target_family = "wasm"))]
-            Err(TryRecvError::Empty) => {}
-            Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
+            }
         }
     }
 
     // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
-        let task_manager::Response { completed_loads, completed_saves, completed_sync } =
-            self.tasks.update();
+        let task_manager::Response { completed_loads, completed_saves } = self.tasks.update();
 
         let start = Instant::now();
         for load in completed_loads {
@@ -478,7 +494,11 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
-                        } else if ext == "md" || ext == "txt" {
+                        } else if let Some(plaintext_mode) =
+                            DocType::from_name(&ext).plaintext_mode().or_else(|| {
+                                content_inspector::inspect(&bytes).is_text().then_some(true)
+                            })
+                        {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
@@ -492,10 +512,12 @@ impl Workspace {
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
                                             font_system: self.font_system.clone(),
+                                            files: Arc::clone(&self.files),
                                         },
                                         MdConfig {
-                                            plaintext_mode: ext != "md",
+                                            plaintext_mode,
                                             readonly: tab.read_only,
+                                            ext: ext.clone(),
                                         },
                                     )));
                             } else {
@@ -535,7 +557,6 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    let mut sync = false;
                     if let Some(tab) = self.get_mut_tab_by_id(id) {
                         match new_hmac_result {
                             Ok(hmac) => {
@@ -551,7 +572,6 @@ impl Workspace {
                                         svg.opened_content = *content;
                                     }
                                 }
-                                sync = true;
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
@@ -568,29 +588,10 @@ impl Workspace {
                             }
                         }
                     }
-                    if sync {
-                        self.tasks.queue_sync();
-                    }
                 }
             }
         }
         start.warn_after("processing completed saves", Duration::from_millis(100));
-        if let Some(sync) = completed_sync {
-            self.last_sync_completed = Some(sync.timing.completed_at);
-        }
-
-        let start = Instant::now();
-        {
-            let tasks = self.tasks.tasks.lock().unwrap();
-            if let Some(sync) = tasks.in_progress_sync.as_ref() {
-                while let Ok(progress) = sync.progress.try_recv() {
-                    trace!("sync {}", progress);
-                    self.status.sync_message = Some(progress.msg);
-                    self.out.status_updated = true;
-                }
-            }
-        }
-        start.warn_after("processing sync progress", Duration::from_millis(100));
 
         // background work: queue
         let now = Instant::now();
@@ -610,30 +611,6 @@ impl Workspace {
             }
         }
         start.warn_after("processing auto save", Duration::from_millis(100));
-
-        let start = Instant::now();
-        if self.cfg.get_auto_sync() {
-            if let Some(last_sync) = self.tasks.sync_queued_at().or(self.last_sync_completed) {
-                let focused = self.ctx.input(|i| i.focused);
-                let user_active = self.user_last_seen.elapsed() < Duration::from_secs(3 * 60);
-                let sync_period = if user_active && focused {
-                    Duration::from_secs(3)
-                } else {
-                    Duration::from_secs(5 * 60)
-                };
-
-                let instant_of_next_sync = last_sync + sync_period;
-                if instant_of_next_sync < now {
-                    self.tasks.queue_sync();
-                } else {
-                    let duration_until_next_sync = instant_of_next_sync - now;
-                    self.ctx.request_repaint_after(duration_until_next_sync);
-                }
-            } else {
-                self.tasks.queue_sync();
-            }
-        }
-        start.warn_after("processing auto sync", Duration::from_millis(100));
 
         // background work: launch
         let start = Instant::now();
@@ -705,7 +682,9 @@ impl Workspace {
 
     pub fn effective_focused_parent(&self) -> Uuid {
         let get_by_id_cached_read_through = |id| {
-            if let Some(files) = &self.files {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            if let Some(files) = files_guard.as_ref() {
                 files.files.get_by_id(id).cloned()
             } else {
                 self.core.get_file_by_id(id).ok()
@@ -725,7 +704,9 @@ impl Workspace {
                 return current_tab;
             }
 
-            if let Some(files) = &self.files {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            if let Some(files) = files_guard.as_ref() {
                 files.root.clone()
             } else {
                 self.core.get_root().unwrap()
@@ -814,7 +795,6 @@ impl Workspace {
             self.open_file(id, false, false);
         }
 
-        self.out.file_renamed = Some((id, new_name));
         self.ctx.request_repaint();
     }
 
@@ -822,7 +802,6 @@ impl Workspace {
         let (id, new_parent) = req;
         match self.core.move_file(&id, &new_parent) {
             Ok(()) => {
-                self.out.file_moved = Some((id, new_parent));
                 self.ctx.request_repaint();
             }
             Err(LbErr { kind, .. }) => {
@@ -834,34 +813,19 @@ impl Workspace {
         }
     }
 
-    pub fn status_message(&self) -> String {
-        if let Some(error) = &self.status.sync_error {
-            format!("sync error: {error}")
-        } else if let Some(error) = &self.status.sync_status_update_error {
-            format!("sync status update error: {error}")
-        } else if self.status.offline {
-            "Offline".to_string()
-        } else if self.status.out_of_space {
-            "You're out of space, buy more in settings!".to_string()
-        } else if let (true, Some(msg)) = (self.visibly_syncing(), &self.status.sync_message) {
-            msg.to_string()
-        } else if !self.status.dirtyness.dirty_files.is_empty() {
-            let size = self.status.dirtyness.dirty_files.len();
-            if size == 1 {
-                format!("{size} file needs to be synced")
-            } else {
-                format!("{size} files need to be synced")
+    pub fn delete_file(&mut self, id: Uuid) {
+        match self.core.delete_file(&id) {
+            Ok(()) => {
+                self.out.file_deleted = Some(id);
+                self.ctx.request_repaint();
             }
-        } else {
-            format!("Last synced: {}", self.status.dirtyness.last_synced)
+            Err(LbErr { kind, .. }) => {
+                self.out
+                    .failure_messages
+                    .push(format!("Delete failed: {kind}"));
+                warn!(?id, "failed to delete file: {:?}", kind);
+            }
         }
-    }
-
-    pub fn visibly_syncing(&self) -> bool {
-        self.tasks
-            .sync_started_at()
-            .map(|s| s.elapsed().as_millis() > 300)
-            .unwrap_or_default()
     }
 }
 
@@ -1006,6 +970,26 @@ impl WsPersistentStore {
             let content = serde_json::to_string(&data).unwrap();
             let _ = fs::write(path, content);
         });
+    }
+}
+pub fn lb_frames(ctx: Context, lb: Lb) {
+    let mut events = lb.subscribe();
+
+    loop {
+        match events.blocking_recv() {
+            Ok(evt) => match evt {
+                Event::Sync(events::SyncIncrement::SyncFinished(_)) => {
+                    ctx.request_repaint();
+                }
+                _ => {
+                    continue;
+                }
+            },
+            Err(e) => {
+                error!("lb_frames died: {:?}", e);
+                return;
+            }
+        }
     }
 }
 

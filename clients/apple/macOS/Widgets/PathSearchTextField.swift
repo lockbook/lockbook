@@ -3,18 +3,19 @@ import SwiftWorkspace
 
 public class PathSearchTextField: NSTextField {
     let pathSearchModel: PathSearchViewModel
-    
+
     init(pathSearchModel: PathSearchViewModel) {
         self.pathSearchModel = pathSearchModel
-        
+
         super.init(frame: .zero)
     }
-    
-    required init(coder: NSCoder) {
+
+    @available(*, unavailable)
+    required init(coder _: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-    
-    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+
+    override public func performKeyEquivalent(with event: NSEvent) -> Bool {
         switch event.keyCode {
         case 126: // up arrow
             pathSearchModel.selectPreviousPath()
@@ -27,7 +28,7 @@ public class PathSearchTextField: NSTextField {
             return true
         default:
             if event.modifierFlags.contains(.command) { // command + num (1-9)
-                if event.keyCode == 18  {
+                if event.keyCode == 18 {
                     pathSearchModel.selected = 0
                     pathSearchModel.openSelected()
                 } else if event.keyCode == 19 {
@@ -57,29 +58,28 @@ public class PathSearchTextField: NSTextField {
                 } else {
                     return super.performKeyEquivalent(with: event)
                 }
-                
+
                 return true
             }
-            
-            
+
             return super.performKeyEquivalent(with: event)
         }
     }
-    
-    public override func viewDidMoveToWindow() {
+
+    override public func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard let window = self.window else { return }
+        guard let window else { return }
         window.makeFirstResponder(self)
     }
-    
-    public override func cancelOperation(_ sender: Any?) {
+
+    override public func cancelOperation(_: Any?) {
         pathSearchModel.endSearch()
     }
 }
 
 public struct PathSearchTextFieldWrapper: NSViewRepresentable {
     @EnvironmentObject var pathSearchModel: PathSearchViewModel
-            
+
     public func makeNSView(context: NSViewRepresentableContext<PathSearchTextFieldWrapper>) -> PathSearchTextField {
         let textField = PathSearchTextField(pathSearchModel: pathSearchModel)
         textField.isBordered = false
@@ -87,18 +87,16 @@ public struct PathSearchTextFieldWrapper: NSViewRepresentable {
         textField.delegate = context.coordinator
         textField.font = .systemFont(ofSize: 15)
         textField.backgroundColor = nil
-        
+
         return textField
     }
-    
-    public func updateNSView(_ nsView: PathSearchTextField, context: NSViewRepresentableContext<PathSearchTextFieldWrapper>) {
-        
-    }
-    
+
+    public func updateNSView(_: PathSearchTextField, context _: NSViewRepresentableContext<PathSearchTextFieldWrapper>) {}
+
     public func makeCoordinator() -> PathSearchTextFieldDelegate {
         PathSearchTextFieldDelegate(self)
     }
-    
+
     public class PathSearchTextFieldDelegate: NSObject, NSTextFieldDelegate {
         var parent: PathSearchTextFieldWrapper
 

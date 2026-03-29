@@ -3,16 +3,16 @@ import SwiftWorkspace
 
 struct SuggestedDocsView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
-    
+
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
-    
+
     @StateObject var model: SuggestedDocsViewModel
-    
+
     init(filesModel: FilesViewModel) {
-        self._model = StateObject(wrappedValue: SuggestedDocsViewModel(filesModel: filesModel))
+        _model = StateObject(wrappedValue: SuggestedDocsViewModel(filesModel: filesModel))
     }
-    
+
     var body: some View {
         if model.suggestedDocs?.isEmpty == true {
             Text("You have no suggested documents.")
@@ -29,7 +29,7 @@ struct SuggestedDocsView: View {
                                     if homeState.isSidebarFloating {
                                         homeState.sidebarState = .closed
                                     }
-                                    
+
                                     workspaceInput.openFile(id: info.id)
                                 }
                             }) {
@@ -38,7 +38,7 @@ struct SuggestedDocsView: View {
                             .buttonStyle(.plain)
                         }
                     } else {
-                        ForEach(0...2, id: \.self) { index in
+                        ForEach(0 ... 2, id: \.self) { _ in
                             SuggestedDocLoadingCell()
                         }
                     }
@@ -54,23 +54,23 @@ struct SuggestedDocsView: View {
 
 struct SuggestedDocCell: View {
     let info: SuggestedDocInfo
-    
+
     @Environment(\.colorScheme) var colorScheme
-    
+
     @StateObject var model: SuggestedDocsViewModel
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             Text(info.name)
                 .foregroundColor(.primary)
-            
+
             HStack {
                 Text(info.parentName)
                     .font(.caption)
                     .foregroundColor(.accentColor)
-                
+
                 Spacer()
-                
+
                 Text(info.lastModified)
                     .font(.caption)
                     .foregroundColor(.gray)
@@ -97,7 +97,7 @@ struct SuggestedDocCell: View {
 
 struct SuggestedDocLoadingCell: View {
     @Environment(\.colorScheme) var colorScheme
-    
+
     var body: some View {
         VStack(alignment: .leading) {
             RoundedRectangle(cornerSize: CGSize(width: 5, height: 5))
@@ -105,16 +105,16 @@ struct SuggestedDocLoadingCell: View {
                 .opacity(0.1)
                 .cornerRadius(5)
                 .frame(width: 70, height: 16)
-            
+
             HStack {
                 RoundedRectangle(cornerSize: CGSize(width: 5, height: 5))
                     .fill(.gray)
                     .opacity(0.1)
                     .cornerRadius(5)
                     .frame(width: 70, height: 16)
-                
+
                 Spacer()
-                
+
                 RoundedRectangle(cornerSize: CGSize(width: 5, height: 5))
                     .fill(.gray)
                     .opacity(0.1)
@@ -131,7 +131,7 @@ struct SuggestedDocLoadingCell: View {
 
 struct SuggestedDocBackground: ViewModifier {
     @Environment(\.colorScheme) var colorScheme
-    
+
     func body(content: Content) -> some View {
         content
             .padding(12)

@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
+use egui::scroll_area::ScrollBarVisibility;
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
 use glyphon::FontSystem;
@@ -280,7 +281,7 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged | Event::PendingSharesChanged => {
+                Event::MetadataChanged(_) | Event::PendingSharesChanged => {
                     self.refresh_tree(ctx);
                 }
                 Event::StatusUpdated => {
@@ -325,8 +326,6 @@ impl AccountScreen {
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
                         self.modals.file_picker = None;
-                        self.workspace.tasks.queue_sync();
-                        // todo: figure out how to call reveal_file after the file tree is updated with the new sync info
                     }
                     Err(msg) => self.modals.error = Some(ErrorModal::new(msg)),
                 },
@@ -351,7 +350,6 @@ impl AccountScreen {
                 AccountUpdate::FileShared(result) => match result {
                     Ok(_) => {
                         self.modals.create_share = None;
-                        self.workspace.tasks.queue_sync();
                     }
                     Err(msg) => {
                         if let Some(m) = &mut self.modals.create_share {
@@ -435,8 +433,11 @@ impl AccountScreen {
         ui.style_mut().spacing.scroll = ScrollStyle::solid();
         ui.style_mut().spacing.scroll.floating = true;
         ui.style_mut().spacing.scroll.bar_width *= 2.;
+        ui.spacing_mut().scroll.floating_width = 12.0;
+        ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
 
         let resp = ScrollArea::vertical()
+            .scroll_bar_visibility(ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::new()
@@ -800,7 +801,6 @@ impl AccountScreen {
         });
     }
 
-    // todo: I think this whole concept will / should go away as part of ws cleanup
     fn file_created(&mut self, ctx: &egui::Context, result: Result<File, String>) {
         match result {
             Ok(f) => {
