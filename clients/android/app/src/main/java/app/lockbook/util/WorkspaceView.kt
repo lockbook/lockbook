@@ -1,6 +1,5 @@
 package app.lockbook.util
 
-import android.R
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -10,11 +9,9 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
-import android.os.Build
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
-import android.view.InputDevice
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
@@ -24,9 +21,6 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.OverScroller
-import android.widget.PopupMenu
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
@@ -86,8 +80,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             scroller.abortAnimation()
             pendingDx.set(0f)
             pendingDy.set(0f)
-            gestureStartPositions =Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
-            propagateFlick = false;
+            gestureStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
+            propagateFlick = false
             return true
         }
 
@@ -98,11 +92,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             distanceY: Float
         ): Boolean {
             if (e2.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
-                !isPenOnlyDraw() && e2.pointerCount == 1){
+                !isPenOnlyDraw() && e2.pointerCount == 1
+            ) {
                 return false
             }
 
-            propagateFlick = true;
+            propagateFlick = true
 
             pendingDx.getAndUpdate { it - distanceX }
             pendingDy.getAndUpdate { it - distanceY }
@@ -116,10 +111,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             velocityX: Float,
             velocityY: Float
         ): Boolean {
-            if (!propagateFlick){
+            if (!propagateFlick) {
                 return false
             }
-
 
             scroller.fling(
                 0, 0,
@@ -148,15 +142,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             choreographer.postFrameCallback(::tick)
             return true
         }
-
     }
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
-
 
     private val pendingZoom = AtomicReference(1f)
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
-
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
@@ -235,7 +226,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             forwardedTouchEvent(event, 0f)
 
-
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
             if (model.currentTab.value?.type?.isTextEdit() ?: true) {
                 wrapperView?.requestFocus()
@@ -284,7 +274,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-
 
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
@@ -335,15 +324,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val focusX = pendingFocusX.getAndSet(0f)
             val focusY = pendingFocusY.getAndSet(0f)
 
-            if (dx != 0f || dy != 0f || zoom !=1f){
-                Workspace.multiTouch(WGPU_OBJ,
+            if (dx != 0f || dy != 0f || zoom != 1f) {
+                Workspace.multiTouch(
+                    WGPU_OBJ,
                     dx,
                     dy,
                     zoom, focusX, focusY,
                     gestureStartPositions.map { it.x }.toFloatArray(),
-                    gestureStartPositions.map { it.y }.toFloatArray())
+                    gestureStartPositions.map { it.y }.toFloatArray()
+                )
             }
-
 
             // Guard again right before the native call
             if (surface?.isValid != true) {
@@ -464,12 +454,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         val actionIndex = event.actionIndex
         val pressure = getEventPressure(event, actionIndex)
 
-        when (action){
+        when (action) {
             MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
                 if (contextMenu != null) {
                     contextMenu!!.finish()
                 }
-
 
                 val pointerId = event.getPointerId(actionIndex)
                 Workspace.touchesBegin(
@@ -479,7 +468,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     event.getY(actionIndex) + touchOffsetY,
                     pressure
                 )
-
             }
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
@@ -571,7 +559,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         return Workspace.isPenOnlyDraw(WGPU_OBJ)
     }
-
 
     fun getTabs(): Array<String> {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
