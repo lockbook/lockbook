@@ -3,8 +3,7 @@ use std::{collections::HashMap, slice::Iter};
 
 use egui::{Pos2, TouchDeviceId, TouchId, TouchPhase};
 use resvg::usvg::Transform;
-use time::Duration;
-use web_time::Instant;
+use web_time::{Duration, Instant};
 
 use crate::{
     Event,
@@ -485,7 +484,7 @@ impl InputController {
                         } else {
                             let elapsed = Instant::now() - last_touch.start;
                             // todo: source constant from pen impl
-                            if elapsed < Duration::milliseconds(200) {
+                            if elapsed < Duration::from_millis(200) {
                                 // if the two touch starts are temporaly close then it's a viewport and not
                                 // a tool run. cancel the tool run and change viewpoort.
                                 // for ex: cleanup the dot in the pen
@@ -625,7 +624,7 @@ impl InputController {
             });
 
             let elpased = Instant::now() - self.tool_hover_pos.1;
-            let target_opacity = if elpased > Duration::milliseconds(300) { 0.0 } else { 1.0 };
+            let target_opacity = if elpased > Duration::from_millis(300) { 0.0 } else { 1.0 };
 
             let opacity = ui.ctx().animate_value_with_time(
                 egui::Id::new("tool_hover_indicator_ui"),
@@ -654,7 +653,7 @@ fn pos_collides_with_layout(pos: egui::Pos2, ctx: &LayoutContext) -> bool {
 
 // get an instant that's far in the past
 fn past_instant() -> Instant {
-    Instant::now() - Duration::days(1) // 1 day ago
+    Instant::now() - Duration::from_secs(86400) // 1 day ago
 }
 
 #[cfg(test)]
