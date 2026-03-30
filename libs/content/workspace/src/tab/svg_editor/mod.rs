@@ -1,15 +1,13 @@
 mod background;
 mod clip;
 mod element;
-mod eraser;
-mod gesture_handler;
 mod history;
-mod path_builder;
-mod pen;
+mod viewport;
+
+mod input_controller;
 mod renderer;
-mod selection;
-mod shapes;
 mod toolbar;
+mod tools;
 mod util;
 
 use egui::UiBuilder;
@@ -17,13 +15,16 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
+use crate::tab::svg_editor::input_controller::{
+    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
+};
 use crate::tab::svg_editor::toolbar::Toolbar;
+use crate::tab::svg_editor::viewport::transform_canvas;
 use crate::theme::palette::ThemePalette;
 use crate::workspace::WsPersistentStore;
 
 use colors_transform::Color;
 use element::PromoteBufferWeakImages;
-pub use eraser::Eraser;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
@@ -31,14 +32,12 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{DynamicColor, Element};
-pub use path_builder::PathBuilder;
-pub use pen::Pen;
-use pen::PenSettings;
 use renderer::Renderer;
 use resvg::usvg::Transform;
 use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
+use tools::pen::PenSettings;
 use tracing::{Level, info, span};
 
 pub struct SVGEditor {
@@ -50,6 +49,8 @@ pub struct SVGEditor {
 
     history: History,
     pub toolbar: Toolbar,
+
+    input_controller: InputController,
     lb: Lb,
     pub open_file: Uuid,
     has_islands_interaction: bool,
@@ -58,8 +59,6 @@ pub struct SVGEditor {
     painter: egui::Painter,
     has_queued_save_request: bool,
     pub viewport_settings: ViewportSettings,
-    /// don't allow zooming or panning
-    allow_viewport_changes: bool,
     pub settings: CanvasSettings,
     input_ctx: InputContext,
 
@@ -203,11 +202,14 @@ impl SVGEditor {
             input_ctx: InputContext::default(),
             renderer: Renderer::new(elements_count),
             has_queued_save_request: false,
-            allow_viewport_changes: false,
             settings,
             viewport_settings,
             cfg,
             read_only,
+            input_controller: InputController::new(InputControllerConfig::new(
+                settings.pencil_only_drawing,
+                read_only,
+            )),
         }
     }
 
@@ -236,6 +238,8 @@ impl SVGEditor {
                 }
             }
         }
+        self.input_controller.sync_canvas_settings(&self.settings);
+
         self.process_events(ui);
 
         self.painter = ui.painter_at(self.viewport_settings.working_rect);
@@ -343,19 +347,8 @@ impl SVGEditor {
             painter: &mut self.painter,
             buffer: &mut self.buffer,
             history: &mut self.history,
-            allow_viewport_changes: &mut self.allow_viewport_changes,
-            is_touch_frame: ui.input(|r| {
-                r.events.iter().any(|e| {
-                    matches!(
-                        e,
-                        egui::Event::Touch { device_id: _, id: _, phase: _, pos: _, force: _ }
-                    )
-                })
-            }) || cfg!(target_os = "ios"),
             settings: &mut self.settings,
-            is_locked_vw_pen_only: self.toolbar.gesture_handler.is_locked_vw_pen_only_draw(),
             viewport_settings: &mut self.viewport_settings,
-            toolbar_has_interaction: self.has_islands_interaction,
         };
 
         if has_click_outside_islands && self.toolbar.has_visible_popover() {
@@ -364,33 +357,44 @@ impl SVGEditor {
             return;
         }
 
-        if !self.read_only {
-            match self.toolbar.active_tool {
-                Tool::Pen => {
-                    self.toolbar.pen.handle_input(ui, &mut tool_context);
-                }
-                Tool::Highlighter => {
-                    self.toolbar.highlighter.handle_input(ui, &mut tool_context);
-                }
-                Tool::Eraser => {
-                    self.toolbar.eraser.handle_input(ui, &mut tool_context);
-                }
-                Tool::Selection => {
-                    self.toolbar.selection.handle_input(ui, &mut tool_context);
-                }
-                Tool::Shapes => self.toolbar.shapes_tool.handle_input(ui, &mut tool_context),
+        let layout_ctx = LayoutContext::new(
+            tool_context.viewport_settings.working_rect,
+            self.toolbar.get_rects(),
+        );
+
+        let active_tool = self.toolbar.active_tool;
+        let tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
+
+        tool.show_tool_ui(ui, &mut tool_context);
+
+        let mut selection_seen_tool_run = false;
+        for event in self.input_controller.process(ui, &layout_ctx) {
+            if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
+                continue;
             }
-        } else {
-            *tool_context.allow_viewport_changes = true;
+
+            if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
+                transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
+            } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
+                if num_touches == 2 {
+                    tool_context.history.undo(tool_context.buffer)
+                } else if num_touches == 3 {
+                    tool_context.history.redo(tool_context.buffer)
+                }
+            } else {
+                tool.process_controller_event(ui, event, &mut tool_context);
+            }
+
+            if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
+            {
+                selection_seen_tool_run = true;
+            }
         }
 
-        if !self.has_islands_interaction {
-            self.toolbar.gesture_handler.handle_input(
-                ui,
-                &mut tool_context,
-                self.toolbar.hide_overlay,
-            );
-        }
+        self.input_controller
+            .show_hover_indicator(ui, &mut tool_context, tool);
+
+        self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }
 
     fn show_canvas(&mut self, ui: &mut egui::Ui) -> DiffState {

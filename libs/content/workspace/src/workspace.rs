@@ -25,6 +25,7 @@ use crate::search::Search;
 use crate::show::DocType;
 
 use crate::output::Response;
+use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
@@ -138,6 +139,8 @@ impl Workspace {
 
         let core = ws.core.clone();
         let ctx = ctx.clone();
+
+        #[cfg(not(target_family = "wasm"))]
         spawn!(lb_frames(ctx, core));
 
         ws

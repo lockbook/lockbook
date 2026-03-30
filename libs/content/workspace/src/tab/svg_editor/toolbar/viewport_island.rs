@@ -1,15 +1,17 @@
+use core::f32;
+
 use egui::{Response, UiBuilder};
 use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
 use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
-use crate::tab::svg_editor::gesture_handler::{
-    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
-    zoom_percentage_to_transform,
-};
 use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
 use crate::tab::svg_editor::util::draw_dashed_line;
+use crate::tab::svg_editor::viewport::{
+    MIN_ZOOM_LEVEL, get_rect_identity_transform, get_zoom_fit_transform, transform_canvas,
+    zoom_percentage_to_transform,
+};
 use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
@@ -65,7 +67,15 @@ impl Toolbar {
 
         let viewport_rect = egui::Rect {
             min: egui::pos2(viewport_island_x_start, viewport_island_y_start),
-            max: egui::Pos2 { x: viewport_island_x_start, y: history_island.bottom() },
+            max: egui::Pos2 {
+                x: viewport_island_x_start
+                    + self
+                        .layout
+                        .viewport_island
+                        .unwrap_or(egui::Rect::EVERYTHING)
+                        .width(),
+                y: history_island.bottom(),
+            },
         };
 
         let mut island_res = ui
@@ -85,7 +95,8 @@ impl Toolbar {
             island_res = island_res.union(res);
         }
 
-        if let Some(res) = show_bring_back_btn(ui, tlbr_ctx, viewport_island_rect) {
+        if let Some(res) = self.show_bring_back_btn(ui, tlbr_ctx, viewport_island_rect) {
+            self.layout.bring_back_btn = Some(res.rect);
             island_res = island_res.union(res);
         }
 
@@ -180,41 +191,26 @@ impl Toolbar {
         ui.scope(|ui| {
             ui.set_opacity(opacity);
             if let Some(popover) = self.viewport_popover {
+                let parent_container = self
+                    .layout
+                    .history_island
+                    .unwrap_or(viewport_island_rect)
+                    .union(viewport_island_rect);
                 let popover_rect = match popover {
                     ViewportPopover::More => {
-                        let parent_container = self
-                            .layout
-                            .history_island
-                            .unwrap_or(viewport_island_rect)
-                            .union(viewport_island_rect);
-
                         let min =
                             egui::pos2(parent_container.left(), parent_container.bottom() + 10.0);
 
                         egui::Rect { min, max: min + egui::vec2(parent_container.width(), 0.0) }
                     }
                     ViewportPopover::ZoomStops => {
-                        let parent_container = self.layout.zoom_pct_btn.unwrap_or(egui::Rect::ZERO);
                         ui.visuals_mut().window_corner_radius /= 2.0;
                         let min = egui::pos2(
-                            parent_container.center().x
-                                - self
-                                    .layout
-                                    .zoom_stops_popover
-                                    .unwrap_or(egui::Rect::ZERO)
-                                    .width()
-                                    / 2.0,
+                            parent_container.center().x,
                             parent_container.bottom() + 10.0,
                         );
 
-                        let zoom_stop_length = if let Some(rect) = self.layout.zoom_stops_popover {
-                            rect.width()
-                        } else {
-                            70.0 // just an approximation to attempt avoiding layout flashes
-                        };
-
-                        // todo: avoid layout flashes, something fishy is happening here
-                        egui::Rect { min, max: min + egui::vec2(zoom_stop_length, 0.0) }
+                        egui::Rect { min, max: min }
                     }
                 };
 
@@ -228,10 +224,10 @@ impl Toolbar {
                             );
 
                             match popover {
-                                ViewportPopover::More => self.show_more_popover(ui, tlbr_ctx),
                                 ViewportPopover::ZoomStops => {
                                     self.show_zoom_stops_popover(ui, tlbr_ctx)
                                 }
+                                ViewportPopover::More => self.show_more_popover(ui, tlbr_ctx),
                             }
                         })
                     })
@@ -253,6 +249,8 @@ impl Toolbar {
     }
 
     fn show_zoom_stops_popover(&self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
+        // without this fit text gets clipped
+        ui.set_max_width(f32::INFINITY);
         if Button::default().text("FIT").show(ui).clicked() {
             let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
 
@@ -409,19 +407,30 @@ impl Toolbar {
 
         ui.horizontal(|ui| {
             ui.label("Show mini map");
-            ui.add_space(10.0);
-            if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
-                tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
-            }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    switch(ui, &mut self.gesture_handler.is_zoom_locked);
-                });
-                ui.add_space(10.0);
-
-                ui.label("Zoom lock");
+                if switch(ui, &mut tlbr_ctx.settings.show_mini_map).changed() {
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
             });
         });
+
+        if cfg!(target_os = "android") {
+            ui.add_space(5.0);
+
+            ui.add(egui::Separator::default().shrink(ui.available_width()));
+
+            ui.add_space(5.0);
+
+            ui.horizontal(|ui| {
+                ui.label("Draw only with pen");
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if switch(ui, &mut tlbr_ctx.settings.pencil_only_drawing).changed() {
+                        tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                    };
+                })
+            });
+        }
+
         ui.add_space(10.0);
     }
 
@@ -436,6 +445,86 @@ impl Toolbar {
             // without this, content since the last more-popover open
             // would not show - unless you pan to trigger the tess
             self.renderer.request_rerender = true;
+        }
+    }
+
+    fn show_bring_back_btn(
+        &self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>,
+        viewport_island_rect: egui::Rect,
+    ) -> Option<Response> {
+        let elements_bound = tlbr_ctx.viewport_settings.bounded_rect?;
+
+        if tlbr_ctx
+            .buffer
+            .elements
+            .iter()
+            .filter(|(_, e)| !e.deleted())
+            .count()
+            != 0
+            && !tlbr_ctx
+                .viewport_settings
+                .container_rect
+                .contains_rect(elements_bound)
+            && !tlbr_ctx
+                .viewport_settings
+                .container_rect
+                .intersects(elements_bound)
+        {
+            let bring_home_x_start = viewport_island_rect.right() + 15.0;
+            let bring_home_y_start = viewport_island_rect.top();
+
+            let bring_home_rect = egui::Rect {
+                min: egui::pos2(bring_home_x_start, bring_home_y_start),
+                max: egui::Pos2 {
+                    x: bring_home_x_start
+                        + self
+                            .layout
+                            .bring_back_btn
+                            .unwrap_or(egui::Rect::EVERYTHING)
+                            .width(),
+                    y: viewport_island_rect.bottom(),
+                },
+            };
+
+            let res = ui.scope_builder(UiBuilder::new().max_rect(bring_home_rect), |ui| {
+                egui::Frame::window(ui.style())
+                    .inner_margin(egui::Margin::symmetric(8, 4))
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            let text_stroke = egui::Stroke {
+                                color: ui.visuals().widgets.active.bg_fill,
+                                ..Default::default()
+                            };
+
+                            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+                            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+                            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+
+                            if Button::default()
+                                .text("Focus back to content")
+                                .show(ui)
+                                .clicked()
+                            {
+                                let transform = get_rect_identity_transform(
+                                    tlbr_ctx.viewport_settings.container_rect,
+                                    elements_bound,
+                                    0.7,
+                                    tlbr_ctx.viewport_settings.container_rect.center(),
+                                )
+                                .unwrap_or_default();
+
+                                transform_canvas(
+                                    tlbr_ctx.buffer,
+                                    tlbr_ctx.viewport_settings,
+                                    transform,
+                                );
+                            }
+                        })
+                    })
+            });
+            Some(res.inner.response)
+        } else {
+            None
         }
     }
 }
@@ -623,76 +712,6 @@ fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>
             tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
         }
     });
-}
-
-fn show_bring_back_btn(
-    ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, viewport_island_rect: egui::Rect,
-) -> Option<Response> {
-    let elements_bound = tlbr_ctx.viewport_settings.bounded_rect?;
-
-    if tlbr_ctx
-        .buffer
-        .elements
-        .iter()
-        .filter(|(_, e)| !e.deleted())
-        .count()
-        != 0
-        && !tlbr_ctx
-            .viewport_settings
-            .container_rect
-            .contains_rect(elements_bound)
-        && !tlbr_ctx
-            .viewport_settings
-            .container_rect
-            .intersects(elements_bound)
-    {
-        let bring_home_x_start = viewport_island_rect.right() + 15.0;
-        let bring_home_y_start = viewport_island_rect.top();
-
-        let bring_home_rect = egui::Rect {
-            min: egui::pos2(bring_home_x_start, bring_home_y_start),
-            max: egui::Pos2 { x: bring_home_x_start, y: viewport_island_rect.bottom() },
-        };
-
-        let res = ui.scope_builder(UiBuilder::new().max_rect(bring_home_rect), |ui| {
-            egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let text_stroke = egui::Stroke {
-                            color: ui.visuals().widgets.active.bg_fill,
-                            ..Default::default()
-                        };
-                        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-                        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-                        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-
-                        if Button::default()
-                            .text("Focus back to content")
-                            .show(ui)
-                            .clicked()
-                        {
-                            let transform = get_rect_identity_transform(
-                                tlbr_ctx.viewport_settings.container_rect,
-                                elements_bound,
-                                0.7,
-                                tlbr_ctx.viewport_settings.container_rect.center(),
-                            )
-                            .unwrap_or_default();
-
-                            transform_canvas(
-                                tlbr_ctx.buffer,
-                                tlbr_ctx.viewport_settings,
-                                transform,
-                            );
-                        }
-                    })
-                })
-        });
-        Some(res.inner.response)
-    } else {
-        None
-    }
 }
 
 enum Side {

@@ -193,10 +193,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             updateUI(uiUpdate)
         }
 
-        workspaceModel.refreshFiles.observe(viewLifecycleOwner) {
-            model.reloadFiles()
-        }
-
         workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
             binding.listFilesRefresh.isRefreshing = false
         }
@@ -222,21 +218,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         if (!model.isSuggestedDocsVisible) {
             binding.suggestedDocsLayout.root.visibility = View.GONE
-        }
-
-        (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
-            binding.fabSpeedDial.setPadding(
-                recyclerView.paddingLeft,
-                recyclerView.paddingTop,
-                recyclerView.paddingRight,
-                bottomNavHeight
-            )
-            recyclerView.setPadding(
-                recyclerView.paddingLeft,
-                recyclerView.paddingTop,
-                recyclerView.paddingRight,
-                bottomNavHeight
-            )
         }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())

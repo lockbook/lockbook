@@ -7,16 +7,16 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
-use crate::tab::svg_editor::eraser::DEFAULT_ERASER_RADIUS;
-use crate::tab::svg_editor::gesture_handler::get_rect_identity_transform;
-use crate::tab::svg_editor::pen::{
-    DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, PenSettings,
-};
 use crate::tab::svg_editor::renderer::VertexConstructor;
-use crate::tab::svg_editor::shapes::ShapeType;
 use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
+use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
+use crate::tab::svg_editor::tools::pen::{
+    DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, Pen, PenSettings,
+};
+use crate::tab::svg_editor::tools::shapes::ShapeType;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
-use crate::tab::svg_editor::{CanvasSettings, Pen, Tool};
+use crate::tab::svg_editor::viewport::get_rect_identity_transform;
+use crate::tab::svg_editor::{CanvasSettings, Tool};
 use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
 use crate::widgets::{Button, switch};
@@ -328,7 +328,7 @@ impl Toolbar {
         painter.set_clip_rect(preview_rect);
 
         self.eraser
-            .draw_eraser_cursor(ui, &painter, preview_rect.center());
+            .draw_eraser_cursor(&painter, preview_rect.center());
 
         ui.add_space(20.0);
         show_thickness_slider(
@@ -423,7 +423,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
 
-    if cfg!(target_os = "ios") {
+    if cfg!(target_os = "ios") || cfg!(target_os = "android") {
         ui.add_space(10.0);
 
         show_pressure_alpha_slider(ui, pen);

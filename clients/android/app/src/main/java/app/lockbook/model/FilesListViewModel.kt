@@ -226,14 +226,14 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         _notifyUpdateFilesUI.postValue(sidebarInfo)
 
         try {
-            val syncWork = Lb.calculateWork()
-            sidebarInfo.lastSynced = Lb.getTimestampHumanString(syncWork.latestServerTS)
-            sidebarInfo.serverDirtyFilesCount = syncWork.workUnits.filter { !it.isLocalChange }.size
+            // val syncWork = Lb.calculateWork()
+            // sidebarInfo.lastSynced = Lb.getTimestampHumanString(syncWork.latestServerTS)
+            // sidebarInfo.serverDirtyFilesCount = syncWork.workUnits.filter { !it.isLocalChange }.size
 
-            serverChanges = syncWork.workUnits.filter { !it.isLocalChange }.map { it.id }.toHashSet()
-            viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            }
+            // serverChanges = syncWork.workUnits.filter { !it.isLocalChange }.map { it.id }.toHashSet()
+            // viewModelScope.launch(Dispatchers.Main) {
+            //    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            // }
         } catch (err: LbError) {
             if (err.kind != LbEC.ServerUnreachable) {
                 _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))

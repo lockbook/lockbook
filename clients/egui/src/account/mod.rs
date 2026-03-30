@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
+use egui::scroll_area::ScrollBarVisibility;
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
 use glyphon::FontSystem;
@@ -404,8 +405,11 @@ impl AccountScreen {
         ui.style_mut().spacing.scroll = ScrollStyle::solid();
         ui.style_mut().spacing.scroll.floating = true;
         ui.style_mut().spacing.scroll.bar_width *= 2.;
+        ui.spacing_mut().scroll.floating_width = 12.0;
+        ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
 
         let resp = ScrollArea::vertical()
+            .scroll_bar_visibility(ScrollBarVisibility::AlwaysVisible)
             .show(ui, |ui| {
                 ui.vertical_centered_justified(|ui| {
                     Frame::new()

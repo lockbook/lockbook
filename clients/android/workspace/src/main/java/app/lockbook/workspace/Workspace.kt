@@ -49,13 +49,6 @@ public data class AndroidResponse(
     @SerialName("doc_created")
     val docCreated: String,
 
-    @SerialName("status_updated")
-    val statusUpdated: Boolean,
-    @SerialName("refresh_files")
-    val refreshFiles: Boolean,
-
-    @SerialName("new_folder_btn_pressed")
-    val newFolderBtnPressed: Boolean,
     @SerialName("tab_title_clicked")
     val tabTitleClicked: Boolean,
     @SerialName("tabs_changed")
@@ -93,8 +86,14 @@ object Workspace {
     external fun unfocusTitle(rustObj: Long)
     external fun touchesBegin(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesMoved(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+    external fun touchesPredicted(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+
+    external fun mouseMoved(rustObj: Long, x: Float, y: Float)
+
     external fun touchesEnded(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
     external fun touchesCancelled(rustObj: Long, id: Int, x: Float, y: Float, pressure: Float)
+    external fun multiTouch(rustObj: Long, x: Float, y: Float, factor: Float, focusX: Float, focusY: Float, startX: FloatArray, startY: FloatArray)
+
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
     external fun closeDoc(rustObj: Long, id: String)
@@ -128,7 +127,8 @@ object Workspace {
     external fun clipboardPaste(rustObj: Long, content: String)
 
     external fun toggleEraserSVG(rustObj: Long, select: Boolean)
-
+    external fun isPenOnlyDraw(rustObj: Long) : Boolean
+    external fun willConsumeTouchEvent(rustObj: Long, x: Float, y: Float): Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }
 

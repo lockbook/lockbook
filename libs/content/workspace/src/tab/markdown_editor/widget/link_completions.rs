@@ -575,21 +575,26 @@ impl Editor {
         let modifier = if cfg!(target_os = "macos") { "⌘" } else { "^" };
         let lq = query.trim_end_matches(".md").to_lowercase();
 
-        let shortcuts: Vec<String> = (0..results.len())
-            .map(|i| format!("{}{}", modifier, i + 1))
-            .collect();
+        let shortcuts: Vec<String> = if self.touch_mode {
+            Vec::new()
+        } else {
+            (0..results.len())
+                .map(|i| format!("{}{}", modifier, i + 1))
+                .collect()
+        };
 
         // Measure each name+shortcut label (shortcut is the built-in hint).
         let label_widths: Vec<f32> = results
             .iter()
-            .zip(shortcuts.iter())
-            .map(|(r, shortcut)| {
-                GlyphonLabel::new(&r.name, text_color)
-                    .hint(shortcut, hint_color)
+            .enumerate()
+            .map(|(i, r)| {
+                let mut label = GlyphonLabel::new(&r.name, text_color)
                     .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height)
-                    .measure(ui)
-                    .x
+                    .line_height(self.layout.completion_line_height);
+                if let Some(shortcut) = shortcuts.get(i) {
+                    label = label.hint(shortcut, hint_color);
+                }
+                label.measure(ui).x
             })
             .collect();
 
@@ -634,6 +639,7 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
+        self.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
@@ -683,11 +689,13 @@ impl Editor {
             let spans = build_bold_spans(&result.name, &flags);
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
-            let shaped = GlyphonLabel::new_rich(span_refs, text_color)
-                .hint(&shortcuts[idx], hint_color)
+            let mut label = GlyphonLabel::new_rich(span_refs, text_color)
                 .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height)
-                .build(ui.ctx());
+                .line_height(self.layout.completion_line_height);
+            if let Some(shortcut) = shortcuts.get(idx) {
+                label = label.hint(shortcut, hint_color);
+            }
+            let shaped = label.build(ui.ctx());
             let shortcut_width = shaped.hint_size().map_or(0.0, |s| s.x);
             text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
 

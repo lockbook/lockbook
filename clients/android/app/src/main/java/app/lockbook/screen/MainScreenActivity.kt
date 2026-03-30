@@ -14,7 +14,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
-import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.fragment.app.*
 import androidx.fragment.app.viewModels
@@ -27,11 +26,10 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
-class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
+class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
     val binding get() = _binding!!
     private val slidingPaneLayout get() = binding.slidingPaneLayout
@@ -199,10 +197,6 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             updateMainScreenUI(update)
         }
 
-        workspaceModel.newFolderBtnPressed.observe(this) {
-            model.launchTransientScreen(TransientScreen.Create(Lb.getRoot().id))
-        }
-
         workspaceModel.tabTitleClicked.observe(this) {
             workspaceModel.currentTab.value?.let { tab ->
                 filesListModel.fileModel.idsAndFiles[tab.id]?.let { file ->
@@ -233,35 +227,14 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
             }
         )
 
-        // let's set the default state of the bottom navigation. there are cases where the
-        // sliding pane will be open on startup for example if the activity was killed
-        // due to memory pressure. toggle "don't keep activities" to reproduce
-        slidingPaneLayout.post {
-            if (slidingPaneLayout.isOpen) {
-                binding.bottomNavigation.visibility = View.GONE
-            } else {
-                binding.bottomNavigation.visibility = View.VISIBLE
-            }
-        }
-
         slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
             override fun onPanelOpened(panel: View) {
                 window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-                binding.bottomNavigation.visibility = View.GONE
             }
             override fun onPanelClosed(panel: View) {
                 window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-                binding.bottomNavigation.visibility = View.VISIBLE
             }
             override fun onPanelSlide(panel: View, slideOffset: Float) {
-                if (slideOffset > 0) {
-                    binding.bottomNavigation.visibility = View.VISIBLE
-                    val bottomNavHeight = binding.bottomNavigation.height.toFloat()
-
-                    binding.bottomNavigation.translationY = bottomNavHeight * (1 - slideOffset)
-                } else {
-                    binding.bottomNavigation.visibility = View.GONE
-                }
             }
         })
 
@@ -370,24 +343,4 @@ class MainScreenActivity : AppCompatActivity(), BottomNavProvider {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
     }
-
-    override fun doWhenBottomNavMeasured(action: (height: Int) -> Unit) {
-        val bottomNav = binding.bottomNavigation
-        val height = if (bottomNav.isVisible) bottomNav.height else 0
-
-        if (height > 0) {
-            // If the view has already been measured, provide the height immediately.
-            action(height)
-        } else {
-            // Otherwise, wait for the next pre-draw pass to get the height.
-            bottomNav.doOnPreDraw { view ->
-                val measuredHeight = if (bottomNav.isVisible) view.height else 0
-                action(measuredHeight)
-            }
-        }
-    }
-}
-
-interface BottomNavProvider {
-    fun doWhenBottomNavMeasured(action: (height: Int) -> Unit)
 }

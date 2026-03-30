@@ -48,7 +48,6 @@ syntect = { default-features = false, version = "5.0", features = [
     "default-fancy",
 ] }
 time = "0.3.20"
-tracing-test = "0.2.5"
 tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
 url = "2.2"
