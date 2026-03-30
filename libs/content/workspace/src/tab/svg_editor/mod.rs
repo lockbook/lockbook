@@ -16,7 +16,7 @@ use web_time::Instant;
 use self::history::History;
 use crate::tab::ExtendedInput;
 use crate::tab::svg_editor::input_controller::{
-    InputController, InputControllerConfig, LayoutContext,
+    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;
@@ -362,11 +362,17 @@ impl SVGEditor {
             self.toolbar.get_rects(),
         );
 
-        let active_tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
+        let active_tool = self.toolbar.active_tool;
+        let tool = self.toolbar.active_tool_mut(); // returns &mut dyn Tool
 
-        active_tool.show_tool_ui(ui, &mut tool_context);
+        tool.show_tool_ui(ui, &mut tool_context);
 
+        let mut selection_seen_tool_run = false;
         for event in self.input_controller.process(ui, &layout_ctx) {
+            if selection_seen_tool_run && matches!(event, InputControllerEvent::ToolRun(..)) {
+                continue;
+            }
+
             if let input_controller::InputControllerEvent::ViewportChange(transform) = event {
                 transform_canvas(tool_context.buffer, tool_context.viewport_settings, transform);
             } else if let input_controller::InputControllerEvent::Gesture(num_touches) = event {
@@ -376,12 +382,17 @@ impl SVGEditor {
                     tool_context.history.redo(tool_context.buffer)
                 }
             } else {
-                active_tool.process_controller_event(ui, event, &mut tool_context);
+                tool.process_controller_event(ui, event, &mut tool_context);
+            }
+
+            if active_tool == Tool::Selection && matches!(event, InputControllerEvent::ToolRun(..))
+            {
+                selection_seen_tool_run = true;
             }
         }
 
         self.input_controller
-            .show_hover_indicator(ui, &mut tool_context, active_tool);
+            .show_hover_indicator(ui, &mut tool_context, tool);
 
         self.toolbar.input_controller_interrupt = self.input_controller.should_hide_overlay();
     }
