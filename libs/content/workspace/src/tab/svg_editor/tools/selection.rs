@@ -1,3 +1,4 @@
+use core::f32;
 use std::collections::HashMap;
 
 use bezier_rs::Subpath;
@@ -676,6 +677,9 @@ impl Selection {
             ui.visuals_mut().widgets.noninteractive.bg_stroke = ui.visuals().window_stroke;
             ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
         }
+
+        // without this the buttons will be wrapped to a single letter
+        ui.set_max_width(f32::INFINITY);
 
         let chevron_size = 13.0;
 
