@@ -1,8 +1,7 @@
 use std::{
-    sync::{
-        Arc,
-        atomic::{AtomicU32, AtomicU64},
-    },
+    ops::Deref,
+    sync::{Arc, RwLock},
+    thread::{self, available_parallelism},
     time::Instant,
 };
 
@@ -10,7 +9,7 @@ use egui::{
     Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, ScrollArea, TextEdit,
     Ui, Vec2, Widget,
 };
-use lb_rs::Uuid;
+use lb_rs::model::file::File;
 use nucleo::{
     Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
@@ -18,7 +17,7 @@ use nucleo::{
 
 use crate::{
     show::{DocType, InputStateExt},
-    theme::{icons::Icon, palette_v2::ThemeExt},
+    theme::palette_v2::ThemeExt,
     workspace::Workspace,
 };
 
@@ -34,16 +33,17 @@ pub struct SearchSession {
     search_type: SearchType,
     engine: Nucleo<Entry>,
     submitted_query: String,
-    ingest_state: IngestState,
+    ingest_state: Arc<RwLock<IngestState>>,
 }
 
 #[derive(Default)]
 pub struct IngestState {
-    workers_spawned: Option<Instant>,
-    files_ingested: AtomicU32,
-    ingest_target: AtomicU32,
-    ignored_files: AtomicU32,
-    elapsed_ms: AtomicU64,
+    ingest_start: Option<Instant>,
+    uningested_files: Vec<File>,
+    files_ingested: u32,
+    ingest_target: u32,
+    ignored_files: u32,
+    ingest_end: Option<Instant>,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -221,7 +221,7 @@ impl Workspace {
             DocType::from_name(&entry.path).to_icon().show(ui);
 
             ui.vertical(|ui| {
-                ui.label(&entry.name);
+                ui.label(&entry.file.name);
                 ui.label(entry.parent_path());
             })
         });
@@ -235,31 +235,39 @@ impl Workspace {
             ctx.request_repaint();
         });
 
+        let nucleo_search_type = self
+            .search
+            .background_state
+            .as_ref()
+            .map(|state| state.search_type);
+        if nucleo_search_type != Some(self.search.search_type) {
+            self.search.background_state = None;
+        }
+
         if self.search.background_state.is_none() {
+            let id_paths = Arc::new(self.core.list_paths_with_ids(None).unwrap());
+            let metas = self.core.list_metadatas().unwrap();
+
             match self.search.search_type {
                 SearchType::Path => {
                     let now = Instant::now();
-                    let paths = self.core.list_paths_with_ids(None).unwrap();
                     let s = SearchSession {
                         search_type: SearchType::Path,
                         engine: Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1),
-                        ingest_state: IngestState::default(),
+                        ingest_state: Arc::new(RwLock::new(IngestState::default())),
                         submitted_query: String::new(),
                     };
-                    for (id, path) in paths {
+                    for (id, path) in id_paths.deref() {
                         if path == "/" {
                             continue;
                         };
 
-                        let name = if path.ends_with('/') {
-                            let mut split_iter = path.split('/');
-                            split_iter.next_back();
-                            split_iter.next_back().unwrap_or_default().to_string()
-                        } else {
-                            path.split('/').next_back().unwrap_or_default().to_string()
-                        };
                         s.engine.injector().push(
-                            Entry { id, name, path, matched_region: vec![] },
+                            Entry {
+                                file: metas.iter().find(|m| m.id == *id).unwrap().clone(),
+                                path: path.clone(),
+                                matched_region: vec![],
+                            },
                             |e, cols| {
                                 cols[0] = e.path.as_str().into();
                             },
@@ -267,7 +275,85 @@ impl Workspace {
                     }
                     self.search.background_state = Some(s);
                 }
-                SearchType::Content => todo!(),
+                SearchType::Content => {
+                    let mut ingest_state = IngestState::default();
+                    ingest_state.ingest_start = Some(Instant::now());
+
+                    for meta in metas {
+                        if !meta.is_document() {
+                            continue;
+                        }
+
+                        if !meta.name.ends_with(".md") {
+                            ingest_state.ignored_files += 1;
+                            continue;
+                        }
+
+                        ingest_state.uningested_files.push(meta);
+                    }
+
+                    ingest_state.ingest_target = ingest_state.uningested_files.len() as u32;
+
+                    let s = SearchSession {
+                        search_type: SearchType::Content,
+                        engine: Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1),
+                        submitted_query: String::new(),
+                        ingest_state: Arc::new(RwLock::new(ingest_state)),
+                    };
+
+                    let injector = s.engine.injector();
+
+                    for _ in 0..available_parallelism().map(|p| p.get()).unwrap_or(4) {
+                        let ingest = s.ingest_state.clone();
+                        let lb = self.core.clone();
+                        let injector = injector.clone();
+                        let id_paths = id_paths.clone();
+                        thread::spawn(move || {
+                            let mut unlocked = ingest.write().unwrap();
+                            let Some(meta) = unlocked.uningested_files.pop() else {
+                                return;
+                            };
+                            drop(unlocked);
+
+                            let id = meta.id;
+                            let doc = lb
+                                .read_document(id, false)
+                                .ok()
+                                .and_then(|bytes| String::from_utf8(bytes).ok());
+
+                            let success = match doc {
+                                Some(doc) => {
+                                    injector.push(
+                                        Entry {
+                                            file: meta,
+                                            path: id_paths
+                                                .iter()
+                                                .find(|(i, _)| *i == id)
+                                                .map(|(_, path)| path)
+                                                .unwrap()
+                                                .clone(),
+                                            matched_region: vec![],
+                                        },
+                                        |e, cols| {},
+                                    );
+                                    true
+                                }
+                                None => false,
+                            };
+
+                            let mut unlocked = ingest.write().unwrap();
+                            if success {
+                                unlocked.files_ingested += 1;
+                            } else {
+                                unlocked.ignored_files += 1;
+                            }
+
+                            if unlocked.uningested_files.is_empty() {
+                                unlocked.ingest_end = Some(Instant::now());
+                            }
+                        });
+                    }
+                }
             }
         }
 
@@ -291,8 +377,7 @@ impl Workspace {
 
 #[derive(Clone)]
 struct Entry {
-    id: Uuid,
-    name: String,
+    file: File,
     path: String,
     matched_region: Vec<u32>,
 }
@@ -300,9 +385,11 @@ struct Entry {
 impl Entry {
     fn parent_path(&self) -> &str {
         if self.path.ends_with('/') {
-            self.path.strip_suffix(&format!("{}/", self.name)).unwrap()
+            self.path
+                .strip_suffix(&format!("{}/", self.file.name))
+                .unwrap()
         } else {
-            self.path.strip_suffix(&self.name).unwrap()
+            self.path.strip_suffix(&self.file.name).unwrap()
         }
     }
 }
