@@ -1,29 +1,22 @@
 use std::{
-    cmp::min,
-    f32::INFINITY,
     sync::{
-        Arc, Mutex,
+        Arc,
         atomic::{AtomicU32, AtomicU64},
     },
+    time::Instant,
 };
 
 use egui::{
-    Button, Color32, Context, CornerRadius, Frame, Key, Label, Layout, Margin, Modifiers, Pos2,
-    RichText, Rounding, ScrollArea, Sense, Spacing, Stroke, TextEdit, Ui, UiBuilder, Vec2, Widget,
+    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, ScrollArea, TextEdit,
+    Ui, Vec2, Widget,
 };
 use lb_rs::Uuid;
 use nucleo::{
-    Nucleo,
+    Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
 };
-use time::Instant;
 
-use crate::{
-    show::InputStateExt,
-    theme::{icons::Icon, palette_v2::ThemeExt},
-    widgets::GlyphonTextEdit,
-    workspace::Workspace,
-};
+use crate::{show::InputStateExt, theme::palette_v2::ThemeExt, workspace::Workspace};
 
 #[derive(Default)]
 pub struct Search {
@@ -62,12 +55,6 @@ pub enum SearchType {
     // Semantic
 }
 
-impl Search {
-    pub fn new(ctx: &Context) -> Self {
-        Self::default()
-    }
-}
-
 impl Workspace {
     pub fn show_search_modal(&mut self) {
         self.search.process_keys(&self.ctx);
@@ -85,55 +72,24 @@ impl Workspace {
                 .frame(
                     Frame::window(&self.ctx.style())
                         .fill(theme.neutral_bg_secondary())
-                        //.stroke(Stroke::new(1., theme.neutral_bg()))
                         .corner_radius(CornerRadius::ZERO)
                         .inner_margin(Margin::ZERO),
                 )
                 .title_bar(false)
                 .collapsible(false)
-                .show(&self.ctx.clone(), |ui| self.show_search(ui));
+                .show(&self.ctx.clone(), |ui| {
+                    ui.set_min_size(ui.available_size());
+                    self.show_search(ui)
+                });
         }
     }
 
     pub fn show_search(&mut self, ui: &mut Ui) {
-        ui.set_min_size(ui.available_size());
         let theme = self.ctx.get_lb_theme();
 
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
-
-            // Tab strip
-            ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-
-                for button in [SearchType::Path, SearchType::Content] {
-                    let selected = self.search.search_type == button;
-
-                    let button_resp = Button::selectable(
-                        selected,
-                        RichText::new(button.name()).color(if selected {
-                            theme.fg().get_color(theme.prefs().primary)
-                        } else {
-                            theme.neutral_fg()
-                        }),
-                    )
-                    .corner_radius(CornerRadius::ZERO)
-                    .frame_when_inactive(true)
-                    .min_size(Vec2::new(85., 0.))
-                    .fill(if selected {
-                        //theme.bg().get_color(theme.prefs().primary)
-                        theme.neutral_bg()
-                    } else {
-                        theme.neutral_bg_secondary()
-                    })
-                    .ui(ui);
-
-                    if button_resp.clicked() {
-                        self.search.search_type = button;
-                    }
-                }
-                ui.allocate_space(Vec2::new(ui.available_width(), 0.));
-            });
+            self.search_type_selector(ui);
 
             // Search bar
             Frame::new()
@@ -141,58 +97,132 @@ impl Workspace {
                 .outer_margin(Margin::symmetric(5, 5))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
-                        ui.horizontal(|ui| {
-                            ui.visuals_mut().widgets.hovered.bg_stroke =
-                                egui::Stroke { width: 0.1, color: ui.visuals().weak_text_color() };
-                            ui.visuals_mut().selection.stroke =
-                                egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
-
-                            // todo stick search icon like we do in full doc search
-                            let resp = TextEdit::singleline(&mut self.search.query)
-                                .text_color(theme.neutral_fg())
-                                .frame(true)
-                                .background_color(theme.neutral_bg())
-                                .hint_text("Search")
-                                .desired_width(ui.available_size_before_wrap().x)
-                                .margin(Margin { left: 30, top: 5, bottom: 5, ..Margin::ZERO })
-                                .show(ui)
-                                .response;
-
-                            resp.request_focus();
-                        });
-
-                        let size = ui.available_size();
-                        ui.horizontal(|ui| {
-                            ui.set_min_size(size);
-                            ScrollArea::both()
-                                .max_width(ui.available_width() / 2.)
-                                .show(ui, |ui| {
-                                    ui.vertical(|ui| {
-                                        if let Some(state) = &self.search.background_state {
-                                            let snapshot = state.engine.snapshot();
-                                            for item in snapshot.matched_items(
-                                                0..min(
-                                                    snapshot.matched_item_count(),
-                                                    snapshot.matched_item_count(),
-                                                ),
-                                            ) {
-                                                ui.label(item.data);
-                                            }
-                                        }
-                                    });
-                                });
-
-                            Frame::new()
-                                .fill(theme.neutral_bg_secondary())
-                                .outer_margin(Margin::symmetric(5, 5))
-                                .show(ui, |ui| {
-                                    ui.set_min_size(ui.available_size());
-                                });
-                        });
+                        self.search_bar(ui);
+                        self.results_and_preview(ui);
                     });
                 })
         });
     }
+
+    fn search_type_selector(&mut self, ui: &mut Ui) {
+        let theme = self.ctx.get_lb_theme();
+
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 0.0;
+
+            for button in [SearchType::Path, SearchType::Content] {
+                let selected = self.search.search_type == button;
+
+                let button_resp = Button::selectable(
+                    selected,
+                    RichText::new(button.name()).color(if selected {
+                        theme.fg().get_color(theme.prefs().primary)
+                    } else {
+                        theme.neutral_fg()
+                    }),
+                )
+                .corner_radius(CornerRadius::ZERO)
+                .frame_when_inactive(true)
+                .min_size(Vec2::new(85., 0.))
+                .fill(if selected {
+                    //theme.bg().get_color(theme.prefs().primary)
+                    theme.neutral_bg()
+                } else {
+                    theme.neutral_bg_secondary()
+                })
+                .ui(ui);
+
+                if button_resp.clicked() {
+                    self.search.search_type = button;
+                }
+            }
+            ui.allocate_space(Vec2::new(ui.available_width(), 0.));
+        });
+    }
+
+    fn search_bar(&mut self, ui: &mut Ui) {
+        let theme = self.ctx.get_lb_theme();
+        ui.horizontal(|ui| {
+            ui.visuals_mut().widgets.hovered.bg_stroke =
+                egui::Stroke { width: 0.1, color: ui.visuals().weak_text_color() };
+            ui.visuals_mut().selection.stroke =
+                egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
+
+            // todo stick search icon like we do in full doc search
+            let resp = TextEdit::singleline(&mut self.search.query)
+                .text_color(theme.neutral_fg())
+                .frame(true)
+                .background_color(theme.neutral_bg())
+                .hint_text("Search")
+                .desired_width(ui.available_size_before_wrap().x)
+                .margin(Margin { left: 30, top: 5, bottom: 5, ..Margin::ZERO })
+                .show(ui)
+                .response;
+
+            resp.request_focus();
+        });
+    }
+
+    fn results_and_preview(&mut self, ui: &mut Ui) {
+        let theme = self.ctx.get_lb_theme();
+        let size = ui.available_size();
+        ui.horizontal(|ui| {
+            ui.set_min_size(size);
+            ScrollArea::both()
+                .max_width(ui.available_width() / 2.)
+                .show(ui, |ui| {
+                    self.result_picker(ui);
+                });
+
+            Frame::new()
+                .fill(theme.neutral_bg_secondary())
+                .outer_margin(Margin::symmetric(5, 5))
+                .show(ui, |ui| {
+                    ui.set_min_size(ui.available_size());
+                    self.result_preview(ui);
+                });
+        });
+    }
+
+    fn result_picker(&mut self, ui: &mut Ui) {
+        ui.vertical(|ui| {
+            if let Some(state) = &self.search.background_state {
+                {
+                    let snapshot = state.engine.snapshot();
+                    let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
+
+                    for item in snapshot.matched_items(0..snapshot.matched_item_count()) {
+                        let text = item.data.as_str();
+
+                        let mut indices = Vec::new();
+
+                        // Assumes your query is stored in column 0 and item.data is a String
+                        state.engine.pattern.column_pattern(0).indices(
+                            item.matcher_columns[0].slice(..),
+                            &mut matcher,
+                            &mut indices,
+                        );
+
+                        ui.horizontal_wrapped(|ui| {
+                            let mut chars = text.chars().collect::<Vec<_>>();
+
+                            for (char_idx, ch) in chars.drain(..).enumerate() {
+                                let rich = if indices.contains(&(char_idx as u32)) {
+                                    egui::RichText::new(ch.to_string()).strong().underline()
+                                } else {
+                                    egui::RichText::new(ch.to_string())
+                                };
+
+                                ui.label(rich);
+                            }
+                        });
+                    }
+                }
+            }
+        });
+    }
+
+    fn result_preview(&mut self, ui: &mut Ui) {}
 
     fn manage_nucleo(&mut self) {
         let ctx = self.ctx.clone();
@@ -233,6 +263,8 @@ impl Workspace {
                 );
                 state.submitted_query = self.search.query.clone();
             }
+
+            // todo: understand this more deeply
             state.engine.tick(1);
         }
     }
