@@ -16,7 +16,11 @@ use nucleo::{
     pattern::{CaseMatching, Normalization},
 };
 
-use crate::{show::InputStateExt, theme::palette_v2::ThemeExt, workspace::Workspace};
+use crate::{
+    show::{DocType, InputStateExt},
+    theme::{icons::Icon, palette_v2::ThemeExt},
+    workspace::Workspace,
+};
 
 #[derive(Default)]
 pub struct Search {
@@ -28,7 +32,7 @@ pub struct Search {
 
 pub struct SearchSession {
     search_type: SearchType,
-    engine: Nucleo<String>,
+    engine: Nucleo<Entry>,
     submitted_query: String,
     ingest_state: IngestState,
 }
@@ -187,38 +191,39 @@ impl Workspace {
     fn result_picker(&mut self, ui: &mut Ui) {
         ui.vertical(|ui| {
             if let Some(state) = &self.search.background_state {
-                {
-                    let snapshot = state.engine.snapshot();
-                    let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
+                let snapshot = state.engine.snapshot();
+                let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
-                    for item in snapshot.matched_items(0..snapshot.matched_item_count()) {
-                        let text = item.data.as_str();
+                for item in snapshot.matched_items(0..snapshot.matched_item_count()) {
+                    let mut entry = item.data.clone();
 
-                        let mut indices = Vec::new();
+                    let mut indices = Vec::new();
 
-                        // Assumes your query is stored in column 0 and item.data is a String
-                        state.engine.pattern.column_pattern(0).indices(
-                            item.matcher_columns[0].slice(..),
-                            &mut matcher,
-                            &mut indices,
-                        );
+                    state.engine.pattern.column_pattern(0).indices(
+                        item.matcher_columns[0].slice(..),
+                        &mut matcher,
+                        &mut indices,
+                    );
 
-                        ui.horizontal_wrapped(|ui| {
-                            let mut chars = text.chars().collect::<Vec<_>>();
+                    entry.matched_region = indices;
 
-                            for (char_idx, ch) in chars.drain(..).enumerate() {
-                                let rich = if indices.contains(&(char_idx as u32)) {
-                                    egui::RichText::new(ch.to_string()).strong().underline()
-                                } else {
-                                    egui::RichText::new(ch.to_string())
-                                };
-
-                                ui.label(rich);
-                            }
-                        });
-                    }
+                    ui.spacing_mut().item_spacing.y = 5.0;
+                    self.show_result_cell(ui, entry);
                 }
             }
+        });
+    }
+
+    fn show_result_cell(&self, ui: &mut Ui, entry: Entry) {
+        ui.horizontal(|ui| {
+            // todo: aesthetics, spacing, background color, vertical centering
+            // todo: support folders, and generally a richer icon experience
+            DocType::from_name(&entry.path).to_icon().show(ui);
+
+            ui.vertical(|ui| {
+                ui.label(&entry.name);
+                ui.label(entry.parent_path());
+            })
         });
     }
 
@@ -234,17 +239,31 @@ impl Workspace {
             match self.search.search_type {
                 SearchType::Path => {
                     let now = Instant::now();
-                    let paths = self.core.list_paths(None).unwrap();
+                    let paths = self.core.list_paths_with_ids(None).unwrap();
                     let s = SearchSession {
                         search_type: SearchType::Path,
                         engine: Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1),
                         ingest_state: IngestState::default(),
                         submitted_query: String::new(),
                     };
-                    for path in paths {
-                        s.engine.injector().push(path, |s, cols| {
-                            cols[0] = s.as_str().into();
-                        });
+                    for (id, path) in paths {
+                        if path == "/" {
+                            continue;
+                        };
+
+                        let name = if path.ends_with('/') {
+                            let mut split_iter = path.split('/');
+                            split_iter.next_back();
+                            split_iter.next_back().unwrap_or_default().to_string()
+                        } else {
+                            path.split('/').next_back().unwrap_or_default().to_string()
+                        };
+                        s.engine.injector().push(
+                            Entry { id, name, path, matched_region: vec![] },
+                            |e, cols| {
+                                cols[0] = e.path.as_str().into();
+                            },
+                        );
                     }
                     self.search.background_state = Some(s);
                 }
@@ -270,10 +289,22 @@ impl Workspace {
     }
 }
 
+#[derive(Clone)]
 struct Entry {
     id: Uuid,
     name: String,
     path: String,
+    matched_region: Vec<u32>,
+}
+
+impl Entry {
+    fn parent_path(&self) -> &str {
+        if self.path.ends_with('/') {
+            self.path.strip_suffix(&format!("{}/", self.name)).unwrap()
+        } else {
+            self.path.strip_suffix(&self.name).unwrap()
+        }
+    }
 }
 
 impl Search {
