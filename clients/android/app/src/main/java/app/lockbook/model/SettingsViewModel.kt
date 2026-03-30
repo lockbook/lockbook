@@ -45,10 +45,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun computeUsage() {
         try {
             val usage = Lb.getUsage()
-            val uncompressedUsage = Lb.getUncompressedUsage()
             val subscriptionInfo = Lb.getSubscriptionInfo()
 
-            _determineSettingsInfo.postValue(SettingsInfo(usage, uncompressedUsage, subscriptionInfo))
+            _determineSettingsInfo.postValue(SettingsInfo(usage, subscriptionInfo))
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }
@@ -85,6 +84,5 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
 data class SettingsInfo(
     val usage: Usage,
-    val uncompressedUsage: Usage.UsageItemMetric,
     val subscriptionInfo: SubscriptionInfo?
 )

@@ -51,7 +51,6 @@
     <string name="settings_preference_usage">Usage</string>
     <string name="settings_usage_current">Usage:</string>
     <string name="settings_usage_data_cap">Data Cap:</string>
-    <string name="settings_usage_uncompressed_usage">Uncompressed Usage:</string>
     <string name="menu_list_files_rename">Rename</string>
     <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
