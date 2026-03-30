@@ -122,6 +122,7 @@
                 android:id="@+id/out_of_space"
                 layout="@layout/out_of_space"
                 android:visibility="gone"/>
+
         </LinearLayout>
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>

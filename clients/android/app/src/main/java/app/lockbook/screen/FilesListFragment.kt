@@ -220,21 +220,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.suggestedDocsLayout.root.visibility = View.GONE
         }
 
-        (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
-            binding.fabSpeedDial.setPadding(
-                recyclerView.paddingLeft,
-                recyclerView.paddingTop,
-                recyclerView.paddingRight,
-                bottomNavHeight
-            )
-            recyclerView.setPadding(
-                recyclerView.paddingLeft,
-                recyclerView.paddingTop,
-                recyclerView.paddingRight,
-                bottomNavHeight
-            )
-        }
-
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 

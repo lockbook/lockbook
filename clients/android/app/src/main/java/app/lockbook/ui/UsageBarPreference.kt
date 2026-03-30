@@ -45,11 +45,11 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         premiumUsageInfo = holder.itemView.findViewById(R.id.premium_usage_info)
 
         getSettingsFragment().model.determineSettingsInfo.observe(getSettingsFragment()) { settingsInfo ->
-            setUpUsagePreference(settingsInfo.usage, settingsInfo.uncompressedUsage)
+            setUpUsagePreference(settingsInfo.usage)
         }
     }
 
-    private fun setUpUsagePreference(usage: Usage, uncompressedUsage: Usage.UsageItemMetric) {
+    private fun setUpUsagePreference(usage: Usage) {
         val roundedDataCap = usage.dataCap.exact / ROUND_DECIMAL_PLACES
         val roundedProgress = usage.serverUsage.exact / ROUND_DECIMAL_PLACES
 
@@ -96,9 +96,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
                 .bold() + " " + usage.serverUsage.readable + "\n" + context.resources.getString(
                 R.string.settings_usage_data_cap
             )
-                .bold() + " " + usage.dataCap.readable + "\n" + context.resources.getString(
-                R.string.settings_usage_uncompressed_usage
-            ).bold() + " " + uncompressedUsage.readable
+                .bold() + " " + usage.dataCap.readable + "\n"
         }
     }
 }

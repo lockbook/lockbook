@@ -282,21 +282,6 @@ class TabFragment : Fragment() {
         return binding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
-
-        val sharedFilesList = binding.sharedFilesList
-
-        (activity as? BottomNavProvider)?.doWhenBottomNavMeasured { bottomNavHeight ->
-            sharedFilesList.setPadding(
-                sharedFilesList.paddingLeft,
-                sharedFilesList.paddingTop,
-                sharedFilesList.paddingRight,
-                bottomNavHeight
-            )
-        }
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
