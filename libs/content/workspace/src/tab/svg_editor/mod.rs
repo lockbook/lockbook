@@ -53,7 +53,6 @@ pub struct SVGEditor {
     input_controller: InputController,
     lb: Lb,
     pub open_file: Uuid,
-    has_islands_interaction: bool,
     last_render: Instant,
     renderer: Renderer,
     painter: egui::Painter,
@@ -192,7 +191,6 @@ impl SVGEditor {
             toolbar,
             lb,
             open_file,
-            has_islands_interaction: false,
             last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),

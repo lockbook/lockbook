@@ -296,8 +296,7 @@ impl Toolbar {
                 ui.set_opacity(1.0);
             }
             self.show_overlay_toggle(ui, tlbr_ctx)
-        })
-        .inner;
+        });
 
         if opacity == 0.0 {
             return res;
@@ -506,23 +505,6 @@ impl SVGEditor {
 
         false
     }
-}
-
-fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool {
-    ui.input(|r| {
-        for ev in r.events.iter() {
-            let temp = match ev {
-                egui::Event::PointerMoved(pos2) => overlay_res.rect.contains(*pos2),
-                egui::Event::PointerButton { pos, .. } => overlay_res.rect.contains(*pos),
-                egui::Event::Touch { pos, .. } => overlay_res.rect.contains(*pos),
-                _ => false,
-            };
-            if temp {
-                return true;
-            }
-        }
-        false
-    })
 }
 
 pub fn show_section_header(ui: &mut egui::Ui, label: &str) {
