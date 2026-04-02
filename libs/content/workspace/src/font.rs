@@ -14,6 +14,8 @@ pub fn load(db: &mut Database) {
 
     #[cfg(target_vendor = "apple")]
     {
+        use glyphon::Weight;
+
         db.set_sans_serif_family("SF Pro Text");
         db.set_monospace_family("SF Mono");
 
