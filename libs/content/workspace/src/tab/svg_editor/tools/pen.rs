@@ -9,6 +9,7 @@ use tracing::{Level, event, trace};
 use web_time::Instant;
 
 use crate::tab::svg_editor::InsertElement;
+use crate::tab::svg_editor::history::History;
 use crate::tab::svg_editor::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::toolbar::ToolContext;
 use crate::tab::svg_editor::tools::InputControllerTool;
@@ -17,6 +18,7 @@ use crate::theme::palette::ThemePalette;
 
 pub const DEFAULT_PEN_STROKE_WIDTH: f32 = 1.0;
 pub const DEFAULT_HIGHLIGHTER_STROKE_WIDTH: f32 = 15.0;
+const LONG_PRESS_MOVE_THRESHOLD: f32 = 2.0;
 
 #[derive(Default)]
 pub struct Pen {
@@ -28,7 +30,7 @@ pub struct Pen {
     pub has_inf_thick: bool,
     path_builder: PathBuilder,
     pub current_id: Uuid, // todo: this should be at a higher component state, maybe in buffer
-    maybe_snap_started: Option<Instant>,
+    long_press: Option<(Instant, egui::Pos2)>,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq)]
@@ -161,11 +163,11 @@ impl Pen {
             active_stroke_width: settings.width,
             current_id: Uuid::new_v4(),
             path_builder: PathBuilder::new(),
-            maybe_snap_started: None,
             active_opacity: settings.opacity,
             has_inf_thick: settings.has_inf_thick,
             pressure_alpha: settings.pressure_alpha,
             colors_history: [pen_colors[1], pen_colors[2]],
+            long_press: None,
         }
     }
 
@@ -189,9 +191,16 @@ impl Pen {
             path_stroke.width /= pen_ctx.viewport_settings.master_transform.sx;
         };
 
+        self.update_long_press(payload);
+
         if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
             p.diff_state.data_changed = true;
             p.stroke = Some(path_stroke);
+
+            if self.is_long_press(payload) {
+                self.path_builder
+                    .snap(pen_ctx.viewport_settings.master_transform, &mut p.data);
+            }
 
             let new_seg_i = self.path_builder.line_to(payload.pos, &mut p.data);
 
@@ -224,6 +233,30 @@ impl Pen {
         }
     }
 
+    fn update_long_press(&mut self, payload: ToolPayload) {
+        if let Some((_, start_pos)) = self.long_press {
+            if start_pos.distance(payload.pos) > LONG_PRESS_MOVE_THRESHOLD {
+                self.long_press = None;
+            }
+        } else {
+            self.long_press = Some((Instant::now(), payload.pos));
+        }
+    }
+
+    fn is_long_press(&mut self, payload: ToolPayload) -> bool {
+        if let Some((start_time, start_pos)) = self.long_press {
+            let long_press_duration = web_time::Duration::from_millis(300);
+
+            if start_time.elapsed() >= long_press_duration
+                && start_pos.distance(payload.pos) < LONG_PRESS_MOVE_THRESHOLD
+            {
+                self.long_press = None;
+                return true;
+            }
+        }
+        false
+    }
+
     fn insert_force(&mut self, pen_ctx: &mut ToolContext<'_>, force: Option<f32>) {
         if let Some(force) = force {
             if let Some(forces) = pen_ctx.buffer.weak_path_pressures.get_mut(&self.current_id) {
@@ -238,13 +271,10 @@ impl Pen {
     }
 
     fn end(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
-        if let Some(Element::Path(p)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
-            p.diff_state.data_changed = true;
-
-            self.path_builder.line_to(payload.pos, &mut p.data);
-        }
         if let Some(Element::Path(path)) = pen_ctx.buffer.elements.get_mut(&self.current_id) {
-            trace!("found path to end");
+            path.diff_state.data_changed = true;
+            self.path_builder.line_to(payload.pos, &mut path.data);
+
             self.path_builder.clear();
 
             let path = &mut path.data;
@@ -252,15 +282,16 @@ impl Pen {
                 return;
             }
 
-            pen_ctx
-                .history
-                .save(crate::tab::svg_editor::Event::Insert(vec![InsertElement {
-                    id: self.current_id,
-                }]));
-
-            self.current_id = Uuid::new_v4();
+            self.save_path_to_history(pen_ctx.history);
         }
-        self.maybe_snap_started = None;
+    }
+
+    fn save_path_to_history(&mut self, history: &mut History) {
+        history.save(crate::tab::svg_editor::Event::Insert(vec![InsertElement {
+            id: self.current_id,
+        }]));
+
+        self.current_id = Uuid::new_v4();
     }
 
     fn predict_draw(&mut self, pen_ctx: &mut ToolContext<'_>, payload: ToolPayload) {
