@@ -1,11 +1,12 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
-use egui::text::LayoutJob;
-use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
+use egui::{Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
 };
 
+use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -55,17 +56,41 @@ impl<'ast> Editor {
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
-                let layout_job = LayoutJob::single_section(
-                    text,
-                    TextFormat {
-                        font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
-                        color: annotation_color,
-                        ..Default::default()
-                    },
-                );
-                let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-                ui.painter()
-                    .galley(annotation_space.left_top(), galley, Default::default());
+                let ppi = self.ctx.pixels_per_point();
+                let [r, g, b, a] = annotation_color.to_array();
+                let color = glyphon::Color::rgba(r, g, b, a);
+                let mut format = self.text_format_document();
+                format.family = FontFamily::Mono;
+                format.color = annotation_color;
+                let gap = 5.0;
+                let afs = self.layout.annotation_font_size;
+                let buffer = self.upsert_glyphon_buffer(&text, afs, afs, f32::MAX, &format);
+                let size = buffer.read().unwrap().shaped_size(ppi);
+
+                // align baseline with content row by comparing line_y from
+                // a content-sized buffer and the annotation-sized buffer
+                let content_line_y = {
+                    let tmp =
+                        self.upsert_glyphon_buffer(" ", row_height, row_height, f32::MAX, &format);
+                    let tmp = tmp.read().unwrap();
+                    tmp.layout_runs().next().map(|r| r.line_y).unwrap_or(0.0) / ppi
+                };
+                let number_line_y = {
+                    let buf = buffer.read().unwrap();
+                    buf.layout_runs().next().map(|r| r.line_y).unwrap_or(0.0) / ppi
+                };
+
+                // right-pad from content, overflow left if needed
+                let x = annotation_space.right() - size.x - gap;
+                let y = annotation_space.top() + content_line_y - number_line_y;
+                let rect = Rect::from_min_size(Pos2::new(x, y), size);
+                self.text_areas.push(TextBufferArea::new(
+                    buffer,
+                    rect,
+                    color,
+                    ui.ctx(),
+                    ui.clip_rect(),
+                ));
             }
         }
 
