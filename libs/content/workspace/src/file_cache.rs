@@ -5,8 +5,10 @@ use std::iter;
 
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::model::access_info::UserAccessMode;
+use lb_rs::model::account::Account;
 use lb_rs::model::errors::LbResult;
-use lb_rs::model::file::File;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use std::path::{Component, PathBuf};
 use urlencoding::decode;
@@ -265,6 +267,25 @@ pub trait FilesExt {
         }
         ancestors
     }
+
+    fn access(&self, id: Uuid, account: &Account) -> UserAccessMode {
+        for id in iter::once(id).chain(self.ancestors(id).iter().copied()) {
+            let file = self.get_by_id(id).unwrap();
+            for share in &file.shares {
+                if share.shared_with == account.username {
+                    match share.mode {
+                        ShareMode::Write => {
+                            return UserAccessMode::Write;
+                        }
+                        ShareMode::Read => {
+                            return UserAccessMode::Read;
+                        }
+                    }
+                }
+            }
+        }
+        UserAccessMode::Owner
+    }
 }
 
 impl FilesExt for [File] {
@@ -334,6 +355,24 @@ impl FilesExt for Vec<File> {
 
     fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
         self.as_slice().resolve_wikilink(title, from_id)
+    }
+}
+
+impl FilesExt for FileCache {
+    fn root(&self) -> &File {
+        self.files.root()
+    }
+
+    fn get_by_id(&self, id: Uuid) -> Option<&File> {
+        self.files.get_by_id(id)
+    }
+
+    fn children(&self, id: Uuid) -> Vec<&File> {
+        self.files.children(id)
+    }
+
+    fn iter_files(&self) -> impl Iterator<Item = &File> {
+        self.files.iter_files()
     }
 }
 

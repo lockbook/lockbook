@@ -99,8 +99,7 @@ pub struct Editor {
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
-    pub plaintext_mode: bool,
-    pub syntax_ext: String,
+    pub ext: String,
     pub touch_mode: bool,
     pub phone_mode: bool,
     pub readonly: bool,
@@ -178,7 +177,6 @@ pub struct MdResources {
 }
 
 pub struct MdConfig {
-    pub plaintext_mode: bool,
     pub readonly: bool,
     pub ext: String,
     pub tablet_or_desktop: bool,
@@ -252,7 +250,7 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, font_system, files } = res;
-        let MdConfig { plaintext_mode, readonly, ext, tablet_or_desktop } = cfg;
+        let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
@@ -278,8 +276,7 @@ impl Editor {
             file_id,
             hmac,
             initialized: Default::default(),
-            plaintext_mode,
-            syntax_ext: ext,
+            ext,
             touch_mode,
             phone_mode,
             layout,
@@ -336,12 +333,7 @@ impl Editor {
                 font_system: Arc::new(Mutex::new(crate::make_font_system())),
                 files: Arc::new(RwLock::new(None)),
             },
-            MdConfig {
-                plaintext_mode: false,
-                readonly: false,
-                ext: String::new(),
-                tablet_or_desktop: true,
-            },
+            MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )
     }
 
@@ -378,6 +370,11 @@ impl Editor {
             m.surrender_focus(self.id());
         });
     }
+
+    pub fn plaintext_mode(&self) -> bool {
+        self.ext.to_lowercase() != "md"
+    }
+
     fn comrak_options() -> Options<'static> {
         let mut options = Options::default();
         options.parse.smart = true;

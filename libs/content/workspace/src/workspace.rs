@@ -3,9 +3,10 @@ use egui::{Context, ViewportCommand};
 
 use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
+use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
-use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -24,7 +25,7 @@ use crate::landing::LandingPage;
 use crate::output::Response;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
-use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
+use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -402,73 +403,61 @@ impl Workspace {
 
         let start = Instant::now();
         for load in completed_loads {
-            // nested scope indentation preserves git history
+            // scope indentation preserves git history
             {
-                {
-                    let CompletedLoad {
-                        request: LoadRequest { id, tab_created, make_current },
-                        content_result,
-                        timing: _,
-                    } = load;
+                let CompletedLoad {
+                    request: LoadRequest { id, tab_created, make_current },
+                    content_result,
+                    timing: _,
+                } = load;
 
-                    let ctx = self.ctx.clone();
-                    let core = self.core.clone();
-                    let show_tabs = self.show_tabs;
+                let ctx = self.ctx.clone();
+                let core = self.core.clone();
+                let show_tabs = self.show_tabs;
 
-                    if let Some(tab) = self.tabs.get_mut_by_id(id) {
-                        let (maybe_hmac, bytes) = match content_result {
-                            Ok((hmac, bytes)) => (hmac, bytes),
-                            Err(err) => {
-                                let msg = format!("failed to load file: {err:?}");
-                                error!(msg);
-                                tab.content =
-                                    ContentState::Failed(TabFailure::Unexpected(msg.clone()));
-                                self.out.failure_messages.push(msg);
-                                return;
-                            }
-                        };
+                if let Some(tab) = self.tabs.get_mut_by_id(id) {
+                    let files_clone = self.files.clone();
+                    let files_guard = files_clone.read().unwrap();
 
-                        let (ext, read_only) = match self.core.get_file_by_id(id) {
-                            Ok(file) => {
-                                let ext = file
-                                    .name
-                                    .split('.')
-                                    .next_back()
-                                    .unwrap_or_default()
-                                    .to_owned();
+                    let Some(account) = &self.account else { return };
+                    let Some(files) = files_guard.as_ref() else { return };
+                    let Some(file) = files.files.get_by_id(id) else { continue };
 
-                                let read_only = if let Some(account) = &self.account {
-                                    file.shares.iter().any(|share| {
-                                        share.mode == ShareMode::Read
-                                            && share.shared_with == account.username
-                                            && share.shared_by != account.username
-                                    })
-                                } else {
-                                    false
-                                };
+                    let doc_type = DocType::from_name(&file.name);
+                    let read_only = files.access(id, account) == UserAccessMode::Read;
+                    let ext = file
+                        .name
+                        .split('.')
+                        .next_back()
+                        .unwrap_or_default()
+                        .to_owned();
 
-                                (ext, read_only)
-                            }
-                            Err(e) => {
-                                self.out
-                                    .failure_messages
-                                    .push(format!("failed to get id for loaded file: {e:?}"));
-                                continue;
-                            }
-                        };
+                    let (maybe_hmac, bytes) = match content_result {
+                        Ok((hmac, bytes)) => (hmac, bytes),
+                        Err(err) => {
+                            let msg = format!("failed to load file: {err:?}");
+                            error!(msg);
+                            tab.content = ContentState::Failed(TabFailure::Unexpected(msg.clone()));
+                            self.out.failure_messages.push(msg);
+                            return;
+                        }
+                    };
 
-                        tab.read_only = read_only;
+                    tab.read_only = read_only;
 
-                        if is_supported_image_fmt(&ext) {
+                    match doc_type {
+                        DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
                                 id, &ext, bytes,
                             )));
-                        } else if ext == "pdf" {
+                        }
+                        DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id, bytes, &ctx,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
-                        } else if ext == "svg" {
+                        }
+                        DocType::SVG => {
                             let reload = if tab.svg().is_some() { !tab_created } else { false };
                             if !reload {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
@@ -496,10 +485,12 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
-                        } else if let Some(plaintext_mode) =
-                            DocType::from_name(&ext).plaintext_mode().or_else(|| {
-                                content_inspector::inspect(&bytes).is_text().then_some(true)
-                            })
+                        }
+                        DocType::PlainText
+                        | DocType::Markdown
+                        | DocType::Code
+                        | DocType::Unknown
+                            if content_inspector::inspect(&bytes).is_text() =>
                         {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
@@ -517,7 +508,6 @@ impl Workspace {
                                             files: Arc::clone(&self.files),
                                         },
                                         MdConfig {
-                                            plaintext_mode,
                                             readonly: tab.read_only,
                                             ext: ext.clone(),
                                             tablet_or_desktop: show_tabs,
@@ -528,20 +518,21 @@ impl Workspace {
                                 md.buffer.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
-                        } else {
+                        }
+                        _ => {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
                                 "Unsupported file extension: {ext}"
                             )));
-                        };
-
-                        self.out.tabs_changed = true;
-                    } else {
-                        error!("failed to load file: tab not found");
+                        }
                     };
 
-                    if make_current {
-                        self.make_current_by_id(id);
-                    }
+                    self.out.tabs_changed = true;
+                } else {
+                    error!("failed to load file: tab not found");
+                };
+
+                if make_current {
+                    self.make_current_by_id(id);
                 }
             }
         }
