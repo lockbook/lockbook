@@ -23,9 +23,9 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    fn create_executor(&self, lb: &Lb) -> Box<dyn SearhExecutor> {
+    fn create_executor(&self, lb: &Lb, ctx: &Context) -> Box<dyn SearhExecutor> {
         match self {
-            SearchType::Path => Box::new(PathSearch::new(lb)),
+            SearchType::Path => Box::new(PathSearch::new(lb, ctx)),
             SearchType::Content => Box::new(ContentSearch::new()),
         }
     }
@@ -173,7 +173,7 @@ impl Workspace {
     fn manage_executors(&mut self) {
         let executor_search_type = self.search.executor.search_type();
         if executor_search_type != self.search.search_type {
-            self.search.executor = self.search.search_type.create_executor(&self.core);
+            self.search.executor = self.search.search_type.create_executor(&self.core, &self.ctx);
         }
 
         self.search.executor.handle_query(&self.search.query);
@@ -181,7 +181,7 @@ impl Workspace {
 }
 
 impl Search {
-    pub fn new(lb: &Lb) -> Search {
+    pub fn new(lb: &Lb, ctx: &Context) -> Search {
         Search {
             search_shown: false,
             search_type: SearchType::Path,
@@ -190,7 +190,7 @@ impl Search {
             // search, maybe not always, sometimes it could be good to keep content search results
             // and that whole state around. maybe empty query is a good signal whether or not the
             // state is valuable?
-            executor: SearchType::Path.create_executor(lb), 
+            executor: SearchType::Path.create_executor(lb, ctx), 
         }
     }
 
