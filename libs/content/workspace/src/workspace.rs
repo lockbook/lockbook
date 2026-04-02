@@ -421,7 +421,7 @@ impl Workspace {
 
                     let Some(account) = &self.account else { return };
                     let Some(files) = files_guard.as_ref() else { return };
-                    let Some(file) = files.files.get_by_id(id) else { continue };
+                    let Some(file) = files.get_by_id(id) else { continue };
 
                     let doc_type = DocType::from_name(&file.name);
                     let read_only = files.access(id, account) == UserAccessMode::Read;
@@ -679,7 +679,7 @@ impl Workspace {
             let files_arc = Arc::clone(&self.files);
             let files_guard = files_arc.read().unwrap();
             if let Some(files) = files_guard.as_ref() {
-                files.files.get_by_id(id).cloned()
+                files.get_by_id(id).cloned()
             } else {
                 self.core.get_file_by_id(id).ok()
             }
