@@ -1,4 +1,4 @@
-use glyphon::fontdb::{Database, Source, Weight};
+use glyphon::fontdb::{Database, Source};
 use std::sync::Arc;
 
 pub fn load(db: &mut Database) {
