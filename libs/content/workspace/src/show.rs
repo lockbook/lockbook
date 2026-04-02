@@ -990,16 +990,20 @@ pub fn syntax_ext_for(ext: &str) -> &str {
 
 impl DocType {
     pub fn from_name(name: &str) -> Self {
-        let ext = name.split('.').next_back().unwrap_or_default();
-        match ext {
+        let ext = name
+            .split('.')
+            .next_back()
+            .unwrap_or_default()
+            .to_lowercase();
+        match ext.as_str() {
             "draw" | "svg" => Self::SVG,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
-            _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
             _ if crate::tab::markdown_editor::syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(ext))
+                .find_syntax_by_extension(syntax_ext_for(&ext))
                 .is_some() =>
             {
                 Self::Code
@@ -1017,14 +1021,6 @@ impl DocType {
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
-        }
-    }
-
-    pub fn plaintext_mode(&self) -> Option<bool> {
-        match self {
-            DocType::Markdown => Some(false),
-            DocType::PlainText | DocType::Code => Some(true),
-            _ => None,
         }
     }
 

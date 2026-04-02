@@ -232,11 +232,7 @@ impl<'ast> Editor {
             family: FontFamily::Mono,
             bold: false,
             italic: false,
-            color: if self.plaintext_mode {
-                self.ctx.get_lb_theme().neutral_fg()
-            } else {
-                self.ctx.get_lb_theme().neutral_fg_secondary()
-            },
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
             underline: false,
             strikethrough: false,
             background: egui::Color32::TRANSPARENT,

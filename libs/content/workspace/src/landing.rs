@@ -116,7 +116,7 @@ impl Workspace {
         };
 
         if let Some(id) = response.open_file {
-            if files.files.get_by_id(id).unwrap().is_document() {
+            if files.get_by_id(id).unwrap().is_document() {
                 self.open_file(id, true, false);
             } else {
                 self.focused_parent = Some(id);
@@ -162,7 +162,7 @@ impl Workspace {
 
         ui.style_mut().visuals.hyperlink_color = ui.visuals().text_color();
         ui.vertical(|ui| {
-            if folder.id == files.files.root().id {
+            if folder.id == files.root().id {
                 ui.label(
                     RichText::new("Welcome,")
                         .font(FontId::proportional(24.0))
@@ -183,7 +183,7 @@ impl Workspace {
                 const HEADING_LINE_HEIGHT: f32 = 56.;
 
                 if !folder.is_root() {
-                    let parent = files.files.get_by_id(folder.parent).unwrap();
+                    let parent = files.get_by_id(folder.parent).unwrap();
                     let resp = ui.add(
                         GlyphonLabel::new(&parent.name, ui.visuals().text_color())
                             .font_size(HEADING_FONT_SIZE)
@@ -319,9 +319,9 @@ impl Workspace {
                     .show_ui(ui, |ui| {
                         // Collect all unique collaborators from files in scope
                         let files_in_scope = if self.landing_page.flatten_tree {
-                            files.files.descendents(folder.id)
+                            files.descendents(folder.id)
                         } else {
-                            files.files.children(folder.id)
+                            files.children(folder.id)
                         };
 
                         let mut all_collaborators = std::collections::HashSet::new();
@@ -527,9 +527,9 @@ impl Workspace {
 
         // Filter
         let descendents = if self.landing_page.flatten_tree {
-            files.files.descendents(folder.id)
+            files.descendents(folder.id)
         } else {
-            files.files.children(folder.id)
+            files.children(folder.id)
         };
         let mut descendents: Vec<_> = descendents
             .into_iter()

@@ -30,11 +30,11 @@ impl<'ast> Editor {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode {
+        if any_children && !self.plaintext_mode() {
             self.block_children_height(node)
         } else {
             let highlighter_syntax =
-                syntax_set().find_syntax_by_extension(syntax_ext_for(&self.syntax_ext));
+                syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
             let mut result = 0.;
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
@@ -74,11 +74,11 @@ impl<'ast> Editor {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode {
+        if any_children && !self.plaintext_mode() {
             self.show_block_children(ui, node, top_left);
         } else {
             let has_syntax = syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&self.syntax_ext))
+                .find_syntax_by_extension(syntax_ext_for(&self.ext))
                 .is_some();
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
@@ -86,7 +86,7 @@ impl<'ast> Editor {
 
                 if has_syntax {
                     let syntax = syntax_set()
-                        .find_syntax_by_extension(syntax_ext_for(&self.syntax_ext))
+                        .find_syntax_by_extension(syntax_ext_for(&self.ext))
                         .unwrap();
                     let mut highlighter = HighlightLines::new(syntax, syntax_theme());
                     let line_text = &self.buffer[line];

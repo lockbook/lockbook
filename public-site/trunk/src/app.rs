@@ -96,12 +96,7 @@ impl eframe::App for LbWebApp {
                             font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
                             files: Arc::new(std::sync::RwLock::new(None)),
                         },
-                        MdConfig {
-                            plaintext_mode: false,
-                            readonly: false,
-                            ext: String::new(),
-                            tablet_or_desktop: true,
-                        },
+                        MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
                     ));
                 }
 
