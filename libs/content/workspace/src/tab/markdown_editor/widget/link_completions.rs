@@ -544,8 +544,11 @@ impl Editor {
 
             let mut chosen = None;
             ui.input(|i| {
-                let modifier =
-                    if cfg!(target_os = "macos") { i.modifiers.command } else { i.modifiers.ctrl };
+                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                    i.modifiers.command
+                } else {
+                    i.modifiers.ctrl
+                };
                 for (idx, key) in
                     [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
                         .iter()
@@ -572,10 +575,10 @@ impl Editor {
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
         let hint_color = ui.visuals().weak_text_color();
-        let modifier = if cfg!(target_os = "macos") { "⌘" } else { "^" };
+        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
         let lq = query.trim_end_matches(".md").to_lowercase();
 
-        let shortcuts: Vec<String> = if self.touch_mode {
+        let shortcuts: Vec<String> = if self.phone_mode {
             Vec::new()
         } else {
             (0..results.len())
