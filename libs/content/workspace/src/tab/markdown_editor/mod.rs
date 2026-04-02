@@ -102,6 +102,7 @@ pub struct Editor {
     pub plaintext_mode: bool,
     pub syntax_ext: String,
     pub touch_mode: bool,
+    pub phone_mode: bool,
     pub readonly: bool,
 
     // internal systems
@@ -180,6 +181,7 @@ pub struct MdConfig {
     pub plaintext_mode: bool,
     pub readonly: bool,
     pub ext: String,
+    pub tablet_or_desktop: bool,
 }
 
 pub struct MdLayout {
@@ -247,10 +249,11 @@ impl Editor {
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
         let MdResources { ctx, core, persistence, font_system, files } = res;
-        let MdConfig { plaintext_mode, readonly, ext } = cfg;
+        let MdConfig { plaintext_mode, readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         Self {
@@ -275,6 +278,7 @@ impl Editor {
             plaintext_mode,
             syntax_ext: ext,
             touch_mode,
+            phone_mode,
             layout,
 
             bounds: Default::default(),
@@ -329,7 +333,12 @@ impl Editor {
                 font_system: Arc::new(Mutex::new(crate::make_font_system())),
                 files: Arc::new(RwLock::new(None)),
             },
-            MdConfig { plaintext_mode: false, readonly: false, ext: String::new() },
+            MdConfig {
+                plaintext_mode: false,
+                readonly: false,
+                ext: String::new(),
+                tablet_or_desktop: true,
+            },
         )
     }
 

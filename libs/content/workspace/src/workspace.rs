@@ -520,6 +520,7 @@ impl Workspace {
                                             plaintext_mode,
                                             readonly: tab.read_only,
                                             ext: ext.clone(),
+                                            tablet_or_desktop: show_tabs,
                                         },
                                     )));
                             } else {
