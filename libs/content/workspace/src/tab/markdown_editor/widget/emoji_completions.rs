@@ -322,8 +322,7 @@ impl Editor {
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
         let hint_color = ui.visuals().weak_text_color();
-        let modifier =
-            if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
+        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
 
         let shortcodes: Vec<&str> = results
             .iter()

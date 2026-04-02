@@ -575,8 +575,7 @@ impl Editor {
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
         let hint_color = ui.visuals().weak_text_color();
-        let modifier =
-            if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
+        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
         let lq = query.trim_end_matches(".md").to_lowercase();
 
         let shortcuts: Vec<String> = if self.phone_mode {
