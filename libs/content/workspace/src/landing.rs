@@ -11,7 +11,6 @@ use std::f32;
 use std::ops::BitOrAssign;
 use std::sync::Arc;
 
-
 use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;

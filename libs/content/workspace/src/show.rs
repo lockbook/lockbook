@@ -218,7 +218,8 @@ impl Workspace {
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
-                            let Some(from_id) = files_guard.files.get_by_id(id).map(|f| f.parent) else {
+                            let Some(from_id) = files_guard.files.get_by_id(id).map(|f| f.parent)
+                            else {
                                 return true;
                             };
 
