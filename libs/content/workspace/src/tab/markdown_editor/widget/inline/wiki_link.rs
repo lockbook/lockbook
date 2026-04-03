@@ -40,8 +40,7 @@ impl<'ast> Editor {
 
     pub fn resolve_wikilink(&self, url: &str) -> Option<Uuid> {
         let guard = self.files.read().unwrap();
-        let cache = guard.as_ref()?;
-        let from_id = cache.files.get_by_id(self.file_id)?.parent;
-        cache.files.resolve_wikilink(url, from_id)
+        let from_id = guard.files.get_by_id(self.file_id)?.parent;
+        guard.files.resolve_wikilink(url, from_id)
     }
 }

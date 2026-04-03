@@ -190,9 +190,8 @@ impl<'ast> Editor {
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         let guard = self.files.read().unwrap();
-        let cache = guard.as_ref()?;
-        let from_id = cache.files.get_by_id(self.file_id)?.parent;
-        cache.files.resolve_link(url, from_id)
+        let from_id = guard.files.get_by_id(self.file_id)?.parent;
+        guard.files.resolve_link(url, from_id)
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
@@ -260,10 +259,7 @@ impl<'ast> Editor {
         let resolved_url = match resolved {
             ResolvedLink::File(id) => {
                 let guard = self.files.read().unwrap();
-                let Some(cache) = guard.as_ref() else {
-                    return DestinationTitle::Absent;
-                };
-                let Some(file) = cache.files.get_by_id(id) else {
+                let Some(file) = guard.files.get_by_id(id) else {
                     return DestinationTitle::Absent;
                 };
                 let title = DocType::from_name(&file.name).display_name(&file.name);

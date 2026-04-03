@@ -7,12 +7,12 @@ use workspace_rs::{
         svg_editor::SVGEditor,
     },
     theme::palette_v2::{Mode, Theme, ThemeExt as _},
-    workspace::Workspace,
+    workspace::WsPersistentStore,
 };
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct LbWebApp {
-    workspace: Workspace,
+    core: Lb,
+    cfg: WsPersistentStore,
     editor: Option<Editor>,
     canvas: Option<SVGEditor>,
     initial_screen: InitialScreen,
@@ -57,12 +57,15 @@ impl LbWebApp {
             &wgpu.queue,
             wgpu.target_format,
             &mut wgpu.renderer.write(),
-            font_system.clone(),
+            font_system,
             1,
         );
 
+        let cfg = WsPersistentStore::new(false, "/tmp/lb-public-site".into());
+
         Self {
-            workspace: Workspace::new(&lb, &ctx, font_system, false),
+            core: lb,
+            cfg,
             editor: None,
             canvas: None,
             initial_screen,
@@ -91,10 +94,12 @@ impl eframe::App for LbWebApp {
                         None,
                         MdResources {
                             ctx: ctx.clone(),
-                            core: self.workspace.core.clone(),
-                            persistence: self.workspace.cfg.clone(),
+                            core: self.core.clone(),
+                            persistence: self.cfg.clone(),
                             font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
-                            files: Arc::new(std::sync::RwLock::new(None)),
+                            files: Arc::new(std::sync::RwLock::new(
+                                workspace_rs::file_cache::FileCache::empty(),
+                            )),
                         },
                         MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
                     ));
@@ -105,10 +110,10 @@ impl eframe::App for LbWebApp {
                     self.canvas = Some(SVGEditor::new(
                         svg.as_bytes(),
                         ui.ctx(),
-                        self.workspace.core.clone(),
+                        self.core.clone(),
                         Uuid::new_v4(),
                         None,
-                        &self.workspace.cfg,
+                        &self.cfg,
                         false,
                     ))
                 }

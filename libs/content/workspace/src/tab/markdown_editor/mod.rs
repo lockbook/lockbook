@@ -89,7 +89,7 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
     pub layout: MdLayout,
 
     // theme
@@ -173,7 +173,7 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub font_system: Arc<Mutex<FontSystem>>,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
 }
 
 pub struct MdConfig {
@@ -312,6 +312,7 @@ impl Editor {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
+        let files = Arc::new(RwLock::new(FileCache::empty()));
         Self::new(
             md,
             Uuid::new_v4(),
@@ -331,7 +332,7 @@ impl Editor {
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
                 font_system: Arc::new(Mutex::new(crate::make_font_system())),
-                files: Arc::new(RwLock::new(None)),
+                files,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )

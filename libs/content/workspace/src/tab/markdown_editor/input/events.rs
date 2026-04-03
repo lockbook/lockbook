@@ -53,10 +53,9 @@ impl<'ast> Editor {
 
                                 let rel_path = {
                                     let guard = self.files.read().unwrap();
-                                    let cache = guard.as_ref().unwrap();
                                     let parent =
-                                        cache.files.get_by_id(self.file_id).unwrap().parent;
-                                    let mut augmented = cache.files.clone();
+                                        guard.files.get_by_id(self.file_id).unwrap().parent;
+                                    let mut augmented = guard.files.clone();
                                     if augmented.get_by_id(file.parent).is_none() {
                                         if let Ok(folder) = self.core.get_file_by_id(file.parent) {
                                             augmented.push(folder);

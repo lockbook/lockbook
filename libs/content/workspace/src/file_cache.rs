@@ -28,6 +28,28 @@ pub struct FileCache {
 }
 
 impl FileCache {
+    /// An empty file cache for contexts where no real files exist (e.g. public site demos).
+    pub fn empty() -> Self {
+        let root_id = Uuid::new_v4();
+        Self {
+            root: File {
+                id: root_id,
+                parent: root_id,
+                name: "root".into(),
+                file_type: FileType::Folder,
+                last_modified: 0,
+                last_modified_by: String::new(),
+                owner: String::new(),
+                shares: vec![],
+                size_bytes: 0,
+            },
+            files: vec![],
+            shared: vec![],
+            suggested: vec![],
+            size_bytes_recursive: Default::default(),
+        }
+    }
+
     #[instrument(level = "debug", skip_all)]
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;

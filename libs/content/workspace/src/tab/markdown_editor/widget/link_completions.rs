@@ -237,9 +237,8 @@ struct FileResult {
 }
 
 fn search(
-    cache: &Option<FileCache>, file_id: Uuid, query: &str, mode: CompletionMode,
+    cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode,
 ) -> Vec<FileResult> {
-    let Some(cache) = cache else { return Vec::new() };
     let files = &cache.files;
     // Paths in markdown are relative to the parent folder of the current file,
     // matching how the image cache and existing link insertion resolve them.

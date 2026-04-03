@@ -45,11 +45,11 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub landing_page: LandingPage,
-    pub account: Option<Account>,
+    pub account: Account,
 
     // Files and task status
     pub tasks: TaskManager,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -84,7 +84,8 @@ impl Workspace {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files = Arc::new(RwLock::new(FileCache::new(core).log_and_ignore()));
+        let files =
+            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
@@ -94,7 +95,7 @@ impl Workspace {
             tabs: Default::default(),
             current_tab: Default::default(),
             landing_page: cfg.get_landing_page(),
-            account: core.get_account().cloned().ok(),
+            account: core.get_account().cloned().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
@@ -350,28 +351,31 @@ impl Workspace {
             match self.lb_rx.try_recv() {
                 Ok(evt) => match evt {
                     Event::MetadataChanged(_) => {
-                        *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
+                        // file cache refresh
+                        *self.files.write().unwrap() =
+                            FileCache::new(&self.core).expect("failed to refresh file cache");
+
+                        // remove tabs for deleted files
                         let files_arc = Arc::clone(&self.files);
                         let files_guard = files_arc.read().unwrap();
-                        if let Some(files) = files_guard.as_ref() {
-                            let mut tabs_to_delete = vec![];
-                            for tab in &self.tabs {
-                                if let Some(id) = tab.id() {
-                                    if !files
-                                        .files
-                                        .iter()
-                                        .chain(&files.shared)
-                                        .any(|f| Some(f.id) == tab.id())
-                                    {
-                                        tabs_to_delete.push(id);
-                                    }
+                        let files = &*files_guard;
+                        let mut tabs_to_delete = vec![];
+                        for tab in &self.tabs {
+                            if let Some(id) = tab.id() {
+                                if !files
+                                    .files
+                                    .iter()
+                                    .chain(&files.shared)
+                                    .any(|f| Some(f.id) == tab.id())
+                                {
+                                    tabs_to_delete.push(id);
                                 }
                             }
+                        }
 
-                            for id in tabs_to_delete {
-                                if let Some(idx) = self.get_idx_by_id(id) {
-                                    self.remove_tab(idx);
-                                }
+                        for id in tabs_to_delete {
+                            if let Some(idx) = self.get_idx_by_id(id) {
+                                self.remove_tab(idx);
                             }
                         }
                     }
@@ -419,12 +423,11 @@ impl Workspace {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
-                    let Some(account) = &self.account else { return };
-                    let Some(files) = files_guard.as_ref() else { return };
-                    let Some(file) = files.get_by_id(id) else { continue };
+                    let account = &self.account;
+                    let Some(file) = files_guard.get_by_id(id) else { continue };
 
                     let doc_type = DocType::from_name(&file.name);
-                    let read_only = files.access(id, account) == UserAccessMode::Read;
+                    let read_only = files_guard.access(id, account) == UserAccessMode::Read;
                     let ext = file
                         .name
                         .split('.')
@@ -439,7 +442,7 @@ impl Workspace {
                             error!(msg);
                             tab.content = ContentState::Failed(TabFailure::Unexpected(msg.clone()));
                             self.out.failure_messages.push(msg);
-                            return;
+                            continue;
                         }
                     };
 
@@ -678,11 +681,7 @@ impl Workspace {
         let get_by_id_cached_read_through = |id| {
             let files_arc = Arc::clone(&self.files);
             let files_guard = files_arc.read().unwrap();
-            if let Some(files) = files_guard.as_ref() {
-                files.get_by_id(id).cloned()
-            } else {
-                self.core.get_file_by_id(id).ok()
-            }
+            files_guard.get_by_id(id).cloned()
         };
 
         let focused_parent = || {
@@ -700,11 +699,7 @@ impl Workspace {
 
             let files_arc = Arc::clone(&self.files);
             let files_guard = files_arc.read().unwrap();
-            if let Some(files) = files_guard.as_ref() {
-                files.root.clone()
-            } else {
-                self.core.get_root().unwrap()
-            }
+            files_guard.root.clone()
         };
 
         let focused_parent = focused_parent();

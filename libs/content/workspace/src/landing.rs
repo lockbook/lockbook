@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use std::f32;
 use std::ops::BitOrAssign;
 use std::sync::Arc;
-use std::time::Duration;
+
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
@@ -110,10 +110,7 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let Some(files) = files_guard.as_ref() else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return;
-        };
+        let files = &*files_guard;
 
         if let Some(id) = response.open_file {
             if files.get_by_id(id).unwrap().is_document() {
@@ -151,10 +148,7 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let Some(files) = files_guard.as_ref() else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
+        let files = &*files_guard;
         let folder = files
             .files
             .get_by_id(self.effective_focused_parent())
@@ -219,10 +213,8 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
+        let files = &*files_guard;
+        let account = &self.account;
         let folder = files
             .files
             .get_by_id(self.effective_focused_parent())
@@ -634,10 +626,8 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
+        let files = &*files_guard;
+        let account = &self.account;
         let descendents = self.filtered_sorted_files(files, account);
 
         // Show
