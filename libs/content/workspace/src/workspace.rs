@@ -347,43 +347,24 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
+        let mut refresh_cache = false;
+        let mut remove_deleted_file_tabs = false;
         loop {
             match self.lb_rx.try_recv() {
                 Ok(evt) => match evt {
                     Event::MetadataChanged(_) => {
-                        // file cache refresh
-                        *self.files.write().unwrap() =
-                            FileCache::new(&self.core).expect("failed to refresh file cache");
-
-                        // remove tabs for deleted files
-                        let files_arc = Arc::clone(&self.files);
-                        let files_guard = files_arc.read().unwrap();
-                        let files = &*files_guard;
-                        let mut tabs_to_delete = vec![];
-                        for tab in &self.tabs {
-                            if let Some(id) = tab.id() {
-                                if !files
-                                    .files
-                                    .iter()
-                                    .chain(&files.shared)
-                                    .any(|f| Some(f.id) == tab.id())
-                                {
-                                    tabs_to_delete.push(id);
-                                }
-                            }
-                        }
-
-                        for id in tabs_to_delete {
-                            if let Some(idx) = self.get_idx_by_id(id) {
-                                self.remove_tab(idx);
-                            }
-                        }
+                        refresh_cache = true;
+                        remove_deleted_file_tabs = true;
                     }
-                    Event::DocumentWritten(id, Actor::Sync) => {
-                        self.core.app_foregrounded();
-                        for i in 0..self.tabs.len() {
-                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                                self.open_file(id, false, false);
+                    Event::DocumentWritten(id, actor) => {
+                        refresh_cache = true;
+
+                        if actor == Actor::Sync {
+                            self.core.app_foregrounded();
+                            for i in 0..self.tabs.len() {
+                                if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                    self.open_file(id, false, false);
+                                }
                             }
                         }
                     }
@@ -396,6 +377,35 @@ impl Workspace {
                 Err(e) => {
                     eprintln!("cannot recv events from lb-rs {e:?}");
                     break;
+                }
+            }
+        }
+
+        if refresh_cache {
+            *self.files.write().unwrap() =
+                FileCache::new(&self.core).expect("failed to refresh file cache");
+        }
+        if remove_deleted_file_tabs {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            let files = &*files_guard;
+            let mut tabs_to_delete = vec![];
+            for tab in &self.tabs {
+                if let Some(id) = tab.id() {
+                    if !files
+                        .files
+                        .iter()
+                        .chain(&files.shared)
+                        .any(|f| Some(f.id) == tab.id())
+                    {
+                        tabs_to_delete.push(id);
+                    }
+                }
+            }
+
+            for id in tabs_to_delete {
+                if let Some(idx) = self.get_idx_by_id(id) {
+                    self.remove_tab(idx);
                 }
             }
         }
