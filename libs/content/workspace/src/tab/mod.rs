@@ -369,9 +369,14 @@ impl Workspace {
     pub fn tab_title(&self, tab: &Tab) -> String {
         let files_arc = std::sync::Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        match (tab.id(), files_guard.as_ref()) {
-            (Some(id), Some(files)) => {
-                if let Some(file) = files.files.iter().chain(&files.shared).find(|f| f.id == id) {
+        match tab.id() {
+            Some(id) => {
+                if let Some(file) = files_guard
+                    .files
+                    .iter()
+                    .chain(&files_guard.shared)
+                    .find(|f| f.id == id)
+                {
                     file.name.clone()
                 } else if let Ok(file) = self.core.get_file_by_id(id) {
                     // read-through (can remove when we master cache refreshes)
@@ -380,8 +385,7 @@ impl Workspace {
                     "Unknown".into()
                 }
             }
-            (Some(_), None) => "Loading".into(),
-            (None, _) => match tab.content {
+            None => match tab.content {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),

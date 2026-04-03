@@ -44,7 +44,7 @@ macro_rules! async_on_wasm {
 
 pub fn calc<'ast>(
     root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &HttpClient, core: &Lb,
-    file_id: Uuid, files: &std::sync::Arc<std::sync::RwLock<Option<crate::file_cache::FileCache>>>,
+    file_id: Uuid, files: &std::sync::Arc<std::sync::RwLock<crate::file_cache::FileCache>>,
     ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
@@ -74,12 +74,10 @@ pub fn calc<'ast>(
 
                 let maybe_lb_id = {
                     let guard = files.read().unwrap();
-                    guard.as_ref().and_then(|cache| {
-                        let from_id = cache.files.get_by_id(file_id)?.parent;
-                        match cache.files.resolve_link(&url, from_id)? {
-                            ResolvedLink::File(id) => Some(id),
-                            ResolvedLink::External(_) => None,
-                        }
+                    let from_id = guard.files.get_by_id(file_id).map(|f| f.parent);
+                    from_id.and_then(|from_id| match guard.files.resolve_link(&url, from_id)? {
+                        ResolvedLink::File(id) => Some(id),
+                        ResolvedLink::External(_) => None,
                     })
                 };
 

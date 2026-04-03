@@ -218,13 +218,13 @@ impl Workspace {
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
-                            let Some(cache) = files_guard.as_ref() else { return true };
-                            let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
+                            let Some(from_id) = files_guard.files.get_by_id(id).map(|f| f.parent)
+                            else {
                                 return true;
                             };
 
                             let Some(ResolvedLink::File(file_id)) =
-                                cache.files.resolve_link(&url.url, from_id)
+                                files_guard.files.resolve_link(&url.url, from_id)
                             else {
                                 return true;
                             };
