@@ -11,6 +11,7 @@ use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use std::path::{Component, PathBuf};
+use tracing::instrument;
 use urlencoding::decode;
 
 pub enum ResolvedLink {
@@ -27,6 +28,7 @@ pub struct FileCache {
 }
 
 impl FileCache {
+    #[instrument(level = "debug", skip_all)]
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
