@@ -1,120 +1,244 @@
-use std::time::Instant;
-
-use lb_rs::model::file::File;
-
-use crate::search::SearhExecutor;
-
+#[derive(Clone)]
 pub struct ContentSearch {
+    doc_store: Arc<RwLock<DocStore>>,
+    query_state: Arc<RwLock<QueryState>>,
+}
+
+impl ContentSearch {
+    pub fn new(lb: &Lb, ctx: &Context) -> Self {
+        let content_search =
+            ContentSearch { doc_store: Default::default(), query_state: Default::default() };
+
+        let lb = lb.clone();
+        let ctx = ctx.clone();
+        let bg_cs = content_search.clone();
+        thread::spawn(move || {
+            bg_cs.build_doc_store(lb, ctx);
+        });
+
+        content_search
+    }
+}
+
+#[derive(Default)]
+pub struct DocStore {
+    documents: Vec<(File, String, String)>,
+
+    uningested_files: Vec<File>,
+    ignored_ids: usize,
+    ingest_failures: usize,
+
+    start_time: Option<Instant>,
+    end_time: Option<Instant>,
+}
+
+// scanning things
+impl ContentSearch {
+    fn build_doc_store(&self, lb: Lb, ctx: Context) {
+        let start = Instant::now();
+
+        let metas = lb.list_metadatas().unwrap();
+        let paths = Arc::new(lb.list_paths_with_ids(None).unwrap());
+
+        self.doc_store.write().unwrap().start_time = Some(start);
+
+        for meta in metas {
+            let mut ignore = false;
+            if !meta.is_document() {
+                continue;
+            }
+
+            if !meta.name.ends_with(".md") {
+                ignore = true;
+            }
+
+            if ignore {
+                self.doc_store.write().unwrap().ignored_ids += 1;
+            } else {
+                self.doc_store.write().unwrap().uningested_files.push(meta);
+            }
+        }
+
+        for _ in 0..available_parallelism()
+            .map(|number| number.get())
+            .unwrap_or(4)
+        {
+            let bg_ds = self.doc_store.clone();
+            let bg_lb = lb.clone();
+            let ctx = ctx.clone();
+            let bg_paths = paths.clone();
+            thread::spawn(move || {
+                loop {
+                    // thread::sleep(Duration::from_secs(1));
+                    let Some(meta) = bg_ds.write().unwrap().uningested_files.pop() else {
+                        return;
+                    };
+
+                    let id = meta.id;
+                    let doc = bg_lb
+                        .read_document(meta.id, false)
+                        .ok()
+                        .and_then(|bytes| String::from_utf8(bytes).ok());
+
+                    let mut doc_store = bg_ds.write().unwrap();
+                    if let Some(doc) = doc {
+                        doc_store.documents.push((
+                            meta,
+                            bg_paths.iter().find(|(i, _)| *i == id).unwrap().1.clone(),
+                            doc,
+                        ));
+                    } else {
+                        doc_store.ingest_failures += 1;
+                    }
+
+                    if doc_store.uningested_files.is_empty() {
+                        doc_store.end_time = Some(Instant::now());
+                    }
+                    ctx.request_repaint();
+                }
+            });
+        }
+    }
+}
+
+#[derive(Default)]
+pub struct QueryState {
+    submitted_query: String,
+    ellapsed_ms: u128,
+    matches: Vec<Matches>,
+}
+
+#[derive(Default)]
+pub struct Matches {
+    id: Uuid,
+    highlights: Vec<Range<usize>>,
+
+    exact_matches: u32,
+    substring_matches: u32,
 }
 
 impl SearhExecutor for ContentSearch {
     fn search_type(&self) -> super::SearchType {
-        todo!()
+        SearchType::Content
     }
 
     fn handle_query(&mut self, query: &str) {
-        todo!()
+        let start = Instant::now();
+
+        let docs = self.doc_store.read().unwrap();
+        let mut results = self.query_state.write().unwrap();
+        if results.submitted_query == query {
+            return;
+        }
+
+        results.submitted_query = query.to_string();
+
+        // todo: incrementalism
+        results.matches.clear();
+
+        if query.is_empty() {
+            return;
+        }
+
+        for (meta, _, content) in &docs.documents {
+            let mut m = Matches::default();
+            m.id = meta.id;
+
+            // todo: NEXT make this case insensitive
+            for (idx, _) in content.match_indices(query) {
+                m.highlights.push(idx..idx + query.len());
+                m.exact_matches += 1;
+            }
+
+            for sub_query in query.split_whitespace() {
+                for (idx, _) in content.match_indices(sub_query) {
+                    if m.highlights.iter().any(|range| range.contains(&idx)) {
+                        continue;
+                    }
+                    m.highlights.push(idx..idx + sub_query.len());
+                    m.substring_matches += 1;
+                }
+            }
+
+            if m.exact_matches != 0 || m.substring_matches != 0 {
+                results.matches.push(m);
+            }
+        }
+
+        results.matches.sort_unstable_by(|a, b| {
+            if a.exact_matches > 0 || b.exact_matches > 0 {
+                b.exact_matches.cmp(&a.exact_matches)
+            } else {
+                b.substring_matches.cmp(&a.substring_matches)
+            }
+        });
+        // match multiple parts of a query
+        // score exact matches higher than other types of matches
+        // then sort by match count
+        // dedup exact matches and partial matches
+
+        results.ellapsed_ms = start.elapsed().as_millis();
     }
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) {
-        todo!()
+        ui.set_min_size(ui.available_size());
+        let doc_store = self.doc_store.read().unwrap();
+        let query_state = self.query_state.read().unwrap();
+
+        ui.vertical(|ui| {
+            // results
+            ui.vertical(|ui| {
+                // todo: sort
+                for m in &query_state.matches {
+                    ui.label(format!(
+                        "{}: {} exact matches, {} sub matches",
+                        m.id, m.exact_matches, m.substring_matches
+                    ));
+                }
+            });
+
+            // info card
+            ui.vertical_centered(|ui| {
+                ui.label(format!(
+                    "Read {} of {} documents.",
+                    doc_store.documents.len(),
+                    doc_store.uningested_files.len()
+                        + doc_store.documents.len()
+                        + doc_store.ignored_ids
+                        + doc_store.ingest_failures
+                ));
+
+                ui.label(format!(
+                    "{} documents ignored. {} errors.",
+                    doc_store.ignored_ids, doc_store.ingest_failures
+                ));
+
+                if let (Some(start), Some(end)) = (doc_store.start_time, doc_store.end_time) {
+                    ui.label(format!("Search Index prepared in {}ms", (end - start).as_millis()));
+                }
+
+                if !query_state.submitted_query.is_empty() {
+                    ui.label(format!("Query processed in {}ms", query_state.ellapsed_ms));
+                }
+            });
+        });
     }
 
-    fn show_preview(&mut self, ui: &mut egui::Ui) {
-        todo!()
-    }
+    fn show_preview(&mut self, ui: &mut egui::Ui) {}
 }
 
-impl ContentSearch {
-    pub fn new() -> Self {
-        Self {} 
-    }
-}
+use std::{
+    collections::HashMap,
+    ops::{Not, Range},
+    sync::{Arc, RwLock},
+    thread::{self, available_parallelism},
+    time::{Duration, Instant},
+};
 
+use egui::Context;
+use lb_rs::{Uuid, blocking::Lb, model::file::File};
 
-#[derive(Default)]
-pub struct ContentIngestState {
-    ingest_start: Option<Instant>,
-    uningested_files: Vec<File>,
-    files_ingested: u32,
-    ingest_target: u32,
-    ignored_files: u32,
-    ingest_end: Option<Instant>,
-}
-
-//                     for meta in metas {
-//                         if !meta.is_document() {
-//                             continue;
-//                         }
-// 
-//                         if !meta.name.ends_with(".md") {
-//                             ingest_state.ignored_files += 1;
-//                             continue;
-//                         }
-// 
-//                         ingest_state.uningested_files.push(meta);
-//                     }
-// 
-//                     ingest_state.ingest_target = ingest_state.uningested_files.len() as u32;
-// 
-//                     let s = SearchSession {
-//                         search_type: SearchType::Content,
-//                         engine: Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1),
-//                         submitted_query: String::new(),
-//                         ingest_state: Arc::new(RwLock::new(ingest_state)),
-//                     };
-// 
-//                     let injector = s.engine.injector();
-// 
-//                     for _ in 0..available_parallelism().map(|p| p.get()).unwrap_or(4) {
-//                         let ingest = s.ingest_state.clone();
-//                         let lb = self.core.clone();
-//                         let injector = injector.clone();
-//                         let id_paths = id_paths.clone();
-//                         thread::spawn(move || {
-//                             let mut unlocked = ingest.write().unwrap();
-//                             let Some(meta) = unlocked.uningested_files.pop() else {
-//                                 return;
-//                             };
-//                             drop(unlocked);
-// 
-//                             let id = meta.id;
-//                             let doc = lb
-//                                 .read_document(id, false)
-//                                 .ok()
-//                                 .and_then(|bytes| String::from_utf8(bytes).ok());
-// 
-//                             let success = match doc {
-//                                 Some(doc) => {
-//                                     injector.push(
-//                                         Entry {
-//                                             file: meta,
-//                                             path: id_paths
-//                                                 .iter()
-//                                                 .find(|(i, _)| *i == id)
-//                                                 .map(|(_, path)| path)
-//                                                 .unwrap()
-//                                                 .clone(),
-//                                             matched_region: vec![],
-//                                         },
-//                                         |e, cols| {},
-//                                     );
-//                                     true
-//                                 }
-//                                 None => false,
-//                             };
-// 
-//                             let mut unlocked = ingest.write().unwrap();
-//                             if success {
-//                                 unlocked.files_ingested += 1;
-//                             } else {
-//                                 unlocked.ignored_files += 1;
-//                             }
-// 
-//                             if unlocked.uningested_files.is_empty() {
-//                                 unlocked.ingest_end = Some(Instant::now());
-//                             }
-//                         });
-//                     }
-//                 }
-//  
+use crate::{
+    search::{SearchType, SearhExecutor},
+    workspace::Workspace,
+};

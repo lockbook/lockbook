@@ -84,8 +84,13 @@ impl PathSearch {
 
     fn show_result_cell(&self, ui: &mut Ui, entry: &PathResult) {
         ui.horizontal(|ui| {
-            // todo: aesthetics, spacing, background color, vertical centering
+            // aesthetics:
+            // todo: spacing, background color, vertical centering
             // todo: support folders, and generally a richer icon experience
+            // 
+            // functionality:
+            // todo: keyboard shortcut to open a result
+            // todo: response that opens the tab
             DocType::from_name(&entry.path).to_icon().show(ui);
 
             ui.vertical(|ui| {
@@ -118,7 +123,7 @@ impl PathResult {
 use std::sync::Arc;
 
 use egui::{Context, Ui};
-use lb_rs::{Uuid, blocking::Lb, model::file::File};
+use lb_rs::{blocking::Lb, model::file::File};
 use nucleo::{
     pattern::{CaseMatching, Normalization}, Matcher, Nucleo
 };

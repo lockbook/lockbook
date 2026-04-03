@@ -26,7 +26,7 @@ impl SearchType {
     fn create_executor(&self, lb: &Lb, ctx: &Context) -> Box<dyn SearhExecutor> {
         match self {
             SearchType::Path => Box::new(PathSearch::new(lb, ctx)),
-            SearchType::Content => Box::new(ContentSearch::new()),
+            SearchType::Content => Box::new(ContentSearch::new(lb, ctx)),
         }
     }
 }
@@ -167,7 +167,6 @@ impl Workspace {
                 });
         });
     }
-
     
 
     fn manage_executors(&mut self) {
