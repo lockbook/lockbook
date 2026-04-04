@@ -32,7 +32,7 @@ impl<'ast> Editor {
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             return None;
         }
-        if self.hidden_by_fold(node) {
+        if self.hidden_by_fold(node, siblings) {
             return None;
         }
 

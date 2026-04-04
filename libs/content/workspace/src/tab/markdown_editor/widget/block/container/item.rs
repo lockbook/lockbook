@@ -28,7 +28,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
+    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, siblings: &[&'ast AstNode<'ast>]) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
@@ -51,8 +51,7 @@ impl<'ast> Editor {
                 );
             }
             ListType::Ordered => {
-                let siblings = self.sorted_siblings(node);
-                let sibling_index = self.sibling_index(node, &siblings);
+                let sibling_index = self.sibling_index(node, siblings);
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
@@ -140,8 +139,8 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node),
-            self.item_fold_reveal(node),
+            self.item_contents(node, siblings),
+            self.item_fold_reveal(node, siblings),
         );
     }
 
@@ -222,7 +221,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn item_contents(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> (DocCharOffset, DocCharOffset) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
         let mut contents = if let Some(first_child) = node.children().next() {
@@ -231,10 +230,9 @@ impl<'ast> Editor {
             self.node_first_line(node).end().into_range()
         };
 
-        let sorted_siblings = self.sorted_siblings(node);
-        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let sibling_index = self.sibling_index(node, siblings);
 
-        if let Some(sibling) = sorted_siblings[sibling_index + 1..].first() {
+        if let Some(sibling) = siblings[sibling_index + 1..].first() {
             let sibling_first_line = self.node_first_line_idx(sibling);
             let last_line = sibling_first_line - 1;
             contents.1 = self.bounds.source_lines[last_line].end();
@@ -248,8 +246,8 @@ impl<'ast> Editor {
     }
 
     /// Returns true if the item contents should be revealed whether the heading is folded or not
-    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.item_contents(node)
+    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> bool {
+        self.item_contents(node, siblings)
             .contains_range(&self.buffer.current.selection, false, true)
     }
 

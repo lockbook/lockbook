@@ -387,7 +387,7 @@ impl Editor {
         options.extension.alerts = true;
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = true;
+        options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
@@ -829,7 +829,7 @@ impl Editor {
                             self.top_left =
                                 ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
                             let height = {
-                                let document_height = self.height(root);
+                                let document_height = self.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
@@ -869,7 +869,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.show_block(ui, root, self.top_left);
+                                self.show_block(ui, root, self.top_left, &[root]);
                             });
                         });
                 });

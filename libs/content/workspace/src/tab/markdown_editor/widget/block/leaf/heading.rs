@@ -139,6 +139,7 @@ impl<'ast> Editor {
 
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
+        siblings: &[&'ast AstNode<'ast>],
     ) {
         if setext {
             self.show_setext_heading(ui, node, top_left, level);
@@ -148,7 +149,7 @@ impl<'ast> Editor {
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
-            let siblings_height = self.height(node) + self.heading_contained_siblings_height(node);
+            let siblings_height = self.height(node, siblings) + self.heading_contained_siblings_height(node, siblings);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
 
@@ -175,8 +176,8 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node),
-            self.heading_fold_reveal(node),
+            self.heading_contents(node, siblings),
+            self.heading_fold_reveal(node, siblings),
         );
     }
 
@@ -426,30 +427,28 @@ impl<'ast> Editor {
         }
     }
 
-    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let all_siblings = self.sorted_siblings(node);
-        let contained_siblings = self.heading_contained_siblings(node);
+    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+        let contained_siblings = self.heading_contained_siblings(node, siblings);
         let mut height_sum = 0.0;
         for sibling in &contained_siblings {
-            height_sum += self.block_pre_spacing_height(sibling, &all_siblings);
-            height_sum += self.height(sibling);
-            height_sum += self.block_post_spacing_height(sibling, &all_siblings);
+            height_sum += self.block_pre_spacing_height(sibling, siblings);
+            height_sum += self.height(sibling, siblings);
+            height_sum += self.block_post_spacing_height(sibling, siblings);
         }
         height_sum
     }
 
-    fn heading_contained_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
+    fn heading_contained_siblings(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> Vec<&'ast AstNode<'ast>> {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
 
         let mut contents = self.node_range(node).end().into_range();
-        let sorted_siblings = self.sorted_siblings(node);
-        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let sibling_index = self.sibling_index(node, siblings);
 
         let mut result = Vec::new();
 
-        for sibling in sorted_siblings[sibling_index + 1..].iter() {
+        for sibling in siblings[sibling_index + 1..].iter() {
             // an equal or more significant subsequent heading concludes this heading's contents
             if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
                 if sibling_heading.level <= heading.level {
@@ -467,16 +466,15 @@ impl<'ast> Editor {
         result
     }
 
-    pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn heading_contents(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> (DocCharOffset, DocCharOffset) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
 
         let mut contents = self.node_range(node).end().into_range();
-        let sorted_siblings = self.sorted_siblings(node);
-        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let sibling_index = self.sibling_index(node, siblings);
         let mut concluded_by_subsequent_heading = false;
-        for sibling in sorted_siblings[sibling_index + 1..].iter() {
+        for sibling in siblings[sibling_index + 1..].iter() {
             // an equal or more significant subsequent heading concludes this heading's contents
             if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
                 if sibling_heading.level <= heading.level {
@@ -553,8 +551,8 @@ impl<'ast> Editor {
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
-    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.heading_contents(node)
+    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> bool {
+        self.heading_contents(node, siblings)
             .contains_range(&self.buffer.current.selection, false, true)
     }
 }
