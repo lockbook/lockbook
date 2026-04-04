@@ -175,7 +175,7 @@ impl<'w> RendererState<'w> {
                     view: &msaa_view,
                     resolve_target: Some(&output_view),
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::WHITE),
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
