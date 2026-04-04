@@ -84,9 +84,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
@@ -224,7 +222,9 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert, siblings),
+            NodeValue::Alert(node_alert) => {
+                self.show_alert(ui, node, top_left, node_alert, siblings)
+            }
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -503,7 +503,9 @@ impl<'ast> Editor {
             if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling, sorted_siblings) && self.fold(sibling).is_some() {
+                    if !self.heading_fold_reveal(sibling, sorted_siblings)
+                        && self.fold(sibling).is_some()
+                    {
                         // our node is contained by a folded, unrevealed heading
                         return true;
                     }
@@ -668,9 +670,7 @@ impl LayoutCache {
         // transform hidden_by_fold cache entries the same way
         {
             let mut cache = self.hidden_by_fold.borrow_mut();
-            cache.retain_mut(|entry| {
-                buffer.transform_range(since_seq, &mut entry.range)
-            });
+            cache.retain_mut(|entry| buffer.transform_range(since_seq, &mut entry.range));
             cache.sort_by(|a, b| a.range.cmp(&b.range));
         }
 
@@ -686,8 +686,7 @@ impl LayoutCache {
     /// of invalidated nodes (any entry whose range contains an evicted range)
     /// because their heights are sums of their children's heights.
     pub fn invalidate_selection_change(
-        &self,
-        old_selection: (DocCharOffset, DocCharOffset),
+        &self, old_selection: (DocCharOffset, DocCharOffset),
         new_selection: (DocCharOffset, DocCharOffset),
     ) {
         let mut cache = self.height.borrow_mut();

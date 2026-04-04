@@ -149,7 +149,8 @@ impl<'ast> Editor {
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
-            let siblings_height = self.height(node, siblings) + self.heading_contained_siblings_height(node, siblings);
+            let siblings_height = self.height(node, siblings)
+                + self.heading_contained_siblings_height(node, siblings);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
 
@@ -427,7 +428,9 @@ impl<'ast> Editor {
         }
     }
 
-    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+    fn heading_contained_siblings_height(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> f32 {
         let contained_siblings = self.heading_contained_siblings(node, siblings);
         let mut height_sum = 0.0;
         for sibling in &contained_siblings {
@@ -438,7 +441,9 @@ impl<'ast> Editor {
         height_sum
     }
 
-    fn heading_contained_siblings(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> Vec<&'ast AstNode<'ast>> {
+    fn heading_contained_siblings(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> Vec<&'ast AstNode<'ast>> {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
@@ -466,7 +471,9 @@ impl<'ast> Editor {
         result
     }
 
-    pub fn heading_contents(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> (DocCharOffset, DocCharOffset) {
+    pub fn heading_contents(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> (DocCharOffset, DocCharOffset) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
@@ -551,8 +558,13 @@ impl<'ast> Editor {
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
-    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> bool {
-        self.heading_contents(node, siblings)
-            .contains_range(&self.buffer.current.selection, false, true)
+    pub fn heading_fold_reveal(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> bool {
+        self.heading_contents(node, siblings).contains_range(
+            &self.buffer.current.selection,
+            false,
+            true,
+        )
     }
 }
