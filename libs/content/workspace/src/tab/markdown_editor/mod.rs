@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
-use bounds::Bounds;
+use bounds::{Bounds, RangesExt as _};
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
@@ -24,7 +24,7 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use serde::{Deserialize, Serialize};
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -114,6 +114,8 @@ pub struct Editor {
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
+    last_frame_time: Instant,
+    fps: f32,
     pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
     pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
@@ -287,6 +289,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
+            last_frame_time: Instant::now(),
+            fps: 0.,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
             text_areas: Default::default(),
@@ -599,7 +603,6 @@ impl Editor {
                     self.galleys.galleys.clear();
                     self.bounds.wrap_lines.clear();
                     self.touch_consuming_rects.clear();
-
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
@@ -659,6 +662,25 @@ impl Editor {
         self.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
+
+        if self.debug {
+            let now = Instant::now();
+            let dt = now.duration_since(self.last_frame_time).as_secs_f32();
+            self.last_frame_time = now;
+            // exponential moving average for smooth display
+            self.fps = self.fps * 0.9 + (1.0 / dt) * 0.1;
+
+            let fps_text = format!("{:.0} fps", self.fps);
+            let rect = ui.max_rect();
+            let pos = rect.right_top() + Vec2::new(-60., 5.);
+            ui.painter().text(
+                pos,
+                egui::Align2::RIGHT_TOP,
+                fps_text,
+                egui::FontId::monospace(14.),
+                self.ctx.get_lb_theme().fg().get_color(self.ctx.get_lb_theme().prefs().primary),
+            );
+        }
 
         if PRINT {
             println!(
@@ -774,6 +796,36 @@ impl Editor {
             .any(|rect| rect.contains(pos))
             || self.scroll_area_velocity.abs().max_elem() > 0.
             || self.toolbar.menu_open
+    }
+
+    /// Returns the document offset range for which galleys must exist,
+    /// covering the selection ± 1 source line so that arrow-key navigation
+    /// across the viewport edge has a galley to land on.
+    fn galley_required_range(&self) -> (DocCharOffset, DocCharOffset) {
+        if self.bounds.source_lines.is_empty() {
+            return Default::default();
+        }
+
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+
+        let first_line = self
+            .bounds
+            .source_lines
+            .find_containing(selection.start(), true, true)
+            .0
+            .saturating_sub(1);
+        let last_line = self
+            .bounds
+            .source_lines
+            .find_containing(selection.end(), true, true)
+            .1 // exclusive end from find_containing = one past the last match
+            .min(self.bounds.source_lines.len() - 1);
+
+        let start = self.bounds.source_lines[first_line].start();
+        let end = self.bounds.source_lines[last_line].end();
+        (start, end)
     }
 
     fn show_scrollable_editor<'a>(

@@ -196,6 +196,16 @@ impl Editor {
         if let Some([top, bot]) = self.cursor_line(selection.1) {
             let rect = Rect::from_min_max(top, bot);
             ui.scroll_to_rect(rect.expand(rect.height()), None);
+        } else {
+            let required = self.galley_required_range();
+            let last_galley = self.galleys.galleys.last().map(|g| g.range);
+            eprintln!(
+                "scroll_to_cursor: no galley for offset {:?}, galleys: {}, required_range: {:?}, last_galley_range: {:?}",
+                selection.1,
+                self.galleys.len(),
+                required,
+                last_galley,
+            );
         }
     }
 
