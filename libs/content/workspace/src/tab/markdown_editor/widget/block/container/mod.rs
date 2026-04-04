@@ -1,12 +1,10 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_editor::Editor;
-
-use crate::theme::palette_v2::ThemeExt as _;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -120,22 +118,13 @@ impl<'ast> Editor {
             let child_height = self.height(child);
 
             if self.debug {
-                let child_width = self.width(child);
-                let child_rect =
-                    Rect::from_min_size(top_left, Vec2 { x: child_width, y: child_height });
-
-                if self.selected_block(child) {
-                    ui.painter().rect(
-                        child_rect,
-                        2.,
-                        self.ctx.get_lb_theme().neutral_bg_secondary(),
-                        egui::Stroke {
-                            width: 1.,
-                            color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
-                        },
-                        egui::epaint::StrokeKind::Inside,
-                    );
-                }
+                self.show_debug_block_highlight(
+                    ui,
+                    child,
+                    top_left,
+                    self.width(child),
+                    child_height,
+                );
             }
 
             let block_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
