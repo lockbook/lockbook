@@ -12,7 +12,7 @@ pub struct Search {
     query: String,
 
     /// A search strategy that can execute the inputs above
-    executor: Box<dyn SearhExecutor>,
+    executor: Box<dyn SearchExecutor>,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -23,7 +23,7 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    fn create_executor(&self, lb: &Lb, ctx: &Context) -> Box<dyn SearhExecutor> {
+    fn create_executor(&self, lb: &Lb, ctx: &Context) -> Box<dyn SearchExecutor> {
         match self {
             SearchType::Path => Box::new(PathSearch::new(lb, ctx)),
             SearchType::Content => Box::new(ContentSearch::new(lb, ctx)),
@@ -31,7 +31,7 @@ impl SearchType {
     }
 }
 
-pub trait SearhExecutor {
+pub trait SearchExecutor {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
     fn show_result_picker(&mut self, ui: &mut Ui);

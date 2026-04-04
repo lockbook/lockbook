@@ -3,7 +3,7 @@ pub struct PathSearch {
     nucleo: Nucleo<PathResult>,
 }
 
-impl SearhExecutor for PathSearch {
+impl SearchExecutor for PathSearch {
     fn search_type(&self) -> super::SearchType {
         SearchType::Path
     }
@@ -129,6 +129,6 @@ use nucleo::{
 };
 
 use crate::{
-    search::{SearchType, SearhExecutor},
+    search::{SearchType, SearchExecutor},
     show::DocType,
 };

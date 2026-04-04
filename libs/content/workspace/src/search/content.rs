@@ -81,7 +81,9 @@ impl ContentSearch {
                         .and_then(|bytes| String::from_utf8(bytes).ok());
 
                     let mut doc_store = bg_ds.write().unwrap();
-                    if let Some(doc) = doc {
+                    if let Some(mut doc) = doc {
+                        // todo: see lowercasing notes
+                        let doc = doc.to_lowercase();
                         doc_store.documents.push((
                             meta,
                             bg_paths.iter().find(|(i, _)| *i == id).unwrap().1.clone(),
@@ -117,12 +119,20 @@ pub struct Matches {
     substring_matches: u32,
 }
 
-impl SearhExecutor for ContentSearch {
+impl SearchExecutor for ContentSearch {
     fn search_type(&self) -> super::SearchType {
         SearchType::Content
     }
 
     fn handle_query(&mut self, query: &str) {
+        // todo: expose lowercase controls. Right now lowercasing is done through a path of least
+        // resistance. We lowercase the documents during ingestion (in place) which has a minimal
+        // impact on performance. Doing it within this function makes the query take 2x as long.
+        // the optimal solution would use a FSM and have controls for managing cases.
+        //
+        // also there seem to be some fancy algorithms in the space and it could be worth exploring
+        // them as well
+        let query = query.to_ascii_lowercase();
         let start = Instant::now();
 
         let docs = self.doc_store.read().unwrap();
@@ -141,26 +151,30 @@ impl SearhExecutor for ContentSearch {
         }
 
         for (meta, _, content) in &docs.documents {
-            let mut m = Matches::default();
-            m.id = meta.id;
+            let mut m = Matches { id: meta.id, ..Default::default() };
 
-            // todo: NEXT make this case insensitive
-            for (idx, _) in content.match_indices(query) {
+            for (idx, _) in content.match_indices(&query) {
                 m.highlights.push(idx..idx + query.len());
                 m.exact_matches += 1;
             }
 
+            let mut all_words_matched = true;
             for sub_query in query.split_whitespace() {
+                let mut sub_query_matched = false;
                 for (idx, _) in content.match_indices(sub_query) {
+                    sub_query_matched = true;
                     if m.highlights.iter().any(|range| range.contains(&idx)) {
                         continue;
                     }
                     m.highlights.push(idx..idx + sub_query.len());
                     m.substring_matches += 1;
                 }
+                if !sub_query_matched {
+                    all_words_matched = false;
+                }
             }
 
-            if m.exact_matches != 0 || m.substring_matches != 0 {
+            if all_words_matched {
                 results.matches.push(m);
             }
         }
@@ -192,7 +206,15 @@ impl SearhExecutor for ContentSearch {
                 for m in &query_state.matches {
                     ui.label(format!(
                         "{}: {} exact matches, {} sub matches",
-                        m.id, m.exact_matches, m.substring_matches
+                        doc_store
+                            .documents
+                            .iter()
+                            .find(|(f, _, _)| f.id == m.id)
+                            .unwrap()
+                            .0
+                            .name,
+                        m.exact_matches,
+                        m.substring_matches
                     ));
                 }
             });
@@ -239,6 +261,6 @@ use egui::Context;
 use lb_rs::{Uuid, blocking::Lb, model::file::File};
 
 use crate::{
-    search::{SearchType, SearhExecutor},
+    search::{SearchExecutor, SearchType},
     workspace::Workspace,
 };
