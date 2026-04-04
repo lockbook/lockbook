@@ -78,7 +78,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
         self.selection = range;
-        Response { text_updated: false, open_camera: false }
+        Response::default()
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> Response {
@@ -95,7 +95,7 @@ impl Snapshot {
             &mut self.selection,
         );
 
-        Response { text_updated: true, open_camera: false }
+        Response { text_updated: true, ..Default::default() }
     }
 
     fn invert(&self, op: &Operation) -> InverseOperation {
@@ -187,12 +187,21 @@ struct External {
 pub struct Response {
     pub text_updated: bool,
     pub open_camera: bool,
+    /// Sequence range of operations applied this frame. Use
+    /// `buffer.replacements_since(seq_before)` to get the edits.
+    pub seq_before: usize,
+    pub seq_after: usize,
 }
 
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
         self.open_camera |= other.open_camera;
+        // keep the earliest seq_before and latest seq_after
+        if self.seq_before == self.seq_after {
+            self.seq_before = other.seq_before;
+        }
+        self.seq_after = other.seq_after;
     }
 }
 
@@ -318,7 +327,7 @@ impl Buffer {
         }
 
         // transform & apply
-        let mut result = Response::default();
+        let mut result = Response { seq_before: self.current.seq, ..Default::default() };
         for idx in self.current_idx()..self.current_idx() + queue_len {
             let mut op = self.ops.all[idx].clone();
             let meta = &self.ops.meta[idx];
@@ -330,6 +339,7 @@ impl Buffer {
             result |= self.redo();
         }
 
+        result.seq_after = self.current.seq;
         result
     }
 
@@ -418,6 +428,29 @@ impl Buffer {
 
     fn current_idx(&self) -> usize {
         self.current.seq - self.base.seq
+    }
+
+    /// Transforms a range through all replacements applied between
+    /// `since_seq` and the current sequence. Returns `None` if the range
+    /// intersected a replacement (i.e. the content it referred to was
+    /// modified).
+    pub fn transform_range(
+        &self, since_seq: usize, range: &mut (DocCharOffset, DocCharOffset),
+    ) -> bool {
+        let start = since_seq.saturating_sub(self.base.seq);
+        let end = self.current_idx();
+        for op in &self.ops.transformed[start..end] {
+            if let Operation::Replace(replace) = op {
+                if range.intersects(&replace.range, true)
+                    && !(range.is_empty() && replace.range.is_empty())
+                {
+                    return false;
+                }
+                let replacement_len = replace.text.graphemes(true).count().into();
+                adjust_subsequent_range(replace.range, replacement_len, false, range);
+            }
+        }
+        true
     }
 
     /// Reports whether the buffer's current text is empty.
