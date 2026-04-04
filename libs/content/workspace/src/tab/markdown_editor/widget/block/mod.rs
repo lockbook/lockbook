@@ -617,6 +617,7 @@ impl GlyphonBufferKey {
 }
 
 impl LayoutCache {
+    /// Full clear for width/resize changes where everything must be recomputed.
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
@@ -624,6 +625,63 @@ impl LayoutCache {
         self.hidden_by_fold.borrow_mut().clear();
         self.glyphon_buffers.borrow_mut().clear();
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
+    }
+
+    /// Invalidation for text changes. Position-keyed caches (height,
+    /// hidden_by_fold) must be cleared because DocCharOffsets shift.
+    /// Content-keyed caches (glyphon_buffers) are preserved since unchanged
+    /// text still matches. Sourcepos-keyed caches (node_range,
+    /// line_prefix_len) are cleared because the AST is re-parsed.
+    pub fn invalidate_text_change(&self) {
+        self.height.borrow_mut().clear();
+        self.line_prefix_len.borrow_mut().clear();
+        self.node_range.borrow_mut().clear();
+        self.hidden_by_fold.borrow_mut().clear();
+        // glyphon_buffers: content-addressed, preserved across text changes
+    }
+
+    /// Invalidates height entries affected by a selection change. A node's
+    /// height depends on its reveal state (selection-dependent), so we evict
+    /// nodes that intersect the old or new selection. We also evict ancestors
+    /// of invalidated nodes (any entry whose range contains an evicted range)
+    /// because their heights are sums of their children's heights.
+    pub fn invalidate_selection_change(
+        &self,
+        old_selection: (DocCharOffset, DocCharOffset),
+        new_selection: (DocCharOffset, DocCharOffset),
+    ) {
+        let mut cache = self.height.borrow_mut();
+
+        // first pass: find ranges directly affected by the selection change
+        let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
+        for entry in cache.iter() {
+            if entry.range.intersects(&old_selection, true)
+                || entry.range.intersects(&new_selection, true)
+            {
+                invalidated.push(entry.range);
+            }
+        }
+
+        if invalidated.is_empty() {
+            return;
+        }
+
+        // second pass: evict directly affected nodes and their ancestors
+        cache.retain(|entry| {
+            // directly affected
+            if entry.range.intersects(&old_selection, true)
+                || entry.range.intersects(&new_selection, true)
+            {
+                return false;
+            }
+            // ancestor of an affected node
+            for inv in &invalidated {
+                if entry.range.contains_range(inv, true, true) {
+                    return false;
+                }
+            }
+            true
+        });
     }
 }
 
