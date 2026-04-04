@@ -90,34 +90,29 @@ impl<'ast> Editor {
         height_sum
     }
 
-    // blocks are stacked vertically
+    // blocks are stacked vertically; only visible blocks and blocks whose
+    // node range intersects `galley_required_range` are shown
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        // use this flag to toggle the optimization where only visible things
-        // are drawn; this saves work but prevents galleys from populating:
-        // * causes occassional crashes ("the len is 0 but the index is 18446744073709551615")
-        // * cursor sometimes rendered at doc end when it's off screen
-        // * scrolling to the cursor sometimes only works for one frame
-        const OPTIMIZATION: bool = false;
-
         let children = self.sorted_children(node);
+        let required_range = self.galley_required_range();
 
         for child in &children {
-            let tolerance = self.height;
+            let child_range = self.node_range(child);
+            let pre_lines = self.pre_spacing_lines(child, &children);
+            let post_lines = self.post_spacing_lines(child, &children);
 
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            let pre_spacing_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + pre_spacing;
-            let pre_spacing_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let pre_spacing_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
+            let pre_spacing_above_viewport = 2. * self.layout.margin > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            if !OPTIMIZATION || pre_spacing_visible || self.scroll_to_cursor {
+            let pre_spacing_needed = self
+                .spacing_range(&pre_lines)
+                .intersects(&required_range, true);
+            if pre_spacing_visible || pre_spacing_needed {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
-            }
-            if OPTIMIZATION && (pre_spacing_below_viewport && !self.scroll_to_cursor) {
-                break;
             }
             top_left.y += pre_spacing;
 
@@ -143,33 +138,33 @@ impl<'ast> Editor {
                 }
             }
 
-            let block_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + child_height;
-            let block_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let block_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
+            let block_above_viewport = 2. * self.layout.margin > top_left.y + child_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
-            if !OPTIMIZATION || block_visible || self.scroll_to_cursor {
+            let block_needed = child_range.intersects(&required_range, true);
+            if block_visible || block_needed {
                 self.show_block(ui, child, top_left);
-            }
-            if OPTIMIZATION && (block_below_viewport && !self.scroll_to_cursor) {
-                break;
             }
             top_left.y += child_height;
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            let post_spacing_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + post_spacing;
-            let post_spacing_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let post_spacing_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
+            let post_spacing_above_viewport = 2. * self.layout.margin > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            if !OPTIMIZATION || post_spacing_visible || self.scroll_to_cursor {
+            let post_spacing_needed = self
+                .spacing_range(&post_lines)
+                .intersects(&required_range, true);
+            if post_spacing_visible || post_spacing_needed {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
-            if OPTIMIZATION && (post_spacing_below_viewport && !self.scroll_to_cursor) {
+            top_left.y += post_spacing;
+
+            // safe to stop: everything remaining is below the viewport and
+            // past the range that needs galleys
+            if block_below_viewport && child_range.start() > required_range.end() {
                 break;
             }
-            top_left.y += post_spacing;
         }
     }
 
