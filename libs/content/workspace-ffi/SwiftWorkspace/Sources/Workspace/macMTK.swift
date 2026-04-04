@@ -328,7 +328,9 @@
             if output.urls_opened.size > 0 {
                 var urls: [URL] = []
                 for i in 0 ..< Int(output.urls_opened.size) {
-                    if let ptr = output.urls_opened.urls[i], let url = URL(string: textFromPtr(s: ptr)) {
+                    // Don't use textFromPtr here — it frees each string, but
+                    // free_urls below frees the strings and the array together.
+                    if let ptr = output.urls_opened.urls[i], let url = URL(string: String(cString: ptr)) {
                         urls.append(url)
                     }
                 }
