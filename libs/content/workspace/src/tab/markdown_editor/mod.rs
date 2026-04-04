@@ -474,7 +474,7 @@ impl Editor {
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
             self.bounds.inline_paragraphs.clear();
-            self.layout_cache.clear();
+            self.layout_cache.invalidate_text_change();
 
             self.calc_source_lines();
             self.compute_bounds(root);
@@ -692,8 +692,15 @@ impl Editor {
 
         // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if resp.selection_updated || images_updated || height_updated || width_updated {
+        if images_updated || height_updated || width_updated {
             self.layout_cache.clear();
+            ui.ctx().request_repaint();
+        } else if resp.selection_updated {
+            let new_selection = self
+                .in_progress_selection
+                .unwrap_or(self.buffer.current.selection);
+            self.layout_cache
+                .invalidate_selection_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
