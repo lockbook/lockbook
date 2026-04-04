@@ -79,10 +79,11 @@ impl<'ast> Editor {
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let children = self.sorted_children(node);
+
         let mut height_sum = 0.0;
         for child in &children {
             height_sum += self.block_pre_spacing_height(child, &children);
-            height_sum += self.height(child);
+            height_sum += self.height(child, &children);
             height_sum += self.block_post_spacing_height(child, &children);
         }
         height_sum
@@ -94,6 +95,7 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
         let children = self.sorted_children(node);
+
         let required_range = self.galley_required_range();
 
         for child in &children {
@@ -115,7 +117,7 @@ impl<'ast> Editor {
             top_left.y += pre_spacing;
 
             // add block
-            let child_height = self.height(child);
+            let child_height = self.height(child, &children);
 
             if self.debug {
                 self.show_debug_block_highlight(
@@ -132,7 +134,7 @@ impl<'ast> Editor {
             let block_visible = !block_above_viewport && !block_below_viewport;
             let block_needed = child_range.intersects(&required_range, true);
             if block_visible || block_needed {
-                self.show_block(ui, child, top_left);
+                self.show_block(ui, child, top_left, &children);
             }
             top_left.y += child_height;
 
@@ -572,10 +574,14 @@ impl<'ast> Editor {
 
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
-        let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
+        let children = self.sorted_children(node);
+
 
         for child in &children {
+            if self.hidden_by_fold(child, &children) {
+                continue;
+            }
+
             // add pre-spacing bounds
             self.compute_bounds_block_pre_spacing(child, &children);
 

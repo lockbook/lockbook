@@ -83,7 +83,9 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
+    pub fn height(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
@@ -114,7 +116,7 @@ impl<'ast> Editor {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node) {
+        if self.hidden_by_fold(node, siblings) {
             return 0.;
         }
 
@@ -185,6 +187,7 @@ impl<'ast> Editor {
 
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
 
@@ -209,7 +212,7 @@ impl<'ast> Editor {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node) {
+        if self.hidden_by_fold(node, siblings) {
             return;
         }
 
@@ -220,13 +223,13 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert, siblings),
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(_) => self.show_item(ui, node, top_left),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left, siblings),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
@@ -234,7 +237,7 @@ impl<'ast> Editor {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(node_task_item) => {
-                self.show_task_item(ui, node, top_left, node_task_item)
+                self.show_task_item(ui, node, top_left, node_task_item, siblings)
             }
 
             // inline
@@ -271,7 +274,7 @@ impl<'ast> Editor {
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.show_heading(ui, node, top_left, *level, *setext)
+                self.show_heading(ui, node, top_left, *level, *setext, siblings)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
@@ -294,16 +297,13 @@ impl<'ast> Editor {
                 || node.is_leaf_block())
     }
 
-    /// Returns the children of the given node in sourcepos order.
+    /// Returns the children of the given node. With footnotes disabled,
+    /// comrak reports children in sourcepos order so no sorting is needed.
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::with_capacity(node.children().count());
-        children.extend(node.children());
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
-        children
+        node.children().collect()
     }
 
-    /// Returns the siblings of the given node in sourcepos order (unlike
-    /// `node.siblings()`).
+    /// Returns the siblings of the given node in sourcepos order.
     pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
         if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
     }
@@ -458,24 +458,28 @@ impl<'ast> Editor {
         None
     }
 
-    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+    pub fn hidden_by_fold(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> bool {
         if let Some(cached) = self.get_cached_hidden_by_fold(node) {
             return cached;
         }
 
-        let result = self.compute_hidden_by_fold(node);
+        let result = self.compute_hidden_by_fold(node, siblings);
         self.set_cached_hidden_by_fold(node, result);
         result
     }
 
-    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+    fn compute_hidden_by_fold(
+        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
+    ) -> bool {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
                 if matches!(
                     &ancestor.data.borrow().value,
                     NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor)
+                ) && !self.item_fold_reveal(ancestor, &self.sorted_siblings(ancestor))
                     && self.fold(ancestor).is_some()
                 {
                     return true;
@@ -486,8 +490,7 @@ impl<'ast> Editor {
         // show only the blocks that have no folded heading; headings with
         // another equal or more significant heading between them and the target
         // node don't count; headings intersecting the selection don't count
-        let sorted_siblings = self.sorted_siblings(node);
-        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let sibling_index = self.sibling_index(node, sorted_siblings);
 
         let mut most_significant_unfolded_heading =
             if let NodeValue::Heading(heading) = &node.data.borrow().value {
@@ -499,7 +502,7 @@ impl<'ast> Editor {
             if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling) && self.fold(sibling).is_some() {
+                    if !self.heading_fold_reveal(sibling, sorted_siblings) && self.fold(sibling).is_some() {
                         // our node is contained by a folded, unrevealed heading
                         return true;
                     }

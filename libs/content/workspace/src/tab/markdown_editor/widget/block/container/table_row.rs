@@ -27,8 +27,9 @@ impl<'ast> Editor {
         } else {
             // the height of the row is the height of the tallest cell
             let mut cell_height_max = 0.0f32;
-            for table_cell in node.children() {
-                cell_height_max = cell_height_max.max(self.height(table_cell));
+            let children = self.sorted_children(node);
+            for table_cell in &children {
+                cell_height_max = cell_height_max.max(self.height(table_cell, &children));
             }
 
             cell_height_max
