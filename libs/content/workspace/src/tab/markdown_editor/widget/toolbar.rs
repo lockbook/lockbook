@@ -940,7 +940,7 @@ impl<'ast> Editor {
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
 
-        let height = self.height(root);
+        let height = self.height(root, &[root]);
 
         self.layout_cache.clear();
 
@@ -968,13 +968,14 @@ impl<'ast> Editor {
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
 
-        let height = self.height(root);
+        let height = self.height(root, &[root]);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
         self.show_block(
             &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(*ui.layout())),
             root,
             top_left,
+            &[root],
         );
 
         self.layout_cache.clear();

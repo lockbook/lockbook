@@ -1,7 +1,6 @@
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
-use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
@@ -71,6 +70,11 @@ impl EmojiCompletions {
 /// with the cursor anywhere inside `:smile:` this returns the range covering
 /// that entire token. The caller reads `buffer[range]` and strips colons to
 /// get the search query.
+/// Returns the grapheme `&str` at the given char offset.
+fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
+    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+}
+
 fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     let selection = buffer.current.selection;
 
@@ -81,8 +85,7 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     }
 
     let cursor_idx = selection.1.0;
-    let text = buffer.current.text.to_string();
-    let gs: Vec<&str> = text.graphemes(true).collect();
+    let len = buffer.current.segs.last_cursor_position().0;
 
     // Scan backward to find the opening ':'.
     let mut i = cursor_idx;
@@ -94,13 +97,13 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         }
         i -= 1;
 
-        let g = gs[i];
+        let g = grapheme_at(buffer, i);
 
         if g == ":" {
             // Don't trigger when ':' immediately follows a word character, so
             // tokens like "http://", "e.g.:", or "v1.0:" are ignored.
             if i > 0
-                && gs[i - 1]
+                && grapheme_at(buffer, i - 1)
                     .chars()
                     .next()
                     .is_some_and(|c| c.is_alphanumeric())
@@ -126,11 +129,14 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     // whitespace, a closing ':', or the scan limit. This means the cursor can
     // be anywhere inside `:smile:` and the full shortcode is still the query.
     let mut j = cursor_idx;
-    while j < gs.len()
-        && !gs[j].chars().next().is_some_and(|c| c.is_whitespace())
+    while j < len
+        && !grapheme_at(buffer, j)
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_whitespace())
         && j - cursor_idx <= 30
     {
-        if gs[j] == ":" {
+        if grapheme_at(buffer, j) == ":" {
             // Found a closing colon — include it in the replacement range.
             j += 1;
             break;
