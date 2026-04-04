@@ -1,9 +1,11 @@
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
 
@@ -32,9 +34,17 @@ impl EmojiCompletions {
     /// Recomputes whether the popup should be active. Must be called before
     /// process_events so that translate_egui_keyboard_event can consult
     /// self.emoji_completions.active when deciding whether to swallow keys.
-    pub fn update_active_state(&mut self, buffer: &Buffer) {
+    pub fn update_active_state(&mut self, buffer: &Buffer, inline_paragraphs: &Paragraphs) {
         self.active = false;
         self.search_term_range = None;
+
+        if inline_paragraphs
+            .find_containing(buffer.current.selection.1, true, true)
+            .is_empty()
+        {
+            // not in an inline paragraph; wherever the cursor is rn, inlines do not apply
+            return;
+        }
 
         let Some(range) = detect_query(buffer) else { return };
         let Some(query) = query_from_range(buffer, range) else { return };
@@ -72,7 +82,7 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
 
     let cursor_idx = selection.1.0;
     let text = buffer.current.text.to_string();
-    let chars: Vec<char> = text.chars().collect();
+    let gs: Vec<&str> = text.graphemes(true).collect();
 
     // Scan backward to find the opening ':'.
     let mut i = cursor_idx;
@@ -84,12 +94,17 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         }
         i -= 1;
 
-        let c = chars[i];
+        let g = gs[i];
 
-        if c == ':' {
+        if g == ":" {
             // Don't trigger when ':' immediately follows a word character, so
             // tokens like "http://", "e.g.:", or "v1.0:" are ignored.
-            if i > 0 && chars[i - 1].is_alphanumeric() {
+            if i > 0
+                && gs[i - 1]
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphanumeric())
+            {
                 return None;
             }
             colon_idx = i;
@@ -97,7 +112,7 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         }
 
         // Hit whitespace before finding ':' — not inside a shortcode token.
-        if c.is_whitespace() {
+        if g.chars().next().is_some_and(|c| c.is_whitespace()) {
             return None;
         }
 
@@ -111,8 +126,11 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     // whitespace, a closing ':', or the scan limit. This means the cursor can
     // be anywhere inside `:smile:` and the full shortcode is still the query.
     let mut j = cursor_idx;
-    while j < chars.len() && !chars[j].is_whitespace() && j - cursor_idx <= 30 {
-        if chars[j] == ':' {
+    while j < gs.len()
+        && !gs[j].chars().next().is_some_and(|c| c.is_whitespace())
+        && j - cursor_idx <= 30
+    {
+        if gs[j] == ":" {
             // Found a closing colon — include it in the replacement range.
             j += 1;
             break;

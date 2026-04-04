@@ -1,12 +1,16 @@
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
+
+use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
 
@@ -43,9 +47,20 @@ pub struct LinkCompletions {
 }
 
 impl LinkCompletions {
-    pub fn update_active_state(&mut self, buffer: &Buffer) {
+    pub fn update_active_state(
+        &mut self, buffer: &Buffer, inline_paragraphs: &Paragraphs, files: &Arc<RwLock<FileCache>>,
+        file_id: Uuid,
+    ) {
         self.active = false;
         self.search_term_range = None;
+
+        if inline_paragraphs
+            .find_containing(buffer.current.selection.1, true, true)
+            .is_empty()
+        {
+            // not in an inline paragraph; wherever the cursor is rn, inlines do not apply
+            return;
+        }
 
         let Some((range, mode)) = detect_any(buffer) else { return };
         let qr = query_range(buffer, range, mode);
@@ -53,15 +68,24 @@ impl LinkCompletions {
         if self.suppressed.as_deref() == Some(query) {
             return;
         }
-        // A complete token means the cursor navigated into existing syntax — don't activate.
+
         let raw = &buffer[range];
         let complete = match mode {
             CompletionMode::WikiLink => raw.ends_with("]]"),
             CompletionMode::Link | CompletionMode::ImageLink => raw.ends_with(')'),
         };
         if complete {
+            // cursor navigated into existing syntax
             return;
         }
+
+        // Only activate if there are actual results to show.
+        let cache = files.read().unwrap();
+        let has_results = !search(&cache, file_id, query, mode).is_empty();
+        if !has_results {
+            return;
+        }
+
         self.mode = mode;
         self.active = true;
         self.search_term_range = Some(qr);
@@ -90,7 +114,7 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
 
     let cursor_idx = selection.1.0;
     let text = buffer.current.text.to_string();
-    let chars: Vec<char> = text.chars().collect();
+    let gs: Vec<&str> = text.graphemes(true).collect();
 
     let mut i = cursor_idx;
     let bracket_start;
@@ -99,12 +123,12 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
             return None;
         }
         i -= 1;
-        let c = chars[i];
-        if c == '\n' || c == ']' {
+        let g = gs[i];
+        if g == "\n" || g == "]" {
             return None;
         }
-        if c == '[' {
-            if i > 0 && chars[i - 1] == '[' {
+        if g == "[" {
+            if i > 0 && gs[i - 1] == "[" {
                 bracket_start = i - 1;
                 break;
             }
@@ -116,11 +140,11 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     }
 
     let mut j = cursor_idx;
-    while j < chars.len() {
-        if chars[j] == '\n' {
+    while j < gs.len() {
+        if gs[j] == "\n" {
             break;
         }
-        if chars[j] == ']' && j + 1 < chars.len() && chars[j + 1] == ']' {
+        if gs[j] == "]" && j + 1 < gs.len() && gs[j + 1] == "]" {
             j += 2;
             break;
         }
@@ -145,7 +169,7 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
 
     let cursor_idx = selection.1.0;
     let text = buffer.current.text.to_string();
-    let chars: Vec<char> = text.chars().collect();
+    let gs: Vec<&str> = text.graphemes(true).collect();
 
     // Scan backward for a single '[' that is NOT preceded by '[' (wikilink).
     // Stop at newlines, existing ']', '(' or ')' — we're outside the text field.
@@ -156,12 +180,12 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
             return None;
         }
         i -= 1;
-        let c = chars[i];
-        if c == '\n' || c == ']' || c == '(' || c == ')' {
+        let g = gs[i];
+        if g == "\n" || g == "]" || g == "(" || g == ")" {
             return None;
         }
-        if c == '[' {
-            if i > 0 && chars[i - 1] == '[' {
+        if g == "[" {
+            if i > 0 && gs[i - 1] == "[" {
                 return None; // wikilink — handled separately
             }
             open_bracket = i;
@@ -172,21 +196,21 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
         }
     }
 
-    let is_image = open_bracket > 0 && chars[open_bracket - 1] == '!';
+    let is_image = open_bracket > 0 && gs[open_bracket - 1] == "!";
     let start = if is_image { open_bracket - 1 } else { open_bracket };
 
     // Scan forward from cursor. If `](...)` follows, include it so the whole
     // link is replaced when the user picks a result.
     let mut j = cursor_idx;
-    while j < chars.len() && chars[j] != '\n' {
-        if chars[j] == ']' {
+    while j < gs.len() && gs[j] != "\n" {
+        if gs[j] == "]" {
             j += 1;
-            if j < chars.len() && chars[j] == '(' {
+            if j < gs.len() && gs[j] == "(" {
                 j += 1;
-                while j < chars.len() && chars[j] != ')' && chars[j] != '\n' {
+                while j < gs.len() && gs[j] != ")" && gs[j] != "\n" {
                     j += 1;
                 }
-                if j < chars.len() && chars[j] == ')' {
+                if j < gs.len() && gs[j] == ")" {
                     j += 1;
                 }
             }
