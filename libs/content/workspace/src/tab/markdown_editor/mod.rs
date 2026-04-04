@@ -456,8 +456,14 @@ impl Editor {
             result
         };
 
-        self.emoji_completions.update_active_state(&self.buffer);
-        self.link_completions.update_active_state(&self.buffer);
+        self.emoji_completions
+            .update_active_state(&self.buffer, &self.bounds.inline_paragraphs);
+        self.link_completions.update_active_state(
+            &self.buffer,
+            &self.bounds.inline_paragraphs,
+            &self.files,
+            self.file_id,
+        );
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
