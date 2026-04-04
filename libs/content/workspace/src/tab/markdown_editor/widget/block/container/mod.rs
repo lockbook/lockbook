@@ -576,7 +576,6 @@ impl<'ast> Editor {
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
         let children = self.sorted_children(node);
 
-
         for child in &children {
             if self.hidden_by_fold(child, &children) {
                 continue;
