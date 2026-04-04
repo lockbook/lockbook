@@ -15,6 +15,7 @@ use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 7;
+const MIN_QUERY_LEN: usize = 2;
 const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 const TARGET_POPUP_WIDTH: f32 = 320.0; // soft target per row; popup grows to fit actual content
 const MIN_HINT_WIDTH: f32 = 60.0; // always leave at least this much room for the hint
@@ -65,6 +66,9 @@ impl LinkCompletions {
         let Some((range, mode)) = detect_any(buffer) else { return };
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
+        if query.len() < MIN_QUERY_LEN {
+            return;
+        }
         if self.suppressed.as_deref() == Some(query) {
             return;
         }
