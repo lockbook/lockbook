@@ -23,6 +23,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::search::Search;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
@@ -46,6 +47,8 @@ pub struct Workspace {
     pub current_tab: usize,
     pub landing_page: LandingPage,
     pub account: Account,
+
+    pub search: Search,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -118,6 +121,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
+            search: Search::new(core, ctx),
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();

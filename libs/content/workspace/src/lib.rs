@@ -11,6 +11,7 @@ pub mod task_manager;
 pub mod theme;
 pub mod widgets;
 pub mod workspace;
+pub mod search;
 
 use std::ops::DerefMut as _;
 use std::sync::atomic::{AtomicUsize, Ordering};
