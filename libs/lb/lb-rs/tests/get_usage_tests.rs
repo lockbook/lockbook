@@ -79,7 +79,7 @@ async fn usage_go_back_down_after_delete() {
             .iter()
             .map(|f| f.size_bytes)
             .sum::<u64>(),
-        METADATA_FEE * 2
+        METADATA_FEE
     );
 }
 
@@ -139,7 +139,7 @@ async fn usage_go_back_down_after_delete_folder() {
         .await
         .unwrap_or_else(|err| panic!("{err:?}"));
 
-    assert_eq!(usage.usages.len(), 5);
+    assert_eq!(usage.usages.len(), 2);
 }
 
 #[tokio::test]
