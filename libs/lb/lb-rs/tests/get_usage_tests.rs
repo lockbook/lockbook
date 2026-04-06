@@ -79,7 +79,7 @@ async fn usage_go_back_down_after_delete() {
             .iter()
             .map(|f| f.size_bytes)
             .sum::<u64>(),
-        METADATA_FEE * 1
+        METADATA_FEE
     );
 }
 
