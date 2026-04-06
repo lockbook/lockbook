@@ -7,13 +7,11 @@ use crate::document_service::DocumentService;
 use crate::utils::get_build_info;
 use crate::{ServerError, ServerState, handle_version_header, router_service, verify_auth};
 use lazy_static::lazy_static;
-
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
 use prometheus::{
     CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
-
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;

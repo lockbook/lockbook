@@ -48,24 +48,14 @@ pub fn get_files_preview_html(uuid: &str) -> String {
 
                 // Try to open the app
                 window.location.href = url;
-
-                // Fallback after delay (if app not installed)
-                setTimeout(function() {{
-                    document.getElementById("fallback").style.display = "block";
-                }}, 1500);
             }};
         </script>
-        <style>
-            #fallback {{
-                display: none;
-            }}
-        </style>
     </head>
     <body>
         <h1>Opening Lockbook...</h1>
         <p>If nothing happens, use the link below:</p>
-        <div id="fallback">
-            <a id="openAppLink" href="lb://{uuid}">Open in App</a>
+        <div>
+            <a href="lb://{uuid}">Open in App</a>
         </div>
     </body>
 </html>
