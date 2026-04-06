@@ -5,7 +5,7 @@ use lockbook_server_lib::billing::google_play_client::get_google_play_client;
 use lockbook_server_lib::config::Config;
 use lockbook_server_lib::document_service::OnDiskDocuments;
 use lockbook_server_lib::router_service::{
-    app_store_notification_webhooks, build_info, core_routes, files_routes, get_metrics,
+    app_store_notification_webhooks, build_info, core_routes, get_metrics,
     google_play_notification_webhooks, stripe_webhooks,
 };
 use lockbook_server_lib::schema::{ServerDb, ServerV5};
@@ -14,6 +14,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::*;
 use warp::Filter;
+use files::routes as files_routes;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

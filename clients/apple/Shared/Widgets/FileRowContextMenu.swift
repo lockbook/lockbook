@@ -25,6 +25,7 @@ struct FileRowContextMenu: View {
             Button(action: {
                 exportFiles(homeState: homeState, files: [file])
             }) {
+                
                 Label(
                     "Share externally to...",
                     systemImage: "square.and.arrow.up.fill"
