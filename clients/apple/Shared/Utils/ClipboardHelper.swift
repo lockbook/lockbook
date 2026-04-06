@@ -16,7 +16,7 @@ class ClipboardHelper {
         case .success(let account):
             ClipboardHelper.copyToClipboard("\(account.apiUrl)/\(id.uuidString)")
         case .failure(let err):
-            AppState.shared.error = .custom(title: "Failed to copy link", msg: err.msg)
+            AppState.shared.error = .custom(title: "Failed to copy file link", msg: err.msg)
         }
     }
 }
