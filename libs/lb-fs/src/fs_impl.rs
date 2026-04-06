@@ -82,7 +82,14 @@ impl NfsReadFileSystem for Drive {
     async fn lookup(
         &self, dirid: &Self::Handle, filename: &filename3<'_>,
     ) -> Result<Self::Handle, nfsstat3> {
-        let dir = self.data.lock().await.get(dirid).unwrap().file.clone();
+        let dir = self
+            .data
+            .lock()
+            .await
+            .get(dirid)
+            .ok_or(nfsstat3::NFS3ERR_STALE)?
+            .file
+            .clone();
 
         if dir.is_document() {
             info!("NOTDIR");
@@ -101,6 +108,7 @@ impl NfsReadFileSystem for Drive {
             return Ok(dir.parent.into());
         }
 
+        // todo this should almost certainly just operate on the cache
         let children = self.lb.get_children(&dir.id).await.unwrap();
         let file_name = get_string(filename);
 
@@ -117,7 +125,14 @@ impl NfsReadFileSystem for Drive {
 
     #[instrument(skip(self), fields(id = id.to_string()))]
     async fn getattr(&self, id: &Self::Handle) -> Result<fattr3, nfsstat3> {
-        let file = self.data.lock().await.get(id).unwrap().fattr.clone();
+        let file = self
+            .data
+            .lock()
+            .await
+            .get(id)
+            .ok_or(nfsstat3::NFS3ERR_STALE)?
+            .fattr
+            .clone();
         info!("fattr = {:?}", file);
         Ok(file)
     }
