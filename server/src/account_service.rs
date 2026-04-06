@@ -204,12 +204,14 @@ where
                     }
                 };
 
-                let file_size = match tree.calculate_deleted(&file_id).unwrap_or(true) {
-                    true => 0,
-                    false => file.file.timestamped_value.value.doc_size().unwrap_or(0),
-                } as u64;
+                match tree.calculate_deleted(&file_id).unwrap_or(true) {
+                    true => None,
+                    false => {
+                        let file_size = file.file.timestamped_value.value.doc_size().unwrap_or(0) as u64;
+                        Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
+                    },
+                }
 
-                Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
             })
             .collect();
         Ok(result)
