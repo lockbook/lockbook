@@ -87,8 +87,10 @@ impl Lb {
         pipeline?;
 
         let account = self.get_account()?.clone();
+
+        #[cfg(not(target_family = "wasm"))]
         if account.is_beta() {
-            self.clone().send_debug_info(account);
+            self.send_debug_info(account).await;
         }
 
         Ok(())
@@ -1165,22 +1167,28 @@ impl Lb {
         Ok(id)
     }
 
-    fn send_debug_info(self, account: Account) {
-        #[cfg(not(target_family = "wasm"))]
-        tokio::spawn(async move {
+    #[cfg(not(target_family = "wasm"))]
+    async fn send_debug_info(&self, account: Account) {
+        let debug_info = self
+            .debug_info("none provided - sync".to_string(), false)
+            .await
+            .unwrap();
+
+        if self.config.background_work {
+            let bg_self = self.clone();
+            tokio::spawn(async move {
+                bg_self
+                    .client
+                    .request(&account, UpsertDebugInfoRequest { debug_info })
+                    .await
+                    .unwrap();
+            });
+        } else {
             self.client
-                .request(
-                    &account,
-                    UpsertDebugInfoRequest {
-                        debug_info: self
-                            .debug_info("none provided - sync".to_string(), false)
-                            .await
-                            .unwrap(),
-                    },
-                )
+                .request(&account, UpsertDebugInfoRequest { debug_info })
                 .await
-                .unwrap();
-        });
+                .log_and_ignore();
+        }
     }
 
     async fn read_document_helper<T>(
