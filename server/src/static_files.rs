@@ -2,9 +2,9 @@ use tracing::{Level, info, span};
 use warp::{Filter, http::Response, hyper::Body};
 
 const APPLE_APP_SITE_ASSOCIATION: &str =
-    include_str!("../etc/well-known/apple-app-site-association");
+    include_str!("../static/well-known/apple-app-site-association");
 
-pub fn routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+pub fn static_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     open_route().or(well_known_route())
 }
 
@@ -45,7 +45,7 @@ pub fn get_files_preview_html(uuid: &str) -> String {
         <script>
             window.onload = function() {{
                 const url = "lb://{uuid}";
-                
+
                 // Try to open the app
                 window.location.href = url;
 

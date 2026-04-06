@@ -10,11 +10,11 @@ use lockbook_server_lib::router_service::{
 };
 use lockbook_server_lib::schema::{ServerDb, ServerV5};
 use lockbook_server_lib::*;
+use static_files::static_routes;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::*;
 use warp::Filter;
-use files::routes as files_routes;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
@@ -54,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         .or(stripe_webhooks(&server_state))
         .or(google_play_notification_webhooks(&server_state))
         .or(app_store_notification_webhooks(&server_state))
-        .or(files_routes());
+        .or(static_routes());
 
     let server = warp::serve(routes);
 
