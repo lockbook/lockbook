@@ -105,10 +105,12 @@ impl<'ast> Editor {
 
                 // ...unless we're already in a link
                 for descendant in root.descendants() {
-                    if matches!(descendant.data().value, NodeValue::Link(_))
-                        && self
-                            .node_range(descendant)
-                            .intersects(&self.buffer.current.selection, false)
+                    if matches!(
+                        descendant.data().value,
+                        NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
+                    ) && self
+                        .node_range(descendant)
+                        .intersects(&self.buffer.current.selection, false)
                     {
                         link_paste = false;
                         break;
