@@ -10,7 +10,6 @@ import net.lockbook.File
 
 class WorkspaceViewModel : ViewModel() {
 
-    var isSyncing = false
 
     /** request workspace to  open a file **/
     val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
@@ -27,7 +26,6 @@ class WorkspaceViewModel : ViewModel() {
     val sync: LiveData<Unit>
         get() = _sync
 
-    var lastSyncStatusUpdate = System.currentTimeMillis()
 
     /** are tabs shown in workspace **/
     val _showTabs = SingleMutableLiveData<Boolean>()
@@ -52,11 +50,6 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    // for everyone else
-    val _msg = MutableLiveData<String>()
-    val msg: LiveData<String>
-        get() = _msg
-
     val _hideMaterialToolbar = SingleMutableLiveData<Float>()
     val hideMaterialToolbar: LiveData<Float>
         get() = _hideMaterialToolbar
@@ -64,10 +57,6 @@ class WorkspaceViewModel : ViewModel() {
     val _tabTitleClicked = SingleMutableLiveData<Unit>()
     val tabTitleClicked: LiveData<Unit>
         get() = _tabTitleClicked
-
-    val _syncCompleted = SingleMutableLiveData<Unit>()
-    val syncCompleted: LiveData<Unit>
-        get() = _syncCompleted
 
     var tabs = emptyDataSourceTyped<File>()
 
@@ -86,6 +75,7 @@ class WorkspaceViewModel : ViewModel() {
     val _isRendering = MutableLiveData<Boolean>()
     val isRendering: LiveData<Boolean>
         get() = _isRendering
+
 }
 
 data class WorkspaceTab(

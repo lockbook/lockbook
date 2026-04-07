@@ -11,17 +11,20 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
+import app.lockbook.workspace.LbStatus
+import app.lockbook.workspace.SpaceUsed
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.LbError.LbEC
+import net.lockbook.Usage
+import java.util.UUID
 
-class FilesListViewModel(application: Application) : AndroidViewModel(application) {
+class FileTreeViewModel(application: Application) : AndroidViewModel(application) {
 
     internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
@@ -29,24 +32,51 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
     lateinit var fileModel: FileModel
 
+    /// the list of files that the file tree displays in the UI
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
+
     val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
+    /// the current file path
     val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
     val breadcrumbItems: LiveData<MutableList<BreadCrumbItem>>
         get() = _breadcrumbItems
 
-    var localChanges: HashSet<String> = hashSetOf()
-    var serverChanges: HashSet<String>? = null
+
+    val _dirtyLocally = MutableLiveData<Set<UUID>>()
+    val dirtyLocally: LiveData<Set<UUID>>
+        get() = _dirtyLocally
+
+    val _pullingFiles = MutableLiveData<Set<UUID>>()
+    val pullingFiles: LiveData<Set<UUID>>
+        get() = _pullingFiles
+
+    val _pushingFiles = MutableLiveData<Set<UUID>>()
+    val pushingFiles: LiveData<Set<UUID>>
+        get() = _pushingFiles
+
     var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
 
-    var isSuggestedDocsVisible = true
+    val _isSuggestedDocsVisible = MutableLiveData(true)
+    val isSuggestedDocsVisible: LiveData<Boolean>
+        get() = _isSuggestedDocsVisible
+
+    val _usage = MutableLiveData<SpaceUsed?>()
+    val usage: LiveData<SpaceUsed?>
+        get() = _usage
+
+    val _syncStatus = MutableLiveData<String?>()
+    val syncStatus: LiveData<String?>
+        get() = _syncStatus
+
 
     init {
         startUpInRoot()
         checkUsage()
     }
 
+    // todo: use status.usage and populate this on status update. it will result in a better
+    // running out of storage experience. currently we only check at startup
     private fun checkUsage() {
         viewModelScope.launch(Dispatchers.IO) {
             val usage = try {
@@ -100,13 +130,12 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         try {
             fileModel = FileModel.createAtRoot()
             suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-            files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+            files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
 
             viewModelScope.launch(Dispatchers.IO) {
                 maybeToggleSuggestedDocs()
-                refreshWorkInfo()
             }
         } catch (err: LbError) {
             if (err.kind == LbEC.RootNonexistent) {
@@ -117,15 +146,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    suspend fun maybeToggleSuggestedDocs() {
-        val newIsSuggestedDocsVisible = fileModel.parent.parent == fileModel.parent.id && !suggestedDocs.isEmpty()
-
-        if (newIsSuggestedDocsVisible != isSuggestedDocsVisible) {
-            isSuggestedDocsVisible = newIsSuggestedDocsVisible
-            withContext(Dispatchers.Main) {
-                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleSuggestedDocsVisibility(isSuggestedDocsVisible)
-            }
-        }
+    fun maybeToggleSuggestedDocs() {
+        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && !suggestedDocs.isEmpty()
     }
 
     fun enterFolder(folder: File) {
@@ -134,14 +156,8 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             maybeToggleSuggestedDocs()
 
-            try {
-                localChanges = Lb.getLocalChanges().toHashSet()
-            } catch (err: LbError) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-            }
-
             viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
             }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
@@ -154,7 +170,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
             maybeToggleSuggestedDocs()
 
             viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
             }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
@@ -167,7 +183,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
             maybeToggleSuggestedDocs()
             viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
             }
 
             _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
@@ -180,20 +196,13 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    fun reloadWorkInfo() {
-        viewModelScope.launch(Dispatchers.IO) {
-            refreshWorkInfo()
-        }
-    }
-
     private fun refreshFiles() {
         try {
             fileModel.refreshFiles()
-            localChanges = Lb.getLocalChanges().toHashSet()
 
             viewModelScope.launch(Dispatchers.Main) {
                 files.deselectAll()
-                files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
+                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
                 suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
 
                 _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
@@ -203,7 +212,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun refreshWorkInfo() {
+    private fun refreshSidebarInfo() {
         val sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
         maybeLastSidebarInfo = sidebarInfo
 
@@ -217,11 +226,7 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
 
-        try {
-            sidebarInfo.localDirtyFilesCount = Lb.getLocalChanges().size
-        } catch (err: LbError) {
-            return _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-        }
+        sidebarInfo.localDirtyFilesCount = dirtyLocally.value?.size
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
 
@@ -249,5 +254,16 @@ class FilesListViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
         _notifyUpdateFilesUI.postValue(sidebarInfo)
+    }
+
+    fun hydrateLbStatus(status: LbStatus){
+        _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+
+        _usage.value = status.spaceUsed
+
+        _syncStatus.value = status.syncStatus
+
     }
 }

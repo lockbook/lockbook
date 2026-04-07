@@ -2,16 +2,16 @@ use crate::Lb;
 use crate::model::api::{FileUsage, GetUsageRequest};
 use crate::model::errors::LbResult;
 use crate::model::usage::get_usage;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UsageMetrics {
     pub usages: Vec<FileUsage>,
     pub server_usage: UsageItemMetric,
     pub data_cap: UsageItemMetric,
 }
 
-#[derive(Serialize, PartialEq, Eq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Eq, Debug, Clone)]
 pub struct UsageItemMetric {
     pub exact: u64,
     pub readable: String,

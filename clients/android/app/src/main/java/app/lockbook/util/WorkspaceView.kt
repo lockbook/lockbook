@@ -351,18 +351,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 startActivity(context, browserIntent, null)
             }
 
-            val elapsed = System.currentTimeMillis() - model.lastSyncStatusUpdate
-            if (elapsed > 1_000) {
-                val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
-                if (model.isSyncing && !status.syncing) {
-                    model._syncCompleted.postValue(Unit)
-                }
-
-                model.isSyncing = status.syncing
-                model._msg.value = status.msg
-                model.lastSyncStatusUpdate = System.currentTimeMillis()
-            }
-
             if (!response.docCreated.isNullUUID()) {
                 model._createFile.postValue(response.docCreated)
             }

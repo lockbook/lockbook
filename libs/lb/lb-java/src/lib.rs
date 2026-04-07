@@ -6,7 +6,7 @@ use std::str::FromStr;
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
-use jni::sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jobject, jobjectArray, jstring};
 pub use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{
@@ -18,6 +18,7 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
+use lb_rs::subscribers::status;
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
 
@@ -536,6 +537,54 @@ pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jobject {
+    let lb: &mut Lb = rlb(&mut env, &class);
+
+    let mut rx = lb.subscribe();
+
+    if let Ok(event) = rx.blocking_recv() {
+        let lb_event_class = env.find_class("net/lockbook/LbEvent").unwrap();
+        let lb_event_obj = env.new_object(&lb_event_class, "()V", &[]).unwrap();
+        let mut event_handled = true;
+        match event {
+            service::events::Event::MetadataChanged(_) => {
+                env.set_field(&lb_event_obj, "metadataChanged", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            service::events::Event::PendingSharesChanged => {
+                env.set_field(&lb_event_obj, "pendingSharesChanged", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            service::events::Event::StatusUpdated => {
+                env.set_field(&lb_event_obj, "statusUpdated", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            _ => event_handled = false,
+        };
+        if event_handled {
+            return lb_event_obj.into_raw();
+        }
+        // update the live mutuable data with the new info
+    }
+    JObject::null().into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_getStatus<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let lb_status = lb.status();
+
+    env.new_string(serde_json::to_string(&lb_status).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_exportFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jdest: JString<'local>,
     jedit: jboolean,
@@ -729,18 +778,6 @@ fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local
     }
 
     arr
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jobjectArray {
-    let lb = rlb(&mut env, &class);
-
-    match lb.get_local_changes() {
-        Ok(local_changes) => jids(&mut env, local_changes).into_raw(),
-        Err(err) => throw_err(&mut env, err).into_raw(),
-    }
 }
 
 #[unsafe(no_mangle)]

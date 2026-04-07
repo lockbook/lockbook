@@ -8,7 +8,6 @@ use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
-use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
@@ -266,21 +265,6 @@ fn parse_start_positions(
 pub struct WsStatus {
     pub syncing: bool,
     pub msg: String,
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    let lb_status = obj.workspace.core.status();
-
-    let status = WsStatus { syncing: lb_status.syncing, msg: lb_status.msg().unwrap_or_default() };
-
-    env.new_string(serde_json::to_string(&status).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
 }
 
 #[no_mangle]
@@ -665,44 +649,4 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_isPenOnlyDraw(
         false
     }
     .into()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouchEvent(
-    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
-) -> jboolean {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    if let Some(tab) = obj.workspace.current_tab() {
-        if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
-            svg.detect_islands_interaction(egui::pos2(x, y))
-        } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.will_consume_touch(egui::pos2(x, y))
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-    .into()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
-    _env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        if select == 1 {
-            svg.toolbar
-                .set_tool(Tool::Eraser, &mut svg.settings, &mut svg.cfg);
-        } else if svg.toolbar.active_tool == Tool::Eraser {
-            svg.toolbar.set_tool(
-                svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
-                &mut svg.settings,
-                &mut svg.cfg,
-            );
-        }
-    }
 }

@@ -105,7 +105,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val activityModel: StateViewModel by activityViewModels()
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
-    private val model: FilesListViewModel by activityViewModels()
+    private val model: FileTreeViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -113,7 +113,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private val recyclerView get() = binding.filesList
 
-    private var updatedLastSyncedDescription = Timer()
     private val handler = Handler(requireNotNull(Looper.myLooper()))
 
     override fun onCreateView(
@@ -171,31 +170,18 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.listFilesRefresh.setOnRefreshListener {
-            workspaceModel.isSyncing = true
+//            workspaceModel.isSyncing = true
             workspaceModel._sync.postValue(Unit)
         }
 
-        updatedLastSyncedDescription.schedule(
-            object : TimerTask() {
-                @SuppressLint("NotifyDataSetChanged")
-                override fun run() {
-                    handler.post {
-                        model.reloadWorkInfo()
-                        binding.filesList.adapter?.notifyDataSetChanged()
-                    }
-                }
-            },
-            30000,
-            30000
-        )
 
-        model.maybeLastSidebarInfo?.let { uiUpdate ->
-            updateUI(uiUpdate)
-        }
+//        model.maybeLastSidebarInfo?.let { uiUpdate ->
+//            updateUI(uiUpdate)
+//        }
 
-        workspaceModel.syncCompleted.observe(viewLifecycleOwner) {
-            binding.listFilesRefresh.isRefreshing = false
-        }
+//        workspaceModel.isSyncing.observe(viewLifecycleOwner) {
+//            binding.listFilesRefresh.isRefreshing = false
+//        }
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
             if (currentTab != it) {
@@ -208,6 +194,52 @@ class FilesListFragment : Fragment(), FilesFragment {
             currentTab = it
         }
 
+        model.isSuggestedDocsVisible.observe(viewLifecycleOwner){
+            binding.suggestedDocsLayout.root.visibility = if (it) View.VISIBLE else View.GONE
+        }
+
+        val header = binding.navigationView.getHeaderView(0)
+        val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
+
+        val accentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
+        } else {
+            ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+        }
+
+        model.usage.observe(viewLifecycleOwner){ usageMetrics ->
+            usageMetrics?.let {
+                val dataCap = it.dataCap?.exact?.toFloat() ?: 0f
+                val usage = it.serverUsage?.exact?.toFloat() ?: 0f
+
+                donut.cap = dataCap
+
+                val usageSection = DonutSection(
+                    name = "",
+                    color = accentColor,
+                    amount = usage
+                )
+                donut.submitData(listOf(usageSection))
+
+                header.findViewById<MaterialTextView>(R.id.filesListUsage).text =
+                    getString(R.string.free_space, usageMetrics.serverUsage?.readable, usageMetrics.dataCap?.readable)
+
+            }
+        }
+
+        model.syncStatus.observe(viewLifecycleOwner){
+            header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text = it
+        }
+
+        model.dirtyLocally.observe(viewLifecycleOwner){
+            header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
+        }
+
+        model.pushingFiles.observe(viewLifecycleOwner) {
+            header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, it.size, it.size)
+
+        }
+
         return binding.root
     }
 
@@ -215,10 +247,6 @@ class FilesListFragment : Fragment(), FilesFragment {
         super.onViewCreated(view, savedInstanceState)
 
         setUpToolbar()
-
-        if (!model.isSuggestedDocsVisible) {
-            binding.suggestedDocsLayout.root.visibility = View.GONE
-        }
 
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
@@ -493,48 +521,6 @@ class FilesListFragment : Fragment(), FilesFragment {
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
-            is UpdateFilesUI.UpdateSideBarInfo -> {
-                val header = binding.navigationView.getHeaderView(0)
-
-                uiUpdates.usageMetrics?.let { usageMetrics ->
-                    val dataCap = usageMetrics.dataCap.exact.toFloat()
-                    val usage = usageMetrics.serverUsage.exact.toFloat()
-
-                    val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
-                    donut.cap = dataCap
-
-                    val accentColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
-                    } else {
-                        ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
-                    }
-
-                    val usageSection = DonutSection(
-                        name = "",
-                        color = accentColor,
-                        amount = usage
-                    )
-
-                    donut.submitData(listOf(usageSection))
-
-                    header.findViewById<MaterialTextView>(R.id.filesListUsage).text = getString(R.string.free_space, usageMetrics.serverUsage.readable, usageMetrics.dataCap.readable)
-                }
-
-                uiUpdates.lastSynced?.let { lastSynced ->
-                    header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text = getString(R.string.last_sync, lastSynced)
-                }
-
-                uiUpdates.localDirtyFilesCount?.let { localDirtyFilesCount ->
-                    header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, localDirtyFilesCount, localDirtyFilesCount)
-                }
-
-                uiUpdates.serverDirtyFilesCount?.let { serverDirtyFilesCount ->
-                    header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, serverDirtyFilesCount, serverDirtyFilesCount)
-                }
-            }
-            is UpdateFilesUI.ToggleSuggestedDocsVisibility -> {
-                binding.suggestedDocsLayout.root.visibility = if (uiUpdates.show) View.VISIBLE else View.GONE
-            }
             is UpdateFilesUI.OutOfSpace -> {
                 val usageRatio = uiUpdates.progress.toFloat() / uiUpdates.max
 
@@ -685,8 +671,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
-    data class UpdateSideBarInfo(var usageMetrics: Usage? = null, var lastSynced: String? = null, var localDirtyFilesCount: Int? = null, var serverDirtyFilesCount: Int? = null, var hasPendingShares: Boolean? = null) : UpdateFilesUI()
-    data class ToggleSuggestedDocsVisibility(var show: Boolean) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()

@@ -4221,6 +4221,7 @@ version = "26.3.22"
 dependencies = [
  "jni",
  "lb-rs",
+ "serde_json",
 ]
 
 [[package]]

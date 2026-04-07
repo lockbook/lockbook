@@ -39,7 +39,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
-import app.lockbook.model.FilesListViewModel
+import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
@@ -58,7 +58,6 @@ import com.afollestad.recyclical.withItem
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
-import kotlin.collections.plus
 import kotlin.getValue
 import kotlin.math.abs
 
@@ -77,7 +76,7 @@ class WorkspaceFragment : Fragment() {
         val BACKSTACK_TAG = "WorkspaceBackstack"
     }
 
-    private val filesListModel: FilesListViewModel by activityViewModels()
+    private val filesListModel: FileTreeViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,

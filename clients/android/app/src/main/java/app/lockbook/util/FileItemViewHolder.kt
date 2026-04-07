@@ -10,6 +10,7 @@ import com.afollestad.recyclical.ViewHolder
 import com.google.android.material.button.MaterialButton
 import net.lockbook.File
 import net.lockbook.File.FileType
+import java.util.UUID
 
 sealed class FileViewHolderInfo(open val fileMetadata: File, open val needToBePushed: Boolean, open val needsToBePulled: Boolean) {
     data class DocumentViewHolderInfo(override val fileMetadata: File, override val needToBePushed: Boolean, override val needsToBePulled: Boolean) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled)
@@ -36,7 +37,7 @@ class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
     val icon: ImageView = itemView.findViewById(R.id.linear_move_file_icon)
 }
 
-fun List<File>.intoViewHolderInfo(localChanges: HashSet<String>, serverChanges: HashSet<String>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
+fun List<File>.intoViewHolderInfo(localChanges: Set<UUID>?, serverChanges: Set<UUID>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
     when (fileMetadata.type) {
         FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
         FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
