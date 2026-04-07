@@ -13,7 +13,6 @@ use raw_window_handle::{
     HasWindowHandle, RawDisplayHandle, RawWindowHandle, WindowHandle,
 };
 use std::ptr::NonNull;
-use std::sync::{Arc, Mutex};
 use wgpu::SurfaceTargetUnsafe;
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use workspace_rs::theme::visuals;
@@ -80,13 +79,12 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mut native_window = NativeWindow::new(&env, surface);
     let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
-    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
         &renderer.device,
         &renderer.queue,
         RendererState::text_format(&renderer.adapter, &renderer.surface),
         &mut renderer.renderer,
-        font_system.clone(),
+        workspace_rs::register_font_system(&renderer.context),
         renderer.sample_count,
     );
 

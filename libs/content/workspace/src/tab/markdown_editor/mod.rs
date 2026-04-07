@@ -1,9 +1,8 @@
-use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::OnceLock;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
@@ -88,7 +87,6 @@ pub struct Editor {
     pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
-    pub font_system: Arc<Mutex<FontSystem>>,
     pub files: Arc<RwLock<FileCache>>,
     pub layout: MdLayout,
 
@@ -172,7 +170,6 @@ pub struct MdResources {
     pub ctx: Context,
     pub core: Lb,
     pub persistence: WsPersistentStore,
-    pub font_system: Arc<Mutex<FontSystem>>,
     pub files: Arc<RwLock<FileCache>>,
 }
 
@@ -249,7 +246,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, font_system, files } = res;
+        let MdResources { ctx, core, persistence, files } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -262,7 +259,6 @@ impl Editor {
             client: Default::default(),
             ctx,
             persistence,
-            font_system,
             files,
 
             dark_mode,
@@ -331,7 +327,6 @@ impl Editor {
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
-                font_system: Arc::new(Mutex::new(crate::make_font_system())),
                 files,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },

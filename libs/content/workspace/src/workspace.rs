@@ -1,7 +1,6 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
-use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
 use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::account::Account;
@@ -16,7 +15,7 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
@@ -62,7 +61,6 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
-    pub font_system: Arc<Mutex<FontSystem>>,
 
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
@@ -78,9 +76,7 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(
-        core: &Lb, ctx: &Context, font_system: Arc<Mutex<FontSystem>>, show_tabs: bool,
-    ) -> Self {
+    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
@@ -89,8 +85,6 @@ impl Workspace {
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
-        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
-
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
@@ -107,7 +101,6 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             core: core.clone(),
-            font_system,
 
             show_tabs,
             focused_parent: Default::default(),
@@ -517,7 +510,6 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
-                                            font_system: self.font_system.clone(),
                                             files: Arc::clone(&self.files),
                                         },
                                         MdConfig {
