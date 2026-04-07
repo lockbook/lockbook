@@ -30,6 +30,7 @@ pub const BETA_USERS: &[&str] = &[
     "chefbowyer",
     "raayan",
     "praful",
+    "paulhovey",
     "amumu",
 ];
 
