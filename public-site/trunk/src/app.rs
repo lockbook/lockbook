@@ -93,7 +93,7 @@ impl eframe::App for LbWebApp {
                                 workspace_rs::file_cache::FileCache::empty(),
                             )),
                         },
-                        MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
+                        MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
                     ));
                 }
 
