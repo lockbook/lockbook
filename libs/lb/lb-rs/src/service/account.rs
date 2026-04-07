@@ -220,6 +220,7 @@ To style text, wrap your text in the corresponding characters.
 | strikethrough | `~~strikethrough~~` | ~~strikethrough~~ |
 | underline     | `__underline__`     | __underline__     |
 | code          | ``code``            | `code`            |
+| highlight     | `==highlight==`     | ==highlight==     |
 | spoiler       | `||spoiler||`       | ||spoiler||       |
 | superscript   | `^superscript^`     | ^superscript^     |
 | subscript     | `~subscript~`       | ~subscript~       |
@@ -234,9 +235,9 @@ To make text into a link, wrap it with `[` `]`, add a link destination to the en
 ## Images
 To embed an image, add a `!` to the beginning of the link syntax.
 ```md
-![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
+![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg`)
 ```
-> ![Lockbook's favicon](https://lockbook.net/favicon/favicon-96x96.png)
+> ![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg`)
 
 ## Headings
 To create a heading, add up to six `#`'s plus a space before your text. More `#`'s create a smaller heading.
