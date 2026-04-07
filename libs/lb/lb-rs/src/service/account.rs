@@ -237,7 +237,7 @@ To embed an image, add a `!` to the beginning of the link syntax.
 ```md
 ![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg)
 ```
-> ![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg`)
+> ![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg)
 
 ## Headings
 To create a heading, add up to six `#`'s plus a space before your text. More `#`'s create a smaller heading.
