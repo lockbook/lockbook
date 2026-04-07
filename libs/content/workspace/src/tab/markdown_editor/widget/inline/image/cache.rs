@@ -81,6 +81,7 @@ pub fn calc<'ast>(
                 };
 
                 let viewport_width = ui.available_width();
+                let pixels_per_point = ui.ctx().pixels_per_point();
 
                 result.map.insert(url.clone(), image_state.clone());
                 // fetch image
@@ -139,8 +140,8 @@ pub fn calc<'ast>(
                                 (size.width(), size.height(), Transform::default())
                             };
 
-                            // cap to viewport width to avoid exceeding GPU texture limits
-                            let scale = (viewport_width / w).min(1.0);
+                            // cap to viewport width, then scale up for DPI
+                            let scale = (viewport_width / w).min(1.0) * pixels_per_point;
                             let pix_w = (w * scale) as u32;
                             let pix_h = (h * scale) as u32;
                             let transform = if scale < 1.0 {
