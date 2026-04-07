@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
@@ -51,13 +51,12 @@ impl LbWebApp {
             panic!("must use wgpu as graphics target")
         };
 
-        let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
         workspace_rs::register_render_callback_resources(
             &wgpu.device,
             &wgpu.queue,
             wgpu.target_format,
             &mut wgpu.renderer.write(),
-            font_system,
+            workspace_rs::register_font_system(&ctx),
             1,
         );
 
@@ -90,12 +89,11 @@ impl eframe::App for LbWebApp {
                             ctx: ctx.clone(),
                             core: self.core.clone(),
                             persistence: self.cfg.clone(),
-                            font_system: Arc::new(Mutex::new(workspace_rs::make_font_system())),
                             files: Arc::new(std::sync::RwLock::new(
                                 workspace_rs::file_cache::FileCache::empty(),
                             )),
                         },
-                        MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
+                        MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
                     ));
                 }
 

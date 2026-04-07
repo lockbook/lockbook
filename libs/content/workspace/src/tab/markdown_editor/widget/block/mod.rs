@@ -631,6 +631,11 @@ impl Editor {
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
+        let font_system = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))
+            .unwrap();
+
         let ppi = self.ctx.pixels_per_point();
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
@@ -657,8 +662,8 @@ impl Editor {
                         glyphon::Style::Normal
                     });
                 let metrics = glyphon::Metrics::new(font_size, line_height);
-                let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
-                b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
+                let mut b = glyphon::Buffer::new(&mut font_system.lock().unwrap(), metrics);
+                b.set_size(&mut font_system.lock().unwrap(), Some(width), None);
                 let emoji_attrs =
                     glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
                 let spans = text.graphemes(true).map(|g| {
@@ -672,13 +677,13 @@ impl Editor {
                     (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
                 });
                 b.set_rich_text(
-                    &mut self.font_system.lock().unwrap(),
+                    &mut font_system.lock().unwrap(),
                     spans,
                     &attrs,
                     glyphon::Shaping::Advanced,
                     None,
                 );
-                b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
+                b.shape_until_scroll(&mut font_system.lock().unwrap(), false);
                 Arc::new(RwLock::new(b))
             })
             .clone()

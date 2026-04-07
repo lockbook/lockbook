@@ -155,7 +155,7 @@ impl<'a> GlyphonLabel<'a> {
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
         let font_system = ctx
             .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
-            .expect("GlyphonLabel used outside of a wgpu context");
+            .expect("cosmic-text font system used before registered");
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
 

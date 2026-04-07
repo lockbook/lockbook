@@ -1,6 +1,5 @@
-use std::sync::{Arc, Mutex, RwLock, mpsc};
+use std::sync::{Arc, RwLock, mpsc};
 
-use glyphon::FontSystem;
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
 use lb::model::errors::LbErrKind;
@@ -23,7 +22,6 @@ enum SplashUpdate {
 
 pub struct SplashScreen {
     pub settings: Arc<RwLock<Settings>>,
-    pub font_system: Arc<Mutex<FontSystem>>,
 
     update_tx: mpsc::Sender<SplashUpdate>,
     update_rx: mpsc::Receiver<SplashUpdate>,
@@ -33,13 +31,10 @@ pub struct SplashScreen {
 }
 
 impl SplashScreen {
-    pub fn new(
-        settings: Arc<RwLock<Settings>>, font_system: Arc<Mutex<FontSystem>>,
-        maybe_error: Option<String>,
-    ) -> Self {
+    pub fn new(settings: Arc<RwLock<Settings>>, maybe_error: Option<String>) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
-        Self { settings, font_system, update_tx, update_rx, maybe_error, status: None }
+        Self { settings, update_tx, update_rx, maybe_error, status: None }
     }
 
     pub fn start_loading_core(&self, ctx: &egui::Context) {

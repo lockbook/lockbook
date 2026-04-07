@@ -268,7 +268,7 @@ impl<'a> GlyphonTextEdit<'a> {
         let font_system = ui
             .ctx()
             .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
-            .expect("GlyphonTextEdit used outside of a wgpu context");
+            .expect("cosmic-text font system used before registered");
 
         let focused = ui.memory(|m| m.has_focus(id));
         let ppi = ui.ctx().pixels_per_point();
