@@ -109,37 +109,34 @@ pub fn calc<'ast>(
                             bytes
                         };
 
-                        // convert lockbook drawings to images
-                        let image_bytes = if let Some(id) = maybe_lb_id {
+                        // convert svgs to rasterized images
+                        let is_svg = if let Some(id) = maybe_lb_id {
                             let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                            if file.name.ends_with(".svg") {
-                                // todo: check errors
-                                let tree = usvg::Tree::from_data(
-                                    &image_bytes,
-                                    &Default::default(),
-                                    &Default::default(),
-                                )
-                                .map_err(|e| e.to_string())?;
-
-                                let bounding_box = tree.root().abs_bounding_box();
-
-                                // dimensions & transform chosen so that all svg content appears in the result
-                                let mut pix_map = Pixmap::new(
-                                    bounding_box.width() as _,
-                                    bounding_box.height() as _,
-                                )
-                                .ok_or("failed to create pixmap")
-                                .map_err(|e| e.to_string())?;
-                                let transform = Transform::identity()
-                                    .post_translate(-bounding_box.left(), -bounding_box.top());
-                                resvg::render(&tree, transform, &mut pix_map.as_mut());
-                                pix_map.encode_png().map_err(|e| e.to_string())?
-                            } else {
-                                // leave non-drawings alone
-                                image_bytes
-                            }
+                            file.name.ends_with(".svg")
                         } else {
-                            // leave non-lockbook images alone
+                            url.ends_with(".svg")
+                        };
+
+                        let image_bytes = if is_svg {
+                            let tree = usvg::Tree::from_data(
+                                &image_bytes,
+                                &Default::default(),
+                                &Default::default(),
+                            )
+                            .map_err(|e| e.to_string())?;
+
+                            let bounding_box = tree.root().abs_bounding_box();
+
+                            // dimensions & transform chosen so that all svg content appears in the result
+                            let mut pix_map =
+                                Pixmap::new(bounding_box.width() as _, bounding_box.height() as _)
+                                    .ok_or("failed to create pixmap")
+                                    .map_err(|e| e.to_string())?;
+                            let transform = Transform::identity()
+                                .post_translate(-bounding_box.left(), -bounding_box.top());
+                            resvg::render(&tree, transform, &mut pix_map.as_mut());
+                            pix_map.encode_png().map_err(|e| e.to_string())?
+                        } else {
                             image_bytes
                         };
 
