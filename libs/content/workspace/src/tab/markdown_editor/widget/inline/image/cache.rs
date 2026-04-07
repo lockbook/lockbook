@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use std::sync::{Arc, Mutex};
-use tracing::debug;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
@@ -104,7 +103,6 @@ pub fn calc<'ast>(
                             {
                                 bytes = download_image(&client, &url).map_err(|e| e.to_string())?
                             }
-                            debug!("downloaded bytes of length {}", bytes.len());
 
                             bytes
                         };
@@ -125,15 +123,23 @@ pub fn calc<'ast>(
                             )
                             .map_err(|e| e.to_string())?;
 
-                            let bounding_box = tree.root().abs_bounding_box();
+                            let (pix_w, pix_h, transform) = if maybe_lb_id.is_some() {
+                                // lockbook drawings: dimensions & transform chosen so that all svg content appears in the result
+                                let bb = tree.root().abs_bounding_box();
+                                (
+                                    bb.width() as u32,
+                                    bb.height() as u32,
+                                    Transform::identity().post_translate(-bb.left(), -bb.top()),
+                                )
+                            } else {
+                                // everything else: use the dimensions in the svg
+                                let size = tree.size();
+                                (size.width() as u32, size.height() as u32, Transform::default())
+                            };
 
-                            // dimensions & transform chosen so that all svg content appears in the result
-                            let mut pix_map =
-                                Pixmap::new(bounding_box.width() as _, bounding_box.height() as _)
-                                    .ok_or("failed to create pixmap")
-                                    .map_err(|e| e.to_string())?;
-                            let transform = Transform::identity()
-                                .post_translate(-bounding_box.left(), -bounding_box.top());
+                            let mut pix_map = Pixmap::new(pix_w, pix_h)
+                                .ok_or("failed to create pixmap")
+                                .map_err(|e| e.to_string())?;
                             resvg::render(&tree, transform, &mut pix_map.as_mut());
                             pix_map.encode_png().map_err(|e| e.to_string())?
                         } else {
