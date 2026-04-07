@@ -235,7 +235,7 @@ To make text into a link, wrap it with `[` `]`, add a link destination to the en
 ## Images
 To embed an image, add a `!` to the beginning of the link syntax.
 ```md
-![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg`)
+![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg)
 ```
 > ![Lockbook's logo](raw.githubusercontent.com/lockbook/lockbook/master/docs/graphics/logo.svg`)
 
