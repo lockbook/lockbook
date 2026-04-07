@@ -2,7 +2,7 @@ use tracing::{Level, info, span};
 use warp::{Filter, http::Response, hyper::Body};
 
 const APPLE_APP_SITE_ASSOCIATION: &str =
-    include_str!("../static/well-known/apple-app-site-association");
+    include_str!("../static/apple-app-site-association");
 
 pub fn static_routes() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
     open_route().or(well_known_route())
