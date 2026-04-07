@@ -128,12 +128,10 @@ pub fn calc<'ast>(
                             let bounding_box = tree.root().abs_bounding_box();
 
                             // dimensions & transform chosen so that all svg content appears in the result
-                            let mut pix_map = Pixmap::new(
-                                bounding_box.width() as _,
-                                bounding_box.height() as _,
-                            )
-                            .ok_or("failed to create pixmap")
-                            .map_err(|e| e.to_string())?;
+                            let mut pix_map =
+                                Pixmap::new(bounding_box.width() as _, bounding_box.height() as _)
+                                    .ok_or("failed to create pixmap")
+                                    .map_err(|e| e.to_string())?;
                             let transform = Transform::identity()
                                 .post_translate(-bounding_box.left(), -bounding_box.top());
                             resvg::render(&tree, transform, &mut pix_map.as_mut());
