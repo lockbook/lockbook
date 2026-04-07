@@ -80,6 +80,8 @@ pub fn calc<'ast>(
                     })
                 };
 
+                let viewport_width = ui.available_width();
+
                 result.map.insert(url.clone(), image_state.clone());
                 // fetch image
                 spawn!({
@@ -123,18 +125,28 @@ pub fn calc<'ast>(
                             )
                             .map_err(|e| e.to_string())?;
 
-                            let (pix_w, pix_h, transform) = if maybe_lb_id.is_some() {
-                                // lockbook drawings: dimensions & transform chosen so that all svg content appears in the result
+                            let (w, h, base_transform) = if maybe_lb_id.is_some() {
+                                // lockbook drawings don't have meaningful dimensions,
+                                // use bounding box to capture all content
                                 let bb = tree.root().abs_bounding_box();
                                 (
-                                    bb.width() as u32,
-                                    bb.height() as u32,
+                                    bb.width(),
+                                    bb.height(),
                                     Transform::identity().post_translate(-bb.left(), -bb.top()),
                                 )
                             } else {
-                                // everything else: use the dimensions in the svg
                                 let size = tree.size();
-                                (size.width() as u32, size.height() as u32, Transform::default())
+                                (size.width(), size.height(), Transform::default())
+                            };
+
+                            // cap to viewport width to avoid exceeding GPU texture limits
+                            let scale = (viewport_width / w).min(1.0);
+                            let pix_w = (w * scale) as u32;
+                            let pix_h = (h * scale) as u32;
+                            let transform = if scale < 1.0 {
+                                base_transform.post_scale(scale, scale)
+                            } else {
+                                base_transform
                             };
 
                             let mut pix_map = Pixmap::new(pix_w, pix_h)
