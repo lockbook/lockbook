@@ -92,7 +92,7 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let workspace = Workspace::new(core, &renderer.context, font_system, false);
+    let workspace = Workspace::new(core, &renderer.context, false);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);
