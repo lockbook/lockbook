@@ -474,8 +474,7 @@ impl Editor {
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
             self.bounds.inline_paragraphs.clear();
-            self.layout_cache
-                .invalidate_text_change(&self.buffer, buffer_resp.seq_before);
+            self.layout_cache.invalidate_text_change();
 
             self.calc_source_lines();
             self.compute_bounds(root);

@@ -7,7 +7,6 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
-use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -633,45 +632,15 @@ impl LayoutCache {
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
-    /// Invalidation for text changes. Transforms position-keyed caches
-    /// (height, hidden_by_fold) through the replacements so entries for
-    /// unchanged nodes survive with adjusted positions. Entries overlapping
-    /// a replacement are evicted (content changed), along with their
-    /// ancestors. Sourcepos-keyed caches (node_range, line_prefix_len) are
-    /// cleared because the AST is re-parsed.
-    pub fn invalidate_text_change(&self, buffer: &Buffer, since_seq: usize) {
-        if buffer.current.seq == since_seq {
-            return;
-        }
-
-        // transform height cache entries through the replacements
-        {
-            let mut cache = self.height.borrow_mut();
-
-            let mut evicted: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
-            cache.retain_mut(|entry| {
-                if !buffer.transform_range(since_seq, &mut entry.range) {
-                    evicted.push(entry.range);
-                    return false;
-                }
-                // also evict ancestors of evicted entries
-                for inv in &evicted {
-                    if entry.range.contains_range(inv, true, true) {
-                        return false;
-                    }
-                }
-                true
-            });
-
-            // re-sort since ranges shifted
-            cache.sort_by(|a, b| a.range.cmp(&b.range));
-        }
-
-        // hidden_by_fold depends on fold tags in the text; any text change
-        // could insert/remove a fold tag affecting distant nodes, so clear it
+    /// Invalidation for text changes. Height and hidden_by_fold depend on
+    /// fold state (fold tags in text) and on each other (height returns 0
+    /// for hidden nodes), so both must be fully cleared — a fold tag
+    /// insertion at one point changes heights of distant sibling nodes.
+    /// Sourcepos-keyed caches are cleared because the AST is re-parsed.
+    /// Glyphon buffers are content-addressed and survive.
+    pub fn invalidate_text_change(&self) {
+        self.height.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
-
-        // sourcepos-keyed caches must be cleared (AST is re-parsed)
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
 
