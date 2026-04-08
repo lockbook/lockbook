@@ -1181,7 +1181,7 @@ impl Lb {
                     .client
                     .request(&account, UpsertDebugInfoRequest { debug_info })
                     .await
-                    .unwrap();
+                    .log_and_ignore();
             });
         } else {
             self.client
