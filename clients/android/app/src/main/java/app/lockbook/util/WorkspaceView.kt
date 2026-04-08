@@ -30,7 +30,6 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
-import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -351,20 +350,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 startActivity(context, browserIntent, null)
             }
 
-            val elapsed = System.currentTimeMillis() - model.lastSyncStatusUpdate
-            if (elapsed > 1_000) {
-                val status: WsStatus = frameOutputJsonParser.decodeFromString(Workspace.getStatus(WGPU_OBJ))
-                if (model.isSyncing && !status.syncing) {
-                    model._syncCompleted.postValue(Unit)
-                }
-
-                model.isSyncing = status.syncing
-                model._msg.value = status.msg
-                model.lastSyncStatusUpdate = System.currentTimeMillis()
-            }
-
             if (!response.docCreated.isNullUUID()) {
-                model._createFile.postValue(response.docCreated)
+                model._openFile.postValue(response.docCreated to true)
             }
 
             if (response.tabTitleClicked) {
@@ -423,6 +410,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     fun drawImmediately() {
         redrawChannel.trySend(Unit)
+    }
+
+    fun createDocAt(payload: Pair<Boolean, String>) {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+        Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -559,14 +553,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         return Workspace.getTabs(WGPU_OBJ)
-    }
-
-    fun sync() {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.requestSync(WGPU_OBJ)
     }
 
     fun closeDoc(id: String) {

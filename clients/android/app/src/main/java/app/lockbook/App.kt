@@ -41,6 +41,7 @@ class App : Application() {
         Workspace.init()
         Lb.init(filesDir.absolutePath)
 
+        // background sync every 30 minutes when the app is not foregrounded
         ProcessLifecycleOwner.get().lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
 
@@ -126,7 +127,7 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
 class SyncWork(appContext: Context, workerParams: WorkerParameters) :
     Worker(appContext, workerParams) {
     override fun doWork(): Result = try {
-        Lb.sync(null)
+        Lb.sync()
 
         Result.success()
     } catch (err: LbError) {

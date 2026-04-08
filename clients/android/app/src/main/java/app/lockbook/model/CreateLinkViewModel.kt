@@ -14,6 +14,7 @@ import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 
+// todo: refactor to use the file model instead of using lb. get children
 class CreateLinkViewModel(application: Application) :
     AndroidViewModel(application) {
     lateinit var currentParent: File

@@ -29,7 +29,6 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         get() = _updateMainScreenUI
 
     val exportImportModel = ExportImportModel(_updateMainScreenUI)
-    val syncModel = SyncModel()
 
     fun launchActivityScreen(screen: ActivityScreen) {
         activityScreen = screen
@@ -98,5 +97,4 @@ sealed class UpdateMainScreenUI {
     object CloseWorkspacePane : UpdateMainScreenUI()
     object HideBottomViewNavigation : UpdateMainScreenUI()
     object OpenWorkspacePane : UpdateMainScreenUI()
-    object Sync : UpdateMainScreenUI()
 }

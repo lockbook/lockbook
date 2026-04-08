@@ -16,7 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.view.isVisible
 import androidx.fragment.app.*
-import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.ui.setupWithNavController
 import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
@@ -26,6 +26,13 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
+import app.lockbook.workspace.LbStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
+import net.lockbook.Lb
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -44,7 +51,7 @@ class MainScreenActivity : AppCompatActivity() {
 
             when (f) {
                 is MoveFileDialogFragment,
-                is RenameFileDialogFragment -> filesFragment.refreshFiles()
+                is RenameFileDialogFragment -> filesFragment.reloadFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
                 is DeleteFilesDialogFragment -> {
@@ -52,16 +59,12 @@ class MainScreenActivity : AppCompatActivity() {
                         workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
                     }
 
-                    filesFragment.refreshFiles()
+                    filesFragment.reloadFiles()
                 }
             }
+            filesFragment.unselectFiles()
         }
     }
-
-    private val onShare =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            maybeGetFilesFragment()?.refreshFiles()
-        }
 
     private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -74,7 +77,11 @@ class MainScreenActivity : AppCompatActivity() {
     val model: StateViewModel by viewModels()
     val workspaceModel: WorkspaceViewModel by viewModels()
 
-    private val filesListModel: FilesListViewModel by viewModels()
+    private val fileTreeViewModel: FileTreeViewModel by viewModels()
+
+    val jsonParser = Json {
+        ignoreUnknownKeys = true
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -90,6 +97,8 @@ class MainScreenActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         ThemeMode.affirmThemeModeFromSaved(baseContext)
+
+        subscribeToLbEvents()
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
@@ -199,7 +208,7 @@ class MainScreenActivity : AppCompatActivity() {
 
         workspaceModel.tabTitleClicked.observe(this) {
             workspaceModel.currentTab.value?.let { tab ->
-                filesListModel.fileModel.idsAndFiles[tab.id]?.let { file ->
+                fileTreeViewModel.fileModel.idsAndFiles[tab.id]?.let { file ->
                     model.launchTransientScreen(TransientScreen.Rename(file))
                 }
             }
@@ -301,7 +310,6 @@ class MainScreenActivity : AppCompatActivity() {
             UpdateMainScreenUI.CloseSlidingPane -> {
                 slidingPaneLayout.closePane()
             }
-            UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
 
@@ -342,5 +350,20 @@ class MainScreenActivity : AppCompatActivity() {
     fun syncImportAccount() {
         startActivity(Intent(this, ImportAccountActivity::class.java))
         finishAffinity()
+    }
+
+    private fun subscribeToLbEvents() {
+        lifecycleScope.launch {
+            while (true) {
+                val lbEvent = withContext(Dispatchers.IO) {
+                    Lb.subscribe(Lb.eventsReceiver)
+                }
+
+                lbEvent?.let { event ->
+                    val status: LbStatus = jsonParser.decodeFromString(Lb.getStatus())
+                    fileTreeViewModel.hydrateStatusUpdate(status, event)
+                }
+            }
+        }
     }
 }

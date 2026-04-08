@@ -1,4 +1,5 @@
 package app.lockbook.workspace
+import android.annotation.SuppressLint
 import android.view.Surface
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
@@ -31,6 +32,7 @@ object BigIntegerSerializer: KSerializer<BigInteger> {
         get() = PrimitiveSerialDescriptor("java.math.BigInteger", PrimitiveKind.LONG)
 }
 
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
 public data class AndroidResponse(
     // platform response
@@ -96,16 +98,16 @@ object Workspace {
 
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
+
+    external fun createDocAt(rustObj: Long, isDrawing: Boolean, parent: String)
+
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
-    external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
 
     external fun getTabs(rustObj: Long) : Array<String>
 
     external fun currentTab(rustObj: Long): Int
-
-    external fun getStatus(rustObj: Long): String
 
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
@@ -125,22 +127,100 @@ object Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
-
-    external fun toggleEraserSVG(rustObj: Long, select: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
-    external fun willConsumeTouchEvent(rustObj: Long, x: Float, y: Float): Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }
-
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
-data class WsStatus(val syncing: Boolean, val msg: String)
+public data class LbStatus(
+    /// some recent server interaction failed due to network conditions
+    @SerialName("offline")
+    val offline: Boolean = false,
+
+    /// a sync is in progress
+    @SerialName("syncing")
+    val syncing: Boolean = false,
+
+    /// at-least one document cannot be pushed due to a data cap
+    @SerialName("out_of_space")
+    val outOfSpace: Boolean = false,
+
+    /// there are pending shares
+    @SerialName("pending_shares")
+    val pendingShares: Boolean = false,
+
+    /// you must update to be able to sync, see update_available below
+    @SerialName("update_required")
+    val updateRequired: Boolean = false,
+
+    /// metadata or content for this id is being sent to the server
+    @SerialName("pushing_files")
+    val pushingFiles: List<String> = emptyList(),
+
+    /// following files need to be pushed
+    @SerialName("dirty_locally")
+    val dirtyLocally: List<String> = emptyList(),
+
+    /// metadata or content for this id is being pulled from the server
+    /// callers should be prepared to handle ids they don't know about yet
+    @SerialName("pulling_files")
+    val pullingFiles: List<String> = emptyList(),
+
+    @SerialName("space_used")
+    val spaceUsed: SpaceUsed? = null,
+
+    /// if there is no pending work this will have a human readable
+    /// description of when we last synced successfully
+    @SerialName("sync_status")
+    val syncStatus: String? = null,
+
+    @SerialName("unexpected_sync_problem")
+    val unexpectedSyncProblem: String? = null,
+)
+
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
+data class SpaceUsed(
+    @SerialName("usages")
+    val usages: List<FileUsage> = emptyList(),
+
+    @SerialName("server_usage")
+    val serverUsage : UsageItemMetric? = null,
+
+    @SerialName("data_cap")
+    val dataCap : UsageItemMetric? = null,
+)
+
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
+data class UsageItemMetric (
+    @SerialName("exact")
+    var exact: Long? = null,
+
+    @SerialName("readable")
+    var readable: String? = null
+)
+
+@SuppressLint("UnsafeOptInUsageError")
+@Serializable
+data class FileUsage (
+    @SerialName("file_id")
+    var fileId: String? = null,
+
+    @SerialName("size_bytes")
+    var sizeBytes: Long? = null
+)
+
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
 data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
     fun isEmpty(): Boolean = none || end - start == 0
 }
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
 data class JTextPosition(val none: Boolean, val position: Int)
 
+@SuppressLint("UnsafeOptInUsageError")
 @Serializable
 data class JRect(
     @SerialName("min_x")

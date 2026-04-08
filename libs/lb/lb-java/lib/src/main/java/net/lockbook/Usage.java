@@ -1,5 +1,6 @@
 package net.lockbook;
 
+
 public class Usage {
     public UsageItemMetric serverUsage;
     public UsageItemMetric dataCap;
