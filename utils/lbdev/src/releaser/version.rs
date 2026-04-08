@@ -20,6 +20,7 @@ pub fn bump(bump_type: BumpType) -> CliResult<()> {
     handle_cargo_tomls(&new_version);
     handle_apple(&new_version)?;
     bump_android(&new_version);
+    bump_appdata(&new_version);
     generate_lockfile()?;
     perform_checks()?;
     push_to_git(&new_version);
@@ -134,6 +135,17 @@ pub fn bump_android(version: &str) {
     fs::write(path, gradle_build).unwrap();
 }
 
+fn bump_appdata(version: &str) {
+    let path = "utils/dev/flatpak-package/net.lockbook.Lockbook.appdata.xml";
+    let today = Local::now().format("%Y-%m-%d");
+
+    let appdata = APPDATA_TEMPLATE
+        .replace("{version}", version)
+        .replace("{today}", &today.to_string());
+
+    fs::write(path, appdata).unwrap();
+}
+
 pub fn set_android_version_code(code: i64) {
     let path = "clients/android/app/build.gradle";
     let mut gradle_build = fs::read_to_string(path).unwrap();
@@ -200,3 +212,67 @@ fn perform_checks() -> CliResult<()> {
         .args(["-c", "cargo check"])
         .assert_success()
 }
+
+const APPDATA_TEMPLATE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>net.lockbook.Lockbook</id>
+
+  <name>Lockbook</name>
+  <summary>Lockbook is an open source note taking app</summary>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>Unlicense</project_license>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>tablet</control>
+  </supports>
+
+  <description>
+    <p>
+      Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can't see them, but don't take our word for it: Lockbook is 100% open-source.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">net.lockbook.Lockbook.desktop</launchable>
+
+  <url type="homepage">https://lockbook.net/</url>
+  <url type="bugtracker">https://github.com/lockbook/lockbook/issues</url>
+  <url type="vcs-browser">https://github.com/lockbook/lockbook</url>
+
+
+  <screenshots>
+      <screenshot type="default">
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-dark-theme-screenshot.png</image>
+          <caption>dark theme</caption>
+      </screenshot>
+      <screenshot>
+          <image type="source">https://raw.githubusercontent.com/lockbook/lockbook/master/public-site/static/flatpak-light-theme-screenshot.png</image>
+          <caption>light theme</caption>
+      </screenshot>
+  </screenshots>
+
+  <categories>
+      <category>Office</category>
+  </categories>
+
+  <developer id="net.lockbook">
+      <name>Parth</name>
+  </developer>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+      <release version="{version}" date="{today}">
+          <description>
+              <p>
+                  {version} release
+              </p>
+          </description>
+      </release>
+  </releases>
+
+</component>
+"#;
