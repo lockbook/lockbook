@@ -12,18 +12,13 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 use crate::tab::markdown_editor::Editor;
 
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::cache::ImageState;
-use crate::tab::markdown_editor::widget::inline::link::LinkState;
 
 impl<'ast> Editor {
-    pub fn text_format_image(&self, parent: &AstNode<'_>) -> Format {
-        self.text_format_link(parent, LinkState::Normal)
-    }
-
     pub fn span_image(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
