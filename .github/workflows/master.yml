@@ -28,7 +28,7 @@ jobs:
       - name: Setup musl target
         run: rustup target add x86_64-unknown-linux-musl
       - name: Build server
-        run: cargo r -p lbdev releaser server build
+        run: nix-shell -p musl --command "cargo r -p lbdev releaser server build"
       - name: Upload server binary
         uses: actions/upload-artifact@v4
         with:
