@@ -73,8 +73,8 @@ pub fn calc<'ast>(
 
                 let maybe_lb_id = {
                     let guard = files.read().unwrap();
-                    let from_id = guard.files.get_by_id(file_id).map(|f| f.parent);
-                    from_id.and_then(|from_id| match guard.files.resolve_link(&url, from_id)? {
+                    let from_id = guard.get_by_id(file_id).map(|f| f.parent);
+                    from_id.and_then(|from_id| match guard.resolve_link(&url, from_id)? {
                         ResolvedLink::File(id) => Some(id),
                         ResolvedLink::External(_) => None,
                     })

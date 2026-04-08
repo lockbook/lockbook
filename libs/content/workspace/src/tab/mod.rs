@@ -1,3 +1,4 @@
+use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
@@ -371,12 +372,7 @@ impl Workspace {
         let files_guard = files_arc.read().unwrap();
         match tab.id() {
             Some(id) => {
-                if let Some(file) = files_guard
-                    .files
-                    .iter()
-                    .chain(&files_guard.shared)
-                    .find(|f| f.id == id)
-                {
+                if let Some(file) = files_guard.get_by_id(id) {
                     file.name.clone()
                 } else if let Ok(file) = self.core.get_file_by_id(id) {
                     // read-through (can remove when we master cache refreshes)

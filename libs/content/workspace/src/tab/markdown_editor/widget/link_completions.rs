@@ -1,5 +1,6 @@
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
+use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -256,22 +257,26 @@ fn query_range(
 }
 
 struct FileResult {
+    /// The file's UUID.
+    id: Uuid,
     /// Display name without .md extension.
     name: String,
     /// Full relative path from current file (with .md), used as hint and for disambiguation.
     rel_path: String,
     /// What to insert: bare title if unique, minimal partial path if conflicting.
     insert: String,
+    /// True if this file is in a different tree than the current file.
+    cross_tree: bool,
 }
 
 fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -> Vec<FileResult> {
-    let files = &cache.files;
     // Paths in markdown are relative to the parent folder of the current file,
     // matching how the image cache and existing link insertion resolve them.
-    let from_id = files
+    let from_id = cache
         .get_by_id(file_id)
         .map(|f| f.parent)
         .unwrap_or(file_id);
+    let from_path = cache.path(from_id);
     let lq = query.trim_end_matches(".md").to_lowercase();
 
     // For image links, match against the full filename (including extension).
@@ -297,25 +302,43 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
         }
     };
 
+    // Path distance: number of `../` segments in the relative path, or u16::MAX for cross-tree.
+    let path_distance = |f_id: Uuid, cross_tree: bool| -> u16 {
+        if cross_tree {
+            return u16::MAX;
+        }
+        let rel = relative_path(&from_path, &cache.path(f_id));
+        rel.matches("../").count() as u16
+    };
+
+    // Build a FileResult for a file, computing cross-tree status and rel_path.
+    let make_result = |f: &File, display_name: String| -> FileResult {
+        let cross_tree = !cache.same_tree(file_id, f.id);
+        let rel_path = if cross_tree {
+            // Show path within the shared tree as hint
+            cache.path(f.id)
+        } else {
+            let rp = relative_path(&from_path, &cache.path(f.id));
+            rp.strip_prefix("./").unwrap_or(&rp).to_string()
+        };
+        FileResult { id: f.id, name: display_name, rel_path, insert: String::new(), cross_tree }
+    };
+
     if query.is_empty() {
         if mode == CompletionMode::ImageLink {
             // Images are rarely in the suggested list (they aren't opened like notes),
             // so for image links show all image files sorted by last_modified desc.
-            let mut image_files: Vec<_> = files
-                .iter()
+            let mut image_files: Vec<_> = cache
+                .all_files()
                 .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
                 .collect();
             image_files.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
             let mut results: Vec<FileResult> = image_files
                 .into_iter()
                 .take(MAX_RESULTS)
-                .map(|f| {
-                    let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-                    let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-                    FileResult { name: f.name.clone(), rel_path, insert: String::new() }
-                })
+                .map(|f| make_result(f, f.name.clone()))
                 .collect();
-            populate_insert(files, &mut results, mode);
+            populate_insert(cache, &mut results, mode);
             return results;
         }
 
@@ -325,23 +348,22 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             if id == file_id {
                 continue;
             }
-            let Some(f) = files.iter().find(|f| f.id == id && f.is_document()) else {
+            let Some(f) = cache.get_by_id(id).filter(|f| f.is_document()) else {
                 continue;
             };
             let display_name = f.name.trim_end_matches(".md").to_string();
-            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-            let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-            results.push(FileResult { name: display_name, rel_path, insert: String::new() });
+            results.push(make_result(f, display_name));
             if results.len() == MAX_RESULTS {
                 break;
             }
         }
-        populate_insert(files, &mut results, mode);
+        populate_insert(cache, &mut results, mode);
         return results;
     }
 
-    let mut scored: Vec<(FileResult, u8, usize)> = files
-        .iter()
+    // scored: (result, tier, cross_tree, path_distance, name_len)
+    let mut scored: Vec<(FileResult, u8, bool, u16, usize)> = cache
+        .all_files()
         .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
         .filter_map(|f| {
             if !file_matches(&f.name) {
@@ -360,50 +382,54 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             } else {
                 2
             };
-            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-            let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-            Some((
-                FileResult { name: display_name.clone(), rel_path, insert: String::new() },
-                tier,
-                display_name.len(),
-            ))
+            let result = make_result(f, display_name.clone());
+            let cross = result.cross_tree;
+            let dist = path_distance(f.id, cross);
+            Some((result, tier, cross, dist, display_name.len()))
         })
         .collect();
 
-    // Sort: by tier asc, then by title length asc within tier.
-    scored.sort_by_key(|(_, tier, len)| (*tier, *len));
+    // Sort: tier, then same-tree before cross-tree, then proximity, then name length.
+    scored.sort_by_key(|(_, tier, cross, dist, len)| (*tier, *cross, *dist, *len));
 
     let mut results: Vec<FileResult> = scored
         .into_iter()
         .take(MAX_RESULTS)
-        .map(|(r, _, _)| r)
+        .map(|(r, _, _, _, _)| r)
         .collect();
 
-    populate_insert(files, &mut results, mode);
+    populate_insert(cache, &mut results, mode);
     results
 }
 
 /// Fills `result.insert` for each entry.
+/// - Cross-tree files always use `lb://uuid` (relative paths don't work across trees).
 /// - WikiLink: bare title when unique, minimal partial path when ambiguous.
 /// - Link/ImageLink: always the full relative path (no ambiguity since path is explicit).
-fn populate_insert(
-    all_files: &[lb_rs::model::file::File], results: &mut Vec<FileResult>, mode: CompletionMode,
-) {
+fn populate_insert(cache: &FileCache, results: &mut Vec<FileResult>, mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
-        // For regular and image links, insert = percent-encoded rel_path.
-        // CommonMark requires spaces (and other special chars) to be encoded in link destinations.
         for result in results.iter_mut() {
-            result.insert = encode_link_path(&result.rel_path);
+            if result.cross_tree {
+                result.insert = format!("lb://{}", result.id);
+            } else {
+                result.insert = encode_link_path(&result.rel_path);
+            }
         }
         return;
     }
-    let all_titles: Vec<&str> = all_files
-        .iter()
+
+    // For wikilinks: cross-tree files use lb://uuid; same-tree files use title or partial path.
+    let all_titles: Vec<&str> = cache
+        .all_files()
         .filter(|f| f.is_document())
         .map(|f| f.name.trim_end_matches(".md"))
         .collect();
 
-    for result in results {
+    for result in results.iter_mut() {
+        if result.cross_tree {
+            result.insert = format!("lb://{}", result.id);
+            continue;
+        }
         let count = all_titles
             .iter()
             .filter(|t| t.eq_ignore_ascii_case(&result.name))

@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
@@ -103,6 +103,58 @@ impl FileCache {
             .map(|id| self.files.get_by_id(id).unwrap().last_modified)
             .max()
             .unwrap()
+    }
+
+    /// Iterates all known files: the user's own tree plus pending shares.
+    pub fn all_files(&self) -> impl Iterator<Item = &File> {
+        self.files.iter().chain(self.shared.iter())
+    }
+
+    /// Collects the set of usernames who have access to a file: the owner plus
+    /// anyone with a share entry on the file or any of its ancestors.
+    pub fn users_with_access(&self, id: Uuid) -> HashSet<&str> {
+        let mut users = HashSet::new();
+        for ancestor_id in iter::once(id).chain(self.ancestors(id)) {
+            let Some(file) = self.get_by_id(ancestor_id) else { break };
+            if users.is_empty() {
+                users.insert(file.owner.as_str());
+            }
+            for share in &file.shares {
+                users.insert(share.shared_with.as_str());
+            }
+        }
+        users
+    }
+
+    /// Returns true if any user with access to `from_id` cannot access `target_id`.
+    pub fn link_has_access_gap(&self, from_id: Uuid, target_id: Uuid) -> bool {
+        let from_users = self.users_with_access(from_id);
+        let target_users = self.users_with_access(target_id);
+        from_users.iter().any(|u| !target_users.contains(u))
+    }
+
+    /// Returns true if two files are in the same tree. Files in different share
+    /// trees or across the user's own tree and a share tree are in different trees.
+    /// Two files are in the same tree if walking up ancestors from both reaches the
+    /// same root (either the user's root or the same share root).
+    pub fn same_tree(&self, a: Uuid, b: Uuid) -> bool {
+        self.tree_root(a) == self.tree_root(b)
+    }
+
+    /// Walks ancestors to find the tree root: the user's root or the topmost
+    /// reachable file (share root, where the parent is not in the cache).
+    pub fn tree_root(&self, id: Uuid) -> Uuid {
+        let mut current = id;
+        loop {
+            let Some(file) = self.get_by_id(current) else { return current };
+            if file.is_root() {
+                return current;
+            }
+            if self.get_by_id(file.parent).is_none() {
+                return current; // share root: parent not in cache
+            }
+            current = file.parent;
+        }
     }
 
     pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
@@ -280,35 +332,37 @@ pub trait FilesExt {
 
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
         let mut ancestors = vec![];
-        if let Some(us) = self.get_by_id(id) {
-            if us.is_root() {
-                return ancestors;
+        let mut current = id;
+        loop {
+            let Some(file) = self.get_by_id(current) else { break };
+            if file.is_root() {
+                break;
             }
-
-            let parent = us.parent;
+            let parent = file.parent;
+            if self.get_by_id(parent).is_none() {
+                break; // share boundary: parent not in cache
+            }
             ancestors.push(parent);
-            ancestors.extend_from_slice(&self.ancestors(parent));
+            current = parent;
         }
         ancestors
     }
 
     fn access(&self, id: Uuid, account: &Account) -> UserAccessMode {
+        let mut max = None;
         for id in iter::once(id).chain(self.ancestors(id).iter().copied()) {
             let file = self.get_by_id(id).unwrap();
             for share in &file.shares {
                 if share.shared_with == account.username {
-                    match share.mode {
-                        ShareMode::Write => {
-                            return UserAccessMode::Write;
-                        }
-                        ShareMode::Read => {
-                            return UserAccessMode::Read;
-                        }
-                    }
+                    let mode = match share.mode {
+                        ShareMode::Write => UserAccessMode::Write,
+                        ShareMode::Read => UserAccessMode::Read,
+                    };
+                    max = Some(max.map_or(mode, |m: UserAccessMode| m.max(mode)));
                 }
             }
         }
-        UserAccessMode::Owner
+        max.unwrap_or(UserAccessMode::Owner)
     }
 }
 
@@ -388,7 +442,9 @@ impl FilesExt for FileCache {
     }
 
     fn get_by_id(&self, id: Uuid) -> Option<&File> {
-        self.files.get_by_id(id)
+        self.files
+            .get_by_id(id)
+            .or_else(|| self.shared.get_by_id(id))
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {

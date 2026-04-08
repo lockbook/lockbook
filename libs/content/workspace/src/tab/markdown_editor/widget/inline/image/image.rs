@@ -17,10 +17,11 @@ use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::cache::ImageState;
+use crate::tab::markdown_editor::widget::inline::link::LinkState;
 
 impl<'ast> Editor {
     pub fn text_format_image(&self, parent: &AstNode<'_>) -> Format {
-        self.text_format_link(parent, false)
+        self.text_format_link(parent, LinkState::Normal)
     }
 
     pub fn span_image(
