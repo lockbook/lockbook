@@ -29,6 +29,7 @@ jobs:
   call_publish_flatpak:
     needs: release
     uses: ./.github/workflows/deploy-flatpak.yml
+    secrets: inherit
 
   deploy_android:
     needs: release
