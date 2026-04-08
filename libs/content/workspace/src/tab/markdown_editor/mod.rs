@@ -114,8 +114,8 @@ pub struct Editor {
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
-    last_frame_time: Instant,
-    fps: f32,
+    frame_times: [Instant; 10],
+    frame_times_idx: usize,
     pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
     pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
@@ -289,8 +289,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
-            last_frame_time: Instant::now(),
-            fps: 0.,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
             text_areas: Default::default(),

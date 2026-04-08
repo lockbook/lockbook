@@ -8,12 +8,14 @@ use crate::theme::palette_v2::ThemeExt as _;
 impl Editor {
     pub fn show_debug_fps(&mut self, ui: &mut Ui) {
         let now = Instant::now();
-        let dt = now.duration_since(self.last_frame_time).as_secs_f32();
-        self.last_frame_time = now;
-        // exponential moving average for smooth display
-        self.fps = self.fps * 0.9 + (1.0 / dt) * 0.1;
+        self.frame_times[self.frame_times_idx] = now;
+        self.frame_times_idx = (self.frame_times_idx + 1) % self.frame_times.len();
 
-        let fps_text = format!("{:.0} fps", self.fps);
+        let oldest = self.frame_times[self.frame_times_idx];
+        let elapsed = now.duration_since(oldest).as_secs_f32();
+        let fps = if elapsed > 0.0 { self.frame_times.len() as f32 / elapsed } else { 0.0 };
+
+        let fps_text = format!("{:.0} fps", fps);
         let rect = ui.max_rect();
         let pos = rect.right_top() + Vec2::new(-60., 5.);
         ui.painter().text(
