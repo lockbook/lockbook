@@ -1,7 +1,6 @@
 package app.lockbook.model
 
 import android.app.Application
-import android.widget.Space
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -17,7 +16,6 @@ import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo
-import net.lockbook.Usage
 
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
     private val _sendBreadcrumb = SingleMutableLiveData<String>()
@@ -41,7 +39,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         ignoreUnknownKeys = true
     }
 
-
     init {
         updateUsage()
     }
@@ -55,7 +52,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     private fun computeUsage() {
         try {
             val raw = Lb.getStatus()
-            val status : LbStatus= jsonParser.decodeFromString(raw)
+            val status: LbStatus = jsonParser.decodeFromString(raw)
             val subscriptionInfo = Lb.getSubscriptionInfo()
 
             status.spaceUsed?.let {

@@ -6,7 +6,7 @@ use std::str::FromStr;
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
-use jni::sys::{jboolean, jbyteArray, jint, jlong, jobject, jobjectArray, jstring};
+use jni::sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring};
 pub use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{
@@ -18,8 +18,6 @@ use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::{Event, Receiver, SyncIncrement};
-use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
-use lb_rs::subscribers::status;
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
 
@@ -512,9 +510,8 @@ pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, rx: jlong,
+    mut env: JNIEnv<'local>, _: JClass<'local>, rx: jlong,
 ) -> jobject {
-    // let mut rx = lb.subscribe();
     let rx = unsafe { &mut *(rx as *mut Receiver<Event>) };
 
     if let Ok(event) = rx.blocking_recv() {
@@ -539,6 +536,10 @@ pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
                     env.set_field(&lb_event_obj, "syncFinished", "Z", JValue::Bool(1))
                         .unwrap();
                 }
+            }
+            service::events::Event::DocumentWritten(_, _) => {
+                env.set_field(&lb_event_obj, "documentWritten", "Z", JValue::Bool(1))
+                    .unwrap();
             }
             _ => event_handled = false,
         };

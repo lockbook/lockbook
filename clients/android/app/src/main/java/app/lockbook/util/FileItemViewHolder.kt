@@ -42,7 +42,7 @@ fun List<File>.intoViewHolderInfo(localChanges: Set<UUID>?, serverChanges: Set<U
     val needsToBePulled = serverChanges?.contains(UUID.fromString(fileMetadata.id)) ?: false
 
     when (fileMetadata.type) {
-        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, isDirtyLocally,needsToBePulled )
+        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled)
         FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled)
     }
 }

@@ -51,7 +51,7 @@ class MainScreenActivity : AppCompatActivity() {
 
             when (f) {
                 is MoveFileDialogFragment,
-                is RenameFileDialogFragment -> filesFragment.refreshFiles()
+                is RenameFileDialogFragment -> filesFragment.reloadFiles()
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
                 is DeleteFilesDialogFragment -> {
@@ -59,16 +59,12 @@ class MainScreenActivity : AppCompatActivity() {
                         workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
                     }
 
-                    filesFragment.refreshFiles()
+                    filesFragment.reloadFiles()
                 }
             }
+            filesFragment.unselectFiles()
         }
     }
-
-    private val onShare =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-            maybeGetFilesFragment()?.refreshFiles()
-        }
 
     private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {

@@ -1,11 +1,8 @@
 package app.lockbook.screen
 
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.*
 import android.widget.LinearLayout
 import androidx.appcompat.widget.PopupMenu
@@ -13,7 +10,6 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -32,12 +28,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.Usage
 import java.lang.ref.WeakReference
 import java.util.*
 
@@ -114,7 +108,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private val recyclerView get() = binding.filesList
 
-
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -173,8 +166,8 @@ class FilesListFragment : Fragment(), FilesFragment {
             model._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
         }
 
-        model.isSyncing.observe(viewLifecycleOwner){
-            if (!it){
+        model.isSyncing.observe(viewLifecycleOwner) {
+            if (!it) {
                 binding.listFilesRefresh.isRefreshing = it
             }
         }
@@ -190,7 +183,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             currentTab = it
         }
 
-        model.isSuggestedDocsVisible.observe(viewLifecycleOwner){
+        model.isSuggestedDocsVisible.observe(viewLifecycleOwner) {
             binding.suggestedDocsLayout.root.visibility = if (it) View.VISIBLE else View.GONE
         }
 
@@ -203,7 +196,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
         }
 
-        model.usage.observe(viewLifecycleOwner){ usageMetrics ->
+        model.usage.observe(viewLifecycleOwner) { usageMetrics ->
             usageMetrics?.let {
                 val dataCap = it.dataCap?.exact?.toFloat() ?: 0f
                 val usage = it.serverUsage?.exact?.toFloat() ?: 0f
@@ -219,16 +212,15 @@ class FilesListFragment : Fragment(), FilesFragment {
 
                 header.findViewById<MaterialTextView>(R.id.filesListUsage).text =
                     getString(R.string.free_space, usageMetrics.serverUsage?.readable, usageMetrics.dataCap?.readable)
-
             }
         }
 
-        model.syncStatus.observe(viewLifecycleOwner){
+        model.syncStatus.observe(viewLifecycleOwner) {
             header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text =
                 getString(R.string.last_sync, it)
         }
 
-        model.dirtyLocally.observe(viewLifecycleOwner){
+        model.dirtyLocally.observe(viewLifecycleOwner) {
             header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text =
                 resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
         }
@@ -427,15 +419,6 @@ class FilesListFragment : Fragment(), FilesFragment {
                     folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
                     lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
 
-                    val extensionHelper = ExtensionHelper(item.fileMetadata.name)
-
-                    val iconResource = when {
-                        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
-                        extensionHelper.isImage -> R.drawable.ic_outline_image_24
-                        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
-                        else -> R.drawable.ic_outline_insert_drive_file_24
-                    }
-
                     icon.setImageResource(item.fileMetadata.getIconResource())
 
                     itemView.setOnLongClickListener { view ->
@@ -499,7 +482,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
                         Lb.sync()
-                    }catch (err: LbError){
+                    } catch (err: LbError) {
                         alertModel.notifyError(err)
                     }
                 }
@@ -619,7 +602,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
-    override fun refreshFiles() {
+    override fun reloadFiles() {
         model.reloadFiles()
     }
 

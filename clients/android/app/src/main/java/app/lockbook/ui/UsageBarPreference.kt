@@ -16,7 +16,6 @@ import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
 import app.lockbook.workspace.SpaceUsed
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import net.lockbook.Usage
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     lateinit var usageBar: LinearProgressIndicator
@@ -97,14 +96,12 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
             premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, serverUsage)
         }
 
-
-
         usageInfo.text = spannable {
             context.resources.getString(R.string.settings_usage_current)
-                .bold() + " " +  serverUsage + "\n" + context.resources.getString(
+                .bold() + " " + serverUsage + "\n" + context.resources.getString(
                 R.string.settings_usage_data_cap
             )
-                .bold() + " "+ dataCap + "\n"
+                .bold() + " " + dataCap + "\n"
         }
     }
 }

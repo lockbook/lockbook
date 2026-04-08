@@ -132,10 +132,6 @@ class WorkspaceFragment : Fragment() {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
-        model.createFile.observe(viewLifecycleOwner) { id ->
-            workspaceWrapper.workspaceView.openDoc(id, true)
-        }
-
         model.createDocAt.observe(viewLifecycleOwner) { it ->
             workspaceWrapper.workspaceView.createDocAt(it)
         }

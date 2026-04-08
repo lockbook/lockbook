@@ -31,7 +31,6 @@ class FileModel(
         fun sortFiles(files: List<File>): List<File> = files.sortedWith(compareBy<File> { it.type }.thenBy { it.name })
     }
 
-
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
     fun refreshFiles() {
@@ -59,12 +58,6 @@ class FileModel(
         parent = newParent
         refreshChildren()
     }
-
-    fun intoParent() {
-        parent = idsAndFiles[parent.parent]!!
-        refreshChildren()
-    }
-
     private fun refreshChildren() {
         children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })
     }

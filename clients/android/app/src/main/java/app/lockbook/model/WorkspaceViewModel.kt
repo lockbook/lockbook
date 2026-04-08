@@ -10,7 +10,6 @@ import net.lockbook.File
 
 class WorkspaceViewModel : ViewModel() {
 
-
     /** request workspace to  open a file **/
     val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
     val openFile: LiveData<Pair<String, Boolean>>
@@ -30,11 +29,6 @@ class WorkspaceViewModel : ViewModel() {
     val _shouldShowTabs = SingleMutableLiveData<Unit>()
     val shouldShowTabs: LiveData<Unit>
         get() = _shouldShowTabs
-
-    /** request workspace to create a new file **/
-    val _createFile = MutableLiveData<String>()
-    val createFile: LiveData<String>
-        get() = _createFile
 
     /** request workspace to create a new file (isDrawing, parentId) **/
     val _createDocAt = MutableLiveData<Pair<Boolean, String>>()

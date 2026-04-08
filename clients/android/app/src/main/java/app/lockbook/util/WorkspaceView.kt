@@ -350,6 +350,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 startActivity(context, browserIntent, null)
             }
 
+            if (!response.docCreated.isNullUUID()) {
+                model._openFile.postValue(response.docCreated to true)
+            }
+
             if (response.tabTitleClicked) {
                 model._tabTitleClicked.postValue(Unit)
                 Workspace.unfocusTitle(WGPU_OBJ)
@@ -408,7 +412,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         redrawChannel.trySend(Unit)
     }
 
-    fun createDocAt(payload: Pair<Boolean, String>){
+    fun createDocAt(payload: Pair<Boolean, String>) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }

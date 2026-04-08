@@ -5,7 +5,6 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
@@ -15,16 +14,11 @@ import app.lockbook.workspace.LbStatus
 import app.lockbook.workspace.SpaceUsed
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.File
 import net.lockbook.Lb
-import net.lockbook.LbError
 import net.lockbook.LbEvent
-import net.lockbook.Usage
 import java.util.UUID
 
 class FileTreeViewModel(application: Application) : AndroidViewModel(application) {
@@ -35,16 +29,15 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
 
     lateinit var fileModel: FileModel
 
-    /// the list of files that the file tree displays in the UI
+    // / the list of files that the file tree displays in the UI
     val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
 
     val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
-    /// the current file path
+    // / the current file path
     val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
     val breadcrumbItems: LiveData<MutableList<BreadCrumbItem>>
         get() = _breadcrumbItems
-
 
     val _dirtyLocally = MutableLiveData<Set<UUID>>()
     val dirtyLocally: LiveData<Set<UUID>>
@@ -83,20 +76,20 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         getStatus()
     }
 
-    private fun getStatus(){
+    private fun getStatus() {
         val raw = Lb.getStatus()
-        val status : LbStatus= jsonParser.decodeFromString(raw)
+        val status: LbStatus = jsonParser.decodeFromString(raw)
         hydrateStatusUpdate(status, null)
     }
 
-    private fun checkUsage(){
+    private fun checkUsage() {
 
-        if (_usage.value == null || _usage.value?.serverUsage == null){
+        if (usage.value == null || _usage.value?.serverUsage == null) {
             return
         }
 
-        val dataCap = _usage.value?.dataCap?.exact?.toFloat() ?: 1f
-        val serverUsage = _usage.value?.serverUsage?.exact?.toFloat() ?: 1f
+        val dataCap = usage.value?.dataCap?.exact?.toFloat() ?: 1f
+        val serverUsage = usage.value?.serverUsage?.exact?.toFloat() ?: 1f
 
         val usageRatio = serverUsage / dataCap
 
@@ -148,7 +141,7 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
 
-    /// when you pass in null, it will return the parent of the current folder
+    // / when you pass in null, it will return the parent of the current folder
     fun enterFolder(newParent: File?) {
         val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
         fileModel.enterFolder(parent)
@@ -168,29 +161,34 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
     }
 
-
     fun maybeToggleSuggestedDocs() {
         _isSuggestedDocsVisible.value = fileModel.parent.isRoot && !suggestedDocs.isEmpty()
     }
 
-    fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?){
-        if (status.syncStatus!= null){
+    fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?) {
+        if (status.syncStatus != null) {
             _syncStatus.value = status.syncStatus
         }
         _isSyncing.value = status.syncing
 
-        println("syncing status: ${status.syncing}")
+        println("3asba syncing status: ${status.syncing}")
 
-        val isMetaDirty = if (lbEvent == null){ true }else{ lbEvent.metadataChanged || lbEvent.pendingSharesChanged }
+        _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
 
-        if (isMetaDirty){
-            _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
-            _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-            _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-            reloadFiles()
+        val metaOrContentDirty = if (lbEvent == null) { true } else { lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten }
 
-            _usage.value = status.spaceUsed
-            checkUsage()
+        if (metaOrContentDirty) {
+            println("3asba is meta dirty")
+            fileModel.refreshFiles()
         }
+
+        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+
+        _usage.value = status.spaceUsed
+        println("3asba usage: ${status.spaceUsed}")
+        checkUsage()
     }
 }
