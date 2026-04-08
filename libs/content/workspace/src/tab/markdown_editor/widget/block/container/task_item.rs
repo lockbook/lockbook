@@ -12,7 +12,7 @@ impl<'ast> Editor {
 
     pub fn show_task_item(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_task_item: &NodeTaskItem,
+        node_task_item: &NodeTaskItem, siblings: &[&'ast AstNode<'ast>],
     ) {
         let theme = self.ctx.get_lb_theme();
         let maybe_check = node_task_item.symbol;
@@ -123,8 +123,8 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node),
-            self.item_fold_reveal(node),
+            self.item_contents(node, siblings),
+            self.item_fold_reveal(node, siblings),
         );
     }
 

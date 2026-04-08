@@ -4,6 +4,7 @@ use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 #[derive(Default)]
 pub struct Galleys {
@@ -52,6 +53,36 @@ impl Galleys {
 }
 
 impl Editor {
+    /// Returns the document offset range for which galleys must exist,
+    /// covering the selection ± 1 source line so that arrow-key navigation
+    /// across the viewport edge has a galley to land on.
+    pub fn galley_required_range(&self) -> (DocCharOffset, DocCharOffset) {
+        if self.bounds.source_lines.is_empty() {
+            return Default::default();
+        }
+
+        let selection = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+
+        let first_line = self
+            .bounds
+            .source_lines
+            .find_containing(selection.start(), true, true)
+            .0
+            .saturating_sub(1);
+        let last_line = self
+            .bounds
+            .source_lines
+            .find_containing(selection.end(), true, true)
+            .1 // exclusive end from find_containing = one past the last match
+            .min(self.bounds.source_lines.len() - 1);
+
+        let start = self.bounds.source_lines[first_line].start();
+        let end = self.bounds.source_lines[last_line].end();
+        (start, end)
+    }
+
     /// Returns the x position of the offset, assuming the offset lies in this
     /// galley. For the y position, use self.rect.y_range().
     pub fn galley_x(&self, galley: &GalleyInfo, offset: DocCharOffset) -> f32 {

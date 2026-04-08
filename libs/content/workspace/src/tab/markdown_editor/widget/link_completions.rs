@@ -3,7 +3,6 @@ use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
-use unicode_segmentation::UnicodeSegmentation as _;
 
 use std::sync::{Arc, RwLock};
 
@@ -111,6 +110,11 @@ fn detect_any(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), Comple
     None
 }
 
+/// Returns the grapheme `&str` at the given char offset.
+fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
+    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+}
+
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
 fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     let selection = buffer.current.selection;
@@ -119,8 +123,7 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     }
 
     let cursor_idx = selection.1.0;
-    let text = buffer.current.text.to_string();
-    let gs: Vec<&str> = text.graphemes(true).collect();
+    let len = buffer.current.segs.last_cursor_position().0;
 
     let mut i = cursor_idx;
     let bracket_start;
@@ -129,12 +132,12 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
             return None;
         }
         i -= 1;
-        let g = gs[i];
+        let g = grapheme_at(buffer, i);
         if g == "\n" || g == "]" {
             return None;
         }
         if g == "[" {
-            if i > 0 && gs[i - 1] == "[" {
+            if i > 0 && grapheme_at(buffer, i - 1) == "[" {
                 bracket_start = i - 1;
                 break;
             }
@@ -146,11 +149,11 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     }
 
     let mut j = cursor_idx;
-    while j < gs.len() {
-        if gs[j] == "\n" {
+    while j < len {
+        if grapheme_at(buffer, j) == "\n" {
             break;
         }
-        if gs[j] == "]" && j + 1 < gs.len() && gs[j + 1] == "]" {
+        if grapheme_at(buffer, j) == "]" && j + 1 < len && grapheme_at(buffer, j + 1) == "]" {
             j += 2;
             break;
         }
@@ -174,8 +177,7 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
     }
 
     let cursor_idx = selection.1.0;
-    let text = buffer.current.text.to_string();
-    let gs: Vec<&str> = text.graphemes(true).collect();
+    let len = buffer.current.segs.last_cursor_position().0;
 
     // Scan backward for a single '[' that is NOT preceded by '[' (wikilink).
     // Stop at newlines, existing ']', '(' or ')' — we're outside the text field.
@@ -186,12 +188,12 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
             return None;
         }
         i -= 1;
-        let g = gs[i];
+        let g = grapheme_at(buffer, i);
         if g == "\n" || g == "]" || g == "(" || g == ")" {
             return None;
         }
         if g == "[" {
-            if i > 0 && gs[i - 1] == "[" {
+            if i > 0 && grapheme_at(buffer, i - 1) == "[" {
                 return None; // wikilink — handled separately
             }
             open_bracket = i;
@@ -202,21 +204,21 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
         }
     }
 
-    let is_image = open_bracket > 0 && gs[open_bracket - 1] == "!";
+    let is_image = open_bracket > 0 && grapheme_at(buffer, open_bracket - 1) == "!";
     let start = if is_image { open_bracket - 1 } else { open_bracket };
 
     // Scan forward from cursor. If `](...)` follows, include it so the whole
     // link is replaced when the user picks a result.
     let mut j = cursor_idx;
-    while j < gs.len() && gs[j] != "\n" {
-        if gs[j] == "]" {
+    while j < len && grapheme_at(buffer, j) != "\n" {
+        if grapheme_at(buffer, j) == "]" {
             j += 1;
-            if j < gs.len() && gs[j] == "(" {
+            if j < len && grapheme_at(buffer, j) == "(" {
                 j += 1;
-                while j < gs.len() && gs[j] != ")" && gs[j] != "\n" {
+                while j < len && grapheme_at(buffer, j) != ")" && grapheme_at(buffer, j) != "\n" {
                     j += 1;
                 }
-                if j < gs.len() && gs[j] == ")" {
+                if j < len && grapheme_at(buffer, j) == ")" {
                     j += 1;
                 }
             }

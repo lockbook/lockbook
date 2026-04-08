@@ -114,6 +114,8 @@ pub struct Editor {
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
+    frame_times: [Instant; 10],
+    frame_times_idx: usize,
     pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
     pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
@@ -287,6 +289,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
             text_areas: Default::default(),
@@ -378,7 +382,7 @@ impl Editor {
         options.extension.alerts = true;
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = true;
+        options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
@@ -470,7 +474,8 @@ impl Editor {
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
             self.bounds.inline_paragraphs.clear();
-            self.layout_cache.clear();
+            self.layout_cache
+                .invalidate_text_change(&self.buffer, buffer_resp.seq_before);
 
             self.calc_source_lines();
             self.compute_bounds(root);
@@ -599,7 +604,6 @@ impl Editor {
                     self.galleys.galleys.clear();
                     self.bounds.wrap_lines.clear();
                     self.touch_consuming_rects.clear();
-
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
@@ -660,6 +664,10 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
+        if self.debug {
+            self.show_debug_fps(ui);
+        }
+
         if PRINT {
             println!(
                 "{}",
@@ -685,8 +693,15 @@ impl Editor {
 
         // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if resp.selection_updated || images_updated || height_updated || width_updated {
+        if images_updated || height_updated || width_updated {
             self.layout_cache.clear();
+            ui.ctx().request_repaint();
+        } else if resp.selection_updated {
+            let new_selection = self
+                .in_progress_selection
+                .unwrap_or(self.buffer.current.selection);
+            self.layout_cache
+                .invalidate_selection_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
@@ -810,7 +825,7 @@ impl Editor {
                             self.top_left =
                                 ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
                             let height = {
-                                let document_height = self.height(root);
+                                let document_height = self.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
@@ -850,7 +865,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.show_block(ui, root, self.top_left);
+                                self.show_block(ui, root, self.top_left, &[root]);
                             });
                         });
                 });

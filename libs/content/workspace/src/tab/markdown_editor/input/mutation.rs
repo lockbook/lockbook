@@ -407,13 +407,15 @@ impl<'ast> Editor {
                     if matches!(node.data().value, NodeValue::Heading(_))
                         && self.selected_block(node)
                     {
-                        self.apply_fold(node, self.heading_contents(node), unapply);
+                        let siblings = self.sorted_siblings(node);
+                        self.apply_fold(node, self.heading_contents(node, &siblings), unapply);
                     }
 
                     if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
                         && self.selected_fold_item(node)
                     {
-                        self.apply_fold(node, self.item_contents(node), unapply);
+                        let siblings = self.sorted_siblings(node);
+                        self.apply_fold(node, self.item_contents(node, &siblings), unapply);
                     }
                 }
             }
