@@ -9,6 +9,23 @@ use std::process::Command;
 use std::thread;
 use std::time::Duration;
 
+pub fn build() -> CliResult<()> {
+    println!("Building server (musl)");
+    Command::new("cargo")
+        .args([
+            "build",
+            "-p",
+            "lockbook-server",
+            "--release",
+            "--target",
+            "x86_64-unknown-linux-musl",
+        ])
+        .current_dir(root())
+        .assert_success()?;
+
+    Ok(())
+}
+
 pub fn deploy() -> CliResult<()> {
     build_server()?;
     backup_old_server()?;

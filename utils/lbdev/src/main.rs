@@ -52,7 +52,10 @@ fn main() {
                         .handler(|bump| releaser::version::bump(bump.get())),
                     )
                 .subcommand(Command::name("github-release").handler(releaser::github::create_release))
-                .subcommand(Command::name("server").handler(releaser::server::deploy))
+                .subcommand(Command::name("server")
+                    .subcommand(Command::name("deploy").handler(releaser::server::deploy))
+                    .subcommand(Command::name("build").handler(releaser::server::build))
+                )
                 .subcommand(Command::name("apple")
                     .subcommand(Command::name("all").handler(releaser::apple::release))
                     .subcommand(Command::name("cli").handler(releaser::apple::cli::release))
