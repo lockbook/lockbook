@@ -10,7 +10,6 @@ use lb_rs::model::account::Account;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
-use std::path::{Component, PathBuf};
 use tracing::instrument;
 use urlencoding::decode;
 
@@ -528,20 +527,18 @@ pub fn relative_path(from: &str, to: &str) -> String {
         }
     }
 
-    let from_path = PathBuf::from(from);
-    let to_path = PathBuf::from(to);
+    let from_parts: Vec<&str> = from.split('/').filter(|s| !s.is_empty()).collect();
+    let to_parts: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
 
-    let mut num_common_ancestors = 0;
-    for (from_component, to_component) in from_path.components().zip(to_path.components()) {
-        if from_component != to_component {
-            break;
-        }
-        num_common_ancestors += 1;
-    }
+    let num_common = from_parts
+        .iter()
+        .zip(to_parts.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
 
-    let mut result = "../".repeat(from_path.components().count() - num_common_ancestors);
-    for to_component in to_path.components().skip(num_common_ancestors) {
-        result.push_str(to_component.as_os_str().to_str().unwrap());
+    let mut result = "../".repeat(from_parts.len() - num_common);
+    for part in &to_parts[num_common..] {
+        result.push_str(part);
         result.push('/');
     }
     if !to.ends_with('/') {
@@ -551,22 +548,17 @@ pub fn relative_path(from: &str, to: &str) -> String {
 }
 
 pub fn canonicalize(path: &str) -> String {
-    let path = PathBuf::from(path);
-    let mut result = PathBuf::new();
-
-    for component in path.components() {
+    let mut parts: Vec<&str> = Vec::new();
+    for component in path.split('/') {
         match component {
-            Component::Normal(component) => {
-                result.push(component);
+            ".." => {
+                parts.pop();
             }
-            Component::ParentDir => {
-                result.pop();
-            }
-            _ => {}
+            "" | "." => {}
+            _ => parts.push(component),
         }
     }
-
-    result.to_string_lossy().to_string()
+    parts.join("/")
 }
 
 #[cfg(test)]
