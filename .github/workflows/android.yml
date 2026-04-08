@@ -11,8 +11,7 @@ on:
         required: false
 jobs:
   DeployAndroid:
-    # disabled until android lazy-files are implemented
-    if: github.repository != 'lockbook/lockbook'
+    if: github.repository == 'lockbook/lockbook'
     runs-on: [self-hosted, ci]
     env:
       ANDROID_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
