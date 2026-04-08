@@ -218,13 +218,12 @@ impl Workspace {
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
-                            let Some(from_id) = files_guard.files.get_by_id(id).map(|f| f.parent)
-                            else {
+                            let Some(from_id) = files_guard.get_by_id(id).map(|f| f.parent) else {
                                 return true;
                             };
 
                             let Some(ResolvedLink::File(file_id)) =
-                                files_guard.files.resolve_link(&url.url, from_id)
+                                files_guard.resolve_link(&url.url, from_id)
                             else {
                                 return true;
                             };
@@ -413,18 +412,22 @@ impl Workspace {
             self.upsert_mind_map(self.core.clone());
         }
 
-        // Ctrl-W to close current tab.
+        // Ctrl-W to close current tab, or return to root when on landing page.
         if self
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
-            && !self.is_empty()
         {
-            self.close_tab(self.current_tab);
-            self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                self.current_tab_title().unwrap_or("Lockbook".to_owned()),
-            ));
-
-            self.out.selected_file = self.current_tab_id();
+            if !self.is_empty() {
+                self.close_tab(self.current_tab);
+                self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                    self.current_tab_title().unwrap_or("Lockbook".to_owned()),
+                ));
+                self.out.selected_file = self.current_tab_id();
+            } else {
+                let root_id = self.files.read().unwrap().root().id;
+                self.focused_parent = None;
+                self.out.selected_file = Some(root_id);
+            }
         }
 
         // Ctrl-shift-W to close all tabs

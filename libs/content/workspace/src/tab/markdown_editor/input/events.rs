@@ -53,8 +53,7 @@ impl<'ast> Editor {
 
                                 let rel_path = {
                                     let guard = self.files.read().unwrap();
-                                    let parent =
-                                        guard.files.get_by_id(self.file_id).unwrap().parent;
+                                    let parent = guard.get_by_id(self.file_id).unwrap().parent;
                                     let mut augmented = guard.files.clone();
                                     if augmented.get_by_id(file.parent).is_none() {
                                         if let Ok(folder) = self.core.get_file_by_id(file.parent) {

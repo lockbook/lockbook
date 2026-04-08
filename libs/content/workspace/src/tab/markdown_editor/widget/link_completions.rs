@@ -1,5 +1,6 @@
 use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
+use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use unicode_segmentation::UnicodeSegmentation as _;
@@ -12,6 +13,7 @@ use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 7;
@@ -256,22 +258,28 @@ fn query_range(
 }
 
 struct FileResult {
+    /// The file's UUID.
+    id: Uuid,
     /// Display name without .md extension.
     name: String,
     /// Full relative path from current file (with .md), used as hint and for disambiguation.
     rel_path: String,
     /// What to insert: bare title if unique, minimal partial path if conflicting.
     insert: String,
+    /// True if this file is in a different tree than the current file.
+    cross_tree: bool,
+    /// Path segments with per-segment share-recipient flag, for colored rendering.
+    path_segments: Vec<(String, bool)>,
 }
 
 fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -> Vec<FileResult> {
-    let files = &cache.files;
     // Paths in markdown are relative to the parent folder of the current file,
     // matching how the image cache and existing link insertion resolve them.
-    let from_id = files
+    let from_id = cache
         .get_by_id(file_id)
         .map(|f| f.parent)
         .unwrap_or(file_id);
+    let from_path = cache.path(from_id);
     let lq = query.trim_end_matches(".md").to_lowercase();
 
     // For image links, match against the full filename (including extension).
@@ -297,25 +305,51 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
         }
     };
 
+    // Path distance: number of `../` segments in the relative path, or u16::MAX for cross-tree.
+    let path_distance = |f_id: Uuid, cross_tree: bool| -> u16 {
+        if cross_tree {
+            return u16::MAX;
+        }
+        let rel = relative_path(&from_path, &cache.path(f_id));
+        rel.matches("../").count() as u16
+    };
+
+    // Build a FileResult for a file, computing cross-tree status and rel_path.
+    let make_result = |f: &File, display_name: String| -> FileResult {
+        let cross_tree = !cache.same_tree(file_id, f.id);
+        let rel_path = if cross_tree {
+            // Show path within the shared tree as hint
+            cache.path(f.id)
+        } else {
+            let rp = relative_path(&from_path, &cache.path(f.id));
+            rp.strip_prefix("./").unwrap_or(&rp).to_string()
+        };
+        let path_segments = cache.path_segments(f.id);
+        FileResult {
+            id: f.id,
+            name: display_name,
+            rel_path,
+            insert: String::new(),
+            cross_tree,
+            path_segments,
+        }
+    };
+
     if query.is_empty() {
         if mode == CompletionMode::ImageLink {
             // Images are rarely in the suggested list (they aren't opened like notes),
             // so for image links show all image files sorted by last_modified desc.
-            let mut image_files: Vec<_> = files
-                .iter()
+            let mut image_files: Vec<_> = cache
+                .all_files()
                 .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
                 .collect();
             image_files.sort_by(|a, b| b.last_modified.cmp(&a.last_modified));
             let mut results: Vec<FileResult> = image_files
                 .into_iter()
                 .take(MAX_RESULTS)
-                .map(|f| {
-                    let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-                    let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-                    FileResult { name: f.name.clone(), rel_path, insert: String::new() }
-                })
+                .map(|f| make_result(f, f.name.clone()))
                 .collect();
-            populate_insert(files, &mut results, mode);
+            populate_insert(cache, &mut results, mode);
             return results;
         }
 
@@ -325,23 +359,22 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             if id == file_id {
                 continue;
             }
-            let Some(f) = files.iter().find(|f| f.id == id && f.is_document()) else {
+            let Some(f) = cache.get_by_id(id).filter(|f| f.is_document()) else {
                 continue;
             };
             let display_name = f.name.trim_end_matches(".md").to_string();
-            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-            let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-            results.push(FileResult { name: display_name, rel_path, insert: String::new() });
+            results.push(make_result(f, display_name));
             if results.len() == MAX_RESULTS {
                 break;
             }
         }
-        populate_insert(files, &mut results, mode);
+        populate_insert(cache, &mut results, mode);
         return results;
     }
 
-    let mut scored: Vec<(FileResult, u8, usize)> = files
-        .iter()
+    // scored: (result, tier, cross_tree, path_distance, name_len)
+    let mut scored: Vec<(FileResult, u8, bool, u16, usize)> = cache
+        .all_files()
         .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
         .filter_map(|f| {
             if !file_matches(&f.name) {
@@ -360,50 +393,54 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             } else {
                 2
             };
-            let rel_path = relative_path(&files.path(from_id), &files.path(f.id));
-            let rel_path = rel_path.strip_prefix("./").unwrap_or(&rel_path).to_string();
-            Some((
-                FileResult { name: display_name.clone(), rel_path, insert: String::new() },
-                tier,
-                display_name.len(),
-            ))
+            let result = make_result(f, display_name.clone());
+            let cross = result.cross_tree;
+            let dist = path_distance(f.id, cross);
+            Some((result, tier, cross, dist, display_name.len()))
         })
         .collect();
 
-    // Sort: by tier asc, then by title length asc within tier.
-    scored.sort_by_key(|(_, tier, len)| (*tier, *len));
+    // Sort: tier, then same-tree before cross-tree, then proximity, then name length.
+    scored.sort_by_key(|(_, tier, cross, dist, len)| (*tier, *cross, *dist, *len));
 
     let mut results: Vec<FileResult> = scored
         .into_iter()
         .take(MAX_RESULTS)
-        .map(|(r, _, _)| r)
+        .map(|(r, _, _, _, _)| r)
         .collect();
 
-    populate_insert(files, &mut results, mode);
+    populate_insert(cache, &mut results, mode);
     results
 }
 
 /// Fills `result.insert` for each entry.
+/// - Cross-tree files always use `lb://uuid` (relative paths don't work across trees).
 /// - WikiLink: bare title when unique, minimal partial path when ambiguous.
 /// - Link/ImageLink: always the full relative path (no ambiguity since path is explicit).
-fn populate_insert(
-    all_files: &[lb_rs::model::file::File], results: &mut Vec<FileResult>, mode: CompletionMode,
-) {
+fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
-        // For regular and image links, insert = percent-encoded rel_path.
-        // CommonMark requires spaces (and other special chars) to be encoded in link destinations.
         for result in results.iter_mut() {
-            result.insert = encode_link_path(&result.rel_path);
+            if result.cross_tree {
+                result.insert = format!("lb://{}", result.id);
+            } else {
+                result.insert = encode_link_path(&result.rel_path);
+            }
         }
         return;
     }
-    let all_titles: Vec<&str> = all_files
-        .iter()
+
+    // For wikilinks: cross-tree files use lb://uuid; same-tree files use title or partial path.
+    let all_titles: Vec<&str> = cache
+        .all_files()
         .filter(|f| f.is_document())
         .map(|f| f.name.trim_end_matches(".md"))
         .collect();
 
-    for result in results {
+    for result in results.iter_mut() {
+        if result.cross_tree {
+            result.insert = format!("lb://{}", result.id);
+            continue;
+        }
         let count = all_titles
             .iter()
             .filter(|t| t.eq_ignore_ascii_case(&result.name))
@@ -489,23 +526,36 @@ fn is_subsequence(needle: &str, haystack: &str) -> bool {
 /// shortened. `..` segments are left as-is since they're already minimal.
 ///
 /// Example: `projects/work/clients/note` → `p/work/clients/note` → `p/w/clients/note` → …
-fn abbreviate_path(path: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String {
-    if measure(path) <= max_width {
-        return path.to_string();
+/// Abbreviates path segments in-place: shortens intermediate directory names to
+/// their first character until the full path fits within `max_width`. Separator
+/// segments (`/`) and the final name segment (filename) are never shortened.
+fn abbreviate_segments(
+    segments: &mut [(String, bool)], max_width: f32, measure: &impl Fn(&str) -> f32,
+) {
+    let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
+    if measure(&full) <= max_width {
+        return;
     }
-    let mut parts: Vec<String> = path.split('/').map(|s| s.to_string()).collect();
-    let n = parts.len();
-    // Iterate over all components except the last (filename).
-    for i in 0..n.saturating_sub(1) {
-        if parts[i] == ".." || parts[i] == "." || parts[i].chars().count() <= 1 {
+    // Find indices of name segments (non-"/" entries), excluding the last (filename).
+    let name_indices: Vec<usize> = segments
+        .iter()
+        .enumerate()
+        .filter(|(_, (t, _))| t != "/")
+        .map(|(i, _)| i)
+        .collect();
+    // Shorten all except the last name segment (the filename).
+    let dir_indices: Vec<usize> = name_indices.iter().rev().skip(1).copied().rev().collect();
+    for i in dir_indices {
+        let text = &segments[i].0;
+        if text == ".." || text == "." || text.chars().count() <= 1 {
             continue;
         }
-        parts[i] = parts[i].chars().next().unwrap().to_string();
-        if measure(&parts.join("/")) <= max_width {
+        segments[i].0 = text.chars().next().unwrap().to_string();
+        let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
+        if measure(&full) <= max_width {
             break;
         }
     }
-    parts.join("/")
 }
 
 impl Editor {
@@ -525,7 +575,7 @@ impl Editor {
         }
 
         let cache = self.files.read().unwrap();
-        let results = search(&cache, self.file_id, &query, mode);
+        let mut results = search(&cache, self.file_id, &query, mode);
         drop(cache);
         if results.is_empty() {
             return;
@@ -611,6 +661,9 @@ impl Editor {
                 .collect()
         };
 
+        let theme = ui.ctx().get_lb_theme();
+        let share_recipient_color = theme.fg().get_color(theme.prefs().secondary);
+
         // Measure each name+shortcut label (shortcut is the built-in hint).
         let label_widths: Vec<f32> = results
             .iter()
@@ -634,24 +687,21 @@ impl Editor {
                 .x
         };
 
-        // Abbreviate each path hint to fit within a per-row budget so names and
+        // Abbreviate path segments to fit within a per-row budget so names and
         // hints never overlap regardless of which row is widest.
-        let path_hints: Vec<String> = results
-            .iter()
-            .zip(label_widths.iter())
-            .map(|(r, &lw)| {
-                let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
-                abbreviate_path(&r.rel_path, budget, measure_path)
-            })
-            .collect();
+        for (r, &lw) in results.iter_mut().zip(label_widths.iter()) {
+            let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
+            abbreviate_segments(&mut r.path_segments, budget, &measure_path);
+        }
 
         // -- Position popup --------------------------------------------------------
         // Width = max per-row total (name+shortcut label + gap + path hint + padding).
-        let popup_width = label_widths
+        let popup_width = results
             .iter()
-            .zip(path_hints.iter())
-            .map(|(&lw, h)| {
-                let hw = measure_path(h);
+            .zip(label_widths.iter())
+            .map(|(r, &lw)| {
+                let hint: String = r.path_segments.iter().map(|(t, _)| t.as_str()).collect();
+                let hw = measure_path(&hint);
                 lw + hw + POPUP_PADDING
             })
             .fold(0.0_f32, f32::max);
@@ -728,7 +778,15 @@ impl Editor {
             text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
 
             // Path hint, right-aligned between name and shortcut.
-            let shaped = GlyphonLabel::new(&path_hints[idx], hint_color)
+            let share_color = share_recipient_color;
+            let colored_spans: Vec<(&str, Option<egui::Color32>)> = result
+                .path_segments
+                .iter()
+                .map(|(text, shared)| {
+                    (text.as_str(), if *shared { Some(share_color) } else { None })
+                })
+                .collect();
+            let shaped = GlyphonLabel::new_colored(colored_spans, hint_color)
                 .font_size(self.layout.completion_font_size - 2.0)
                 .line_height(self.layout.completion_line_height)
                 .build(ui.ctx());
