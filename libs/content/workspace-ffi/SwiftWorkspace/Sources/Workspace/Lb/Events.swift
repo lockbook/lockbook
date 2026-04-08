@@ -29,7 +29,8 @@ public struct Status {
         pushingFiles = Array(UnsafeBufferPointer(start: status.pushing_files.ids, count: Int(status.pushing_files.len))).toUUIDs()
         pullingFiles = Array(UnsafeBufferPointer(start: status.pulling_files.ids, count: Int(status.pulling_files.len))).toUUIDs()
         spaceUsed = status.space_used != nil ? UsageMetrics(status.space_used.move()) : nil
-        message = String(cString: status.msg)
+        message = status.msg != nil ? String(cString: status.msg) : ""
+
     }
 
     init() {
