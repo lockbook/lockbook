@@ -97,6 +97,7 @@ impl<'ast> Editor {
         let children = self.sorted_children(node);
 
         let required_range = self.galley_required_range();
+        let viewport = ui.clip_rect();
 
         for child in &children {
             let child_range = self.node_range(child);
@@ -105,8 +106,8 @@ impl<'ast> Editor {
 
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            let pre_spacing_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
-            let pre_spacing_above_viewport = 2. * self.layout.margin > top_left.y + pre_spacing;
+            let pre_spacing_below_viewport = viewport.max.y < top_left.y;
+            let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
             let pre_spacing_needed = self
                 .spacing_range(&pre_lines)
@@ -129,8 +130,8 @@ impl<'ast> Editor {
                 );
             }
 
-            let block_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
-            let block_above_viewport = 2. * self.layout.margin > top_left.y + child_height;
+            let block_below_viewport = viewport.max.y < top_left.y;
+            let block_above_viewport = viewport.min.y > top_left.y + child_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
             let block_needed = child_range.intersects(&required_range, true);
             if block_visible || block_needed {
@@ -140,8 +141,8 @@ impl<'ast> Editor {
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            let post_spacing_below_viewport = 2. * self.layout.margin + self.height < top_left.y;
-            let post_spacing_above_viewport = 2. * self.layout.margin > top_left.y + post_spacing;
+            let post_spacing_below_viewport = viewport.max.y < top_left.y;
+            let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
             let post_spacing_needed = self
                 .spacing_range(&post_lines)
