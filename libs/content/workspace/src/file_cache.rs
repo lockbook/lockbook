@@ -58,15 +58,21 @@ impl FileCache {
         let shared = lb.get_pending_share_files()?;
 
         let mut size_recursive = HashMap::new();
-        for file in &files {
+        for file in files.iter().chain(shared.iter()) {
             size_recursive.insert(
                 file.id,
                 files
                     .descendents(file.id)
                     .iter()
+                    .chain(shared.descendents(file.id).iter())
                     .map(|f| f.id)
                     .chain(iter::once(file.id))
-                    .map(|id| files.get_by_id(id).unwrap().size_bytes)
+                    .filter_map(|id| {
+                        files
+                            .get_by_id(id)
+                            .or_else(|| shared.get_by_id(id))
+                            .map(|f| f.size_bytes)
+                    })
                     .sum::<_>(),
             );
         }
@@ -76,7 +82,7 @@ impl FileCache {
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
         self.size_bytes_recursive[&id] as f32
-            / self.size_bytes_recursive[&self.files.get_by_id(id).unwrap().parent] as f32
+            / self.size_bytes_recursive[&self.get_by_id(id).unwrap().parent] as f32
     }
 
     /// returns the uncompressed, recursive size of a file scaled relative to
@@ -95,12 +101,11 @@ impl FileCache {
     }
 
     pub fn last_modified_recursive(&self, id: Uuid) -> u64 {
-        self.files
-            .descendents(id)
+        self.descendents(id)
             .iter()
             .map(|f| f.id)
             .chain(iter::once(id))
-            .map(|id| self.files.get_by_id(id).unwrap().last_modified)
+            .map(|id| self.get_by_id(id).unwrap().last_modified)
             .max()
             .unwrap()
     }
@@ -108,6 +113,48 @@ impl FileCache {
     /// Iterates all known files: the user's own tree plus pending shares.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
         self.files.iter().chain(self.shared.iter())
+    }
+
+    /// Returns path segments for a file, each annotated with whether that file
+    /// has any shares on it. Segments are in root-to-leaf order. The leading `/`
+    /// is included as a separate segment for own-tree files.
+    pub fn path_segments(&self, id: Uuid) -> Vec<(String, bool)> {
+        let Some(file) = self.get_by_id(id) else {
+            return vec![("/".to_string(), false)];
+        };
+        if file.is_root() {
+            return vec![("/".to_string(), false)];
+        }
+
+        let mut parts: Vec<(&str, bool)> = Vec::new();
+        let mut current = id;
+        let mut reached_root = false;
+        loop {
+            let Some(f) = self.get_by_id(current) else { break };
+            if f.is_root() {
+                reached_root = true;
+                break;
+            }
+            parts.push((&f.name, !f.shares.is_empty()));
+            if self.get_by_id(f.parent).is_none() {
+                break; // share boundary
+            }
+            current = f.parent;
+        }
+        parts.reverse();
+
+        let mut segments = Vec::new();
+        if reached_root {
+            segments.push(("/".to_string(), false));
+        }
+        for (i, (name, shared)) in parts.iter().enumerate() {
+            segments.push(((*name).to_string(), *shared));
+            let is_last = i + 1 == parts.len();
+            if !is_last {
+                segments.push(("/".to_string(), false));
+            }
+        }
+        segments
     }
 
     /// Collects the set of usernames who have access to a file: the owner plus
@@ -159,18 +206,13 @@ impl FileCache {
 
     pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
         let last_modified_id = self
-            .files
             .descendents(id)
             .iter()
             .map(|f| f.id)
             .chain(iter::once(id))
-            .max_by_key(|id| self.files.get_by_id(*id).unwrap().last_modified)
+            .max_by_key(|id| self.get_by_id(*id).unwrap().last_modified)
             .unwrap();
-        &self
-            .files
-            .get_by_id(last_modified_id)
-            .unwrap()
-            .last_modified_by
+        &self.get_by_id(last_modified_id).unwrap().last_modified_by
     }
 }
 
@@ -206,7 +248,9 @@ pub trait FilesExt {
         descendents
     }
 
-    /// returns all known parents until we can't find one (share) or we hit root
+    /// returns all known parents until we can't find one (share) or we hit root.
+    /// Paths rooted in the user's own tree start with `/`. Paths in a share tree
+    /// (where the walk stopped at a share boundary) omit the leading `/`.
     fn path(&self, id: Uuid) -> String {
         let Some(file) = self.get_by_id(id) else { return "/".to_string() };
         if file.is_root() {
@@ -214,9 +258,11 @@ pub trait FilesExt {
         }
         let mut parts = vec![file.name.as_str()];
         let mut current = file.parent;
+        let mut reached_root = false;
         loop {
             let Some(f) = self.get_by_id(current) else { break };
             if f.is_root() {
+                reached_root = true;
                 break;
             }
             parts.push(f.name.as_str());
@@ -224,7 +270,15 @@ pub trait FilesExt {
         }
         parts.reverse();
         let joined = parts.join("/");
-        if file.is_folder() { format!("/{joined}/") } else { format!("/{joined}") }
+        if reached_root && file.is_folder() {
+            format!("/{joined}/")
+        } else if reached_root {
+            format!("/{joined}")
+        } else if file.is_folder() {
+            format!("{joined}/")
+        } else {
+            joined
+        }
     }
 
     fn by_path(&self, path: &str) -> Option<&File> {
@@ -448,11 +502,20 @@ impl FilesExt for FileCache {
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
-        self.files.children(id)
+        let mut children: Vec<_> = self
+            .all_files()
+            .filter(|f| f.parent == id && f.parent != f.id)
+            .collect();
+        children.sort_by(|a, b| match (a.file_type, b.file_type) {
+            (FileType::Folder, FileType::Document) => Ordering::Less,
+            (FileType::Document, FileType::Folder) => Ordering::Greater,
+            (_, _) => a.name.cmp(&b.name),
+        });
+        children
     }
 
     fn iter_files(&self) -> impl Iterator<Item = &File> {
-        self.files.iter_files()
+        self.all_files()
     }
 }
 

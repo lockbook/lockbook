@@ -13,6 +13,7 @@ use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 7;
@@ -267,6 +268,8 @@ struct FileResult {
     insert: String,
     /// True if this file is in a different tree than the current file.
     cross_tree: bool,
+    /// Path segments with per-segment share-recipient flag, for colored rendering.
+    path_segments: Vec<(String, bool)>,
 }
 
 fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -> Vec<FileResult> {
@@ -321,7 +324,15 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             let rp = relative_path(&from_path, &cache.path(f.id));
             rp.strip_prefix("./").unwrap_or(&rp).to_string()
         };
-        FileResult { id: f.id, name: display_name, rel_path, insert: String::new(), cross_tree }
+        let path_segments = cache.path_segments(f.id);
+        FileResult {
+            id: f.id,
+            name: display_name,
+            rel_path,
+            insert: String::new(),
+            cross_tree,
+            path_segments,
+        }
     };
 
     if query.is_empty() {
@@ -406,7 +417,7 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
 /// - Cross-tree files always use `lb://uuid` (relative paths don't work across trees).
 /// - WikiLink: bare title when unique, minimal partial path when ambiguous.
 /// - Link/ImageLink: always the full relative path (no ambiguity since path is explicit).
-fn populate_insert(cache: &FileCache, results: &mut Vec<FileResult>, mode: CompletionMode) {
+fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
         for result in results.iter_mut() {
             if result.cross_tree {
@@ -515,23 +526,36 @@ fn is_subsequence(needle: &str, haystack: &str) -> bool {
 /// shortened. `..` segments are left as-is since they're already minimal.
 ///
 /// Example: `projects/work/clients/note` → `p/work/clients/note` → `p/w/clients/note` → …
-fn abbreviate_path(path: &str, max_width: f32, measure: impl Fn(&str) -> f32) -> String {
-    if measure(path) <= max_width {
-        return path.to_string();
+/// Abbreviates path segments in-place: shortens intermediate directory names to
+/// their first character until the full path fits within `max_width`. Separator
+/// segments (`/`) and the final name segment (filename) are never shortened.
+fn abbreviate_segments(
+    segments: &mut [(String, bool)], max_width: f32, measure: &impl Fn(&str) -> f32,
+) {
+    let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
+    if measure(&full) <= max_width {
+        return;
     }
-    let mut parts: Vec<String> = path.split('/').map(|s| s.to_string()).collect();
-    let n = parts.len();
-    // Iterate over all components except the last (filename).
-    for i in 0..n.saturating_sub(1) {
-        if parts[i] == ".." || parts[i] == "." || parts[i].chars().count() <= 1 {
+    // Find indices of name segments (non-"/" entries), excluding the last (filename).
+    let name_indices: Vec<usize> = segments
+        .iter()
+        .enumerate()
+        .filter(|(_, (t, _))| t != "/")
+        .map(|(i, _)| i)
+        .collect();
+    // Shorten all except the last name segment (the filename).
+    let dir_indices: Vec<usize> = name_indices.iter().rev().skip(1).copied().rev().collect();
+    for i in dir_indices {
+        let text = &segments[i].0;
+        if text == ".." || text == "." || text.chars().count() <= 1 {
             continue;
         }
-        parts[i] = parts[i].chars().next().unwrap().to_string();
-        if measure(&parts.join("/")) <= max_width {
+        segments[i].0 = text.chars().next().unwrap().to_string();
+        let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
+        if measure(&full) <= max_width {
             break;
         }
     }
-    parts.join("/")
 }
 
 impl Editor {
@@ -551,7 +575,7 @@ impl Editor {
         }
 
         let cache = self.files.read().unwrap();
-        let results = search(&cache, self.file_id, &query, mode);
+        let mut results = search(&cache, self.file_id, &query, mode);
         drop(cache);
         if results.is_empty() {
             return;
@@ -637,6 +661,9 @@ impl Editor {
                 .collect()
         };
 
+        let theme = ui.ctx().get_lb_theme();
+        let share_recipient_color = theme.fg().get_color(theme.prefs().secondary);
+
         // Measure each name+shortcut label (shortcut is the built-in hint).
         let label_widths: Vec<f32> = results
             .iter()
@@ -660,24 +687,21 @@ impl Editor {
                 .x
         };
 
-        // Abbreviate each path hint to fit within a per-row budget so names and
+        // Abbreviate path segments to fit within a per-row budget so names and
         // hints never overlap regardless of which row is widest.
-        let path_hints: Vec<String> = results
-            .iter()
-            .zip(label_widths.iter())
-            .map(|(r, &lw)| {
-                let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
-                abbreviate_path(&r.rel_path, budget, measure_path)
-            })
-            .collect();
+        for (r, &lw) in results.iter_mut().zip(label_widths.iter()) {
+            let budget = (TARGET_POPUP_WIDTH - lw - POPUP_PADDING).max(MIN_HINT_WIDTH);
+            abbreviate_segments(&mut r.path_segments, budget, &measure_path);
+        }
 
         // -- Position popup --------------------------------------------------------
         // Width = max per-row total (name+shortcut label + gap + path hint + padding).
-        let popup_width = label_widths
+        let popup_width = results
             .iter()
-            .zip(path_hints.iter())
-            .map(|(&lw, h)| {
-                let hw = measure_path(h);
+            .zip(label_widths.iter())
+            .map(|(r, &lw)| {
+                let hint: String = r.path_segments.iter().map(|(t, _)| t.as_str()).collect();
+                let hw = measure_path(&hint);
                 lw + hw + POPUP_PADDING
             })
             .fold(0.0_f32, f32::max);
@@ -754,7 +778,15 @@ impl Editor {
             text_areas.extend(shaped.text_areas(content_rect, ui.ctx(), clip_rect));
 
             // Path hint, right-aligned between name and shortcut.
-            let shaped = GlyphonLabel::new(&path_hints[idx], hint_color)
+            let share_color = share_recipient_color;
+            let colored_spans: Vec<(&str, Option<egui::Color32>)> = result
+                .path_segments
+                .iter()
+                .map(|(text, shared)| {
+                    (text.as_str(), if *shared { Some(share_color) } else { None })
+                })
+                .collect();
+            let shaped = GlyphonLabel::new_colored(colored_spans, hint_color)
                 .font_size(self.layout.completion_font_size - 2.0)
                 .line_height(self.layout.completion_line_height)
                 .build(ui.ctx());

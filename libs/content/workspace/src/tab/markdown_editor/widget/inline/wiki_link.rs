@@ -33,9 +33,7 @@ impl<'ast> Editor {
                         .fixed_pos(pos + egui::vec2(8.0, 16.0))
                         .show(ui.ctx(), |ui| {
                             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.label(
-                                    "Some collaborators cannot access this link target",
-                                );
+                                ui.label("Some collaborators cannot access this link target");
                             });
                         });
                 }

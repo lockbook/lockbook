@@ -14,6 +14,7 @@ use std::sync::Arc;
 use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 
@@ -148,10 +149,7 @@ impl Workspace {
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         ui.style_mut().visuals.hyperlink_color = ui.visuals().text_color();
         ui.vertical(|ui| {
@@ -175,8 +173,9 @@ impl Workspace {
                 const HEADING_FONT_SIZE: f32 = 40.;
                 const HEADING_LINE_HEIGHT: f32 = 56.;
 
-                if !folder.is_root() {
-                    let parent = files.get_by_id(folder.parent).unwrap();
+                // Show breadcrumb to parent folder. Skipped at root and at share
+                // boundaries where the parent lives in the sharer's tree.
+                if let Some(parent) = files.get_by_id(folder.parent).filter(|_| !folder.is_root()) {
                     let resp = ui.add(
                         GlyphonLabel::new(&parent.name, ui.visuals().text_color())
                             .font_size(HEADING_FONT_SIZE)
@@ -214,10 +213,7 @@ impl Workspace {
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
         let account = &self.account;
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         ui.horizontal_top(|ui| {
             // experimentally matches combo box height which I cannot figure out how to determine or control
@@ -511,17 +507,24 @@ impl Workspace {
     }
 
     fn filtered_sorted_files<'a>(&self, files: &'a FileCache, account: &Account) -> Vec<&'a File> {
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         // Filter
-        let descendents = if self.landing_page.flatten_tree {
+        let mut descendents = if self.landing_page.flatten_tree {
             files.descendents(folder.id)
         } else {
             files.children(folder.id)
         };
+
+        // At root, include pending share roots as top-level entries
+        if folder.is_root() {
+            for f in &files.shared {
+                if files.shared.get_by_id(f.parent).is_none() {
+                    // This is a share root (its parent is not in our cache)
+                    descendents.push(f);
+                }
+            }
+        }
         let mut descendents: Vec<_> = descendents
             .into_iter()
             .filter(|child| {
@@ -861,16 +864,21 @@ impl Workspace {
                                 });
 
                                 // Icon
+                                let is_pending = files.shared.get_by_id(child.id).is_some();
+                                let is_shared = is_pending || !child.shares.is_empty();
+                                let theme = ui.ctx().get_lb_theme();
                                 if child.is_folder() {
-                                    let folder_icon = if !child.shares.is_empty() {
-                                        Icon::SHARED_FOLDER
+                                    let folder_icon =
+                                        if is_shared { Icon::SHARED_FOLDER } else { Icon::FOLDER };
+                                    let color = if is_shared {
+                                        theme.fg().get_color(theme.prefs().secondary)
                                     } else {
-                                        Icon::FOLDER
+                                        theme.fg().get_color(theme.prefs().primary)
                                     };
                                     ui.label(
                                         RichText::new(folder_icon.icon)
                                             .font(FontId::monospace(19.0))
-                                            .color(ui.style().visuals.widgets.active.bg_fill),
+                                            .color(color),
                                     )
                                     .on_hover_ui(|ui| {
                                         ui.label("Folder");
@@ -948,8 +956,25 @@ impl Workspace {
                                 }
                                 inner_resp
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                    .on_hover_ui(|ui| {
-                                        ui.label(self.core.get_path_by_id(child.id).unwrap());
+                                    .on_hover_ui({
+                                        let theme = ui.ctx().get_lb_theme();
+                                        let segments = files.path_segments(child.id);
+                                        let share_color =
+                                            theme.fg().get_color(theme.prefs().secondary);
+                                        let normal_color = ui.visuals().text_color();
+                                        move |ui: &mut egui::Ui| {
+                                            ui.horizontal(|ui| {
+                                                ui.spacing_mut().item_spacing.x = 0.0;
+                                                for (text, shared) in &segments {
+                                                    let color = if *shared {
+                                                        share_color
+                                                    } else {
+                                                        normal_color
+                                                    };
+                                                    ui.label(RichText::new(text).color(color));
+                                                }
+                                            });
+                                        }
                                     })
                                     .context_menu(|ui| {
                                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
