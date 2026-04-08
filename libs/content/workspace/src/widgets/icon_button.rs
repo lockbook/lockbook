@@ -10,12 +10,13 @@ pub struct IconButton {
     colored: bool,
     disabled: bool,
     size: Option<f32>,
+    hover_bg: bool,
 }
 
 impl IconButton {
     /// Create an icon button with the given icon.
     pub fn new(icon: Icon) -> Self {
-        Self { icon, tooltip: None, colored: false, size: None, disabled: false }
+        Self { icon, tooltip: None, colored: false, size: None, disabled: false, hover_bg: true }
     }
 
     /// Add a tooltip for the button. Default: `None`.
@@ -38,6 +39,11 @@ impl IconButton {
         Self { disabled, ..self }
     }
 
+    /// Hide the hover background. Default: `true` (background shown).
+    pub fn hover_bg(self, hover_bg: bool) -> Self {
+        Self { hover_bg, ..self }
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
         let theme = ui.ctx().get_lb_theme();
@@ -58,13 +64,15 @@ impl IconButton {
         );
 
         if resp.hovered() && !self.disabled {
-            ui.painter().rect(
-                rect,
-                2.,
-                theme.neutral_bg_secondary(),
-                egui::Stroke::NONE,
-                egui::epaint::StrokeKind::Inside,
-            );
+            if self.hover_bg {
+                ui.painter().rect(
+                    rect,
+                    2.,
+                    theme.neutral_bg_secondary(),
+                    egui::Stroke::NONE,
+                    egui::epaint::StrokeKind::Inside,
+                );
+            }
             ui.output_mut(|o: &mut egui::PlatformOutput| {
                 o.cursor_icon = egui::CursorIcon::PointingHand
             });

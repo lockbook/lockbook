@@ -181,6 +181,7 @@ pub struct GlyphonTextEdit<'a> {
     /// Selection to apply whenever focus is newly gained.
     focus_selection: Option<(usize, usize)>,
     id: Option<Id>,
+    hint_text: Option<String>,
 }
 
 impl<'a> GlyphonTextEdit<'a> {
@@ -192,6 +193,7 @@ impl<'a> GlyphonTextEdit<'a> {
             cursor_at_end: false,
             focus_selection: None,
             id: None,
+            hint_text: None,
         }
     }
 
@@ -218,6 +220,10 @@ impl<'a> GlyphonTextEdit<'a> {
 
     pub fn select_on_focus(self, anchor: usize, cursor: usize) -> Self {
         Self { focus_selection: Some((anchor, cursor)), ..self }
+    }
+
+    pub fn hint_text(self, hint: impl Into<String>) -> Self {
+        Self { hint_text: Some(hint.into()), ..self }
     }
 
     /// Process keyboard/text events for this widget id without rendering.
@@ -423,18 +429,51 @@ impl<'a> GlyphonTextEdit<'a> {
                 egui::pos2(rect.min.x - state.singleline_offset, rect.min.y),
                 egui::vec2(total_text_width.max(visible_width), line_height),
             );
+
+            let mut areas = Vec::new();
+
+            // Show hint text when the text buffer is empty
+            if self.text.is_empty() {
+                if let Some(ref hint) = self.hint_text {
+                    let hint_buf = {
+                        let mut fs = font_system.lock().unwrap();
+                        let mut buf = glyphon::Buffer::new(
+                            &mut fs,
+                            Metrics::new(self.font_size * ppi, line_height * ppi),
+                        );
+                        buf.set_size(&mut fs, Some(visible_width * ppi), None);
+                        buf.set_text(
+                            &mut fs,
+                            hint,
+                            &Attrs::new().family(Family::SansSerif),
+                            Shaping::Advanced,
+                        );
+                        buf.shape_until_scroll(&mut fs, false);
+                        buf
+                    };
+                    let c = ui.visuals().weak_text_color();
+                    areas.push(crate::TextBufferArea::new(
+                        Arc::new(RwLock::new(hint_buf)),
+                        Rect::from_min_size(rect.min, egui::vec2(visible_width, line_height)),
+                        glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
+                        ui.ctx(),
+                        rect,
+                    ));
+                }
+            }
+
             let c = visuals.text_color();
-            let area = crate::TextBufferArea::new(
+            areas.push(crate::TextBufferArea::new(
                 Arc::new(RwLock::new(buffer)),
                 draw_rect,
                 glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
                 ui.ctx(),
                 rect,
-            );
+            ));
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                     rect,
-                    crate::GlyphonRendererCallback::new(vec![area]),
+                    crate::GlyphonRendererCallback::new(areas),
                 ));
 
             if focused {
