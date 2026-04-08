@@ -56,6 +56,7 @@ fn main() {
                 .subcommand(Command::name("apple")
                     .subcommand(Command::name("all").handler(releaser::apple::release))
                     .subcommand(Command::name("cli").handler(releaser::apple::cli::release))
+                    .subcommand(Command::name("cli-build").handler(releaser::apple::cli::build))
                     .subcommand(Command::name("ios").handler(|| releaser::apple::ios::release(true)))
                     .subcommand(Command::name("mac-app-store").handler(|| releaser::apple::mac::release(true, false, true)))
                     .subcommand(Command::name("mac-gh").handler(|| releaser::apple::mac::release(true, true, false)))
