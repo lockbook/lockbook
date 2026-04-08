@@ -500,7 +500,11 @@ impl Workspace {
                         // Clear button (X icon) when there's text
                         #[allow(clippy::collapsible_if)]
                         if has_text {
-                            if IconButton::new(Icon::CLOSE.size(16.)).hover_bg(false).show(ui).clicked() {
+                            if IconButton::new(Icon::CLOSE.size(16.))
+                                .hover_bg(false)
+                                .show(ui)
+                                .clicked()
+                            {
                                 self.landing_page.search_term.clear();
                             }
                         }
