@@ -667,16 +667,14 @@ impl LayoutCache {
             cache.sort_by(|a, b| a.range.cmp(&b.range));
         }
 
-        // transform hidden_by_fold cache entries the same way
-        {
-            let mut cache = self.hidden_by_fold.borrow_mut();
-            cache.retain_mut(|entry| buffer.transform_range(since_seq, &mut entry.range));
-            cache.sort_by(|a, b| a.range.cmp(&b.range));
-        }
+        // hidden_by_fold depends on fold tags in the text; any text change
+        // could insert/remove a fold tag affecting distant nodes, so clear it
+        self.hidden_by_fold.borrow_mut().clear();
 
         // sourcepos-keyed caches must be cleared (AST is re-parsed)
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+
         // glyphon_buffers: content-addressed, preserved across text changes
     }
 
@@ -721,6 +719,11 @@ impl LayoutCache {
             }
             true
         });
+
+        // hidden_by_fold depends on selection through fold reveal;
+        // a node's visibility can change due to a distant heading/item
+        // becoming revealed, so clear the whole cache
+        self.hidden_by_fold.borrow_mut().clear();
     }
 }
 

@@ -578,10 +578,6 @@ impl<'ast> Editor {
         let children = self.sorted_children(node);
 
         for child in &children {
-            if self.hidden_by_fold(child, &children) {
-                continue;
-            }
-
             // add pre-spacing bounds
             self.compute_bounds_block_pre_spacing(child, &children);
 
