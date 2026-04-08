@@ -23,6 +23,7 @@ import kotlin.getValue
 
 class CreateLinkFragment : Fragment() {
     private val model: CreateLinkViewModel by viewModels()
+    private val fileTreeViewModel: FileTreeViewModel by viewModels()
 
     private lateinit var binding: FragmentCreateLinkBinding
 
@@ -113,14 +114,6 @@ class CreateLinkFragment : Fragment() {
     override fun onStop() {
         activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
         super.onStop()
-    }
-
-    fun onBackPressed() {
-        if (model.currentParent.isRoot()) {
-            popBackStack()
-        } else {
-            model.refreshOverParent()
-        }
     }
 
     private fun popBackStack() {

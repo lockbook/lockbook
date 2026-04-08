@@ -3,7 +3,6 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
-use lb_c::model::errors::Unexpected;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
@@ -280,6 +279,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     get_current_tab(obj)
 }
 
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_createDocAt(
+    mut env: JNIEnv, _: JClass, obj: jlong, is_drawing: jboolean, parent: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&parent).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+
+    obj.workspace.create_doc_at(is_drawing == 1, id);
+}
+
 // todo: can't close non-file tabs (mind map)
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
@@ -345,14 +356,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
     }
 
     arr.into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_requestSync(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.core.sync().map_unexpected().log_and_ignore();
 }
 
 #[no_mangle]

@@ -7,10 +7,10 @@ import androidx.lifecycle.viewModelScope
 import app.lockbook.util.SingleMutableLiveData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import net.lockbook.Lb
 import net.lockbook.LbError
 
 class ImportAccountViewModel(application: Application) : AndroidViewModel(application) {
-    val syncModel = SyncModel()
 
     var isErrorVisible = false
     private val _updateImportUI = SingleMutableLiveData<UpdateImportUI>()
@@ -21,7 +21,7 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
     init {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                syncModel.trySync()
+                Lb.sync()
                 _updateImportUI.postValue(UpdateImportUI.FinishedSync)
             } catch (err: LbError) {
                 isErrorVisible = true

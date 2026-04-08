@@ -61,18 +61,6 @@
     </PreferenceCategory>
 
     <PreferenceCategory
-        android:icon="@drawable/ic_baseline_sync_alt_24"
-        android:title="@string/settings_preference_title_incremental_sync">
-
-        <SwitchPreference
-            android:defaultValue="false"
-            android:key="@string/sync_automatically_key"
-            android:title="@string/settings_sync_edit"
-            app:iconSpaceReserved="false" />
-
-    </PreferenceCategory>
-
-    <PreferenceCategory
         android:icon="@drawable/ic_baseline_miscellaneous_services_24"
         android:title="@string/settings_miscellaneous">
 

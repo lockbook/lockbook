@@ -30,7 +30,6 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
-import app.lockbook.workspace.WsStatus
 import app.lockbook.workspace.isNullUUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -351,10 +350,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 startActivity(context, browserIntent, null)
             }
 
-            if (!response.docCreated.isNullUUID()) {
-                model._createFile.postValue(response.docCreated)
-            }
-
             if (response.tabTitleClicked) {
                 model._tabTitleClicked.postValue(Unit)
                 Workspace.unfocusTitle(WGPU_OBJ)
@@ -411,6 +406,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     fun drawImmediately() {
         redrawChannel.trySend(Unit)
+    }
+
+    fun createDocAt(payload: Pair<Boolean, String>){
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return
+        }
+        Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -547,14 +549,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         return Workspace.getTabs(WGPU_OBJ)
-    }
-
-    fun sync() {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.requestSync(WGPU_OBJ)
     }
 
     fun closeDoc(id: String) {

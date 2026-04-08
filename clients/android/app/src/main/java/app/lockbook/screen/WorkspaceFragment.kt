@@ -125,10 +125,6 @@ class WorkspaceFragment : Fragment() {
 
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
-        model.sync.observe(viewLifecycleOwner) {
-            workspaceWrapper.workspaceView.sync()
-        }
-
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
             workspaceWrapper.workspaceView.openDoc(id, newFile)
             workspaceWrapper.workspaceView.drawImmediately()
@@ -138,6 +134,10 @@ class WorkspaceFragment : Fragment() {
 
         model.createFile.observe(viewLifecycleOwner) { id ->
             workspaceWrapper.workspaceView.openDoc(id, true)
+        }
+
+        model.createDocAt.observe(viewLifecycleOwner) { it ->
+            workspaceWrapper.workspaceView.createDocAt(it)
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->

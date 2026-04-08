@@ -5,6 +5,8 @@ package net.lockbook;
 
 public class Lb {
     public static long lb = 0;
+    public static long eventsReceiver = 0;
+
 
     public static native void init(String path) throws LbError;
     public static native String getDebugInfo(String osInfo) throws LbError;
@@ -37,9 +39,9 @@ public class Lb {
 
     public static native String getTimestampHumanString(long timestamp) throws LbError;
 
-    public static native Usage getUsage() throws LbError;
-    public static native void sync(SyncProgress syncProgress) throws LbError;
-    public static native LbEvent subscribe() throws LbError;
+    public static native String getUsage() throws LbError;
+    public static native void sync() throws LbError;
+    public static native LbEvent subscribe(long rx) throws LbError;
 
     public static native String getStatus() throws LbError;
 

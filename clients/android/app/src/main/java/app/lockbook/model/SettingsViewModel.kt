@@ -1,14 +1,19 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.widget.Space
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.util.*
+import app.lockbook.workspace.LbStatus
+import app.lockbook.workspace.SpaceUsed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import net.lockbook.LbError
 import net.lockbook.SubscriptionInfo
@@ -32,6 +37,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
+    private val jsonParser = Json {
+        ignoreUnknownKeys = true
+    }
+
+
     init {
         updateUsage()
     }
@@ -44,10 +54,13 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private fun computeUsage() {
         try {
-            val usage = Lb.getUsage()
+            val raw = Lb.getStatus()
+            val status : LbStatus= jsonParser.decodeFromString(raw)
             val subscriptionInfo = Lb.getSubscriptionInfo()
 
-            _determineSettingsInfo.postValue(SettingsInfo(usage, subscriptionInfo))
+            status.spaceUsed?.let {
+                _determineSettingsInfo.postValue(SettingsInfo(it, subscriptionInfo))
+            }
         } catch (err: LbError) {
             _notifyError.postValue(err)
         }
@@ -83,6 +96,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 }
 
 data class SettingsInfo(
-    val usage: Usage,
+    val usage: SpaceUsed,
     val subscriptionInfo: SubscriptionInfo?
 )

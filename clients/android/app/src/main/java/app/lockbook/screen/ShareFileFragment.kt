@@ -20,7 +20,7 @@ class ShareFileFragment : Fragment() {
 
     private lateinit var binding: FragmentShareFileBinding
     private val activityModel: StateViewModel by activityViewModels()
-    private val workspaceModel: WorkspaceViewModel by activityViewModels()
+    private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -85,7 +85,7 @@ class ShareFileFragment : Fragment() {
 
             try {
                 Lb.shareFile(file.id, username, mode == ShareMode.Write)
-                workspaceModel._sync.postValue(Unit)
+                fileTreeViewModel._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
                 activityModel.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
             } catch (err: LbError) {
                 alertModel.notifyError(err)

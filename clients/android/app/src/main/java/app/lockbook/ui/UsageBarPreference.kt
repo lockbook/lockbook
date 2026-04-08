@@ -14,6 +14,7 @@ import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
+import app.lockbook.workspace.SpaceUsed
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import net.lockbook.Usage
 
@@ -49,9 +50,14 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         }
     }
 
-    private fun setUpUsagePreference(usage: Usage) {
-        val roundedDataCap = usage.dataCap.exact / ROUND_DECIMAL_PLACES
-        val roundedProgress = usage.serverUsage.exact / ROUND_DECIMAL_PLACES
+    private fun setUpUsagePreference(usage: SpaceUsed) {
+        val dataCapExact = usage.dataCap?.exact ?: 1
+        val serverUsageExact = usage.serverUsage?.exact ?: 1
+        val serverUsage = usage.serverUsage?.readable ?: ""
+        val dataCap = usage.dataCap?.readable ?: ""
+
+        val roundedDataCap = dataCapExact / ROUND_DECIMAL_PLACES
+        val roundedProgress = serverUsageExact / ROUND_DECIMAL_PLACES
 
         usageBar.max = roundedDataCap.toInt()
         usageBar.progress = roundedProgress.toInt() * 100
@@ -74,29 +80,31 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         usageBar.setIndicatorColor(usageBarColor)
 
         // necessary to reset it for rendering successful billings
-        premiumInfoForFree.visibility = if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+        premiumInfoForFree.visibility = if (dataCapExact != PAID_TIER_USAGE_BYTES) {
             View.VISIBLE
         } else {
             View.GONE
         }
 
-        if (usage.dataCap.exact != PAID_TIER_USAGE_BYTES) {
+        if (usage.dataCap?.exact != PAID_TIER_USAGE_BYTES) {
             upgradeAccount.setOnClickListener {
                 getSettingsFragment().onUpgrade.launch(Intent(context, UpgradeAccountActivity::class.java))
             }
 
             premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
-            premiumUsageBar.progress = (usage.serverUsage.exact / ROUND_DECIMAL_PLACES).toInt()
+            premiumUsageBar.progress = (serverUsageExact / ROUND_DECIMAL_PLACES).toInt()
 
-            premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, usage.serverUsage.readable)
+            premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, serverUsage)
         }
+
+
 
         usageInfo.text = spannable {
             context.resources.getString(R.string.settings_usage_current)
-                .bold() + " " + usage.serverUsage.readable + "\n" + context.resources.getString(
+                .bold() + " " +  serverUsage + "\n" + context.resources.getString(
                 R.string.settings_usage_data_cap
             )
-                .bold() + " " + usage.dataCap.readable + "\n"
+                .bold() + " "+ dataCap + "\n"
         }
     }
 }

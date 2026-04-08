@@ -98,9 +98,11 @@ object Workspace {
 
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
+
+    external fun createDocAt(rustObj: Long, isDrawing: Boolean, parent: String)
+
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
-    external fun requestSync(rustObj: Long)
     external fun showTabs(rustObj: Long, show: Boolean)
 
     external fun getTabs(rustObj: Long) : Array<String>

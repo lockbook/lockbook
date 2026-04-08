@@ -314,7 +314,6 @@ class MainScreenActivity : AppCompatActivity() {
             UpdateMainScreenUI.CloseSlidingPane -> {
                 slidingPaneLayout.closePane()
             }
-            UpdateMainScreenUI.Sync -> maybeGetFilesFragment()?.sync(false)
         }
     }
 
@@ -361,27 +360,14 @@ class MainScreenActivity : AppCompatActivity() {
         lifecycleScope.launch {
             while (true) {
                 val lbEvent = withContext(Dispatchers.IO) {
-                    Lb.subscribe()
+                    Lb.subscribe(Lb.eventsReceiver)
                 }
+
                 lbEvent?.let { event ->
-                    if (event.statusUpdated) {
-
-                        val status: LbStatus = jsonParser.decodeFromString(Lb.getStatus())
-
-                        fileTreeViewModel.hydrateLbStatus(status)
-//                        if (isSyncing && !status.syncing) {
-//                            _syncCompleted.postValue(Unit)
-//                        }
-//
-//                        isSyncing = status.syncing
-//                        _msg.value = status.msg
-//                        lastSyncStatusUpdate = System.currentTimeMillis()
-                    }
-                    if (event.pendingSharesChanged || event.metadataChanged) {
-                       fileTreeViewModel.fileModel.refreshFiles()
-                    }
+                    val status: LbStatus = jsonParser.decodeFromString(Lb.getStatus())
+                    fileTreeViewModel.hydrateStatusUpdate(status, event)
+                }
             }
         }
     }
-}
 }

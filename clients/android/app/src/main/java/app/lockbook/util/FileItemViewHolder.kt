@@ -38,9 +38,12 @@ class BasicFileItemHolder(itemView: View) : ViewHolder(itemView) {
 }
 
 fun List<File>.intoViewHolderInfo(localChanges: Set<UUID>?, serverChanges: Set<UUID>?): List<FileViewHolderInfo> = this.map { fileMetadata ->
+    val isDirtyLocally = localChanges?.contains(UUID.fromString(fileMetadata.id)) ?: false
+    val needsToBePulled = serverChanges?.contains(UUID.fromString(fileMetadata.id)) ?: false
+
     when (fileMetadata.type) {
-        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
-        FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, localChanges.contains(fileMetadata.id), serverChanges?.contains(fileMetadata.id) ?: false)
+        FileType.Document -> FileViewHolderInfo.DocumentViewHolderInfo(fileMetadata, isDirtyLocally,needsToBePulled )
+        FileType.Folder, FileType.Link -> FileViewHolderInfo.FolderViewHolderInfo(fileMetadata, isDirtyLocally, needsToBePulled)
     }
 }
 

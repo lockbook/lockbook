@@ -21,12 +21,6 @@ class WorkspaceViewModel : ViewModel() {
     val closeFile: LiveData<String>
         get() = _closeFile
 
-    /** request workspace to sync **/
-    val _sync = SingleMutableLiveData<Unit>()
-    val sync: LiveData<Unit>
-        get() = _sync
-
-
     /** are tabs shown in workspace **/
     val _showTabs = SingleMutableLiveData<Boolean>()
     val showTabs: LiveData<Boolean>
@@ -41,6 +35,11 @@ class WorkspaceViewModel : ViewModel() {
     val _createFile = MutableLiveData<String>()
     val createFile: LiveData<String>
         get() = _createFile
+
+    /** request workspace to create a new file (isDrawing, parentId) **/
+    val _createDocAt = MutableLiveData<Pair<Boolean, String>>()
+    val createDocAt: LiveData<Pair<Boolean, String>>
+        get() = _createDocAt
 
     val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
     val currentTab: LiveData<WorkspaceTab>
@@ -75,7 +74,6 @@ class WorkspaceViewModel : ViewModel() {
     val _isRendering = MutableLiveData<Boolean>()
     val isRendering: LiveData<Boolean>
         get() = _isRendering
-
 }
 
 data class WorkspaceTab(

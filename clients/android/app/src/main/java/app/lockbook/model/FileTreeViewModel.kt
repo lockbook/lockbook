@@ -17,10 +17,13 @@ import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbError
-import net.lockbook.LbError.LbEC
+import net.lockbook.LbEvent
 import net.lockbook.Usage
 import java.util.UUID
 
@@ -55,8 +58,6 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val pushingFiles: LiveData<Set<UUID>>
         get() = _pushingFiles
 
-    var maybeLastSidebarInfo: UpdateFilesUI.UpdateSideBarInfo? = null
-
     val _isSuggestedDocsVisible = MutableLiveData(true)
     val isSuggestedDocsVisible: LiveData<Boolean>
         get() = _isSuggestedDocsVisible
@@ -69,201 +70,127 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val syncStatus: LiveData<String?>
         get() = _syncStatus
 
+    val _isSyncing = MutableLiveData(false)
+    val isSyncing: LiveData<Boolean>
+        get() = _isSyncing
+
+    val jsonParser = Json {
+        ignoreUnknownKeys = true
+    }
 
     init {
         startUpInRoot()
-        checkUsage()
+        getStatus()
     }
 
-    // todo: use status.usage and populate this on status update. it will result in a better
-    // running out of storage experience. currently we only check at startup
-    private fun checkUsage() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val usage = try {
-                Lb.getUsage()
-            } catch (err: LbError) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError((err)))
-                return@launch
-            }
+    private fun getStatus(){
+        val raw = Lb.getStatus()
+        val status : LbStatus= jsonParser.decodeFromString(raw)
+        hydrateStatusUpdate(status, null)
+    }
 
-            val usageRatio = usage.serverUsage.exact.toFloat() / usage.dataCap.exact
+    private fun checkUsage(){
 
-            val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
-
-            val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
-            val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
-
-            when {
-                usageRatio >= 1.0 -> {}
-                usageRatio > 0.9 -> {
-                    if (!showOutOfSpace0_9) {
-                        return@launch
-                    }
-                }
-                usageRatio > 0.8 -> {
-                    if (!showOutOfSpace0_8) {
-                        return@launch
-                    }
-                }
-                else -> {
-                    if (!showOutOfSpace0_9) {
-                        pref.edit {
-                            putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
-                        }
-                    }
-
-                    if (!showOutOfSpace0_8) {
-                        pref.edit {
-                            putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
-                        }
-                    }
-
-                    return@launch
-                }
-            }
-
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace((usageRatio * 100).toInt(), 100))
+        if (_usage.value == null || _usage.value?.serverUsage == null){
+            return
         }
+
+        val dataCap = _usage.value?.dataCap?.exact?.toFloat() ?: 1f
+        val serverUsage = _usage.value?.serverUsage?.exact?.toFloat() ?: 1f
+
+        val usageRatio = serverUsage / dataCap
+
+        val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
+
+        val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
+        val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
+
+        when {
+            usageRatio >= 1.0 -> {}
+            usageRatio > 0.9 -> {
+                if (!showOutOfSpace0_9) {
+                    return
+                }
+            }
+            usageRatio > 0.8 -> {
+                if (!showOutOfSpace0_8) {
+                    return
+                }
+            }
+            else -> {
+                if (!showOutOfSpace0_9) {
+                    pref.edit {
+                        putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
+                    }
+                }
+
+                if (!showOutOfSpace0_8) {
+                    pref.edit {
+                        putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
+                    }
+                }
+
+                return
+            }
+        }
+
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.OutOfSpace((usageRatio * 100).toInt(), 100))
     }
 
     private fun startUpInRoot() {
-        try {
-            fileModel = FileModel.createAtRoot()
-            suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-            files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        fileModel = FileModel.createAtRoot()
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
+        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
 
-            viewModelScope.launch(Dispatchers.IO) {
-                maybeToggleSuggestedDocs()
-            }
-        } catch (err: LbError) {
-            if (err.kind == LbEC.RootNonexistent) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.SyncImport)
-            } else {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-            }
-        }
+        maybeToggleSuggestedDocs()
+        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
+
+    /// when you pass in null, it will return the parent of the current folder
+    fun enterFolder(newParent: File?) {
+        val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
+        fileModel.enterFolder(parent)
+
+        maybeToggleSuggestedDocs()
+        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+
+        _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
+    }
+
+    fun reloadFiles() {
+        fileModel.refreshFiles()
+
+        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+
+        _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
+    }
+
 
     fun maybeToggleSuggestedDocs() {
         _isSuggestedDocsVisible.value = fileModel.parent.isRoot && !suggestedDocs.isEmpty()
     }
 
-    fun enterFolder(folder: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            fileModel.enterFolder(folder)
-
-            maybeToggleSuggestedDocs()
-
-            viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-            }
-
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
+    fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?){
+        if (status.syncStatus!= null){
+            _syncStatus.value = status.syncStatus
         }
-    }
+        _isSyncing.value = status.syncing
 
-    fun intoParentFolder() {
-        viewModelScope.launch(Dispatchers.IO) {
-            fileModel.intoParent()
-            maybeToggleSuggestedDocs()
+        println("syncing status: ${status.syncing}")
 
-            viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-            }
+        val isMetaDirty = if (lbEvent == null){ true }else{ lbEvent.metadataChanged || lbEvent.pendingSharesChanged }
 
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
+        if (isMetaDirty){
+            _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
+            _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+            _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+            reloadFiles()
+
+            _usage.value = status.spaceUsed
+            checkUsage()
         }
-    }
-
-    fun intoAncestralFolder(newParent: File) {
-        viewModelScope.launch(Dispatchers.IO) {
-            fileModel.refreshChildrenAtAncestor(newParent)
-
-            maybeToggleSuggestedDocs()
-            viewModelScope.launch(Dispatchers.Main) {
-                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-            }
-
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
-        }
-    }
-
-    fun reloadFiles() {
-        viewModelScope.launch(Dispatchers.IO) {
-            refreshFiles()
-        }
-    }
-
-    private fun refreshFiles() {
-        try {
-            fileModel.refreshFiles()
-
-            viewModelScope.launch(Dispatchers.Main) {
-                files.deselectAll()
-                files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-                suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-
-                _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
-            }
-        } catch (err: LbError) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-        }
-    }
-
-    private fun refreshSidebarInfo() {
-        val sidebarInfo = UpdateFilesUI.UpdateSideBarInfo()
-        maybeLastSidebarInfo = sidebarInfo
-
-        try {
-            sidebarInfo.usageMetrics = Lb.getUsage()
-        } catch (err: LbError) {
-            if (err.kind != LbEC.ServerUnreachable) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-            }
-        }
-
-        _notifyUpdateFilesUI.postValue(sidebarInfo)
-
-        sidebarInfo.localDirtyFilesCount = dirtyLocally.value?.size
-
-        _notifyUpdateFilesUI.postValue(sidebarInfo)
-
-        try {
-            // val syncWork = Lb.calculateWork()
-            // sidebarInfo.lastSynced = Lb.getTimestampHumanString(syncWork.latestServerTS)
-            // sidebarInfo.serverDirtyFilesCount = syncWork.workUnits.filter { !it.isLocalChange }.size
-
-            // serverChanges = syncWork.workUnits.filter { !it.isLocalChange }.map { it.id }.toHashSet()
-            // viewModelScope.launch(Dispatchers.Main) {
-            //    files.set(fileModel.children.intoViewHolderInfo(localChanges, serverChanges))
-            // }
-        } catch (err: LbError) {
-            if (err.kind != LbEC.ServerUnreachable) {
-                _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-            }
-        }
-
-        _notifyUpdateFilesUI.postValue(sidebarInfo)
-
-        try {
-            sidebarInfo.hasPendingShares = Lb.getPendingShares().isNotEmpty()
-        } catch (err: LbError) {
-            _notifyUpdateFilesUI.postValue(UpdateFilesUI.NotifyError(err))
-        }
-
-        _notifyUpdateFilesUI.postValue(sidebarInfo)
-    }
-
-    fun hydrateLbStatus(status: LbStatus){
-        _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-
-        _usage.value = status.spaceUsed
-
-        _syncStatus.value = status.syncStatus
-
     }
 }

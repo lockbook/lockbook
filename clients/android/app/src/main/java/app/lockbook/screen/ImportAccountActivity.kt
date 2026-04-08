@@ -38,15 +38,6 @@ class ImportAccountActivity : AppCompatActivity() {
             binding.importExitApp.visibility = View.VISIBLE
         }
 
-        model.syncModel.notifySyncStepInfo.observe(
-            this
-        ) { stepInfo ->
-            binding.importAccountProgressBar.max = stepInfo.total
-            binding.importAccountProgressBar.progress = stepInfo.progress
-
-            binding.importInfo.text = stepInfo.msg
-        }
-
         model.updateImportUI.observe(
             this
         ) { updateImportUI ->

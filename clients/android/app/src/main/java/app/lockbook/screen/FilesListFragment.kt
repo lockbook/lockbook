@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.futured.donut.DonutProgressView
@@ -113,7 +114,6 @@ class FilesListFragment : Fragment(), FilesFragment {
 
     private val recyclerView get() = binding.filesList
 
-    private val handler = Handler(requireNotNull(Looper.myLooper()))
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -135,7 +135,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         binding.filesBreadcrumbBar.setListener(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, file: File) {
-                model.intoAncestralFolder(file)
+                model.enterFolder(file)
                 unselectFiles()
             }
         })
@@ -157,8 +157,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
         binding.fabSpeedDial.setOnActionSelectedListener {
             when (it.id) {
-                R.id.fab_create_drawing -> createFile("svg")
-                R.id.fab_create_document -> createFile("md")
+                R.id.fab_create_drawing -> createDocAtParent(true)
+                R.id.fab_create_document -> createDocAtParent(false)
                 R.id.fab_create_folder -> activityModel.launchTransientScreen(
                     TransientScreen.Create(model.fileModel.parent.id)
                 )
@@ -170,18 +170,14 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         binding.listFilesRefresh.setOnRefreshListener {
-//            workspaceModel.isSyncing = true
-            workspaceModel._sync.postValue(Unit)
+            model._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
         }
 
-
-//        model.maybeLastSidebarInfo?.let { uiUpdate ->
-//            updateUI(uiUpdate)
-//        }
-
-//        workspaceModel.isSyncing.observe(viewLifecycleOwner) {
-//            binding.listFilesRefresh.isRefreshing = false
-//        }
+        model.isSyncing.observe(viewLifecycleOwner){
+            if (!it){
+                binding.listFilesRefresh.isRefreshing = it
+            }
+        }
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
             if (currentTab != it) {
@@ -228,16 +224,18 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         model.syncStatus.observe(viewLifecycleOwner){
-            header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text = it
+            header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text =
+                getString(R.string.last_sync, it)
         }
 
         model.dirtyLocally.observe(viewLifecycleOwner){
-            header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text = resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
+            header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text =
+                resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
         }
 
         model.pushingFiles.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text = resources.getQuantityString(R.plurals.files_to_pull, it.size, it.size)
-
+            header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text =
+                resources.getQuantityString(R.plurals.files_to_pull, it.size, it.size)
         }
 
         return binding.root
@@ -251,29 +249,8 @@ class FilesListFragment : Fragment(), FilesFragment {
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
-    private fun createFile(ext: String) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            var attempt = 0
-            var created: File? = null
-
-            while (created == null) {
-                val name = "untitled${if (attempt != 0) "-$attempt" else ""}.$ext"
-
-                try {
-                    created = Lb.createFile(name, model.fileModel.parent.id, true)
-                    withContext(Dispatchers.Main) {
-                        workspaceModel._openFile.postValue(Pair(created.id, true))
-                    }
-                    refreshFiles()
-                } catch (err: LbError) {
-                    if (err.kind == LbError.LbEC.PathTaken) {
-                        attempt++
-                    } else {
-                        break
-                    }
-                }
-            }
-        }
+    private fun createDocAtParent(isDrawing: Boolean) {
+        workspaceModel._createDocAt.value = isDrawing to model.fileModel.parent.id
     }
 
     private fun setUpToolbar() {
@@ -518,6 +495,15 @@ class FilesListFragment : Fragment(), FilesFragment {
                 model._breadcrumbItems.value = getBreadcrumbItems()
             }
             UpdateFilesUI.ToggleMenuBar -> toggleMenuBar()
+            UpdateFilesUI.RequestSync -> {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        Lb.sync()
+                    }catch (err: LbError){
+                        alertModel.notifyError(err)
+                    }
+                }
+            }
             UpdateFilesUI.SyncImport -> {
                 (activity as MainScreenActivity).syncImportAccount()
             }
@@ -625,25 +611,11 @@ class FilesListFragment : Fragment(), FilesFragment {
             false
         }
         !model.fileModel.isAtRoot() -> {
-            model.intoParentFolder()
+            model.enterFolder(null)
             false
         }
         else -> {
             true
-        }
-    }
-
-    override fun sync(usePreferences: Boolean) {
-        if (!usePreferences || PreferenceManager.getDefaultSharedPreferences(requireContext())
-            .getBoolean(
-                    getString(
-                            resources,
-                            R.string.sync_automatically_key
-                        ),
-                    false
-                )
-        ) {
-            workspaceModel._sync.postValue(Unit)
         }
     }
 
@@ -672,6 +644,7 @@ sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()
     data class NotifyError(val error: LbError) : UpdateFilesUI()
     object ToggleMenuBar : UpdateFilesUI()
+    object RequestSync : UpdateFilesUI()
     object SyncImport : UpdateFilesUI()
     data class OutOfSpace(val progress: Int, val max: Int) : UpdateFilesUI()
     data class NotifyWithSnackbar(val msg: String) : UpdateFilesUI()
