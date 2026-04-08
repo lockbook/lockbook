@@ -469,32 +469,38 @@ impl Workspace {
                         let cmd_f =
                             ui.input_mut(|i| i.consume_key_exact(Modifiers::COMMAND, Key::F));
 
-                        let response =
-                            egui::TextEdit::singleline(&mut self.landing_page.search_term)
-                                .hint_text(if folder.is_root() {
-                                    "Filter".to_string()
-                                } else {
-                                    format!("Filter in {}", &folder.name)
-                                })
-                                .frame(false)
-                                .margin(Vec2::ZERO)
-                                .desired_width(
-                                    ui.available_width()
-                                    - 25.0 // space for 'x'
-                                    - 15.,
-                                ) // margin
-                                .show(ui)
-                                .response;
+                        let search_id = egui::Id::new("landing_search");
 
                         // Focus when Cmd+F is pressed or on first frame
                         if cmd_f || self.landing_page_first_frame {
-                            response.request_focus();
+                            ui.memory_mut(|m| m.request_focus(search_id));
                         }
+
+                        let hint = if folder.is_root() {
+                            "Filter".to_string()
+                        } else {
+                            format!("Filter in {}", &folder.name)
+                        };
+
+                        let has_text = !self.landing_page.search_term.is_empty();
+                        let clear_space = if has_text { 25.0 } else { 0.0 };
+                        let edit_width = ui.available_width() - clear_space - 15.0;
+
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(edit_width, filters_height),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                GlyphonTextEdit::new(&mut self.landing_page.search_term)
+                                    .id(search_id)
+                                    .hint_text(hint)
+                                    .show(ui);
+                            },
+                        );
 
                         // Clear button (X icon) when there's text
                         #[allow(clippy::collapsible_if)]
-                        if !self.landing_page.search_term.is_empty() {
-                            if IconButton::new(Icon::CLOSE.size(16.)).show(ui).clicked() {
+                        if has_text {
+                            if IconButton::new(Icon::CLOSE.size(16.)).hover_bg(false).show(ui).clicked() {
                                 self.landing_page.search_term.clear();
                             }
                         }
@@ -971,17 +977,22 @@ impl Workspace {
                                             theme.fg().get_color(theme.prefs().secondary);
                                         let normal_color = ui.visuals().text_color();
                                         move |ui: &mut egui::Ui| {
-                                            ui.horizontal(|ui| {
-                                                ui.spacing_mut().item_spacing.x = 0.0;
-                                                for (text, shared) in &segments {
-                                                    let color = if *shared {
-                                                        share_color
-                                                    } else {
-                                                        normal_color
-                                                    };
-                                                    ui.label(RichText::new(text).color(color));
-                                                }
-                                            });
+                                            let colored_spans: Vec<(&str, Option<egui::Color32>)> =
+                                                segments
+                                                    .iter()
+                                                    .map(|(text, shared)| {
+                                                        let color = if *shared {
+                                                            Some(share_color)
+                                                        } else {
+                                                            None
+                                                        };
+                                                        (text.as_str(), color)
+                                                    })
+                                                    .collect();
+                                            ui.add(GlyphonLabel::new_colored(
+                                                colored_spans,
+                                                normal_color,
+                                            ));
                                         }
                                     })
                                     .context_menu(|ui| {
