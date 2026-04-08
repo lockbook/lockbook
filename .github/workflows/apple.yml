@@ -2,8 +2,7 @@ name: Apple Deployment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
+  workflow_call:
 
 jobs:
   DeployApple:
