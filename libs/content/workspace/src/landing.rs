@@ -516,12 +516,20 @@ impl Workspace {
             files.children(folder.id)
         };
 
-        // At root, include pending share roots as top-level entries
+        // At root, include pending shares
         if folder.is_root() {
-            for f in &files.shared {
-                if files.shared.get_by_id(f.parent).is_none() {
-                    // This is a share root (its parent is not in our cache)
+            if self.landing_page.flatten_tree {
+                // When flattening, include all shared files (documents will
+                // survive the flatten filter below, just like own-tree files)
+                for f in &files.shared {
                     descendents.push(f);
+                }
+            } else {
+                // When not flattening, include only share roots
+                for f in &files.shared {
+                    if files.shared.get_by_id(f.parent).is_none() {
+                        descendents.push(f);
+                    }
                 }
             }
         }
