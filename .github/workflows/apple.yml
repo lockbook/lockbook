@@ -25,3 +25,8 @@ jobs:
       run: cargo r -p lbdev releaser apple ios
     - name: deploy macOS
       run: cargo r -p lbdev releaser apple mac-app-store
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-macos
+        path: clients/apple/build/lockbook-macos.app.zip
