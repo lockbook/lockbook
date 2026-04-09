@@ -934,7 +934,8 @@ impl Editor {
         let find_rect =
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
-            self.find.show(&self.buffer, self.virtual_keyboard_shown, ui)
+            self.find
+                .show(&self.buffer, self.virtual_keyboard_shown, ui)
         });
         let find_resp = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
