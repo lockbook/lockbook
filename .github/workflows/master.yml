@@ -41,6 +41,34 @@ jobs:
       package: lockbook-linux
       artifact-name: lockbook-linux
 
+  build-linux-server-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-server
+      artifact-name: lockbook-server-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-cli-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-egui-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-linux
+      artifact-name: lockbook-linux-arm
+      runner: ubuntu-24.04-arm
+
   build-windows-cli:
     uses: ./.github/workflows/windows-build.yml
     with:

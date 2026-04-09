@@ -6,16 +6,17 @@ on:
       package:
         required: true
         type: string
-        description: 'Cargo package to build (e.g., lockbook-server, lockbook)'
       artifact-name:
         required: true
         type: string
-        description: 'Name for the uploaded artifact'
+      runner:
+        type: string
+        default: ubuntu-latest
 
 jobs:
   build:
     if: github.repository == 'lockbook/lockbook'
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runner }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust

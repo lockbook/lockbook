@@ -6,11 +6,9 @@ on:
       package:
         required: true
         type: string
-        description: 'Cargo package to build (e.g., lockbook, lockbook-windows)'
       artifact-name:
         required: true
         type: string
-        description: 'Name for the uploaded artifact'
 
 jobs:
   build:
