@@ -134,5 +134,4 @@ dependencies {
     implementation project(':workspace')
     implementation project(':lb-java')
 
-    debugImplementation 'com.squareup.leakcanary:leakcanary-android:2.14'
 }
