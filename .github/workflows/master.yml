@@ -40,3 +40,27 @@ jobs:
     with:
       package: lockbook-linux
       artifact-name: lockbook-linux
+
+  build-windows-cli:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-windows
+
+  build-windows:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-windows
+      artifact-name: lockbook-windows
+
+  build-windows-egui:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-windows
+
+  build-windows-installer:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: winstaller
+      artifact-name: winstaller
