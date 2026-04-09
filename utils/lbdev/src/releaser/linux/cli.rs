@@ -68,6 +68,7 @@ apps:
     file.write_all(new_content.as_bytes()).unwrap();
 
     Command::new("snapcraft")
+        .args(["pack", "--destructive-mode"])
         .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success()?;
     Command::new("snapcraft")
