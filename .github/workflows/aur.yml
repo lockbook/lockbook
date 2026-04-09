@@ -13,6 +13,10 @@ jobs:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.AUR_SSH_KEY }}
+      - name: Trust AUR host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
       - name: Deploy CLI to AUR
         run: cargo run -p lbdev -- releaser linux cli aur
       - name: Deploy Desktop to AUR
