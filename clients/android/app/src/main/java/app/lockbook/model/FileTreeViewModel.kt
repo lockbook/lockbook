@@ -171,7 +171,6 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         }
         _isSyncing.value = status.syncing
 
-        println("3asba syncing status: ${status.syncing}")
 
         _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
         _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
@@ -180,7 +179,6 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         val metaOrContentDirty = if (lbEvent == null) { true } else { lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten }
 
         if (metaOrContentDirty) {
-            println("3asba is meta dirty")
             fileModel.refreshFiles()
         }
 
@@ -188,7 +186,6 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
 
         _usage.value = status.spaceUsed
-        println("3asba usage: ${status.spaceUsed}")
         checkUsage()
     }
 }

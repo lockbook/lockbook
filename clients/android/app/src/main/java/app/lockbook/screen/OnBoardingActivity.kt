@@ -97,7 +97,6 @@ class WelcomeFragment : Fragment() {
         }
 
         model.apiUrl.observe(this.viewLifecycleOwner) {
-            println("changed the api url to " + model.apiUrl.value)
             welcomeBinding.onBoardingServerButton.text = it.substringAfter("://")
         }
 
@@ -379,7 +378,6 @@ class ImportFragment : Fragment() {
         uiScope.launch {
             try {
                 Lb.importAccount(account, model.apiUrl.value)
-                println(model.apiUrl.value)
                 onBoardingActivity.startActivity(Intent(context, ImportAccountActivity::class.java))
                 onBoardingActivity.finishAffinity()
             } catch (err: LbError) {
