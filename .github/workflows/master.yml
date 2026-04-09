@@ -60,7 +60,13 @@ jobs:
       artifact-name: lockbook-egui-windows
 
   build-windows-installer:
-    uses: ./.github/workflows/windows-build.yml
-    with:
-      package: winstaller
-      artifact-name: winstaller
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build winstaller
+        run: cargo run -p lbdev -- releaser windows desktop-build
+      - name: Upload winstaller
+        uses: actions/upload-artifact@v4
+        with:
+          name: winstaller
+          path: target/x86_64-pc-windows-msvc/release/winstaller.exe

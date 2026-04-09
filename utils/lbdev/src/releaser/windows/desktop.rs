@@ -11,7 +11,7 @@ use crate::utils::CommandRunner;
 
 pub fn release() -> CliResult<()> {
     let gh = Github::env();
-    build_x86()?;
+    build()?;
     upload(
         &gh,
         "lockbook-windows-setup-x86_64.exe",
@@ -21,7 +21,7 @@ pub fn release() -> CliResult<()> {
     Ok(())
 }
 
-fn build_x86() -> CliResult<()> {
+pub fn build() -> CliResult<()> {
     Command::new("cargo")
         .args(["build", "-p", "lockbook-windows", "--release", "--target=x86_64-pc-windows-msvc"])
         .assert_success()?;
