@@ -41,6 +41,8 @@
         var topConstraint: NSLayoutConstraint?
         /// current find widget height, used for coordinate transforms
         var textInputTopOffset: Double = 0
+        /// total y offset for converting between viewport and MdView coordinates
+        var yOffset: Double { mtkView.docHeaderSize + textInputTopOffset }
 
         // interactive refinement (floating cursor)
         var interactiveRefinementInProgress = false
@@ -615,9 +617,8 @@
         public func firstRect(for range: UITextRange) -> CGRect {
             let range = (range as! LBTextRange).c
             let result = first_rect(wsHandle, range)
-            let yOff = mtkView.docHeaderSize + textInputTopOffset
             return CGRect(
-                x: result.min_x, y: result.min_y - yOff,
+                x: result.min_x, y: result.min_y - yOffset,
                 width: result.max_x - result.min_x, height: result.max_y - result.min_y
             )
         }
@@ -625,9 +626,8 @@
         public func caretRect(for position: UITextPosition) -> CGRect {
             let position = (position as! LBTextPos).c
             let result = cursor_rect_at_position(wsHandle, position)
-            let yOff = mtkView.docHeaderSize + textInputTopOffset
             return CGRect(
-                x: result.min_x, y: result.min_y - yOff, width: 1,
+                x: result.min_x, y: result.min_y - yOffset, width: 1,
                 height: result.max_y - result.min_y
             )
         }
@@ -640,11 +640,10 @@
 
             free_selection_rects(result)
 
-            let yOff = mtkView.docHeaderSize + textInputTopOffset
             return buffer.enumerated().map { index, rect in
                 let new_rect = CRect(
-                    min_x: rect.min_x, min_y: rect.min_y - yOff, max_x: rect.max_x,
-                    max_y: rect.max_y - yOff
+                    min_x: rect.min_x, min_y: rect.min_y - yOffset, max_x: rect.max_x,
+                    max_y: rect.max_y - yOffset
                 )
 
                 return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
@@ -657,8 +656,7 @@
                     ? (point.x, point.y)
                     : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
 
-            let yOff = mtkView.docHeaderSize + textInputTopOffset
-            let point = CPoint(x: x, y: y + yOff)
+            let point = CPoint(x: x, y: y + yOffset)
             let result = position_at_point(wsHandle, point)
 
             return LBTextPos(c: result)
@@ -1362,7 +1360,7 @@
 
             let offsetY: CGFloat =
                 if let mdView = interaction.view as? MdView {
-                    mtkView.docHeaderSize + mdView.textInputTopOffset
+                    mdView.yOffset
                 } else if interaction.view is SvgView {
                     mtkView.docHeaderSize
                 } else {
