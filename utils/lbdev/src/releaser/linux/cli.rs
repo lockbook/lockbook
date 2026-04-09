@@ -31,7 +31,7 @@ pub fn update_snap() -> CliResult<()> {
     let new_content = format!(
         r#"
 name: lockbook
-base: core20
+base: core24
 version: '{version}'
 summary: The CLI version of Lockbook
 description: |

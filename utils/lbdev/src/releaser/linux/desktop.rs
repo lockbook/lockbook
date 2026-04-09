@@ -24,7 +24,7 @@ pub fn update_snap() -> CliResult<()> {
     let new_content = format!(
         r#"
 name: lockbook-desktop
-base: core22
+base: core24
 version: '{version}'
 summary: The linux gui version of Lockbook
 description: |
@@ -38,7 +38,6 @@ parts:
     source: https://github.com/lockbook/lockbook.git
     source-tag: {version}
     build-packages:
-      - cargo
       - git
       - libssl-dev
       - pkg-config
@@ -46,12 +45,10 @@ parts:
       - libfontconfig1-dev
       - libfontconfig
       - libxkbcommon-x11-dev
+    stage-packages:
+      - libxkbcommon-x11-0
+      - libfontconfig1
     rust-path: ["clients/linux"]
-    override-pull: |
-      snapcraftctl pull
-      curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      source "$HOME/.cargo/env"
-      rustup default 1.88
 
 apps:
   lockbook-desktop:
