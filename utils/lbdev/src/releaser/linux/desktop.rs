@@ -68,8 +68,8 @@ apps:
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 
-    Command::new("snapcraft")
-        .args(["pack", "--destructive-mode"])
+    Command::new("sudo")
+        .args(["snapcraft", "pack", "--destructive-mode"])
         .current_dir("utils/dev/snap-packages/lockbook-desktop/")
         .assert_success()?;
     Command::new("snapcraft")
