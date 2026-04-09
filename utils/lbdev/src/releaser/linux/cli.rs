@@ -46,6 +46,8 @@ parts:
     source-tag: {version}
     build-packages:
       - git
+    stage-packages:
+      - nfs-common
     rust-path: ["clients/cli"]
 
 apps:
