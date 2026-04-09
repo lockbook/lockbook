@@ -1,14 +1,16 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::model::access_info::UserAccessMode;
+use lb_rs::model::account::Account;
 use lb_rs::model::errors::LbResult;
-use lb_rs::model::file::File;
+use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
-use std::path::{Component, PathBuf};
+use tracing::instrument;
 use urlencoding::decode;
 
 pub enum ResolvedLink {
@@ -25,6 +27,29 @@ pub struct FileCache {
 }
 
 impl FileCache {
+    /// An empty file cache for contexts where no real files exist (e.g. public site demos).
+    pub fn empty() -> Self {
+        let root_id = Uuid::new_v4();
+        Self {
+            root: File {
+                id: root_id,
+                parent: root_id,
+                name: "root".into(),
+                file_type: FileType::Folder,
+                last_modified: 0,
+                last_modified_by: String::new(),
+                owner: String::new(),
+                shares: vec![],
+                size_bytes: 0,
+            },
+            files: vec![],
+            shared: vec![],
+            suggested: vec![],
+            size_bytes_recursive: Default::default(),
+        }
+    }
+
+    #[instrument(level = "debug", skip_all)]
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
@@ -32,15 +57,21 @@ impl FileCache {
         let shared = lb.get_pending_share_files()?;
 
         let mut size_recursive = HashMap::new();
-        for file in &files {
+        for file in files.iter().chain(shared.iter()) {
             size_recursive.insert(
                 file.id,
                 files
                     .descendents(file.id)
                     .iter()
+                    .chain(shared.descendents(file.id).iter())
                     .map(|f| f.id)
                     .chain(iter::once(file.id))
-                    .map(|id| files.get_by_id(id).unwrap().size_bytes)
+                    .filter_map(|id| {
+                        files
+                            .get_by_id(id)
+                            .or_else(|| shared.get_by_id(id))
+                            .map(|f| f.size_bytes)
+                    })
                     .sum::<_>(),
             );
         }
@@ -50,7 +81,7 @@ impl FileCache {
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
         self.size_bytes_recursive[&id] as f32
-            / self.size_bytes_recursive[&self.files.get_by_id(id).unwrap().parent] as f32
+            / self.size_bytes_recursive[&self.get_by_id(id).unwrap().parent] as f32
     }
 
     /// returns the uncompressed, recursive size of a file scaled relative to
@@ -69,30 +100,118 @@ impl FileCache {
     }
 
     pub fn last_modified_recursive(&self, id: Uuid) -> u64 {
-        self.files
-            .descendents(id)
+        self.descendents(id)
             .iter()
             .map(|f| f.id)
             .chain(iter::once(id))
-            .map(|id| self.files.get_by_id(id).unwrap().last_modified)
+            .map(|id| self.get_by_id(id).unwrap().last_modified)
             .max()
             .unwrap()
     }
 
+    /// Iterates all known files: the user's own tree plus pending shares.
+    pub fn all_files(&self) -> impl Iterator<Item = &File> {
+        self.files.iter().chain(self.shared.iter())
+    }
+
+    /// Returns path segments for a file, each annotated with whether that file
+    /// has any shares on it. Segments are in root-to-leaf order. The leading `/`
+    /// is included as a separate segment for own-tree files.
+    pub fn path_segments(&self, id: Uuid) -> Vec<(String, bool)> {
+        let Some(file) = self.get_by_id(id) else {
+            return vec![("/".to_string(), false)];
+        };
+        if file.is_root() {
+            return vec![("/".to_string(), false)];
+        }
+
+        let mut parts: Vec<(&str, bool)> = Vec::new();
+        let mut current = id;
+        let mut reached_root = false;
+        loop {
+            let Some(f) = self.get_by_id(current) else { break };
+            if f.is_root() {
+                reached_root = true;
+                break;
+            }
+            parts.push((&f.name, !f.shares.is_empty()));
+            if self.get_by_id(f.parent).is_none() {
+                break; // share boundary
+            }
+            current = f.parent;
+        }
+        parts.reverse();
+
+        let mut segments = Vec::new();
+        if reached_root {
+            segments.push(("/".to_string(), false));
+        }
+        for (i, (name, shared)) in parts.iter().enumerate() {
+            segments.push(((*name).to_string(), *shared));
+            let is_last = i + 1 == parts.len();
+            if !is_last {
+                segments.push(("/".to_string(), false));
+            }
+        }
+        segments
+    }
+
+    /// Collects the set of usernames who have access to a file: the owner plus
+    /// anyone with a share entry on the file or any of its ancestors.
+    pub fn users_with_access(&self, id: Uuid) -> HashSet<&str> {
+        let mut users = HashSet::new();
+        for ancestor_id in iter::once(id).chain(self.ancestors(id)) {
+            let Some(file) = self.get_by_id(ancestor_id) else { break };
+            if users.is_empty() {
+                users.insert(file.owner.as_str());
+            }
+            for share in &file.shares {
+                users.insert(share.shared_with.as_str());
+            }
+        }
+        users
+    }
+
+    /// Returns true if any user with access to `from_id` cannot access `target_id`.
+    pub fn link_has_access_gap(&self, from_id: Uuid, target_id: Uuid) -> bool {
+        let from_users = self.users_with_access(from_id);
+        let target_users = self.users_with_access(target_id);
+        from_users.iter().any(|u| !target_users.contains(u))
+    }
+
+    /// Returns true if two files are in the same tree. Files in different share
+    /// trees or across the user's own tree and a share tree are in different trees.
+    /// Two files are in the same tree if walking up ancestors from both reaches the
+    /// same root (either the user's root or the same share root).
+    pub fn same_tree(&self, a: Uuid, b: Uuid) -> bool {
+        self.tree_root(a) == self.tree_root(b)
+    }
+
+    /// Walks ancestors to find the tree root: the user's root or the topmost
+    /// reachable file (share root, where the parent is not in the cache).
+    pub fn tree_root(&self, id: Uuid) -> Uuid {
+        let mut current = id;
+        loop {
+            let Some(file) = self.get_by_id(current) else { return current };
+            if file.is_root() {
+                return current;
+            }
+            if self.get_by_id(file.parent).is_none() {
+                return current; // share root: parent not in cache
+            }
+            current = file.parent;
+        }
+    }
+
     pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
         let last_modified_id = self
-            .files
             .descendents(id)
             .iter()
             .map(|f| f.id)
             .chain(iter::once(id))
-            .max_by_key(|id| self.files.get_by_id(*id).unwrap().last_modified)
+            .max_by_key(|id| self.get_by_id(*id).unwrap().last_modified)
             .unwrap();
-        &self
-            .files
-            .get_by_id(last_modified_id)
-            .unwrap()
-            .last_modified_by
+        &self.get_by_id(last_modified_id).unwrap().last_modified_by
     }
 }
 
@@ -128,7 +247,9 @@ pub trait FilesExt {
         descendents
     }
 
-    /// returns all known parents until we can't find one (share) or we hit root
+    /// returns all known parents until we can't find one (share) or we hit root.
+    /// Paths rooted in the user's own tree start with `/`. Paths in a share tree
+    /// (where the walk stopped at a share boundary) omit the leading `/`.
     fn path(&self, id: Uuid) -> String {
         let Some(file) = self.get_by_id(id) else { return "/".to_string() };
         if file.is_root() {
@@ -136,9 +257,11 @@ pub trait FilesExt {
         }
         let mut parts = vec![file.name.as_str()];
         let mut current = file.parent;
+        let mut reached_root = false;
         loop {
             let Some(f) = self.get_by_id(current) else { break };
             if f.is_root() {
+                reached_root = true;
                 break;
             }
             parts.push(f.name.as_str());
@@ -146,7 +269,15 @@ pub trait FilesExt {
         }
         parts.reverse();
         let joined = parts.join("/");
-        if file.is_folder() { format!("/{joined}/") } else { format!("/{joined}") }
+        if reached_root && file.is_folder() {
+            format!("/{joined}/")
+        } else if reached_root {
+            format!("/{joined}")
+        } else if file.is_folder() {
+            format!("{joined}/")
+        } else {
+            joined
+        }
     }
 
     fn by_path(&self, path: &str) -> Option<&File> {
@@ -254,16 +385,37 @@ pub trait FilesExt {
 
     fn ancestors(&self, id: Uuid) -> Vec<Uuid> {
         let mut ancestors = vec![];
-        if let Some(us) = self.get_by_id(id) {
-            if us.is_root() {
-                return ancestors;
+        let mut current = id;
+        loop {
+            let Some(file) = self.get_by_id(current) else { break };
+            if file.is_root() {
+                break;
             }
-
-            let parent = us.parent;
+            let parent = file.parent;
+            if self.get_by_id(parent).is_none() {
+                break; // share boundary: parent not in cache
+            }
             ancestors.push(parent);
-            ancestors.extend_from_slice(&self.ancestors(parent));
+            current = parent;
         }
         ancestors
+    }
+
+    fn access(&self, id: Uuid, account: &Account) -> UserAccessMode {
+        let mut max = None;
+        for id in iter::once(id).chain(self.ancestors(id).iter().copied()) {
+            let file = self.get_by_id(id).unwrap();
+            for share in &file.shares {
+                if share.shared_with == account.username {
+                    let mode = match share.mode {
+                        ShareMode::Write => UserAccessMode::Write,
+                        ShareMode::Read => UserAccessMode::Read,
+                    };
+                    max = Some(max.map_or(mode, |m: UserAccessMode| m.max(mode)));
+                }
+            }
+        }
+        max.unwrap_or(UserAccessMode::Owner)
     }
 }
 
@@ -337,6 +489,35 @@ impl FilesExt for Vec<File> {
     }
 }
 
+impl FilesExt for FileCache {
+    fn root(&self) -> &File {
+        self.files.root()
+    }
+
+    fn get_by_id(&self, id: Uuid) -> Option<&File> {
+        self.files
+            .get_by_id(id)
+            .or_else(|| self.shared.get_by_id(id))
+    }
+
+    fn children(&self, id: Uuid) -> Vec<&File> {
+        let mut children: Vec<_> = self
+            .all_files()
+            .filter(|f| f.parent == id && f.parent != f.id)
+            .collect();
+        children.sort_by(|a, b| match (a.file_type, b.file_type) {
+            (FileType::Folder, FileType::Document) => Ordering::Less,
+            (FileType::Document, FileType::Folder) => Ordering::Greater,
+            (_, _) => a.name.cmp(&b.name),
+        });
+        children
+    }
+
+    fn iter_files(&self) -> impl Iterator<Item = &File> {
+        self.all_files()
+    }
+}
+
 pub fn relative_path(from: &str, to: &str) -> String {
     if from == to {
         if from.ends_with('/') {
@@ -346,20 +527,18 @@ pub fn relative_path(from: &str, to: &str) -> String {
         }
     }
 
-    let from_path = PathBuf::from(from);
-    let to_path = PathBuf::from(to);
+    let from_parts: Vec<&str> = from.split('/').filter(|s| !s.is_empty()).collect();
+    let to_parts: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
 
-    let mut num_common_ancestors = 0;
-    for (from_component, to_component) in from_path.components().zip(to_path.components()) {
-        if from_component != to_component {
-            break;
-        }
-        num_common_ancestors += 1;
-    }
+    let num_common = from_parts
+        .iter()
+        .zip(to_parts.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
 
-    let mut result = "../".repeat(from_path.components().count() - num_common_ancestors);
-    for to_component in to_path.components().skip(num_common_ancestors) {
-        result.push_str(to_component.as_os_str().to_str().unwrap());
+    let mut result = "../".repeat(from_parts.len() - num_common);
+    for part in &to_parts[num_common..] {
+        result.push_str(part);
         result.push('/');
     }
     if !to.ends_with('/') {
@@ -369,22 +548,17 @@ pub fn relative_path(from: &str, to: &str) -> String {
 }
 
 pub fn canonicalize(path: &str) -> String {
-    let path = PathBuf::from(path);
-    let mut result = PathBuf::new();
-
-    for component in path.components() {
+    let mut parts: Vec<&str> = Vec::new();
+    for component in path.split('/') {
         match component {
-            Component::Normal(component) => {
-                result.push(component);
+            ".." => {
+                parts.pop();
             }
-            Component::ParentDir => {
-                result.pop();
-            }
-            _ => {}
+            "" | "." => {}
+            _ => parts.push(component),
         }
     }
-
-    result.to_string_lossy().to_string()
+    parts.join("/")
 }
 
 #[cfg(test)]

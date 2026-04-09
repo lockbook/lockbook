@@ -108,7 +108,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
     private fun addDataToPreferences(settingsInfo: SettingsInfo) {
         val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
 
-        val isPremium = settingsInfo.usage.dataCap.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
+        val isPremium = settingsInfo.usage.dataCap?.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
         val isOkState = (maybePaymentPlatform as? GooglePlay)?.accountState == GooglePlay.GooglePlayAccountState.Ok || (maybePaymentPlatform as? Stripe) != null || (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
 
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium

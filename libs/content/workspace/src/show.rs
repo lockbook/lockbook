@@ -220,13 +220,12 @@ impl Workspace {
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
-                            let Some(cache) = files_guard.as_ref() else { return true };
-                            let Some(from_id) = cache.files.get_by_id(id).map(|f| f.parent) else {
+                            let Some(from_id) = files_guard.get_by_id(id).map(|f| f.parent) else {
                                 return true;
                             };
 
                             let Some(ResolvedLink::File(file_id)) =
-                                cache.files.resolve_link(&url.url, from_id)
+                                files_guard.resolve_link(&url.url, from_id)
                             else {
                                 return true;
                             };
@@ -415,18 +414,22 @@ impl Workspace {
             self.upsert_mind_map(self.core.clone());
         }
 
-        // Ctrl-W to close current tab.
+        // Ctrl-W to close current tab, or return to root when on landing page.
         if self
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
-            && !self.is_empty()
         {
-            self.close_tab(self.current_tab);
-            self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                self.current_tab_title().unwrap_or("Lockbook".to_owned()),
-            ));
-
-            self.out.selected_file = self.current_tab_id();
+            if !self.is_empty() {
+                self.close_tab(self.current_tab);
+                self.ctx.send_viewport_cmd(ViewportCommand::Title(
+                    self.current_tab_title().unwrap_or("Lockbook".to_owned()),
+                ));
+                self.out.selected_file = self.current_tab_id();
+            } else {
+                let root_id = self.files.read().unwrap().root().id;
+                self.focused_parent = None;
+                self.out.selected_file = Some(root_id);
+            }
         }
 
         // Ctrl-shift-W to close all tabs
@@ -992,16 +995,20 @@ pub fn syntax_ext_for(ext: &str) -> &str {
 
 impl DocType {
     pub fn from_name(name: &str) -> Self {
-        let ext = name.split('.').next_back().unwrap_or_default();
-        match ext {
+        let ext = name
+            .split('.')
+            .next_back()
+            .unwrap_or_default()
+            .to_lowercase();
+        match ext.as_str() {
             "draw" | "svg" => Self::SVG,
             "md" => Self::Markdown,
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
-            _ if image_viewer::is_supported_image_fmt(ext) => Self::Image,
+            _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
             _ if crate::tab::markdown_editor::syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(ext))
+                .find_syntax_by_extension(syntax_ext_for(&ext))
                 .is_some() =>
             {
                 Self::Code
@@ -1019,14 +1026,6 @@ impl DocType {
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
             _ => Icon::DOC_UNKNOWN,
-        }
-    }
-
-    pub fn plaintext_mode(&self) -> Option<bool> {
-        match self {
-            DocType::Markdown => Some(false),
-            DocType::PlainText | DocType::Code => Some(true),
-            _ => None,
         }
     }
 

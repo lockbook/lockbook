@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use egui::Image;
-use lb_rs::{LbErrKind, LbResult, Uuid, model::errors::Unexpected};
+use egui::{Image, load::TexturePoll};
+use lb_rs::{LbResult, Uuid, model::errors::Unexpected};
 
 pub struct ImageViewer {
     pub id: Uuid,
@@ -71,23 +71,26 @@ impl ImageViewer {
         self.pan += pan;
 
         // draw the image according to pan and zoom levels
-        let texture_id = tlr
-            .as_ref()
-            .map_unexpected()
-            .map(|t| t.texture_id())?
-            .ok_or(LbErrKind::Unexpected("failed to load the image's texture".to_owned()))?;
+        let texture_status = tlr.as_ref().map_unexpected()?;
 
-        let rect = egui::Rect::from_center_size(
-            ui.available_rect_before_wrap().center() + self.pan,
-            ui_size * self.zoom_factor,
-        );
+        match texture_status {
+            TexturePoll::Pending { size: _ } => {
+                ui.spinner();
+            }
+            TexturePoll::Ready { texture } => {
+                let rect = egui::Rect::from_center_size(
+                    ui.available_rect_before_wrap().center() + self.pan,
+                    ui_size * self.zoom_factor,
+                );
 
-        painter.image(
-            texture_id,
-            rect,
-            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-            egui::Color32::WHITE,
-        );
+                painter.image(
+                    texture.id,
+                    rect,
+                    egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                    egui::Color32::WHITE,
+                );
+            }
+        }
 
         Ok(())
     }

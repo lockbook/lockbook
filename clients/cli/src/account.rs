@@ -60,7 +60,7 @@ pub async fn export(skip_check: bool) -> CliResult<()> {
     }
 
     if should_show {
-        println!("{}", lb.export_account_private_key()?);
+        print!("{}", lb.export_account_private_key()?);
     }
 
     Ok(())

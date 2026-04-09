@@ -11,12 +11,18 @@ use std::process::Command;
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
 
 pub fn release() -> CliResult<()> {
+    build()?;
+    upload();
+    update_brew()?;
+
+    Ok(())
+}
+
+pub fn build() -> CliResult<()> {
     build_x86()?;
     build_arm()?;
     lipo_binaries()?;
     tar_binary()?;
-    upload();
-    update_brew()?;
 
     Ok(())
 }

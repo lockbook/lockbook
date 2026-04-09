@@ -10,7 +10,6 @@ use raw_window_handle::{
 };
 use std::num::NonZeroIsize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
 use windows::Win32::Foundation::*;
@@ -435,13 +434,12 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     window: &W, dark_mode: bool,
 ) -> WgpuLockbook<'_> {
     let mut renderer = RendererState::init_window(window);
-    let font_system = Arc::new(Mutex::new(workspace_rs::make_font_system()));
     workspace_rs::register_render_callback_resources(
         &renderer.device,
         &renderer.queue,
         RendererState::text_format(&renderer.adapter, &renderer.surface),
         &mut renderer.renderer,
-        font_system.clone(),
+        workspace_rs::register_font_system(&renderer.context),
         renderer.sample_count,
     );
 
@@ -449,7 +447,7 @@ pub fn init<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDispla
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let app = lbeguiapp::Lockbook::new(&renderer.context, font_system);
+    let app = lbeguiapp::Lockbook::new(&renderer.context);
     app.deferred_init(&renderer.context);
 
     let mut obj = WgpuLockbook {

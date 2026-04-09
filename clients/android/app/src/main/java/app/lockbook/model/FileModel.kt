@@ -31,11 +31,6 @@ class FileModel(
         fun sortFiles(files: List<File>): List<File> = files.sortedWith(compareBy<File> { it.type }.thenBy { it.name })
     }
 
-    fun refreshChildrenAtAncestor(newParent: File) {
-        parent = newParent
-        refreshChildren()
-    }
-
     fun isAtRoot(): Boolean = parent.id == parent.parent
 
     fun refreshFiles() {
@@ -63,13 +58,11 @@ class FileModel(
         parent = newParent
         refreshChildren()
     }
-
-    fun intoParent() {
-        parent = idsAndFiles[parent.parent]!!
-        refreshChildren()
-    }
-
     private fun refreshChildren() {
         children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })
+    }
+
+    fun getChildren(fileId: String): List<File> {
+        return sortFiles(idsAndFiles.values.filter { it.parent == fileId && it.id != it.parent })
     }
 }

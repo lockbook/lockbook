@@ -17,7 +17,7 @@ use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
-use lb_rs::service::usage::{UsageItemMetric, UsageMetrics};
+use lb_rs::service::events::{Event, Receiver, SyncIncrement};
 pub use lb_rs::*;
 use subscribers::search::{SearchConfig, SearchResult};
 
@@ -35,6 +35,16 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
 
     match Lb::init(config) {
         Ok(lb) => {
+            let rx = lb.subscribe();
+
+            let ptr = Box::into_raw(Box::new(rx)) as jlong;
+            let field_id = env
+                .get_static_field_id(&class, "eventsReceiver", "J")
+                .unwrap();
+
+            env.set_static_field(&class, field_id, jni::objects::JValueGen::Long(ptr))
+                .unwrap();
+
             let ptr = Box::into_raw(Box::new(lb)) as jlong;
             let field_id = env.get_static_field_id(&class, "lb", "J").unwrap();
 
@@ -384,58 +394,21 @@ pub extern "system" fn Java_net_lockbook_Lb_getTimestampHumanString<'local>(
     jni_string(&mut env, lb.get_timestamp_human_string(timestamp)).into_raw()
 }
 
-fn jusage_item_metric<'local>(env: &mut JNIEnv<'local>, usage: UsageItemMetric) -> JObject<'local> {
-    let item_metric_class = env
-        .find_class("net/lockbook/Usage$UsageItemMetric")
-        .unwrap();
-    let obj = env.alloc_object(item_metric_class).unwrap();
-
-    env.set_field(&obj, "exact", "J", JValue::Long(usage.exact as i64))
-        .unwrap();
-
-    let readable = jni_string(env, usage.readable);
-    env.set_field(&obj, "readable", "Ljava/lang/String;", JValue::Object(&readable))
-        .unwrap();
-
-    obj
-}
-
-fn jusage_metrics<'local>(env: &mut JNIEnv<'local>, usage: UsageMetrics) -> JObject<'local> {
-    let usage_class = env.find_class("net/lockbook/Usage").unwrap();
-    let obj = env.alloc_object(usage_class).unwrap();
-
-    let server_usage = jusage_item_metric(env, usage.server_usage);
-    env.set_field(
-        &obj,
-        "serverUsage",
-        "Lnet/lockbook/Usage$UsageItemMetric;",
-        JValue::Object(&server_usage),
-    )
-    .unwrap();
-
-    let data_cap = jusage_item_metric(env, usage.data_cap);
-    env.set_field(
-        &obj,
-        "dataCap",
-        "Lnet/lockbook/Usage$UsageItemMetric;",
-        JValue::Object(&data_cap),
-    )
-    .unwrap();
-
-    obj
-}
-
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jobject {
+) -> jstring {
     let lb = rlb(&mut env, &class);
 
-    match lb.get_usage() {
-        Ok(usage) => jusage_metrics(&mut env, usage),
-        Err(err) => throw_err(&mut env, err),
+    let lb_usage = lb.get_usage();
+
+    if lb_usage.is_err() {
+        return throw_err(&mut env, lb_usage.err().unwrap()).into_raw();
     }
-    .into_raw()
+
+    env.new_string(serde_json::to_string(&lb_usage.unwrap()).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -526,13 +499,68 @@ pub extern "system" fn Java_net_lockbook_Lb_moveFile<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_sync<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>, _jsync_progress: JObject<'local>,
+    mut env: JNIEnv<'local>, class: JClass<'local>,
 ) {
     let lb: &mut Lb = rlb(&mut env, &class);
 
     if let Err(err) = lb.sync() {
         throw_err(&mut env, err);
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
+    mut env: JNIEnv<'local>, _: JClass<'local>, rx: jlong,
+) -> jobject {
+    let rx = unsafe { &mut *(rx as *mut Receiver<Event>) };
+
+    if let Ok(event) = rx.blocking_recv() {
+        let lb_event_class = env.find_class("net/lockbook/LbEvent").unwrap();
+        let lb_event_obj = env.new_object(&lb_event_class, "()V", &[]).unwrap();
+        let mut event_handled = true;
+        match event {
+            service::events::Event::MetadataChanged(_) => {
+                env.set_field(&lb_event_obj, "metadataChanged", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            service::events::Event::PendingSharesChanged => {
+                env.set_field(&lb_event_obj, "pendingSharesChanged", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            service::events::Event::StatusUpdated => {
+                env.set_field(&lb_event_obj, "statusUpdated", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            service::events::Event::Sync(incr) => {
+                if let SyncIncrement::SyncFinished(_) = incr {
+                    env.set_field(&lb_event_obj, "syncFinished", "Z", JValue::Bool(1))
+                        .unwrap();
+                }
+            }
+            service::events::Event::DocumentWritten(_, _) => {
+                env.set_field(&lb_event_obj, "documentWritten", "Z", JValue::Bool(1))
+                    .unwrap();
+            }
+            _ => event_handled = false,
+        };
+        if event_handled {
+            return lb_event_obj.into_raw();
+        }
+    }
+    JObject::null().into_raw()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_net_lockbook_Lb_getStatus<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+
+    let lb_status = lb.status();
+
+    env.new_string(serde_json::to_string(&lb_status).unwrap())
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -729,18 +757,6 @@ fn jids<'local>(env: &mut JNIEnv<'local>, ids: Vec<Uuid>) -> JObjectArray<'local
     }
 
     arr
-}
-
-#[unsafe(no_mangle)]
-pub extern "system" fn Java_net_lockbook_Lb_getLocalChanges<'local>(
-    mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jobjectArray {
-    let lb = rlb(&mut env, &class);
-
-    match lb.get_local_changes() {
-        Ok(local_changes) => jids(&mut env, local_changes).into_raw(),
-        Err(err) => throw_err(&mut env, err).into_raw(),
-    }
 }
 
 #[unsafe(no_mangle)]

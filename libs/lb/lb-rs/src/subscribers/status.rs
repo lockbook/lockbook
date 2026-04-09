@@ -1,4 +1,5 @@
 use basic_human_duration::ChronoHumanDuration;
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use time::Duration;
 
@@ -34,7 +35,7 @@ pub struct SpaceUpdater {
 /// space to represent information (phones?) earlier fields are more
 /// important than later fields. Ideally anything with an ID is represented
 /// in the file tree itself.
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Status {
     /// some recent server interaction failed due to network conditions
     pub offline: bool,

@@ -161,7 +161,7 @@ impl From<egui::PointerButton> for ButtonType {
 
 /**
  * drawing_rect, (the rect where you can draw on, according to the egui plane)
- * overlay_rects, rects where tool runs can pass through, but can't start in   
+ * overlay_rects, rects where tool runs can pass through, but can't start in
  */
 #[derive(Debug)]
 pub struct LayoutContext {
@@ -653,7 +653,15 @@ fn pos_collides_with_layout(pos: egui::Pos2, ctx: &LayoutContext) -> bool {
 
 // get an instant that's far in the past
 fn past_instant() -> Instant {
-    Instant::now() - Duration::from_secs(86400) // 1 day ago
+    #[cfg(target_family = "wasm")]
+    {
+        Instant::now()
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Instant::now() - Duration::from_secs(86400) // 1 day ago
+    }
 }
 
 #[cfg(test)]

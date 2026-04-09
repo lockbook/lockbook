@@ -9,6 +9,7 @@ use super::Editor;
 use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
+pub(crate) mod debug;
 pub(crate) mod emoji_completions;
 pub(crate) mod find;
 pub(crate) mod inline;
@@ -180,11 +181,11 @@ impl<'ast> Editor {
             NodeValue::Highlight => self.text_format_highlight(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
             NodeValue::Image(ni) => {
-                self.text_format_link(parent(), self.resolve_link(&ni.url).is_none())
+                self.text_format_link(parent(), self.link_state_for_url(&ni.url))
             }
             NodeValue::LineBreak => parent_text_format(),
             NodeValue::Link(nl) => {
-                self.text_format_link(parent(), self.resolve_link(&nl.url).is_none())
+                self.text_format_link(parent(), self.link_state_for_url(&nl.url))
             }
             NodeValue::Math(_) => self.text_format_math(parent()),
             NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
@@ -198,7 +199,7 @@ impl<'ast> Editor {
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
             NodeValue::WikiLink(nwl) => {
-                self.text_format_link(parent(), self.resolve_wikilink(&nwl.url).is_none())
+                self.text_format_link(parent(), self.link_state_for_wikilink(&nwl.url))
             }
 
             // leaf_block
@@ -232,11 +233,7 @@ impl<'ast> Editor {
             family: FontFamily::Mono,
             bold: false,
             italic: false,
-            color: if self.plaintext_mode {
-                self.ctx.get_lb_theme().neutral_fg()
-            } else {
-                self.ctx.get_lb_theme().neutral_fg_secondary()
-            },
+            color: self.ctx.get_lb_theme().neutral_fg_secondary(),
             underline: false,
             strikethrough: false,
             background: egui::Color32::TRANSPARENT,

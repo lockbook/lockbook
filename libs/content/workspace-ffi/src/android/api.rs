@@ -3,12 +3,10 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
-use lb_c::model::errors::Unexpected;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
-use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
@@ -269,21 +267,6 @@ pub struct WsStatus {
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_getStatus(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    let lb_status = obj.workspace.core.status();
-
-    let status = WsStatus { syncing: lb_status.syncing, msg: lb_status.msg().unwrap_or_default() };
-
-    env.new_string(serde_json::to_string(&status).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
 ) -> jint {
@@ -294,6 +277,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
 
     obj.workspace.open_file(id, true, true);
     get_current_tab(obj)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_createDocAt(
+    mut env: JNIEnv, _: JClass, obj: jlong, is_drawing: jboolean, parent: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&parent).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+
+    obj.workspace.create_doc_at(is_drawing == 1, id);
 }
 
 // todo: can't close non-file tabs (mind map)
@@ -361,14 +356,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
     }
 
     arr.into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_requestSync(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.core.sync().map_unexpected().log_and_ignore();
 }
 
 #[no_mangle]
@@ -665,44 +652,4 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_isPenOnlyDraw(
         false
     }
     .into()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouchEvent(
-    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
-) -> jboolean {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    if let Some(tab) = obj.workspace.current_tab() {
-        if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
-            svg.detect_islands_interaction(egui::pos2(x, y))
-        } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.will_consume_touch(egui::pos2(x, y))
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-    .into()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_toggleEraserSVG(
-    _env: JNIEnv, _: JClass, obj: jlong, select: jboolean,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    if let Some(svg) = obj.workspace.current_tab_svg_mut() {
-        if select == 1 {
-            svg.toolbar
-                .set_tool(Tool::Eraser, &mut svg.settings, &mut svg.cfg);
-        } else if svg.toolbar.active_tool == Tool::Eraser {
-            svg.toolbar.set_tool(
-                svg.toolbar.previous_tool.unwrap_or(Tool::Pen),
-                &mut svg.settings,
-                &mut svg.cfg,
-            );
-        }
-    }
 }

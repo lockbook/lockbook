@@ -1,11 +1,11 @@
 use chrono::Local;
 use egui::{Context, ViewportCommand};
 
-use glyphon::FontSystem;
 use lb_rs::blocking::Lb;
+use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
-use lb_rs::model::file::{File, ShareMode};
+use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
@@ -15,7 +15,7 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
@@ -25,7 +25,7 @@ use crate::output::Response;
 use crate::search::Search;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
-use crate::tab::image_viewer::{ImageViewer, is_supported_image_fmt};
+use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -45,13 +45,13 @@ pub struct Workspace {
     pub tabs: Vec<Tab>,
     pub current_tab: usize,
     pub landing_page: LandingPage,
-    pub account: Option<Account>,
+    pub account: Account,
 
     pub search: Search,
 
     // Files and task status
     pub tasks: TaskManager,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -64,7 +64,6 @@ pub struct Workspace {
 
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
-    pub font_system: Arc<Mutex<FontSystem>>,
 
     pub show_tabs: bool,              // set on mobile to hide the tab strip
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
@@ -80,23 +79,20 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(
-        core: &Lb, ctx: &Context, font_system: Arc<Mutex<FontSystem>>, show_tabs: bool,
-    ) -> Self {
+    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files = Arc::new(RwLock::new(FileCache::new(core).log_and_ignore()));
+        let files =
+            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
-        ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
-
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
             landing_page: cfg.get_landing_page(),
-            account: core.get_account().cloned().ok(),
+            account: core.get_account().cloned().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
@@ -108,7 +104,6 @@ impl Workspace {
             cfg,
             ctx: ctx.clone(),
             core: core.clone(),
-            font_system,
 
             show_tabs,
             focused_parent: Default::default(),
@@ -349,40 +344,24 @@ impl Workspace {
 
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
+        let mut refresh_cache = false;
+        let mut remove_deleted_file_tabs = false;
         loop {
             match self.lb_rx.try_recv() {
                 Ok(evt) => match evt {
                     Event::MetadataChanged(_) => {
-                        *self.files.write().unwrap() = FileCache::new(&self.core).log_and_ignore();
-                        let files_arc = Arc::clone(&self.files);
-                        let files_guard = files_arc.read().unwrap();
-                        if let Some(files) = files_guard.as_ref() {
-                            let mut tabs_to_delete = vec![];
-                            for tab in &self.tabs {
-                                if let Some(id) = tab.id() {
-                                    if !files
-                                        .files
-                                        .iter()
-                                        .chain(&files.shared)
-                                        .any(|f| Some(f.id) == tab.id())
-                                    {
-                                        tabs_to_delete.push(id);
-                                    }
-                                }
-                            }
-
-                            for id in tabs_to_delete {
-                                if let Some(idx) = self.get_idx_by_id(id) {
-                                    self.remove_tab(idx);
-                                }
-                            }
-                        }
+                        refresh_cache = true;
+                        remove_deleted_file_tabs = true;
                     }
-                    Event::DocumentWritten(id, Actor::Sync) => {
-                        self.core.app_foregrounded();
-                        for i in 0..self.tabs.len() {
-                            if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                                self.open_file(id, false, false);
+                    Event::DocumentWritten(id, actor) => {
+                        refresh_cache = true;
+
+                        if actor == Actor::Sync {
+                            self.core.app_foregrounded();
+                            for i in 0..self.tabs.len() {
+                                if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
+                                    self.open_file(id, false, false);
+                                }
                             }
                         }
                     }
@@ -398,6 +377,30 @@ impl Workspace {
                 }
             }
         }
+
+        if refresh_cache {
+            *self.files.write().unwrap() =
+                FileCache::new(&self.core).expect("failed to refresh file cache");
+        }
+        if remove_deleted_file_tabs {
+            let files_arc = Arc::clone(&self.files);
+            let files_guard = files_arc.read().unwrap();
+            let files = &*files_guard;
+            let mut tabs_to_delete = vec![];
+            for tab in &self.tabs {
+                if let Some(id) = tab.id() {
+                    if files.get_by_id(id).is_none() {
+                        tabs_to_delete.push(id);
+                    }
+                }
+            }
+
+            for id in tabs_to_delete {
+                if let Some(idx) = self.get_idx_by_id(id) {
+                    self.remove_tab(idx);
+                }
+            }
+        }
     }
 
     // #[instrument(level = "trace", skip_all)]
@@ -406,73 +409,60 @@ impl Workspace {
 
         let start = Instant::now();
         for load in completed_loads {
-            // nested scope indentation preserves git history
+            // scope indentation preserves git history
             {
-                {
-                    let CompletedLoad {
-                        request: LoadRequest { id, tab_created, make_current },
-                        content_result,
-                        timing: _,
-                    } = load;
+                let CompletedLoad {
+                    request: LoadRequest { id, tab_created, make_current },
+                    content_result,
+                    timing: _,
+                } = load;
 
-                    let ctx = self.ctx.clone();
-                    let core = self.core.clone();
-                    let show_tabs = self.show_tabs;
+                let ctx = self.ctx.clone();
+                let core = self.core.clone();
+                let show_tabs = self.show_tabs;
 
-                    if let Some(tab) = self.tabs.get_mut_by_id(id) {
-                        let (maybe_hmac, bytes) = match content_result {
-                            Ok((hmac, bytes)) => (hmac, bytes),
-                            Err(err) => {
-                                let msg = format!("failed to load file: {err:?}");
-                                error!(msg);
-                                tab.content =
-                                    ContentState::Failed(TabFailure::Unexpected(msg.clone()));
-                                self.out.failure_messages.push(msg);
-                                return;
-                            }
-                        };
+                if let Some(tab) = self.tabs.get_mut_by_id(id) {
+                    let files_clone = self.files.clone();
+                    let files_guard = files_clone.read().unwrap();
 
-                        let (ext, read_only) = match self.core.get_file_by_id(id) {
-                            Ok(file) => {
-                                let ext = file
-                                    .name
-                                    .split('.')
-                                    .next_back()
-                                    .unwrap_or_default()
-                                    .to_owned();
+                    let account = &self.account;
+                    let Some(file) = files_guard.get_by_id(id) else { continue };
 
-                                let read_only = if let Some(account) = &self.account {
-                                    file.shares.iter().any(|share| {
-                                        share.mode == ShareMode::Read
-                                            && share.shared_with == account.username
-                                            && share.shared_by != account.username
-                                    })
-                                } else {
-                                    false
-                                };
+                    let doc_type = DocType::from_name(&file.name);
+                    let read_only = files_guard.access(id, account) == UserAccessMode::Read;
+                    let ext = file
+                        .name
+                        .split('.')
+                        .next_back()
+                        .unwrap_or_default()
+                        .to_owned();
 
-                                (ext, read_only)
-                            }
-                            Err(e) => {
-                                self.out
-                                    .failure_messages
-                                    .push(format!("failed to get id for loaded file: {e:?}"));
-                                continue;
-                            }
-                        };
+                    let (maybe_hmac, bytes) = match content_result {
+                        Ok((hmac, bytes)) => (hmac, bytes),
+                        Err(err) => {
+                            let msg = format!("failed to load file: {err:?}");
+                            error!(msg);
+                            tab.content = ContentState::Failed(TabFailure::Unexpected(msg.clone()));
+                            self.out.failure_messages.push(msg);
+                            continue;
+                        }
+                    };
 
-                        tab.read_only = read_only;
+                    tab.read_only = read_only;
 
-                        if is_supported_image_fmt(&ext) {
+                    match doc_type {
+                        DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
                                 id, &ext, bytes,
                             )));
-                        } else if ext == "pdf" {
+                        }
+                        DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
                                 id, bytes, &ctx,
                                 !show_tabs, // todo: use settings to determine toolbar visibility
                             )));
-                        } else if ext == "svg" {
+                        }
+                        DocType::SVG => {
                             let reload = if tab.svg().is_some() { !tab_created } else { false };
                             if !reload {
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
@@ -500,10 +490,12 @@ impl Workspace {
 
                                 svg.open_file_hmac = maybe_hmac;
                             }
-                        } else if let Some(plaintext_mode) =
-                            DocType::from_name(&ext).plaintext_mode().or_else(|| {
-                                content_inspector::inspect(&bytes).is_text().then_some(true)
-                            })
+                        }
+                        DocType::PlainText
+                        | DocType::Markdown
+                        | DocType::Code
+                        | DocType::Unknown
+                            if content_inspector::inspect(&bytes).is_text() =>
                         {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
@@ -517,13 +509,12 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
-                                            font_system: self.font_system.clone(),
                                             files: Arc::clone(&self.files),
                                         },
                                         MdConfig {
-                                            plaintext_mode,
                                             readonly: tab.read_only,
                                             ext: ext.clone(),
+                                            tablet_or_desktop: show_tabs,
                                         },
                                     )));
                             } else {
@@ -531,20 +522,21 @@ impl Workspace {
                                 md.buffer.reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
-                        } else {
+                        }
+                        _ => {
                             tab.content = ContentState::Failed(TabFailure::SimpleMisc(format!(
                                 "Unsupported file extension: {ext}"
                             )));
-                        };
-
-                        self.out.tabs_changed = true;
-                    } else {
-                        error!("failed to load file: tab not found");
+                        }
                     };
 
-                    if make_current {
-                        self.make_current_by_id(id);
-                    }
+                    self.out.tabs_changed = true;
+                } else {
+                    error!("failed to load file: tab not found");
+                };
+
+                if make_current {
+                    self.make_current_by_id(id);
                 }
             }
         }
@@ -690,11 +682,7 @@ impl Workspace {
         let get_by_id_cached_read_through = |id| {
             let files_arc = Arc::clone(&self.files);
             let files_guard = files_arc.read().unwrap();
-            if let Some(files) = files_guard.as_ref() {
-                files.files.get_by_id(id).cloned()
-            } else {
-                self.core.get_file_by_id(id).ok()
-            }
+            files_guard.get_by_id(id).cloned()
         };
 
         let focused_parent = || {
@@ -712,11 +700,7 @@ impl Workspace {
 
             let files_arc = Arc::clone(&self.files);
             let files_guard = files_arc.read().unwrap();
-            if let Some(files) = files_guard.as_ref() {
-                files.root.clone()
-            } else {
-                self.core.get_root().unwrap()
-            }
+            files_guard.root.clone()
         };
 
         let focused_parent = focused_parent();

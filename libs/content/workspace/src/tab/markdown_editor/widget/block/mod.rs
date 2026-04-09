@@ -83,7 +83,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
@@ -114,7 +114,7 @@ impl<'ast> Editor {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node) {
+        if self.hidden_by_fold(node, siblings) {
             return 0.;
         }
 
@@ -185,6 +185,7 @@ impl<'ast> Editor {
 
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
+        siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
 
@@ -209,7 +210,7 @@ impl<'ast> Editor {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node) {
+        if self.hidden_by_fold(node, siblings) {
             return;
         }
 
@@ -220,13 +221,15 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
+            NodeValue::Alert(node_alert) => {
+                self.show_alert(ui, node, top_left, node_alert, siblings)
+            }
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(_) => self.show_item(ui, node, top_left),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left, siblings),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
@@ -234,7 +237,7 @@ impl<'ast> Editor {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(node_task_item) => {
-                self.show_task_item(ui, node, top_left, node_task_item)
+                self.show_task_item(ui, node, top_left, node_task_item, siblings)
             }
 
             // inline
@@ -271,7 +274,7 @@ impl<'ast> Editor {
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.show_heading(ui, node, top_left, *level, *setext)
+                self.show_heading(ui, node, top_left, *level, *setext, siblings)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
@@ -294,16 +297,13 @@ impl<'ast> Editor {
                 || node.is_leaf_block())
     }
 
-    /// Returns the children of the given node in sourcepos order.
+    /// Returns the children of the given node. With footnotes disabled,
+    /// comrak reports children in sourcepos order so no sorting is needed.
     pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        let mut children = Vec::with_capacity(node.children().count());
-        children.extend(node.children());
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
-        children
+        node.children().collect()
     }
 
-    /// Returns the siblings of the given node in sourcepos order (unlike
-    /// `node.siblings()`).
+    /// Returns the siblings of the given node in sourcepos order.
     pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
         if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
     }
@@ -458,24 +458,28 @@ impl<'ast> Editor {
         None
     }
 
-    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+    pub fn hidden_by_fold(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> bool {
         if let Some(cached) = self.get_cached_hidden_by_fold(node) {
             return cached;
         }
 
-        let result = self.compute_hidden_by_fold(node);
+        let result = self.compute_hidden_by_fold(node, siblings);
         self.set_cached_hidden_by_fold(node, result);
         result
     }
 
-    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+    fn compute_hidden_by_fold(
+        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
+    ) -> bool {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
                 if matches!(
                     &ancestor.data.borrow().value,
                     NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor)
+                ) && !self.item_fold_reveal(ancestor, &self.sorted_siblings(ancestor))
                     && self.fold(ancestor).is_some()
                 {
                     return true;
@@ -486,8 +490,7 @@ impl<'ast> Editor {
         // show only the blocks that have no folded heading; headings with
         // another equal or more significant heading between them and the target
         // node don't count; headings intersecting the selection don't count
-        let sorted_siblings = self.sorted_siblings(node);
-        let sibling_index = self.sibling_index(node, &sorted_siblings);
+        let sibling_index = self.sibling_index(node, sorted_siblings);
 
         let mut most_significant_unfolded_heading =
             if let NodeValue::Heading(heading) = &node.data.borrow().value {
@@ -499,7 +502,9 @@ impl<'ast> Editor {
             if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling) && self.fold(sibling).is_some() {
+                    if !self.heading_fold_reveal(sibling, sorted_siblings)
+                        && self.fold(sibling).is_some()
+                    {
                         // our node is contained by a folded, unrevealed heading
                         return true;
                     }
@@ -617,6 +622,7 @@ impl GlyphonBufferKey {
 }
 
 impl LayoutCache {
+    /// Full clear for width/resize changes where everything must be recomputed.
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
@@ -625,12 +631,80 @@ impl LayoutCache {
         self.glyphon_buffers.borrow_mut().clear();
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
+
+    /// Invalidation for text changes. Height and hidden_by_fold depend on
+    /// fold state (fold tags in text) and on each other (height returns 0
+    /// for hidden nodes), so both must be fully cleared — a fold tag
+    /// insertion at one point changes heights of distant sibling nodes.
+    /// Sourcepos-keyed caches are cleared because the AST is re-parsed.
+    /// Glyphon buffers are content-addressed and survive.
+    pub fn invalidate_text_change(&self) {
+        self.height.borrow_mut().clear();
+        self.hidden_by_fold.borrow_mut().clear();
+        self.line_prefix_len.borrow_mut().clear();
+        self.node_range.borrow_mut().clear();
+
+        // glyphon_buffers: content-addressed, preserved across text changes
+    }
+
+    /// Invalidates height entries affected by a selection change. A node's
+    /// height depends on its reveal state (selection-dependent), so we evict
+    /// nodes that intersect the old or new selection. We also evict ancestors
+    /// of invalidated nodes (any entry whose range contains an evicted range)
+    /// because their heights are sums of their children's heights.
+    pub fn invalidate_selection_change(
+        &self, old_selection: (DocCharOffset, DocCharOffset),
+        new_selection: (DocCharOffset, DocCharOffset),
+    ) {
+        let mut cache = self.height.borrow_mut();
+
+        // first pass: find ranges directly affected by the selection change
+        let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
+        for entry in cache.iter() {
+            if entry.range.intersects(&old_selection, true)
+                || entry.range.intersects(&new_selection, true)
+            {
+                invalidated.push(entry.range);
+            }
+        }
+
+        if invalidated.is_empty() {
+            return;
+        }
+
+        // second pass: evict directly affected nodes and their ancestors
+        cache.retain(|entry| {
+            // directly affected
+            if entry.range.intersects(&old_selection, true)
+                || entry.range.intersects(&new_selection, true)
+            {
+                return false;
+            }
+            // ancestor of an affected node
+            for inv in &invalidated {
+                if entry.range.contains_range(inv, true, true) {
+                    return false;
+                }
+            }
+            true
+        });
+
+        // hidden_by_fold depends on selection through fold reveal;
+        // a node's visibility can change due to a distant heading/item
+        // becoming revealed, so clear the whole cache
+        self.hidden_by_fold.borrow_mut().clear();
+    }
 }
 
 impl Editor {
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
+        let font_system = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))
+            .unwrap();
+
         let ppi = self.ctx.pixels_per_point();
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
@@ -657,8 +731,8 @@ impl Editor {
                         glyphon::Style::Normal
                     });
                 let metrics = glyphon::Metrics::new(font_size, line_height);
-                let mut b = glyphon::Buffer::new(&mut self.font_system.lock().unwrap(), metrics);
-                b.set_size(&mut self.font_system.lock().unwrap(), Some(width), None);
+                let mut b = glyphon::Buffer::new(&mut font_system.lock().unwrap(), metrics);
+                b.set_size(&mut font_system.lock().unwrap(), Some(width), None);
                 let emoji_attrs =
                     glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
                 let spans = text.graphemes(true).map(|g| {
@@ -672,13 +746,13 @@ impl Editor {
                     (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
                 });
                 b.set_rich_text(
-                    &mut self.font_system.lock().unwrap(),
+                    &mut font_system.lock().unwrap(),
                     spans,
                     &attrs,
                     glyphon::Shaping::Advanced,
                     None,
                 );
-                b.shape_until_scroll(&mut self.font_system.lock().unwrap(), false);
+                b.shape_until_scroll(&mut font_system.lock().unwrap(), false);
                 Arc::new(RwLock::new(b))
             })
             .clone()

@@ -12,17 +12,13 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 use crate::tab::markdown_editor::Editor;
 
 use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::cache::ImageState;
 
 impl<'ast> Editor {
-    pub fn text_format_image(&self, parent: &AstNode<'_>) -> Format {
-        self.text_format_link(parent, false)
-    }
-
     pub fn span_image(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
@@ -165,19 +161,16 @@ impl<'ast> Editor {
     }
 
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {
-        // make sure images can be viewed in full by capping their height and width to the viewport
-        // todo: though great on mobile, images look too big on desktop
         let image_max_size =
             { Vec2::new(self.width, self.height) - Vec2::splat(self.layout.margin) };
 
-        let width_capped_size = Vec2::new(width, texture_size.y * width / texture_size.x);
-        let height_capped_size =
-            Vec2::new(texture_size.x * image_max_size.y / texture_size.y, image_max_size.y);
+        // only shrink images, never stretch beyond their natural size
+        let width = width.min(texture_size.x).min(image_max_size.x);
+        let height = (texture_size.y * width / texture_size.x).min(image_max_size.y);
 
-        if width_capped_size.length() < height_capped_size.length() {
-            width_capped_size
-        } else {
-            height_capped_size
-        }
+        // if height was the binding constraint, recompute width to preserve aspect ratio
+        let width = texture_size.x * height / texture_size.y;
+
+        Vec2::new(width, height)
     }
 }

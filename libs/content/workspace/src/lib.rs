@@ -30,10 +30,13 @@ pub use tab::Event;
 use egui_wgpu_renderer::wgpu::{self, Device, MultisampleState, Queue, TextureFormat};
 use epaint::text::FontDefinitions;
 
-pub fn make_font_system() -> FontSystem {
+/// Creates a `FontSystem` and exposes via egui context before returning
+pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
     let mut db = fontdb::Database::new();
     font::load(&mut db);
-    FontSystem::new_with_locale_and_db("en-US".into(), db)
+    let font_system = Arc::new(Mutex::new(FontSystem::new_with_locale_and_db("en-US".into(), db)));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::NULL, Arc::clone(&font_system)));
+    font_system
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {

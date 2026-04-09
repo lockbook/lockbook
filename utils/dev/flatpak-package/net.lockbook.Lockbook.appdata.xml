@@ -17,7 +17,7 @@
 
   <description>
     <p>
-      Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can’t see them, but don’t take our word for it: Lockbook is 100% open-source.
+      Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can't see them, but don't take our word for it: Lockbook is 100% open-source.
     </p>
   </description>
 
@@ -50,10 +50,10 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-      <release version="26.2.2" date="2025-01-30">
+      <release version="26.4.9" date="2026-04-08">
           <description>
               <p>
-                  26.2.2 release
+                  26.4.9 release
               </p>
           </description>
       </release>

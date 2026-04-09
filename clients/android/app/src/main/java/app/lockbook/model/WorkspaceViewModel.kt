@@ -10,8 +10,6 @@ import net.lockbook.File
 
 class WorkspaceViewModel : ViewModel() {
 
-    var isSyncing = false
-
     /** request workspace to  open a file **/
     val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
     val openFile: LiveData<Pair<String, Boolean>>
@@ -21,13 +19,6 @@ class WorkspaceViewModel : ViewModel() {
     val _closeFile = SingleMutableLiveData<String>()
     val closeFile: LiveData<String>
         get() = _closeFile
-
-    /** request workspace to sync **/
-    val _sync = SingleMutableLiveData<Unit>()
-    val sync: LiveData<Unit>
-        get() = _sync
-
-    var lastSyncStatusUpdate = System.currentTimeMillis()
 
     /** are tabs shown in workspace **/
     val _showTabs = SingleMutableLiveData<Boolean>()
@@ -39,10 +30,10 @@ class WorkspaceViewModel : ViewModel() {
     val shouldShowTabs: LiveData<Unit>
         get() = _shouldShowTabs
 
-    /** request workspace to create a new file **/
-    val _createFile = MutableLiveData<String>()
-    val createFile: LiveData<String>
-        get() = _createFile
+    /** request workspace to create a new file (isDrawing, parentId) **/
+    val _createDocAt = MutableLiveData<Pair<Boolean, String>>()
+    val createDocAt: LiveData<Pair<Boolean, String>>
+        get() = _createDocAt
 
     val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
     val currentTab: LiveData<WorkspaceTab>
@@ -52,11 +43,6 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    // for everyone else
-    val _msg = MutableLiveData<String>()
-    val msg: LiveData<String>
-        get() = _msg
-
     val _hideMaterialToolbar = SingleMutableLiveData<Float>()
     val hideMaterialToolbar: LiveData<Float>
         get() = _hideMaterialToolbar
@@ -64,10 +50,6 @@ class WorkspaceViewModel : ViewModel() {
     val _tabTitleClicked = SingleMutableLiveData<Unit>()
     val tabTitleClicked: LiveData<Unit>
         get() = _tabTitleClicked
-
-    val _syncCompleted = SingleMutableLiveData<Unit>()
-    val syncCompleted: LiveData<Unit>
-        get() = _syncCompleted
 
     var tabs = emptyDataSourceTyped<File>()
 

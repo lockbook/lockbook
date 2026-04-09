@@ -1,0 +1,36 @@
+name: Master
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  deploy-site:
+    uses: ./.github/workflows/public-site.yml
+    secrets: inherit
+
+  deploy-android:
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
+  deploy-apple:
+    uses: ./.github/workflows/apple.yml
+    secrets: inherit
+
+  build-server:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: [self-hosted, ci]
+    env:
+      CARGO_HOME: /home/parth/lockbook-ci-cache/home
+      CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup musl target
+        run: rustup target add x86_64-unknown-linux-musl
+      - name: Build server
+        run: nix-shell -p musl --command "cargo r -p lbdev releaser server build"
+      - name: Upload server binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockbook-server
+          path: target/x86_64-unknown-linux-musl/release/lockbook-server

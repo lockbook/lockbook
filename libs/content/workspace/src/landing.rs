@@ -10,11 +10,11 @@ use serde::{Deserialize, Serialize};
 use std::f32;
 use std::ops::BitOrAssign;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::show::{DocType, ElapsedHumanString as _, InputStateExt};
 use crate::theme::icons::Icon;
+use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 
@@ -110,13 +110,10 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let Some(files) = files_guard.as_ref() else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return;
-        };
+        let files = &*files_guard;
 
         if let Some(id) = response.open_file {
-            if files.files.get_by_id(id).unwrap().is_document() {
+            if files.get_by_id(id).unwrap().is_document() {
                 self.open_file(id, true, false);
             } else {
                 self.focused_parent = Some(id);
@@ -151,18 +148,12 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let Some(files) = files_guard.as_ref() else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let files = &*files_guard;
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         ui.style_mut().visuals.hyperlink_color = ui.visuals().text_color();
         ui.vertical(|ui| {
-            if folder.id == files.files.root().id {
+            if folder.id == files.root().id {
                 ui.label(
                     RichText::new("Welcome,")
                         .font(FontId::proportional(24.0))
@@ -182,8 +173,9 @@ impl Workspace {
                 const HEADING_FONT_SIZE: f32 = 40.;
                 const HEADING_LINE_HEIGHT: f32 = 56.;
 
-                if !folder.is_root() {
-                    let parent = files.files.get_by_id(folder.parent).unwrap();
+                // Show breadcrumb to parent folder. Skipped at root and at share
+                // boundaries where the parent lives in the sharer's tree.
+                if let Some(parent) = files.get_by_id(folder.parent).filter(|_| !folder.is_root()) {
                     let resp = ui.add(
                         GlyphonLabel::new(&parent.name, ui.visuals().text_color())
                             .font_size(HEADING_FONT_SIZE)
@@ -219,14 +211,9 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let files = &*files_guard;
+        let account = &self.account;
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         ui.horizontal_top(|ui| {
             // experimentally matches combo box height which I cannot figure out how to determine or control
@@ -319,9 +306,9 @@ impl Workspace {
                     .show_ui(ui, |ui| {
                         // Collect all unique collaborators from files in scope
                         let files_in_scope = if self.landing_page.flatten_tree {
-                            files.files.descendents(folder.id)
+                            files.descendents(folder.id)
                         } else {
-                            files.files.children(folder.id)
+                            files.children(folder.id)
                         };
 
                         let mut all_collaborators = std::collections::HashSet::new();
@@ -482,32 +469,42 @@ impl Workspace {
                         let cmd_f =
                             ui.input_mut(|i| i.consume_key_exact(Modifiers::COMMAND, Key::F));
 
-                        let response =
-                            egui::TextEdit::singleline(&mut self.landing_page.search_term)
-                                .hint_text(if folder.is_root() {
-                                    "Filter".to_string()
-                                } else {
-                                    format!("Filter in {}", &folder.name)
-                                })
-                                .frame(false)
-                                .margin(Vec2::ZERO)
-                                .desired_width(
-                                    ui.available_width()
-                                    - 25.0 // space for 'x'
-                                    - 15.,
-                                ) // margin
-                                .show(ui)
-                                .response;
+                        let search_id = egui::Id::new("landing_search");
 
                         // Focus when Cmd+F is pressed or on first frame
                         if cmd_f || self.landing_page_first_frame {
-                            response.request_focus();
+                            ui.memory_mut(|m| m.request_focus(search_id));
                         }
+
+                        let hint = if folder.is_root() {
+                            "Filter".to_string()
+                        } else {
+                            format!("Filter in {}", &folder.name)
+                        };
+
+                        let has_text = !self.landing_page.search_term.is_empty();
+                        let clear_space = if has_text { 25.0 } else { 0.0 };
+                        let edit_width = ui.available_width() - clear_space - 15.0;
+
+                        ui.allocate_ui_with_layout(
+                            Vec2::new(edit_width, filters_height),
+                            egui::Layout::left_to_right(egui::Align::Center),
+                            |ui| {
+                                GlyphonTextEdit::new(&mut self.landing_page.search_term)
+                                    .id(search_id)
+                                    .hint_text(hint)
+                                    .show(ui);
+                            },
+                        );
 
                         // Clear button (X icon) when there's text
                         #[allow(clippy::collapsible_if)]
-                        if !self.landing_page.search_term.is_empty() {
-                            if IconButton::new(Icon::CLOSE.size(16.)).show(ui).clicked() {
+                        if has_text {
+                            if IconButton::new(Icon::CLOSE.size(16.))
+                                .hover_bg(false)
+                                .show(ui)
+                                .clicked()
+                            {
                                 self.landing_page.search_term.clear();
                             }
                         }
@@ -520,17 +517,32 @@ impl Workspace {
     }
 
     fn filtered_sorted_files<'a>(&self, files: &'a FileCache, account: &Account) -> Vec<&'a File> {
-        let folder = files
-            .files
-            .get_by_id(self.effective_focused_parent())
-            .unwrap();
+        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         // Filter
-        let descendents = if self.landing_page.flatten_tree {
-            files.files.descendents(folder.id)
+        let mut descendents = if self.landing_page.flatten_tree {
+            files.descendents(folder.id)
         } else {
-            files.files.children(folder.id)
+            files.children(folder.id)
         };
+
+        // At root, include pending shares
+        if folder.is_root() {
+            if self.landing_page.flatten_tree {
+                // When flattening, include all shared files (documents will
+                // survive the flatten filter below, just like own-tree files)
+                for f in &files.shared {
+                    descendents.push(f);
+                }
+            } else {
+                // When not flattening, include only share roots
+                for f in &files.shared {
+                    if files.shared.get_by_id(f.parent).is_none() {
+                        descendents.push(f);
+                    }
+                }
+            }
+        }
         let mut descendents: Vec<_> = descendents
             .into_iter()
             .filter(|child| {
@@ -634,10 +646,8 @@ impl Workspace {
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
-        let (Some(files), Some(account)) = (files_guard.as_ref(), &self.account) else {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-            return response;
-        };
+        let files = &*files_guard;
+        let account = &self.account;
         let descendents = self.filtered_sorted_files(files, account);
 
         // Show
@@ -872,16 +882,21 @@ impl Workspace {
                                 });
 
                                 // Icon
+                                let is_pending = files.shared.get_by_id(child.id).is_some();
+                                let is_shared = is_pending || !child.shares.is_empty();
+                                let theme = ui.ctx().get_lb_theme();
                                 if child.is_folder() {
-                                    let folder_icon = if !child.shares.is_empty() {
-                                        Icon::SHARED_FOLDER
+                                    let folder_icon =
+                                        if is_shared { Icon::SHARED_FOLDER } else { Icon::FOLDER };
+                                    let color = if is_shared {
+                                        theme.fg().get_color(theme.prefs().secondary)
                                     } else {
-                                        Icon::FOLDER
+                                        theme.fg().get_color(theme.prefs().primary)
                                     };
                                     ui.label(
                                         RichText::new(folder_icon.icon)
                                             .font(FontId::monospace(19.0))
-                                            .color(ui.style().visuals.widgets.active.bg_fill),
+                                            .color(color),
                                     )
                                     .on_hover_ui(|ui| {
                                         ui.label("Folder");
@@ -959,8 +974,30 @@ impl Workspace {
                                 }
                                 inner_resp
                                     .on_hover_cursor(egui::CursorIcon::PointingHand)
-                                    .on_hover_ui(|ui| {
-                                        ui.label(self.core.get_path_by_id(child.id).unwrap());
+                                    .on_hover_ui({
+                                        let theme = ui.ctx().get_lb_theme();
+                                        let segments = files.path_segments(child.id);
+                                        let share_color =
+                                            theme.fg().get_color(theme.prefs().secondary);
+                                        let normal_color = ui.visuals().text_color();
+                                        move |ui: &mut egui::Ui| {
+                                            let colored_spans: Vec<(&str, Option<egui::Color32>)> =
+                                                segments
+                                                    .iter()
+                                                    .map(|(text, shared)| {
+                                                        let color = if *shared {
+                                                            Some(share_color)
+                                                        } else {
+                                                            None
+                                                        };
+                                                        (text.as_str(), color)
+                                                    })
+                                                    .collect();
+                                            ui.add(GlyphonLabel::new_colored(
+                                                colored_spans,
+                                                normal_color,
+                                            ));
+                                        }
                                     })
                                     .context_menu(|ui| {
                                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);

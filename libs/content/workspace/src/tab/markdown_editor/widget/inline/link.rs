@@ -22,16 +22,27 @@ enum DestinationTitle {
     Absent,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LinkState {
+    Normal,
+    Warning, // access gap — some collaborators can't follow this link
+    Broken,  // target not found
+}
+
 impl<'ast> Editor {
-    pub fn text_format_link(&self, parent: &AstNode<'_>, broken: bool) -> Format {
+    pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
-        let color = if broken { theme.fg().red } else { theme.fg().blue };
+        let color = match state {
+            LinkState::Normal => theme.fg().blue,
+            LinkState::Warning => theme.fg().yellow,
+            LinkState::Broken => theme.fg().red,
+        };
         Format { color, underline: true, ..parent_text_format }
     }
 
     pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
-        Format { family: FontFamily::Icons, ..self.text_format_link(parent, false) }
+        Format { family: FontFamily::Icons, ..self.text_format_link(parent, LinkState::Normal) }
     }
 
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
@@ -63,7 +74,7 @@ impl<'ast> Editor {
                     tmp_wrap.offset += self.span_override_section(
                         &tmp_wrap,
                         &t,
-                        self.text_format_link(node.parent().unwrap(), false),
+                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
                     );
                     true
                 }
@@ -116,7 +127,7 @@ impl<'ast> Editor {
                         top_left,
                         wrap,
                         trimmed,
-                        self.text_format_link(node.parent().unwrap(), false),
+                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
                         Some(&t),
                         Sense::hover(),
                     ),
@@ -168,6 +179,18 @@ impl<'ast> Editor {
 
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            if self.link_state_for_url(&node_link.url) == LinkState::Warning {
+                if let Some(pos) = ui.ctx().pointer_hover_pos() {
+                    egui::Area::new(ui.id().with("link_warning"))
+                        .order(egui::Order::Tooltip)
+                        .fixed_pos(pos + egui::vec2(8.0, 16.0))
+                        .show(ui.ctx(), |ui| {
+                            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                ui.label("Some collaborators cannot access this link target");
+                            });
+                        });
+                }
+            }
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
@@ -190,9 +213,43 @@ impl<'ast> Editor {
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
         let guard = self.files.read().unwrap();
-        let cache = guard.as_ref()?;
-        let from_id = cache.files.get_by_id(self.file_id)?.parent;
-        cache.files.resolve_link(url, from_id)
+        let from_id = guard.get_by_id(self.file_id)?.parent;
+        guard.resolve_link(url, from_id)
+    }
+
+    pub fn link_state_for_url(&self, url: &str) -> LinkState {
+        let guard = self.files.read().unwrap();
+        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
+            return LinkState::Broken;
+        };
+        match guard.resolve_link(url, from_id) {
+            None => LinkState::Broken,
+            Some(ResolvedLink::External(_)) => LinkState::Normal,
+            Some(ResolvedLink::File(target_id)) => {
+                if guard.link_has_access_gap(self.file_id, target_id) {
+                    LinkState::Warning
+                } else {
+                    LinkState::Normal
+                }
+            }
+        }
+    }
+
+    pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
+        let guard = self.files.read().unwrap();
+        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
+            return LinkState::Broken;
+        };
+        match guard.resolve_wikilink(url, from_id) {
+            None => LinkState::Broken,
+            Some(target_id) => {
+                if guard.link_has_access_gap(self.file_id, target_id) {
+                    LinkState::Warning
+                } else {
+                    LinkState::Normal
+                }
+            }
+        }
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
@@ -260,10 +317,7 @@ impl<'ast> Editor {
         let resolved_url = match resolved {
             ResolvedLink::File(id) => {
                 let guard = self.files.read().unwrap();
-                let Some(cache) = guard.as_ref() else {
-                    return DestinationTitle::Absent;
-                };
-                let Some(file) = cache.files.get_by_id(id) else {
+                let Some(file) = guard.get_by_id(id) else {
                     return DestinationTitle::Absent;
                 };
                 let title = DocType::from_name(&file.name).display_name(&file.name);

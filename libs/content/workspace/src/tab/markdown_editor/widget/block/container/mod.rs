@@ -1,12 +1,10 @@
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
 use crate::tab::markdown_editor::Editor;
-
-use crate::theme::palette_v2::ThemeExt as _;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -81,95 +79,84 @@ impl<'ast> Editor {
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let children = self.sorted_children(node);
+
         let mut height_sum = 0.0;
         for child in &children {
             height_sum += self.block_pre_spacing_height(child, &children);
-            height_sum += self.height(child);
+            height_sum += self.height(child, &children);
             height_sum += self.block_post_spacing_height(child, &children);
         }
         height_sum
     }
 
-    // blocks are stacked vertically
+    // blocks are stacked vertically; only visible blocks and blocks whose
+    // node range intersects `galley_required_range` are shown
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        // use this flag to toggle the optimization where only visible things
-        // are drawn; this saves work but prevents galleys from populating:
-        // * causes occassional crashes ("the len is 0 but the index is 18446744073709551615")
-        // * cursor sometimes rendered at doc end when it's off screen
-        // * scrolling to the cursor sometimes only works for one frame
-        const OPTIMIZATION: bool = false;
-
         let children = self.sorted_children(node);
 
+        let required_range = self.galley_required_range();
+        let viewport = ui.clip_rect();
+
         for child in &children {
-            let tolerance = self.height;
+            let child_range = self.node_range(child);
+            let pre_lines = self.pre_spacing_lines(child, &children);
+            let post_lines = self.post_spacing_lines(child, &children);
 
             // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height(child, &children);
-            let pre_spacing_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + pre_spacing;
-            let pre_spacing_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let pre_spacing_below_viewport = viewport.max.y < top_left.y;
+            let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            if !OPTIMIZATION || pre_spacing_visible || self.scroll_to_cursor {
+            let pre_spacing_needed = self
+                .spacing_range(&pre_lines)
+                .intersects(&required_range, true);
+            if pre_spacing_visible || pre_spacing_needed {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
-            }
-            if OPTIMIZATION && (pre_spacing_below_viewport && !self.scroll_to_cursor) {
-                break;
             }
             top_left.y += pre_spacing;
 
             // add block
-            let child_height = self.height(child);
+            let child_height = self.height(child, &children);
 
             if self.debug {
-                let child_width = self.width(child);
-                let child_rect =
-                    Rect::from_min_size(top_left, Vec2 { x: child_width, y: child_height });
-
-                if self.selected_block(child) {
-                    ui.painter().rect(
-                        child_rect,
-                        2.,
-                        self.ctx.get_lb_theme().neutral_bg_secondary(),
-                        egui::Stroke {
-                            width: 1.,
-                            color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
-                        },
-                        egui::epaint::StrokeKind::Inside,
-                    );
-                }
+                self.show_debug_block_highlight(
+                    ui,
+                    child,
+                    top_left,
+                    self.width(child),
+                    child_height,
+                );
             }
 
-            let block_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + child_height;
-            let block_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let block_below_viewport = viewport.max.y < top_left.y;
+            let block_above_viewport = viewport.min.y > top_left.y + child_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
-            if !OPTIMIZATION || block_visible || self.scroll_to_cursor {
-                self.show_block(ui, child, top_left);
-            }
-            if OPTIMIZATION && (block_below_viewport && !self.scroll_to_cursor) {
-                break;
+            let block_needed = child_range.intersects(&required_range, true);
+            if block_visible || block_needed {
+                self.show_block(ui, child, top_left, &children);
             }
             top_left.y += child_height;
 
             // add post-spacing
             let post_spacing = self.block_post_spacing_height(child, &children);
-            let post_spacing_above_viewport =
-                2. * self.layout.margin > tolerance + top_left.y + post_spacing;
-            let post_spacing_below_viewport =
-                2. * self.layout.margin + self.height + tolerance < top_left.y;
+            let post_spacing_below_viewport = viewport.max.y < top_left.y;
+            let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            if !OPTIMIZATION || post_spacing_visible || self.scroll_to_cursor {
+            let post_spacing_needed = self
+                .spacing_range(&post_lines)
+                .intersects(&required_range, true);
+            if post_spacing_visible || post_spacing_needed {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
-            if OPTIMIZATION && (post_spacing_below_viewport && !self.scroll_to_cursor) {
+            top_left.y += post_spacing;
+
+            // safe to stop: everything remaining is below the viewport and
+            // past the range that needs galleys
+            if block_below_viewport && child_range.start() > required_range.end() {
                 break;
             }
-            top_left.y += post_spacing;
         }
     }
 
@@ -588,8 +575,7 @@ impl<'ast> Editor {
 
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
-        let mut children: Vec<_> = node.children().collect();
-        children.sort_by_key(|c| c.data.borrow().sourcepos);
+        let children = self.sorted_children(node);
 
         for child in &children {
             // add pre-spacing bounds

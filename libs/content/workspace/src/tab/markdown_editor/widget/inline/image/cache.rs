@@ -10,7 +10,6 @@ use std::collections::HashMap;
 use std::ops::Deref;
 
 use std::sync::{Arc, Mutex};
-use tracing::debug;
 
 #[derive(Clone, Default)]
 pub struct ImageCache {
@@ -44,7 +43,7 @@ macro_rules! async_on_wasm {
 
 pub fn calc<'ast>(
     root: &'ast AstNode<'ast>, prior_cache: &ImageCache, client: &HttpClient, core: &Lb,
-    file_id: Uuid, files: &std::sync::Arc<std::sync::RwLock<Option<crate::file_cache::FileCache>>>,
+    file_id: Uuid, files: &std::sync::Arc<std::sync::RwLock<crate::file_cache::FileCache>>,
     ui: &Ui,
 ) -> ImageCache {
     let mut result = ImageCache::default();
@@ -74,14 +73,15 @@ pub fn calc<'ast>(
 
                 let maybe_lb_id = {
                     let guard = files.read().unwrap();
-                    guard.as_ref().and_then(|cache| {
-                        let from_id = cache.files.get_by_id(file_id)?.parent;
-                        match cache.files.resolve_link(&url, from_id)? {
-                            ResolvedLink::File(id) => Some(id),
-                            ResolvedLink::External(_) => None,
-                        }
+                    let from_id = guard.get_by_id(file_id).map(|f| f.parent);
+                    from_id.and_then(|from_id| match guard.resolve_link(&url, from_id)? {
+                        ResolvedLink::File(id) => Some(id),
+                        ResolvedLink::External(_) => None,
                     })
                 };
+
+                let viewport_width = ui.available_width();
+                let pixels_per_point = ui.ctx().pixels_per_point();
 
                 result.map.insert(url.clone(), image_state.clone());
                 // fetch image
@@ -106,42 +106,56 @@ pub fn calc<'ast>(
                             {
                                 bytes = download_image(&client, &url).map_err(|e| e.to_string())?
                             }
-                            debug!("downloaded bytes of length {}", bytes.len());
 
                             bytes
                         };
 
-                        // convert lockbook drawings to images
-                        let image_bytes = if let Some(id) = maybe_lb_id {
+                        // convert svgs to rasterized images
+                        let is_svg = if let Some(id) = maybe_lb_id {
                             let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
-                            if file.name.ends_with(".svg") {
-                                // todo: check errors
-                                let tree = usvg::Tree::from_data(
-                                    &image_bytes,
-                                    &Default::default(),
-                                    &Default::default(),
-                                )
-                                .map_err(|e| e.to_string())?;
+                            file.name.ends_with(".svg")
+                        } else {
+                            url.ends_with(".svg")
+                        };
 
-                                let bounding_box = tree.root().abs_bounding_box();
+                        let image_bytes = if is_svg {
+                            let tree = usvg::Tree::from_data(
+                                &image_bytes,
+                                &Default::default(),
+                                &Default::default(),
+                            )
+                            .map_err(|e| e.to_string())?;
 
-                                // dimensions & transform chosen so that all svg content appears in the result
-                                let mut pix_map = Pixmap::new(
-                                    bounding_box.width() as _,
-                                    bounding_box.height() as _,
+                            let (w, h, base_transform) = if maybe_lb_id.is_some() {
+                                // lockbook drawings don't have meaningful dimensions,
+                                // use bounding box to capture all content
+                                let bb = tree.root().abs_bounding_box();
+                                (
+                                    bb.width(),
+                                    bb.height(),
+                                    Transform::identity().post_translate(-bb.left(), -bb.top()),
                                 )
+                            } else {
+                                let size = tree.size();
+                                (size.width(), size.height(), Transform::default())
+                            };
+
+                            // cap to viewport width, then scale up for DPI
+                            let scale = (viewport_width / w).min(1.0) * pixels_per_point;
+                            let pix_w = (w * scale) as u32;
+                            let pix_h = (h * scale) as u32;
+                            let transform = if scale < 1.0 {
+                                base_transform.post_scale(scale, scale)
+                            } else {
+                                base_transform
+                            };
+
+                            let mut pix_map = Pixmap::new(pix_w, pix_h)
                                 .ok_or("failed to create pixmap")
                                 .map_err(|e| e.to_string())?;
-                                let transform = Transform::identity()
-                                    .post_translate(-bounding_box.left(), -bounding_box.top());
-                                resvg::render(&tree, transform, &mut pix_map.as_mut());
-                                pix_map.encode_png().map_err(|e| e.to_string())?
-                            } else {
-                                // leave non-drawings alone
-                                image_bytes
-                            }
+                            resvg::render(&tree, transform, &mut pix_map.as_mut());
+                            pix_map.encode_png().map_err(|e| e.to_string())?
                         } else {
-                            // leave non-lockbook images alone
                             image_bytes
                         };
 

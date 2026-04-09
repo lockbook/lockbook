@@ -5,6 +5,13 @@ use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 
 use crate::{GlyphonRendererCallback, TextBufferArea};
 
+/// Per-span styling: bold flag and optional color override.
+#[derive(Clone, Copy)]
+pub struct SpanStyle {
+    pub bold: bool,
+    pub color: Option<egui::Color32>,
+}
+
 /// A text label rendered through glyphon so that emoji, non-Latin scripts, and
 /// mixed bold/normal spans work correctly.
 ///
@@ -19,7 +26,7 @@ use crate::{GlyphonRendererCallback, TextBufferArea};
 ///   shaped buffers and measured size so callers can position it at an arbitrary
 ///   rect and batch multiple labels into a single paint callback.
 pub struct GlyphonLabel<'a> {
-    spans: Vec<(&'a str, bool)>,
+    spans: Vec<(&'a str, SpanStyle)>,
     color: egui::Color32,
     hint: Option<(&'a str, egui::Color32)>,
     font_size: f32,
@@ -96,7 +103,7 @@ impl<'a> GlyphonLabel<'a> {
     /// Plain text label.
     pub fn new(text: &'a str, color: egui::Color32) -> Self {
         Self {
-            spans: vec![(text, false)],
+            spans: vec![(text, SpanStyle { bold: false, color: None })],
             color,
             hint: None,
             font_size: 14.0,
@@ -110,7 +117,27 @@ impl<'a> GlyphonLabel<'a> {
     /// Each span is `(text, bold)`.
     pub fn new_rich(spans: Vec<(&'a str, bool)>, color: egui::Color32) -> Self {
         Self {
-            spans,
+            spans: spans
+                .into_iter()
+                .map(|(t, bold)| (t, SpanStyle { bold, color: None }))
+                .collect(),
+            color,
+            hint: None,
+            font_size: 14.0,
+            line_height: None,
+            max_width: f32::MAX,
+            sense: Sense::hover(),
+        }
+    }
+
+    /// Label with per-span color overrides. Each span is `(text, optional color)`.
+    /// Spans without a color use the base color.
+    pub fn new_colored(spans: Vec<(&'a str, Option<egui::Color32>)>, color: egui::Color32) -> Self {
+        Self {
+            spans: spans
+                .into_iter()
+                .map(|(t, c)| (t, SpanStyle { bold: false, color: c }))
+                .collect(),
             color,
             hint: None,
             font_size: 14.0,
@@ -155,7 +182,7 @@ impl<'a> GlyphonLabel<'a> {
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
         let font_system = ctx
             .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
-            .expect("GlyphonLabel used outside of a wgpu context");
+            .expect("cosmic-text font system used before registered");
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
 
@@ -174,7 +201,7 @@ impl<'a> GlyphonLabel<'a> {
             Self::shape_buffer(
                 &font_system,
                 ppi,
-                &[(text, false)],
+                &[(text, SpanStyle { bold: false, color: None })],
                 color,
                 hint_font_size,
                 line_height,
@@ -195,7 +222,7 @@ impl<'a> GlyphonLabel<'a> {
     }
 
     fn shape_buffer(
-        font_system: &Arc<Mutex<FontSystem>>, ppi: f32, spans: &[(&str, bool)],
+        font_system: &Arc<Mutex<FontSystem>>, ppi: f32, spans: &[(&str, SpanStyle)],
         color: egui::Color32, font_size: f32, line_height: f32, max_width: f32,
     ) -> ShapedBuffer {
         let mut fs = font_system.lock().unwrap();
@@ -205,8 +232,12 @@ impl<'a> GlyphonLabel<'a> {
         let base = Attrs::new().family(Family::SansSerif);
         buf.set_rich_text(
             &mut fs,
-            spans.iter().map(|&(text, bold)| {
-                let attrs = if bold { base.clone().weight(Weight::BOLD) } else { base.clone() };
+            spans.iter().map(|&(text, style)| {
+                let mut attrs =
+                    if style.bold { base.clone().weight(Weight::BOLD) } else { base.clone() };
+                if let Some(c) = style.color {
+                    attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
+                }
                 (text, attrs)
             }),
             &base,

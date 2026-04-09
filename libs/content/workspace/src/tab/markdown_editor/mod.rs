@@ -1,9 +1,8 @@
-use glyphon::FontSystem;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::OnceLock;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
@@ -88,8 +87,7 @@ pub struct Editor {
     pub client: HttpClient,
     pub ctx: Context,
     pub persistence: WsPersistentStore,
-    pub font_system: Arc<Mutex<FontSystem>>,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
     pub layout: MdLayout,
 
     // theme
@@ -99,9 +97,9 @@ pub struct Editor {
     pub file_id: Uuid,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
-    pub plaintext_mode: bool,
-    pub syntax_ext: String,
+    pub ext: String,
     pub touch_mode: bool,
+    pub phone_mode: bool,
     pub readonly: bool,
 
     // internal systems
@@ -116,6 +114,8 @@ pub struct Editor {
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
+    frame_times: [Instant; 10],
+    frame_times_idx: usize,
     pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
     pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
@@ -172,20 +172,20 @@ pub struct MdResources {
     pub ctx: Context,
     pub core: Lb,
     pub persistence: WsPersistentStore,
-    pub font_system: Arc<Mutex<FontSystem>>,
-    pub files: Arc<RwLock<Option<FileCache>>>,
+    pub files: Arc<RwLock<FileCache>>,
 }
 
 pub struct MdConfig {
-    pub plaintext_mode: bool,
     pub readonly: bool,
     pub ext: String,
+    pub tablet_or_desktop: bool,
 }
 
 pub struct MdLayout {
     pub margin: f32,
     pub max_width: f32,
     pub inline_padding: f32,
+    pub annotation_font_size: f32,
     pub row_height: f32,
     pub block_padding: f32,
     pub indent: f32,
@@ -204,6 +204,7 @@ impl MdLayout {
             margin: 45.0,
             max_width: 1000.0,
             inline_padding: 3.0,
+            annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
             indent: 26.0,
@@ -222,6 +223,7 @@ impl MdLayout {
             margin: 45.0,
             max_width: 1000.0,
             inline_padding: 3.0,
+            annotation_font_size: 12.0,
             row_height: 16.0,
             block_padding: 10.0,
             indent: 26.0,
@@ -246,11 +248,12 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, font_system, files } = res;
-        let MdConfig { plaintext_mode, readonly, ext } = cfg;
+        let MdResources { ctx, core, persistence, files } = res;
+        let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         Self {
@@ -258,7 +261,6 @@ impl Editor {
             client: Default::default(),
             ctx,
             persistence,
-            font_system,
             files,
 
             dark_mode,
@@ -272,9 +274,9 @@ impl Editor {
             file_id,
             hmac,
             initialized: Default::default(),
-            plaintext_mode,
-            syntax_ext: ext,
+            ext,
             touch_mode,
+            phone_mode,
             layout,
 
             bounds: Default::default(),
@@ -287,6 +289,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
             touch_consuming_rects: Default::default(),
             scroll_area_velocity: Default::default(),
             text_areas: Default::default(),
@@ -308,6 +312,7 @@ impl Editor {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
+        let files = Arc::new(RwLock::new(FileCache::empty()));
         Self::new(
             md,
             Uuid::new_v4(),
@@ -326,10 +331,9 @@ impl Editor {
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
-                font_system: Arc::new(Mutex::new(crate::make_font_system())),
-                files: Arc::new(RwLock::new(None)),
+                files,
             },
-            MdConfig { plaintext_mode: false, readonly: false, ext: String::new() },
+            MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )
     }
 
@@ -366,6 +370,11 @@ impl Editor {
             m.surrender_focus(self.id());
         });
     }
+
+    pub fn plaintext_mode(&self) -> bool {
+        self.ext.to_lowercase() != "md"
+    }
+
     fn comrak_options() -> Options<'static> {
         let mut options = Options::default();
         options.parse.smart = true;
@@ -373,7 +382,7 @@ impl Editor {
         options.extension.alerts = true;
         options.extension.autolink = true;
         options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = true;
+        options.extension.footnotes = false;
         options.extension.front_matter_delimiter = Some("---".to_string());
         options.extension.greentext = false;
         options.extension.header_ids = None; // intended for HTML renderers
@@ -446,8 +455,14 @@ impl Editor {
             result
         };
 
-        self.emoji_completions.update_active_state(&self.buffer);
-        self.link_completions.update_active_state(&self.buffer);
+        self.emoji_completions
+            .update_active_state(&self.buffer, &self.bounds.inline_paragraphs);
+        self.link_completions.update_active_state(
+            &self.buffer,
+            &self.bounds.inline_paragraphs,
+            &self.files,
+            self.file_id,
+        );
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
@@ -459,7 +474,7 @@ impl Editor {
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
             self.bounds.inline_paragraphs.clear();
-            self.layout_cache.clear();
+            self.layout_cache.invalidate_text_change();
 
             self.calc_source_lines();
             self.compute_bounds(root);
@@ -588,7 +603,6 @@ impl Editor {
                     self.galleys.galleys.clear();
                     self.bounds.wrap_lines.clear();
                     self.touch_consuming_rects.clear();
-
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
@@ -649,6 +663,10 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
+        if self.debug {
+            self.show_debug_fps(ui);
+        }
+
         if PRINT {
             println!(
                 "{}",
@@ -674,8 +692,15 @@ impl Editor {
 
         // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if resp.selection_updated || images_updated || height_updated || width_updated {
+        if images_updated || height_updated || width_updated {
             self.layout_cache.clear();
+            ui.ctx().request_repaint();
+        } else if resp.selection_updated {
+            let new_selection = self
+                .in_progress_selection
+                .unwrap_or(self.buffer.current.selection);
+            self.layout_cache
+                .invalidate_selection_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
@@ -799,7 +824,7 @@ impl Editor {
                             self.top_left =
                                 ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
                             let height = {
-                                let document_height = self.height(root);
+                                let document_height = self.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
@@ -839,7 +864,7 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.show_block(ui, root, self.top_left);
+                                self.show_block(ui, root, self.top_left, &[root]);
                             });
                         });
                 });

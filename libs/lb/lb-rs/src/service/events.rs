@@ -29,7 +29,7 @@ pub enum Event {
     UserSignedIn,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Actor {
     User,
     Sync,

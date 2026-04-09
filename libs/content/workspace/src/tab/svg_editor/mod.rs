@@ -53,7 +53,6 @@ pub struct SVGEditor {
     input_controller: InputController,
     lb: Lb,
     pub open_file: Uuid,
-    has_islands_interaction: bool,
     last_render: Instant,
     renderer: Renderer,
     painter: egui::Painter,
@@ -192,7 +191,6 @@ impl SVGEditor {
             toolbar,
             lb,
             open_file,
-            has_islands_interaction: false,
             last_render: Instant::now(),
             painter: egui::Painter::new(
                 ctx.to_owned(),
@@ -275,7 +273,6 @@ impl SVGEditor {
                 false
             };
 
-        self.has_islands_interaction = false;
         self.buffer.master_transform_changed = false;
         ui.ctx().pop_events();
 
@@ -305,8 +302,7 @@ impl SVGEditor {
                         .max_rect(ui.available_rect_before_wrap())
                         .layout(egui::Layout::default()),
                 );
-                self.toolbar
-                    .show(&mut ui, &mut toolbar_context, &mut self.has_islands_interaction)
+                self.toolbar.show(&mut ui, &mut toolbar_context)
             },
         )
         .inner

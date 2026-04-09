@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
 
@@ -32,9 +33,17 @@ impl EmojiCompletions {
     /// Recomputes whether the popup should be active. Must be called before
     /// process_events so that translate_egui_keyboard_event can consult
     /// self.emoji_completions.active when deciding whether to swallow keys.
-    pub fn update_active_state(&mut self, buffer: &Buffer) {
+    pub fn update_active_state(&mut self, buffer: &Buffer, inline_paragraphs: &Paragraphs) {
         self.active = false;
         self.search_term_range = None;
+
+        if inline_paragraphs
+            .find_containing(buffer.current.selection.1, true, true)
+            .is_empty()
+        {
+            // not in an inline paragraph; wherever the cursor is rn, inlines do not apply
+            return;
+        }
 
         let Some(range) = detect_query(buffer) else { return };
         let Some(query) = query_from_range(buffer, range) else { return };
@@ -61,6 +70,11 @@ impl EmojiCompletions {
 /// with the cursor anywhere inside `:smile:` this returns the range covering
 /// that entire token. The caller reads `buffer[range]` and strips colons to
 /// get the search query.
+/// Returns the grapheme `&str` at the given char offset.
+fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
+    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+}
+
 fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     let selection = buffer.current.selection;
 
@@ -71,8 +85,7 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     }
 
     let cursor_idx = selection.1.0;
-    let text = buffer.current.text.to_string();
-    let chars: Vec<char> = text.chars().collect();
+    let len = buffer.current.segs.last_cursor_position().0;
 
     // Scan backward to find the opening ':'.
     let mut i = cursor_idx;
@@ -84,12 +97,17 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         }
         i -= 1;
 
-        let c = chars[i];
+        let g = grapheme_at(buffer, i);
 
-        if c == ':' {
+        if g == ":" {
             // Don't trigger when ':' immediately follows a word character, so
             // tokens like "http://", "e.g.:", or "v1.0:" are ignored.
-            if i > 0 && chars[i - 1].is_alphanumeric() {
+            if i > 0
+                && grapheme_at(buffer, i - 1)
+                    .chars()
+                    .next()
+                    .is_some_and(|c| c.is_alphanumeric())
+            {
                 return None;
             }
             colon_idx = i;
@@ -97,7 +115,7 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         }
 
         // Hit whitespace before finding ':' — not inside a shortcode token.
-        if c.is_whitespace() {
+        if g.chars().next().is_some_and(|c| c.is_whitespace()) {
             return None;
         }
 
@@ -111,8 +129,14 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
     // whitespace, a closing ':', or the scan limit. This means the cursor can
     // be anywhere inside `:smile:` and the full shortcode is still the query.
     let mut j = cursor_idx;
-    while j < chars.len() && !chars[j].is_whitespace() && j - cursor_idx <= 30 {
-        if chars[j] == ':' {
+    while j < len
+        && !grapheme_at(buffer, j)
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_whitespace())
+        && j - cursor_idx <= 30
+    {
+        if grapheme_at(buffer, j) == ":" {
             // Found a closing colon — include it in the replacement range.
             j += 1;
             break;
@@ -294,8 +318,11 @@ impl Editor {
 
             let mut chosen = None;
             ui.input(|i| {
-                let modifier =
-                    if cfg!(target_os = "macos") { i.modifiers.command } else { i.modifiers.ctrl };
+                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                    i.modifiers.command
+                } else {
+                    i.modifiers.ctrl
+                };
                 for (idx, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5]
                     .iter()
                     .enumerate()
@@ -319,14 +346,14 @@ impl Editor {
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
         let hint_color = ui.visuals().weak_text_color();
-        let modifier = if cfg!(target_os = "macos") { "⌘" } else { "^" };
+        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
 
         let shortcodes: Vec<&str> = results
             .iter()
             .map(|emoji| matching_shortcode(emoji, &query))
             .collect();
 
-        let hints: Vec<String> = if self.touch_mode {
+        let hints: Vec<String> = if self.phone_mode {
             Vec::new()
         } else {
             (0..results.len())

@@ -1,9 +1,8 @@
-use std::sync::{Arc, Mutex, RwLock, mpsc};
+use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 
 use egui::text::LayoutJob;
 use egui::{Image, ScrollArea, UiBuilder};
-use glyphon::FontSystem;
 use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
@@ -40,7 +39,6 @@ impl Router {
 
 pub struct OnboardScreen {
     pub settings: Arc<RwLock<Settings>>,
-    pub font_system: Arc<Mutex<FontSystem>>,
     pub core: Lb,
 
     update_tx: mpsc::Sender<AccountUpdate>,
@@ -64,14 +62,11 @@ pub struct OnboardScreen {
 }
 
 impl OnboardScreen {
-    pub fn new(
-        settings: Arc<RwLock<Settings>>, font_system: Arc<Mutex<FontSystem>>, core: Lb,
-    ) -> Self {
+    pub fn new(settings: Arc<RwLock<Settings>>, core: Lb) -> Self {
         let (update_tx, update_rx) = mpsc::channel();
 
         Self {
             settings,
-            font_system,
             core,
             update_tx,
             update_rx,

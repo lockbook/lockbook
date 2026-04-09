@@ -2,8 +2,7 @@ name: Apple Deployment
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ master ]
+  workflow_call:
 
 jobs:
   DeployApple:
@@ -25,3 +24,15 @@ jobs:
       run: cargo r -p lbdev releaser apple ios
     - name: deploy macOS
       run: cargo r -p lbdev releaser apple mac-app-store
+    - name: build CLI
+      run: cargo r -p lbdev releaser apple cli-build
+    - name: Upload macOS app
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-macos
+        path: clients/apple/build/lockbook-macos.app.zip
+    - name: Upload macOS CLI
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-cli-macos
+        path: target/universal-cli/lockbook-cli-macos.tar.gz

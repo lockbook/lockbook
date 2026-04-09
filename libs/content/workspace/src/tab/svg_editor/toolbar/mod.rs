@@ -268,13 +268,10 @@ impl Toolbar {
         }
     }
 
-    pub fn show(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext,
-        has_islands_interaction: &mut bool,
-    ) -> bool {
+    pub fn show(&mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) -> bool {
         let mut res = self.handle_keyboard_shortcuts(ui, tlbr_ctx);
 
-        let tool_popover_at_cursor = self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
+        self.show_tool_popovers_at_cursor(ui, tlbr_ctx);
 
         let target_opacity = if self.hide_overlay {
             0.0
@@ -289,115 +286,68 @@ impl Toolbar {
 
         ui.set_opacity(opacity);
 
-        let (history_island, history_dirty) = self.show_history_island(ui, tlbr_ctx);
+        let (_, history_dirty) = self.show_history_island(ui, tlbr_ctx);
         if history_dirty {
             res = true;
         }
 
-        let overlay_toggle_res = ui
-            .scope(|ui| {
-                if !self.input_controller_interrupt {
-                    ui.set_opacity(1.0);
-                }
-                self.show_overlay_toggle(ui, tlbr_ctx)
-            })
-            .inner;
+        ui.scope(|ui| {
+            if !self.input_controller_interrupt {
+                ui.set_opacity(1.0);
+            }
+            self.show_overlay_toggle(ui, tlbr_ctx)
+        });
 
         if opacity == 0.0 {
-            if overlay_toggle_res.hovered()
-                || overlay_toggle_res.clicked()
-                || overlay_toggle_res.contains_pointer()
-            {
-                *has_islands_interaction = true;
-            }
             return res;
         }
 
-        let (buffer_changed, mini_map_res) = self.show_mini_map(ui, tlbr_ctx);
+        let (buffer_changed, _) = self.show_mini_map(ui, tlbr_ctx);
         if buffer_changed {
             res = true;
-            *has_islands_interaction = true;
         }
 
         // shows the viewport island + popovers + bring home button
-        let viewport_controls = self.show_viewport_controls(ui, tlbr_ctx);
+        self.show_viewport_controls(ui, tlbr_ctx);
 
         if tlbr_ctx.read_only {
             return res;
         }
 
-        let tools_island = self.show_tools_island(ui);
-        let tool_controls_res = self.show_tool_popovers(ui, tlbr_ctx);
-        if buffer_changed {
-            res = true;
-            *has_islands_interaction = true;
-        }
+        self.show_tools_island(ui);
+        self.show_tool_popovers(ui, tlbr_ctx);
 
-        if is_pointer_over_res(ui, &history_island) {
-            *has_islands_interaction = true;
-        }
-
-        if let Some(res) = tool_popover_at_cursor {
-            if is_pointer_over_res(ui, &res) {
-                *has_islands_interaction = true;
-            }
-        }
-        if let Some(res) = mini_map_res {
-            if is_pointer_over_res(ui, &res) {
-                *has_islands_interaction = true;
-            }
-        }
-
-        if let Some(res) = tool_controls_res {
-            if is_pointer_over_res(ui, &res) {
-                *has_islands_interaction = true;
-            }
-        }
-        if let Some(res) = viewport_controls {
-            if is_pointer_over_res(ui, &res) {
-                *has_islands_interaction = true;
-            }
-        }
-
-        if is_pointer_over_res(ui, &tools_island.inner.response) {
-            *has_islands_interaction = true;
-        }
-
-        if is_pointer_over_res(ui, &overlay_toggle_res) {
-            *has_islands_interaction = true;
-        }
         res
     }
 
     pub fn get_rects(&self) -> Vec<egui::Rect> {
-        let overlay = {
-            if self.hide_overlay {
-                vec![self.layout.overlay_toggle]
-            } else {
-                let mut islands = vec![
-                    self.layout.history_island,
-                    self.layout.overlay_toggle,
-                    self.layout.tools_island,
-                    self.layout.viewport_island,
-                    self.layout.bring_back_btn,
-                    self.selection.layout.container_tooltip,
-                    self.selection.layout.popover,
-                ];
-                if self.show_tool_popover {
-                    islands.push(self.layout.tool_popover);
+        let mut islands = vec![self.layout.overlay_toggle];
+
+        if !self.hide_overlay {
+            let temp = vec![
+                self.layout.history_island,
+                self.layout.overlay_toggle,
+                self.layout.tools_island,
+                self.layout.viewport_island,
+                self.layout.bring_back_btn,
+                self.selection.layout.container_tooltip,
+                self.selection.layout.popover,
+            ];
+            islands.extend(temp);
+
+            if let Some(popover) = self.viewport_popover {
+                match popover {
+                    ViewportPopover::More => islands.push(self.layout.viewport_popover),
+                    ViewportPopover::ZoomStops => islands.push(self.layout.zoom_stops_popover),
                 };
-                if let Some(popover) = self.viewport_popover {
-                    match popover {
-                        ViewportPopover::More => islands.push(self.layout.viewport_popover),
-                        ViewportPopover::ZoomStops => islands.push(self.layout.zoom_stops_popover),
-                    };
-                };
-                islands
-                // todo: handle mini map!!
-            }
+            };
+        }
+
+        if self.show_tool_popover || self.show_at_cursor_tool_popover.is_some() {
+            islands.push(self.layout.tool_popover);
         };
 
-        overlay
+        islands
             .iter()
             .filter_map(|&i| i)
             .collect::<Vec<egui::Rect>>()
@@ -555,23 +505,6 @@ impl SVGEditor {
 
         false
     }
-}
-
-fn is_pointer_over_res(ui: &mut egui::Ui, overlay_res: &egui::Response) -> bool {
-    ui.input(|r| {
-        for ev in r.events.iter() {
-            let temp = match ev {
-                egui::Event::PointerMoved(pos2) => overlay_res.rect.contains(*pos2),
-                egui::Event::PointerButton { pos, .. } => overlay_res.rect.contains(*pos),
-                egui::Event::Touch { pos, .. } => overlay_res.rect.contains(*pos),
-                _ => false,
-            };
-            if temp {
-                return true;
-            }
-        }
-        false
-    })
 }
 
 pub fn show_section_header(ui: &mut egui::Ui, label: &str) {

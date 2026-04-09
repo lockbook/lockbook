@@ -5,14 +5,13 @@ mod tree;
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock, mpsc};
+use std::sync::{Arc, RwLock, mpsc};
 use std::time::Duration;
 use std::{path, process, thread};
 
 use egui::scroll_area::ScrollBarVisibility;
 use egui::style::ScrollStyle;
 use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
-use glyphon::FontSystem;
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -59,7 +58,7 @@ pub struct AccountScreen {
 impl AccountScreen {
     pub fn new(
         settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
-        font_system: Arc<Mutex<FontSystem>>, is_new_user: bool,
+        is_new_user: bool,
     ) -> Self {
         let core = core.clone();
         let (update_tx, update_rx) = mpsc::channel();
@@ -84,7 +83,7 @@ impl AccountScreen {
             ),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), font_system, true),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
@@ -223,13 +222,11 @@ impl AccountScreen {
                 }
 
                 if let Some(file) = wso.selected_file {
-                    if !self.tree.selected.contains(&file) {
-                        self.tree.cursor = Some(file);
-                        self.tree.selected.clear();
-                        self.tree.selected.insert(file);
-                        self.tree.reveal_selection();
-                        self.tree.scroll_to_cursor = true;
-                    }
+                    self.tree.cursor = Some(file);
+                    self.tree.selected.clear();
+                    self.tree.selected.insert(file);
+                    self.tree.reveal_selection();
+                    self.tree.scroll_to_cursor = true;
                 }
 
                 for msg in wso.failure_messages {
