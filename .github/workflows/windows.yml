@@ -1,0 +1,16 @@
+name: Windows Deployment
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy-windows:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Windows
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo run -p lbdev -- releaser windows all

@@ -36,3 +36,8 @@ jobs:
     with:
       environment: prod-play-store
     secrets: inherit
+
+  deploy_windows:
+    needs: release
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
