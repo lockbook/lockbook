@@ -25,6 +25,7 @@ use markdown_editor::input::Region;
 
 pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
 pub const ICON_SIZE: f32 = 16.0;
+pub const BUTTON_SIZE: f32 = 27.0;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
 pub const MENU_MARGIN: f32 = 20.; // space on left and right side
 
@@ -60,6 +61,7 @@ pub struct ToolbarPersistence {
     image: bool,
     indent: bool,
     deindent: bool,
+    search: bool,
 }
 
 impl<'ast> Editor {
@@ -71,10 +73,10 @@ impl<'ast> Editor {
     }
 
     /// Computes the toolbar's content width without drawing it.
-    fn toolbar_width(&self, ui: &Ui) -> f32 {
-        let btn = IconButton::new(Icon::UNDO.size(ICON_SIZE)).measure(ui).x;
-        let sep = 20.; // separator spacing
-        let gap = 5.; // intra-group spacing
+    pub fn toolbar_width(&self) -> f32 {
+        let btn = BUTTON_SIZE;
+        let sep = 20.; // separator with .spacing(20.)
+        let gap = 5.; // explicit add_space(5.) between buttons
         let margin = 10.; // padding on each side
 
         let persistence = self.persistence.get_markdown().toolbar;
@@ -91,8 +93,15 @@ impl<'ast> Editor {
 
         let mut w = 2. * margin;
 
-        if is_mobile && self.virtual_keyboard_shown {
-            w += btn + sep;
+        if is_mobile {
+            let mut n = 0;
+            if self.virtual_keyboard_shown {
+                n += 1;
+            }
+            if persistence.search || is_default {
+                n += 1;
+            }
+            w += group(n);
         }
 
         w += group(count(&[persistence.undo, persistence.redo]));
@@ -114,14 +123,12 @@ impl<'ast> Editor {
             persistence.task_list,
         ]));
 
-        // media group (camera is iOS-only)
         let mut media = count(&[persistence.link]);
         if (persistence.image || is_default) && is_ios {
             media += 1;
         }
         w += group(media);
 
-        // indent group (no trailing separator — last group)
         let n = count(&[persistence.indent, persistence.deindent]);
         if n > 0 {
             w += btn * n as f32 + gap * (n - 1) as f32;
@@ -133,7 +140,7 @@ impl<'ast> Editor {
     #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
     pub fn show_toolbar_inner(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         // center the toolbar content horizontally
-        let toolbar_w = self.toolbar_width(ui);
+        let toolbar_w = self.toolbar_width();
         let available = ui.available_width();
         let offset = ((available - toolbar_w) / 2.).max(0.);
 
@@ -149,29 +156,59 @@ impl<'ast> Editor {
                     ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
                     let toolbar_margin = 10.;
-                    ui.add_space(toolbar_margin);
-                    if offset > toolbar_margin {
-                        ui.add_space(offset - toolbar_margin);
-                    }
+                    // offset centers the full toolbar_w (including margins);
+                    // add margin so buttons start after the leading margin
+                    ui.add_space(offset + toolbar_margin);
 
                     let persistence = self.persistence.get_markdown().toolbar;
                     let toolbar_is_default = persistence == Default::default();
 
                     let mut events = Vec::new();
 
-                    if is_mobile && self.virtual_keyboard_shown {
-                        if IconButton::new(Icon::KEYBOARD_HIDE.size(16.0))
-                            .show(ui)
-                            .clicked()
-                        {
-                            ui.ctx().set_virtual_keyboard_shown(false);
+                    if is_mobile {
+                        let mut any_util = false;
+                        if self.virtual_keyboard_shown {
+                            if IconButton::new(Icon::KEYBOARD_HIDE.size(ICON_SIZE))
+                                .size(BUTTON_SIZE)
+                                .show(ui)
+                                .clicked()
+                            {
+                                ui.ctx().set_virtual_keyboard_shown(false);
+                            }
+                            any_util = true;
                         }
-                        add_seperator(ui);
+                        if persistence.search || toolbar_is_default {
+                            if any_util {
+                                ui.add_space(5.);
+                            }
+                            let find_open = self.find.term.is_some();
+                            if IconButton::new(Icon::SEARCH.size(ICON_SIZE))
+                                .size(BUTTON_SIZE)
+                                .tooltip("Search")
+                                .colored(find_open)
+                                .disabled(self.toolbar.menu_open)
+                                .show(ui)
+                                .clicked()
+                            {
+                                if find_open {
+                                    self.find.term = None;
+                                    self.find.matches.clear();
+                                    self.find.current_match = None;
+                                } else {
+                                    self.find.open_requested = true;
+                                }
+                            }
+                            any_util = true;
+                        }
+                        if any_util {
+                            add_seperator(ui);
+                        }
                     }
 
                     let mut any_undo_redo = false;
                     if persistence.undo || toolbar_is_default {
-                        if IconButton::new(Icon::UNDO.size(16.0))
+                        if IconButton::new(Icon::UNDO.size(ICON_SIZE))
+                            .size(BUTTON_SIZE)
                             .disabled(self.toolbar.menu_open)
                             .tooltip("Undo")
                             .show(ui)
@@ -179,15 +216,14 @@ impl<'ast> Editor {
                         {
                             events.push(Event::Undo);
                         }
-
                         any_undo_redo = true;
                     }
                     if persistence.redo || toolbar_is_default {
                         if any_undo_redo {
                             ui.add_space(5.);
                         }
-
-                        if IconButton::new(Icon::REDO.size(16.0))
+                        if IconButton::new(Icon::REDO.size(ICON_SIZE))
+                            .size(BUTTON_SIZE)
                             .disabled(self.toolbar.menu_open)
                             .tooltip("Redo")
                             .show(ui)
@@ -195,7 +231,6 @@ impl<'ast> Editor {
                         {
                             events.push(Event::Redo);
                         }
-
                         any_undo_redo = true;
                     }
                     if any_undo_redo {
@@ -372,6 +407,7 @@ impl<'ast> Editor {
                                 ui.add_space(5.);
                             }
                             if IconButton::new(Icon::CAMERA.size(ICON_SIZE))
+                                .size(BUTTON_SIZE)
                                 .tooltip("Camera")
                                 .disabled(self.toolbar.menu_open)
                                 .show(ui)
@@ -389,6 +425,7 @@ impl<'ast> Editor {
                     let mut any_indent = false;
                     if persistence.indent || toolbar_is_default {
                         if IconButton::new(Icon::INDENT.size(ICON_SIZE))
+                            .size(BUTTON_SIZE)
                             .tooltip("Indent")
                             .disabled(self.toolbar.menu_open)
                             .show(ui)
@@ -403,6 +440,7 @@ impl<'ast> Editor {
                             ui.add_space(5.);
                         }
                         if IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
+                            .size(BUTTON_SIZE)
                             .tooltip("De-indent")
                             .disabled(self.toolbar.menu_open)
                             .show(ui)
@@ -432,6 +470,7 @@ impl<'ast> Editor {
                             }
                             .size(ICON_SIZE),
                         )
+                        .size(BUTTON_SIZE)
                         .tooltip("Toolbar Settings")
                         .colored(self.toolbar.menu_open)
                         .show(ui)
@@ -482,6 +521,7 @@ impl<'ast> Editor {
         let style = NodeValue::Heading(NodeHeading { level, ..Default::default() });
 
         let resp = IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
+            .size(BUTTON_SIZE)
             .colored(applied)
             .tooltip(style.name())
             .disabled(self.toolbar.menu_open)
@@ -508,6 +548,7 @@ impl<'ast> Editor {
 
     fn button(&self, icon: Icon, style: NodeValue, applied: bool, ui: &mut Ui) -> Option<Event> {
         let resp = IconButton::new(icon)
+            .size(BUTTON_SIZE)
             .colored(applied)
             .tooltip(style.name())
             .disabled(self.toolbar.menu_open)
@@ -574,6 +615,28 @@ impl<'ast> Editor {
                                 + ui.spacing().item_spacing.y;
 
                             ui.add_space(MENU_SPACE);
+                            top_left.y += MENU_SPACE;
+
+                            // search
+                            if self
+                                .menu_toggle(
+                                    ui,
+                                    top_left,
+                                    md_width,
+                                    "Search",
+                                    IconButton::new(Icon::SEARCH.size(ICON_SIZE))
+                                        .colored(persistence.search),
+                                )
+                                .clicked()
+                            {
+                                let mut persistence = self.persistence.data.write().unwrap();
+                                let persistence = &mut persistence.markdown.toolbar;
+                                persistence.search ^= true;
+                                self.persistence.write_to_file();
+                            }
+                            top_left.y += self.menu_toggle_height("Search");
+
+                            Separator::default().spacing(MENU_SPACE).ui(ui);
                             top_left.y += MENU_SPACE;
 
                             // undo / redo

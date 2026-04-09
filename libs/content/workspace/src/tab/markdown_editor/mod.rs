@@ -924,17 +924,17 @@ impl Editor {
 
     fn show_find_centered(&mut self, ui: &mut Ui) {
         let available = ui.available_width();
-        let content_width = self.width - 2. * self.layout.margin;
-        let content_left =
-            ui.max_rect().left() + (available - self.width) / 2. + self.layout.margin;
+        let content_width =
+            if self.touch_mode { self.width } else { self.toolbar_width().min(self.width) };
+        let content_left = ui.max_rect().left() + (available - content_width) / 2.;
         let top = ui.cursor().min.y;
         let find_rect =
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
-        let find_resp = ui
-            .scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
-                self.find.show(&self.buffer, ui)
-            })
-            .inner;
+        let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
+            self.find.show(&self.buffer, ui)
+        });
+        let find_resp = scope_resp.inner;
+        ui.advance_cursor_after_rect(scope_resp.response.rect);
         self.process_find_response(find_resp);
     }
 

@@ -46,6 +46,7 @@ pub struct Find {
     pub regex: bool,
     select_all_on_focus: bool,
     refocus_term_changed: bool,
+    pub open_requested: bool,
     /// All match ranges in the document for the current search term.
     pub matches: Vec<(DocCharOffset, DocCharOffset)>,
     /// Index into `matches` for the currently focused match, if any.
@@ -64,6 +65,7 @@ impl Default for Find {
             regex: false,
             select_all_on_focus: false,
             refocus_term_changed: false,
+            open_requested: false,
             matches: Vec::new(),
             current_match: None,
         }
@@ -86,7 +88,9 @@ pub struct Response {
 
 impl Find {
     pub fn show(&mut self, buffer: &Buffer, ui: &mut Ui) -> Response {
-        if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift) {
+        let open = std::mem::take(&mut self.open_requested)
+            || ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift);
+        if open {
             if self.term.is_none() {
                 let term = String::from(&buffer[buffer.current.selection]);
                 self.term = Some(term);
@@ -115,7 +119,7 @@ impl Find {
 
         let resp = if self.term.is_some() {
             Frame::NONE
-                .inner_margin(Margin::symmetric(0, 8))
+                .inner_margin(Margin::symmetric(10, 10))
                 .show(ui, |ui| self.show_inner(ui))
                 .inner
         } else {
@@ -151,10 +155,16 @@ impl Find {
                 return result;
             };
 
+            // don't render if there's not enough space
+            if ui.available_width() < 100. {
+                return result;
+            }
+
             let input_bg = ui.ctx().get_lb_theme().neutral_bg_secondary();
             let input_padding = Margin::symmetric(6, 4);
             let btn_height = 14.0_f32 * 1.4 + input_padding.sum().y;
-            let icon = |i: Icon| IconButton::new(i.size(14.)).subdued(true).size(btn_height);
+            let toggle = |i: Icon| IconButton::new(i.size(14.)).subdued(true).size(btn_height);
+            let action = |i: Icon| IconButton::new(i.size(14.)).size(btn_height);
             let input_frame = || {
                 Frame::NONE
                     .fill(input_bg)
@@ -188,25 +198,15 @@ impl Find {
                 .with_layout(rtl, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.;
 
-                    if icon(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
+                    if action(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
                         result.closed = true;
-                    }
-                    if icon(Icon::CHEVRON_DOWN).tooltip("Next").show(ui).clicked() {
-                        result.navigate = Some(true);
-                    }
-                    if icon(Icon::CHEVRON_UP)
-                        .tooltip("Previous")
-                        .show(ui)
-                        .clicked()
-                    {
-                        result.navigate = Some(false);
                     }
                     for (ic, tip, flag) in [
                         (Icon::REGEX, "Regex", &mut self.regex),
                         (Icon::WHOLE_WORD, "Whole Word", &mut self.whole_word),
                         (Icon::CASE_SENSITIVE, "Match Case", &mut self.case_sensitive),
                     ] {
-                        if icon(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
+                        if toggle(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
                             *flag = !*flag;
                             result.term_changed = true;
                         }
@@ -258,15 +258,29 @@ impl Find {
                             .show(ui);
                     });
 
-                    if icon(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
+                    if toggle(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
                         result.replace_one = true;
                     }
-                    if icon(Icon::REPLACE_ALL)
+                    if toggle(Icon::REPLACE_ALL)
                         .tooltip("Replace All")
                         .show(ui)
                         .clicked()
                     {
                         result.replace_all = true;
+                    }
+                    if action(Icon::CHEVRON_UP)
+                        .tooltip("Previous")
+                        .show(ui)
+                        .clicked()
+                    {
+                        result.navigate = Some(false);
+                    }
+                    if action(Icon::CHEVRON_DOWN)
+                        .tooltip("Next")
+                        .show(ui)
+                        .clicked()
+                    {
+                        result.navigate = Some(true);
                     }
 
                     ui.memory(|m| m.has_focus(self.replace_id))
