@@ -79,6 +79,9 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
+
+    // Used to restrict iOS TextInteraction area
+    pub find_widget_height: f32,
 }
 
 pub struct Editor {
@@ -133,6 +136,7 @@ pub struct Editor {
     // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
+    scroll_to_find_match: bool,
     pub unprocessed_scroll: Option<Instant>,
 
     // layout
@@ -300,6 +304,7 @@ impl Editor {
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
+            scroll_to_find_match: Default::default(),
             unprocessed_scroll: Default::default(),
 
             top_left: Default::default(),
@@ -482,6 +487,19 @@ impl Editor {
 
             self.calc_words();
 
+            // recompute find matches when text changes
+            if let Some(term) = &self.find.term {
+                let term = term.clone();
+                self.find.matches = self.find_all(&term);
+                if self.find.matches.is_empty() {
+                    self.find.current_match = None;
+                } else if let Some(idx) = self.find.current_match {
+                    if idx >= self.find.matches.len() {
+                        self.find.current_match = Some(self.find.matches.len() - 1);
+                    }
+                }
+            }
+
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection
@@ -507,13 +525,7 @@ impl Editor {
         let scroll_area_id = ui
             .vertical(|ui| {
                 let scroll_area_id = if self.touch_mode {
-                    // touch devices: show find...
-                    let find_resp = self.find.show(&self.buffer, ui);
-                    if let Some(term) = find_resp.term {
-                        self.event
-                            .internal_events
-                            .push(Event::Find { term, backwards: find_resp.backwards });
-                    }
+                    self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
@@ -586,23 +598,16 @@ impl Editor {
                             .y
                     });
 
-                    // non-touch devices: show toolbar...
                     if !self.readonly {
                         self.show_toolbar(root, ui);
                     }
-
-                    // ...then show find...
-                    let find_resp = self.find.show(&self.buffer, ui);
-                    if let Some(term) = find_resp.term {
-                        self.event
-                            .internal_events
-                            .push(Event::Find { term, backwards: find_resp.backwards });
-                    }
+                    self.show_find_centered(ui);
 
                     // these are computed during render
                     self.galleys.galleys.clear();
                     self.bounds.wrap_lines.clear();
                     self.touch_consuming_rects.clear();
+
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
@@ -700,7 +705,7 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.buffer.current.selection);
             self.layout_cache
-                .invalidate_selection_change(prior_selection, new_selection);
+                .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
@@ -870,6 +875,7 @@ impl Editor {
                 });
                 self.galleys.galleys.sort_by_key(|g| g.range);
 
+                // show selection
                 if ui.ctx().os() != OperatingSystem::IOS {
                     let selection = self
                         .in_progress_selection
@@ -891,13 +897,101 @@ impl Editor {
                         }
                     }
                 }
+
+                // show find match highlights
+                if !self.find.matches.is_empty() {
+                    let theme = self.ctx.get_lb_theme();
+                    let highlight_color = theme.neutral_bg_tertiary();
+                    let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                    for (i, &match_range) in self.find.matches.iter().enumerate() {
+                        let color = if self.find.current_match == Some(i) {
+                            current_color
+                        } else {
+                            highlight_color
+                        };
+                        self.show_range(ui, match_range, color);
+                    }
+                }
+
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);
                 }
                 if mem::take(&mut self.scroll_to_cursor) {
                     self.scroll_to_cursor(ui);
                 }
+                if mem::take(&mut self.scroll_to_find_match) {
+                    self.scroll_to_find_match(ui);
+                }
             })
+    }
+
+    fn show_find_centered(&mut self, ui: &mut Ui) {
+        let available = ui.available_width();
+        let content_width =
+            if self.touch_mode { self.width } else { self.toolbar_width().min(self.width) };
+        let content_left = ui.max_rect().left() + (available - content_width) / 2.;
+        let top = ui.cursor().min.y;
+        let find_rect =
+            Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
+        let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
+            self.find
+                .show(&self.buffer, self.virtual_keyboard_shown, ui)
+        });
+        let find_resp = scope_resp.inner;
+        let rendered_rect = scope_resp.response.rect;
+        ui.advance_cursor_after_rect(rendered_rect);
+        self.next_resp.find_widget_height = rendered_rect.height();
+        self.process_find_response(find_resp);
+    }
+
+    fn process_find_response(&mut self, resp: widget::find::Response) {
+        if resp.replace_one {
+            if let Some(idx) = self.find.current_match {
+                if let Some(&match_range) = self.find.matches.get(idx) {
+                    let replacement = self.find.replace_term.clone();
+                    self.event.internal_events.push(Event::Replace {
+                        region: match_range.into(),
+                        text: replacement,
+                        advance_cursor: false,
+                    });
+                }
+            }
+        }
+        if resp.replace_all {
+            let replacement = self.find.replace_term.clone();
+            for &match_range in self.find.matches.iter().rev() {
+                self.event.internal_events.push(Event::Replace {
+                    region: match_range.into(),
+                    text: replacement.clone(),
+                    advance_cursor: false,
+                });
+            }
+        }
+        if resp.term_changed {
+            let term = self.find.term.clone().unwrap_or_default();
+            self.event.internal_events.push(Event::FindSearch { term });
+        }
+        if let Some(forward) = resp.navigate {
+            self.event
+                .internal_events
+                .push(Event::FindNavigate { backwards: !forward });
+        }
+        if resp.closed {
+            self.find.matches.clear();
+            self.find.current_match = None;
+            self.layout_cache.clear();
+        }
+    }
+
+    fn scroll_to_find_match(&self, ui: &mut Ui) {
+        if let Some(idx) = self.find.current_match {
+            if let Some(match_range) = self.find.matches.get(idx) {
+                let rects = self.range_rects(*match_range);
+                if let Some(rect) = rects.first() {
+                    ui.scroll_to_rect(rect.expand(rect.height()), Some(egui::Align::Center));
+                }
+            }
+        }
     }
 }
 

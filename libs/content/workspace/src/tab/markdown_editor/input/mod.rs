@@ -99,7 +99,8 @@ pub enum Event {
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
-    Find { term: String, backwards: bool },
+    FindSearch { term: String },
+    FindNavigate { backwards: bool },
     Undo,
     Redo,
     Cut,

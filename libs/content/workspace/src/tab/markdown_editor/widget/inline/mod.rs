@@ -307,7 +307,7 @@ impl<'ast> Editor {
 
         let any_children = node.children().next().is_some();
         if any_children {
-            let reveal = self.node_intersects_selection(node);
+            let reveal = self.node_revealed(node);
             if reveal {
                 if let Some(prefix_range) = self.prefix_range(node) {
                     if !prefix_range.trim(&range).is_empty() {
@@ -344,7 +344,7 @@ impl<'ast> Editor {
         let mut response = Default::default();
         let any_children = node.children().next().is_some();
         if any_children {
-            let reveal = self.node_intersects_selection(node);
+            let reveal = self.node_revealed(node);
             if let Some(prefix_range) = self.prefix_range(node) {
                 if !prefix_range.trim(&range).is_empty() {
                     if reveal {
@@ -422,5 +422,47 @@ impl<'ast> Editor {
     pub fn node_contains_selection(&self, node: &'ast AstNode<'ast>) -> bool {
         self.node_range(node)
             .contains_range(&self.buffer.current.selection, true, true)
+    }
+
+    /// Returns true if the node's range intersects any reveal range. Drop-in
+    /// replacement for `node_intersects_selection` in reveal contexts.
+    pub fn node_revealed(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_revealed(self.node_range(node), false)
+    }
+
+    /// Returns the ranges that force nodes to reveal their syntax. Currently
+    /// this is the selection and the current find match (if any).
+    pub fn reveal_ranges(&self) -> impl Iterator<Item = (DocCharOffset, DocCharOffset)> + '_ {
+        let selection = Some(self.buffer.current.selection);
+        let find_match = self
+            .find
+            .current_match
+            .and_then(|idx| self.find.matches.get(idx).copied());
+        selection.into_iter().chain(find_match)
+    }
+
+    /// Returns true if `range` intersects any reveal range.
+    pub fn range_revealed(&self, range: (DocCharOffset, DocCharOffset), allow_empty: bool) -> bool {
+        self.reveal_ranges()
+            .any(|rr| range.intersects(&rr, allow_empty))
+    }
+
+    /// Returns true if `range` contains any reveal range.
+    pub fn range_contains_revealed(
+        &self, range: (DocCharOffset, DocCharOffset), allow_empty_range: bool,
+        allow_empty_selection: bool,
+    ) -> bool {
+        self.reveal_ranges()
+            .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
+    }
+
+    /// Returns true if any reveal range start or end falls within `range`.
+    pub fn range_contains_reveal_endpoint(
+        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+    ) -> bool {
+        self.reveal_ranges().any(|rr| {
+            range.contains(rr.start(), start_inclusive, end_inclusive)
+                || range.contains(rr.end(), start_inclusive, end_inclusive)
+        })
     }
 }

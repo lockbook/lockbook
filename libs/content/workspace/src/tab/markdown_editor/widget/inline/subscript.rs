@@ -26,7 +26,7 @@ impl<'ast> Editor {
 
         let mut response = Default::default();
 
-        if self.node_intersects_selection(node) {
+        if self.node_revealed(node) {
             if let Some(prefix_range) = self.prefix_range(node) {
                 if range.contains_range(&prefix_range, true, true) {
                     response |= self.show_section(
@@ -42,7 +42,7 @@ impl<'ast> Editor {
 
         response |= self.show_inline_children(ui, node, top_left, wrap, range);
 
-        if self.node_intersects_selection(node) {
+        if self.node_revealed(node) {
             if let Some(postfix_range) = self.postfix_range(node) {
                 if range.contains_range(&postfix_range, true, true) {
                     response |=

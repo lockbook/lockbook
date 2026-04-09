@@ -482,7 +482,7 @@ impl<'a> GlyphonTextEdit<'a> {
                 if blink_on {
                     const CURSOR_W: f32 = 1.5;
                     let cx = (rect.min.x + cursor_x - state.singleline_offset)
-                        .clamp(rect.min.x, rect.max.x - CURSOR_W);
+                        .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
                     ui.painter().rect_filled(
                         Rect::from_min_max(
                             egui::pos2(cx, rect.min.y + 2.0),

@@ -15,7 +15,7 @@ impl<'ast> Editor {
         let width = self.width(node);
         let node_line = self.node_line(node, self.node_first_line(node));
 
-        if self.node_intersects_selection(node) {
+        if self.node_revealed(node) {
             let mut wrap = self.new_wrap(width);
             self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
             self.bounds.wrap_lines.extend(wrap.row_ranges);

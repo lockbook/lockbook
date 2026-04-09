@@ -254,11 +254,7 @@ impl<'ast> Editor {
     pub fn item_fold_reveal(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
     ) -> bool {
-        self.item_contents(node, siblings).contains_range(
-            &self.buffer.current.selection,
-            false,
-            true,
-        )
+        self.range_contains_revealed(self.item_contents(node, siblings), false, true)
     }
 
     /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()

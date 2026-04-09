@@ -647,22 +647,18 @@ impl LayoutCache {
         // glyphon_buffers: content-addressed, preserved across text changes
     }
 
-    /// Invalidates height entries affected by a selection change. A node's
-    /// height depends on its reveal state (selection-dependent), so we evict
-    /// nodes that intersect the old or new selection. We also evict ancestors
-    /// of invalidated nodes (any entry whose range contains an evicted range)
-    /// because their heights are sums of their children's heights.
-    pub fn invalidate_selection_change(
-        &self, old_selection: (DocCharOffset, DocCharOffset),
-        new_selection: (DocCharOffset, DocCharOffset),
+    /// Invalidates height entries affected by a reveal range change (cursor
+    /// movement or find match change). A node's height depends on its reveal
+    /// state, so we evict nodes intersecting either range plus their ancestors.
+    pub fn invalidate_reveal_change(
+        &self, old_range: (DocCharOffset, DocCharOffset), new_range: (DocCharOffset, DocCharOffset),
     ) {
         let mut cache = self.height.borrow_mut();
 
-        // first pass: find ranges directly affected by the selection change
+        // first pass: find ranges directly affected
         let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
         for entry in cache.iter() {
-            if entry.range.intersects(&old_selection, true)
-                || entry.range.intersects(&new_selection, true)
+            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
             {
                 invalidated.push(entry.range);
             }
@@ -674,13 +670,10 @@ impl LayoutCache {
 
         // second pass: evict directly affected nodes and their ancestors
         cache.retain(|entry| {
-            // directly affected
-            if entry.range.intersects(&old_selection, true)
-                || entry.range.intersects(&new_selection, true)
+            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
             {
                 return false;
             }
-            // ancestor of an affected node
             for inv in &invalidated {
                 if entry.range.contains_range(inv, true, true) {
                     return false;
