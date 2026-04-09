@@ -41,3 +41,8 @@ jobs:
     needs: release
     uses: ./.github/workflows/windows.yml
     secrets: inherit
+
+  deploy_windows_arm:
+    needs: release
+    uses: ./.github/workflows/windows-arm.yml
+    secrets: inherit

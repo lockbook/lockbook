@@ -21,6 +21,18 @@ pub fn release() -> CliResult<()> {
     Ok(())
 }
 
+pub fn release_arm() -> CliResult<()> {
+    let gh = Github::env();
+    build_arm()?;
+    upload(
+        &gh,
+        "lockbook-windows-setup-arm64.exe",
+        "target/aarch64-pc-windows-msvc/release/winstaller.exe",
+    )?;
+
+    Ok(())
+}
+
 pub fn build() -> CliResult<()> {
     build_for_target("x86_64-pc-windows-msvc")
 }
