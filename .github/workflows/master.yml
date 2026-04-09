@@ -24,33 +24,32 @@ jobs:
       - uses: actions/checkout@v4
       - name: Setup Rust
         run: |
-          rustup target add x86_64-unknown-linux-musl
-          sudo apt-get install -y musl-tools pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
+          sudo apt-get install -y pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
       - name: Build server
-        run: cargo build -p lockbook-server --release --target x86_64-unknown-linux-musl
+        run: cargo build -p lockbook-server --release --target
       - name: Build CLI
-        run: cargo build -p lockbook --release --target x86_64-unknown-linux-musl
+        run: cargo build -p lockbook --release --target
       - name: Build egui
-        run: cargo build -p lockbook-egui --release --target x86_64-unknown-linux-musl
+        run: cargo build -p lockbook-egui --release --target
       - name: Build linux
-        run: cargo build -p lockbook-linux --release --target x86_64-unknown-linux-musl
+        run: cargo build -p lockbook-linux --release --target
       - name: Upload server
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-server
-          path: target/x86_64-unknown-linux-musl/release/lockbook-server
+          path: target/release/lockbook-server
       - name: Upload CLI
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-cli-linux
-          path: target/x86_64-unknown-linux-musl/release/lockbook
+          path: target/release/lockbook
       - name: Upload egui
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-egui-linux
-          path: target/x86_64-unknown-linux-musl/release/lockbook-egui
+          path: target/release/lockbook-egui
       - name: Upload linux
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-linux
-          path: target/x86_64-unknown-linux-musl/release/lockbook-linux
+          path: target/release/lockbook-linux
