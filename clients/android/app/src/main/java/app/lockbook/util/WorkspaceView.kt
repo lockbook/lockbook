@@ -256,6 +256,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         surface = holder.surface
 
+        if (WGPU_OBJ != Long.MAX_VALUE) {
+            Workspace.dropWS(WGPU_OBJ)
+        }
+
         WGPU_OBJ = Long.MAX_VALUE
 
         WGPU_OBJ = Workspace.initWS(

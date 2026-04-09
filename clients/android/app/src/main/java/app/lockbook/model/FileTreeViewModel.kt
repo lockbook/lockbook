@@ -171,7 +171,6 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         }
         _isSyncing.value = status.syncing
 
-
         _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
         _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
         _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
