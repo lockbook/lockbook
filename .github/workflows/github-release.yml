@@ -46,3 +46,10 @@ jobs:
     needs: release
     uses: ./.github/workflows/windows-arm.yml
     secrets: inherit
+
+  deploy_apple:
+    needs: release
+    uses: ./.github/workflows/apple.yml
+    with:
+      release: true
+    secrets: inherit
