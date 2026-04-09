@@ -434,14 +434,17 @@ impl<'ast> Editor {
     /// this is the selection and the current find match (if any).
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (DocCharOffset, DocCharOffset)> + '_ {
         let selection = Some(self.buffer.current.selection);
-        let find_match = self.find.current_match
+        let find_match = self
+            .find
+            .current_match
             .and_then(|idx| self.find.matches.get(idx).copied());
         selection.into_iter().chain(find_match)
     }
 
     /// Returns true if `range` intersects any reveal range.
     pub fn range_revealed(&self, range: (DocCharOffset, DocCharOffset), allow_empty: bool) -> bool {
-        self.reveal_ranges().any(|rr| range.intersects(&rr, allow_empty))
+        self.reveal_ranges()
+            .any(|rr| range.intersects(&rr, allow_empty))
     }
 
     /// Returns true if `range` contains any reveal range.

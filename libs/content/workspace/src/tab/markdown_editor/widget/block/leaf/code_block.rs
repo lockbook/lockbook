@@ -237,7 +237,9 @@ impl<'ast> Editor {
                     .min(node_line.start() + if synthetic { 0 } else { 4 }),
             );
             if self.range_revealed(indentation, false)
-                || self.reveal_ranges().any(|rr| rr.contains(indentation.start(), true, true))
+                || self
+                    .reveal_ranges()
+                    .any(|rr| rr.contains(indentation.start(), true, true))
             {
                 reveal = true;
                 break;

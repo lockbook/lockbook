@@ -121,12 +121,8 @@ impl Find {
         } else {
             Response::default()
         };
-        let focus_filter = EventFilter {
-            tab: true,
-            horizontal_arrows: true,
-            vertical_arrows: true,
-            escape: true,
-        };
+        let focus_filter =
+            EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true };
         let find_focused = ui.memory(|m| m.has_focus(self.id));
         let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
         if find_focused {
@@ -162,7 +158,11 @@ impl Find {
 
             // measure input height from a dummy text edit to size buttons consistently
             let input_height = 14.0_f32 * 1.4 + input_padding.sum().y;
-            let icon = |i: Icon| IconButton::new(i.size(14.)).subdued(true).size(input_height);
+            let icon = |i: Icon| {
+                IconButton::new(i.size(14.))
+                    .subdued(true)
+                    .size(input_height)
+            };
 
             // reserve space for buttons on the right; input area fills the rest
             // search row: 3 toggles + 2 nav + close = 6 icon buttons + count ~70px
@@ -272,18 +272,18 @@ impl Find {
                         result.term_changed = true;
                     }
 
-                    if icon(Icon::CHEVRON_UP).tooltip("Previous").show(ui).clicked() {
+                    if icon(Icon::CHEVRON_UP)
+                        .tooltip("Previous")
+                        .show(ui)
+                        .clicked()
+                    {
                         result.navigate = Some(false);
                     }
                     if icon(Icon::CHEVRON_DOWN).tooltip("Next").show(ui).clicked() {
                         result.navigate = Some(true);
                     }
 
-                    if icon(Icon::CLOSE)
-                        .tooltip("Close")
-                        .show(ui)
-                        .clicked()
-                    {
+                    if icon(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
                         result.closed = true;
                     }
 
@@ -311,11 +311,7 @@ impl Find {
                         });
                     let has_focus = ui.memory(|m| m.has_focus(self.replace_id));
 
-                    if icon(Icon::REPLACE)
-                        .tooltip("Replace")
-                        .show(ui)
-                        .clicked()
-                    {
+                    if icon(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
                         result.replace_one = true;
                     }
                     if icon(Icon::REPLACE_ALL)
@@ -330,9 +326,7 @@ impl Find {
                 })
                 .inner;
 
-            if ui.input(|i| i.key_pressed(Key::Escape))
-                && (find_has_focus || replace_has_focus)
-            {
+            if ui.input(|i| i.key_pressed(Key::Escape)) && (find_has_focus || replace_has_focus) {
                 result.closed = true;
             }
 
@@ -390,11 +384,8 @@ impl Editor {
         let text = &self.buffer.current.text;
         let segs = &self.buffer.current.segs;
 
-        let pattern = if self.find.whole_word {
-            format!(r"\b(?:{})\b", term)
-        } else {
-            term.to_string()
-        };
+        let pattern =
+            if self.find.whole_word { format!(r"\b(?:{})\b", term) } else { term.to_string() };
 
         let re = regex::RegexBuilder::new(&pattern)
             .case_insensitive(!self.find.case_sensitive)
@@ -415,16 +406,14 @@ impl Editor {
     }
 
     fn is_whole_word(&self, text: &str, byte_start: usize, byte_end: usize) -> bool {
+        let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
         let before_ok = byte_start == 0
             || !text[..byte_start]
                 .chars()
                 .next_back()
-                .map_or(false, |c| c.is_alphanumeric() || c == '_');
-        let after_ok = byte_end >= text.len()
-            || !text[byte_end..]
-                .chars()
-                .next()
-                .map_or(false, |c| c.is_alphanumeric() || c == '_');
+                .is_some_and(is_word_char);
+        let after_ok =
+            byte_end >= text.len() || !text[byte_end..].chars().next().is_some_and(is_word_char);
         before_ok && after_ok
     }
 
@@ -442,18 +431,28 @@ impl Editor {
                 Some(idx) => (idx + 1) % self.find.matches.len(),
                 None => {
                     // Find the first match at or after cursor
-                    self.find.matches.iter().position(|m| m.0 >= cursor_pos)
+                    self.find
+                        .matches
+                        .iter()
+                        .position(|m| m.0 >= cursor_pos)
                         .unwrap_or(0)
                 }
             }
         } else {
             match self.find.current_match {
                 Some(idx) => {
-                    if idx == 0 { self.find.matches.len() - 1 } else { idx - 1 }
+                    if idx == 0 {
+                        self.find.matches.len() - 1
+                    } else {
+                        idx - 1
+                    }
                 }
                 None => {
                     // Find the last match before cursor
-                    self.find.matches.iter().rposition(|m| m.0 < cursor_pos)
+                    self.find
+                        .matches
+                        .iter()
+                        .rposition(|m| m.0 < cursor_pos)
                         .unwrap_or(self.find.matches.len() - 1)
                 }
             }

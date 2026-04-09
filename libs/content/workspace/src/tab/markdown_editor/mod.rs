@@ -597,7 +597,7 @@ impl Editor {
                             .y
                     });
 
-                    // non-touch devices: show toolbar + find, centered to editor width
+                    // non-touch devices: show toolbar + find, centered to editor width...
                     ui.vertical_centered(|ui| {
                         ui.set_max_width(self.width);
                         if !self.readonly {
@@ -611,6 +611,7 @@ impl Editor {
                     self.galleys.galleys.clear();
                     self.bounds.wrap_lines.clear();
                     self.touch_consuming_rects.clear();
+
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
@@ -708,7 +709,7 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.buffer.current.selection);
             self.layout_cache
-                .invalidate_selection_change(prior_selection, new_selection);
+                .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
@@ -878,6 +879,7 @@ impl Editor {
                 });
                 self.galleys.galleys.sort_by_key(|g| g.range);
 
+                // show selection
                 if ui.ctx().os() != OperatingSystem::IOS {
                     let selection = self
                         .in_progress_selection
@@ -899,7 +901,8 @@ impl Editor {
                         }
                     }
                 }
-                // render find match highlights
+
+                // show find match highlights
                 if !self.find.matches.is_empty() {
                     let theme = self.ctx.get_lb_theme();
                     let highlight_color = theme.neutral_bg_tertiary();
@@ -954,7 +957,9 @@ impl Editor {
             self.event.internal_events.push(Event::FindSearch { term });
         }
         if let Some(forward) = resp.navigate {
-            self.event.internal_events.push(Event::FindNavigate { backwards: !forward });
+            self.event
+                .internal_events
+                .push(Event::FindNavigate { backwards: !forward });
         }
         if resp.closed {
             self.find.matches.clear();

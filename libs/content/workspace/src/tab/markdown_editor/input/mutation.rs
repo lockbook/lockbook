@@ -359,18 +359,24 @@ impl<'ast> Editor {
                 operations.push(Operation::Select(current_selection));
             }
             Event::FindSearch { term } => {
-                let old_match = self.find.current_match
+                let old_match = self
+                    .find
+                    .current_match
                     .and_then(|idx| self.find.matches.get(idx).copied());
 
                 // remember position of current match to find nearest after recompute
-                let anchor = old_match.map(|m| m.0)
+                let anchor = old_match
+                    .map(|m| m.0)
                     .unwrap_or(self.buffer.current.selection.1);
 
                 self.find.term = Some(term.clone());
                 self.find.matches = self.find_all(&term);
                 if !self.find.matches.is_empty() {
                     // pick the nearest match at or after the anchor position
-                    let idx = self.find.matches.iter()
+                    let idx = self
+                        .find
+                        .matches
+                        .iter()
                         .position(|m| m.0 >= anchor)
                         .unwrap_or(0);
                     self.find.current_match = Some(idx);
@@ -379,33 +385,39 @@ impl<'ast> Editor {
                     self.find.current_match = None;
                 }
 
-                let new_match = self.find.current_match
+                let new_match = self
+                    .find
+                    .current_match
                     .and_then(|idx| self.find.matches.get(idx).copied());
                 if old_match != new_match {
                     if let Some(old) = old_match {
-                        self.layout_cache.invalidate_selection_change(old, old);
+                        self.layout_cache.invalidate_reveal_change(old, old);
                     }
                     if let Some(new) = new_match {
-                        self.layout_cache.invalidate_selection_change(new, new);
+                        self.layout_cache.invalidate_reveal_change(new, new);
                     }
                 }
             }
             Event::FindNavigate { backwards } => {
-                let old_match = self.find.current_match
+                let old_match = self
+                    .find
+                    .current_match
                     .and_then(|idx| self.find.matches.get(idx).copied());
 
                 if self.find_navigate(!backwards) {
                     self.scroll_to_find_match = true;
                 }
 
-                let new_match = self.find.current_match
+                let new_match = self
+                    .find
+                    .current_match
                     .and_then(|idx| self.find.matches.get(idx).copied());
                 if old_match != new_match {
                     if let Some(old) = old_match {
-                        self.layout_cache.invalidate_selection_change(old, old);
+                        self.layout_cache.invalidate_reveal_change(old, old);
                     }
                     if let Some(new) = new_match {
-                        self.layout_cache.invalidate_selection_change(new, new);
+                        self.layout_cache.invalidate_reveal_change(new, new);
                     }
                 }
             }

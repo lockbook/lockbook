@@ -99,14 +99,11 @@ impl<'ast> Editor {
         let required_ranges = self.galley_required_ranges();
         let viewport = ui.clip_rect();
 
-        let intersects_any_required =
-            |range: &(DocCharOffset, DocCharOffset)| -> bool {
-                required_ranges.iter().any(|rr| range.intersects(rr, true))
-            };
+        let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
+            required_ranges.iter().any(|rr| range.intersects(rr, true))
+        };
         let past_all_required =
-            |offset: DocCharOffset| -> bool {
-                required_ranges.iter().all(|rr| offset > rr.end())
-            };
+            |offset: DocCharOffset| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
         for child in &children {
             let child_range = self.node_range(child);
