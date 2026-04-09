@@ -931,6 +931,31 @@ impl Editor {
         let old_match = self.find.current_match
             .and_then(|idx| self.find.matches.get(idx).copied());
 
+        if resp.replace_one {
+            if let Some(idx) = self.find.current_match {
+                if let Some(&match_range) = self.find.matches.get(idx) {
+                    let replacement = self.find.replace_term.clone();
+                    self.event.internal_events.push(Event::Replace {
+                        region: match_range.into(),
+                        text: replacement,
+                        advance_cursor: false,
+                    });
+                    // matches will be recomputed on the text_updated path;
+                    // advance current_match so it lands on the next match
+                }
+            }
+        }
+        if resp.replace_all {
+            let replacement = self.find.replace_term.clone();
+            // replace in reverse order to preserve earlier offsets
+            for &match_range in self.find.matches.iter().rev() {
+                self.event.internal_events.push(Event::Replace {
+                    region: match_range.into(),
+                    text: replacement.clone(),
+                    advance_cursor: false,
+                });
+            }
+        }
         if resp.term_changed {
             let term = self.find.term.clone().unwrap_or_default();
             self.find.matches = self.find_all(&term);
