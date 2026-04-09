@@ -26,13 +26,13 @@ jobs:
         run: |
           sudo apt-get install -y pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
       - name: Build server
-        run: cargo build -p lockbook-server --release --target
+        run: cargo build -p lockbook-server --release
       - name: Build CLI
-        run: cargo build -p lockbook --release --target
+        run: cargo build -p lockbook --release
       - name: Build egui
-        run: cargo build -p lockbook-egui --release --target
+        run: cargo build -p lockbook-egui --release
       - name: Build linux
-        run: cargo build -p lockbook-linux --release --target
+        run: cargo build -p lockbook-linux --release
       - name: Upload server
         uses: actions/upload-artifact@v4
         with:
