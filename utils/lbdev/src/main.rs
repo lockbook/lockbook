@@ -74,7 +74,8 @@ fn main() {
                         .subcommand(Command::name("all").handler(releaser::windows::release))
                         .subcommand(Command::name("cli").handler(releaser::windows::cli::release))
                         .subcommand(Command::name("desktop").handler(releaser::windows::desktop::release))
-                        .subcommand(Command::name("desktop-build").handler(releaser::windows::desktop::build)),
+                        .subcommand(Command::name("desktop-build").handler(releaser::windows::desktop::build))
+                        .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm)),
                 )
                 .subcommand(
                     Command::name("linux")
