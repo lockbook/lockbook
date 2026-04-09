@@ -22,25 +22,21 @@ jobs:
     with:
       package: lockbook-server
       artifact-name: lockbook-server
-      binary-name: lockbook-server
 
   build-linux-cli:
     uses: ./.github/workflows/linux-build.yml
     with:
       package: lockbook
       artifact-name: lockbook-cli-linux
-      binary-name: lockbook
 
   build-linux-egui:
     uses: ./.github/workflows/linux-build.yml
     with:
       package: lockbook-egui
       artifact-name: lockbook-egui-linux
-      binary-name: lockbook-egui
 
   build-linux:
     uses: ./.github/workflows/linux-build.yml
     with:
       package: lockbook-linux
       artifact-name: lockbook-linux
-      binary-name: lockbook-linux

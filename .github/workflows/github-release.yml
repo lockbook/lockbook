@@ -1,4 +1,3 @@
-
 name: Github Release
 on:
   workflow_dispatch:

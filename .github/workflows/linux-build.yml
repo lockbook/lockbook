@@ -11,10 +11,9 @@ on:
         required: true
         type: string
         description: 'Name for the uploaded artifact'
-      binary-name:
-        required: true
-        type: string
-        description: 'Name of the binary in target/release'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -31,4 +30,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.artifact-name }}
-          path: target/release/${{ inputs.binary-name }}
+          path: target/release/${{ inputs.package }}

@@ -16,7 +16,7 @@ jobs:
       NIXPKGS_ALLOW_UNFREE: 1
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Check Workspace Fmt
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci fmt"
     - name: Check Workspace Clippy
