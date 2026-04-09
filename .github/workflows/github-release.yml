@@ -27,7 +27,7 @@ jobs:
 
   call_publish_flatpak:
     needs: release
-    uses: ./.github/workflows/deploy-flatpak.yml
+    uses: ./.github/workflows/flatpak.yml
     secrets: inherit
 
   deploy_android:
@@ -52,4 +52,9 @@ jobs:
     uses: ./.github/workflows/apple.yml
     with:
       release: true
+    secrets: inherit
+
+  deploy_aur:
+    needs: release
+    uses: ./.github/workflows/aur.yml
     secrets: inherit

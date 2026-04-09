@@ -1,0 +1,19 @@
+name: AUR Deployment
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy-aur:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: [self-hosted, ci]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AUR_SSH_KEY }}
+      - name: Deploy CLI to AUR
+        run: cargo run -p lbdev -- releaser linux cli aur
+      - name: Deploy Desktop to AUR
+        run: cargo run -p lbdev -- releaser linux desktop aur

@@ -58,14 +58,7 @@ fn upload(zip_path: &str, asset_name: &str) -> CliResult<()> {
         .unwrap();
     let file = File::open(zip_path).unwrap();
     client
-        .upload_release_asset(
-            &lb_repo(),
-            release.id,
-            asset_name,
-            "application/zip",
-            file,
-            None,
-        )
+        .upload_release_asset(&lb_repo(), release.id, asset_name, "application/zip", file, None)
         .unwrap();
     Ok(())
 }
