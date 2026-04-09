@@ -20,7 +20,8 @@
 //! - **Frame-consistent state**: Cmd+F must be checked before rendering (so the
 //!   widget doesn't disappear for a frame on close), but re-focusing must not
 //!   skip rendering (so the widget doesn't flicker). The `refocus_term_changed`
-//!   flag defers the term_changed signal to the render frame.
+//!   flag defers the term_changed signal to the render frame. This is the only
+//!   aspect with material technical/cognitive debt.
 //!
 //! - **Layout cache invalidation**: The current find match affects node reveal
 //!   state and thus cached heights. When the match changes, we invalidate the
@@ -48,6 +49,7 @@ pub struct Find {
     select_all_on_focus: bool,
     refocus_term_changed: bool,
     pub open_requested: bool,
+    was_focused: bool,
     /// All match ranges in the document for the current search term.
     pub matches: Vec<(DocCharOffset, DocCharOffset)>,
     /// Index into `matches` for the currently focused match, if any.
@@ -67,6 +69,7 @@ impl Default for Find {
             select_all_on_focus: false,
             refocus_term_changed: false,
             open_requested: false,
+            was_focused: false,
             matches: Vec::new(),
             current_match: None,
         }
@@ -88,7 +91,7 @@ pub struct Response {
 }
 
 impl Find {
-    pub fn show(&mut self, buffer: &Buffer, ui: &mut Ui) -> Response {
+    pub fn show(&mut self, buffer: &Buffer, virtual_keyboard_shown: bool, ui: &mut Ui) -> Response {
         let open = std::mem::take(&mut self.open_requested)
             || ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift);
         if open {
@@ -131,6 +134,12 @@ impl Find {
             EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true };
         let find_focused = ui.memory(|m| m.has_focus(self.id));
         let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
+        let focused = find_focused || replace_focused;
+        if focused && !self.was_focused {
+            ui.ctx().set_virtual_keyboard_shown(true);
+        }
+        // reset when keyboard is dismissed so re-tapping requests it again
+        self.was_focused = focused && virtual_keyboard_shown;
         if find_focused {
             ui.memory_mut(|m| m.set_focus_lock_filter(self.id, focus_filter));
             if ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.shift) {
