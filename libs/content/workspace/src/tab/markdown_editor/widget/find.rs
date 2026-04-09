@@ -151,23 +151,17 @@ impl Find {
                 return result;
             };
 
-            let theme = ui.ctx().get_lb_theme();
-            let input_bg = theme.neutral_bg_secondary();
-            let input_rounding = 4.;
+            let input_bg = ui.ctx().get_lb_theme().neutral_bg_secondary();
             let input_padding = Margin::symmetric(6, 4);
-
-            // measure input height from a dummy text edit to size buttons consistently
-            let input_height = 14.0_f32 * 1.4 + input_padding.sum().y;
-            let icon = |i: Icon| {
-                IconButton::new(i.size(14.))
-                    .subdued(true)
-                    .size(input_height)
+            let btn_height = 14.0_f32 * 1.4 + input_padding.sum().y;
+            let icon = |i: Icon| IconButton::new(i.size(14.)).subdued(true).size(btn_height);
+            let input_frame = || {
+                Frame::NONE
+                    .fill(input_bg)
+                    .corner_radius(4.)
+                    .inner_margin(input_padding)
             };
-
-            // reserve space for buttons on the right; input area fills the rest
-            // search row: 3 toggles + 2 nav + close = 6 icon buttons + count ~70px
-            let buttons_width = 6. * input_height + 70. + 4. * 8.;
-            let input_area_width = (ui.available_width() - buttons_width).max(100.);
+            let rtl = egui::Layout::right_to_left(egui::Align::Center);
 
             // process keyboard events before layout so Enter is captured
             let before_term = term.clone();
@@ -188,90 +182,18 @@ impl Find {
                 ui.memory_mut(|m| m.request_focus(self.replace_id));
             }
 
-            // search row: [  input   count  ] [Aa] [W] [.*] [↑] [↓] [×]
+            // search row: RTL — draw buttons first, input fills remainder
+            let mut input_width = 0f32;
             let find_has_focus = ui
-                .horizontal(|ui| {
+                .with_layout(rtl, |ui| {
                     ui.spacing_mut().item_spacing.x = 4.;
 
-                    // input area with background containing text edit + match count
-                    let input_resp = Frame::NONE
-                        .fill(input_bg)
-                        .corner_radius(input_rounding)
-                        .inner_margin(input_padding)
-                        .show(ui, |ui| {
-                            ui.set_max_width(input_area_width);
-                            ui.horizontal(|ui| {
-                                // text edit takes available minus room for count label
-                                let count_width = 70.;
-                                let edit_width = (ui.available_width() - count_width).max(60.);
-                                ui.allocate_ui(
-                                    egui::vec2(edit_width, ui.spacing().interact_size.y),
-                                    |ui| {
-                                        let mut edit = GlyphonTextEdit::new(term)
-                                            .id(self.id)
-                                            .hint_text("Search");
-                                        if self.select_all_on_focus {
-                                            edit = edit.select_all();
-                                            self.select_all_on_focus = false;
-                                        }
-                                        edit.show(ui);
-                                    },
-                                );
-
-                                // right-aligned match count
-                                ui.with_layout(
-                                    egui::Layout::right_to_left(egui::Align::Center),
-                                    |ui| {
-                                        let match_label = if let Some(idx) = self.current_match {
-                                            format!("{} / {}", idx + 1, self.matches.len())
-                                        } else if self.matches.is_empty() && !term.is_empty() {
-                                            "No results".to_string()
-                                        } else {
-                                            String::new()
-                                        };
-                                        if !match_label.is_empty() {
-                                            let text = egui::RichText::new(match_label).small();
-                                            Label::new(text).selectable(false).ui(ui);
-                                        }
-                                    },
-                                );
-                            });
-                        });
-                    let has_focus = ui.memory(|m| m.has_focus(self.id));
-
-                    // clicking the background area focuses the input
-                    if input_resp.response.clicked() {
-                        ui.memory_mut(|m| m.request_focus(self.id));
+                    if icon(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
+                        result.closed = true;
                     }
-
-                    if icon(Icon::CASE_SENSITIVE)
-                        .tooltip("Match Case")
-                        .colored(self.case_sensitive)
-                        .show(ui)
-                        .clicked()
-                    {
-                        self.case_sensitive = !self.case_sensitive;
-                        result.term_changed = true;
+                    if icon(Icon::CHEVRON_DOWN).tooltip("Next").show(ui).clicked() {
+                        result.navigate = Some(true);
                     }
-                    if icon(Icon::WHOLE_WORD)
-                        .tooltip("Whole Word")
-                        .colored(self.whole_word)
-                        .show(ui)
-                        .clicked()
-                    {
-                        self.whole_word = !self.whole_word;
-                        result.term_changed = true;
-                    }
-                    if icon(Icon::REGEX)
-                        .tooltip("Regex")
-                        .colored(self.regex)
-                        .show(ui)
-                        .clicked()
-                    {
-                        self.regex = !self.regex;
-                        result.term_changed = true;
-                    }
-
                     if icon(Icon::CHEVRON_UP)
                         .tooltip("Previous")
                         .show(ui)
@@ -279,37 +201,62 @@ impl Find {
                     {
                         result.navigate = Some(false);
                     }
-                    if icon(Icon::CHEVRON_DOWN).tooltip("Next").show(ui).clicked() {
-                        result.navigate = Some(true);
+                    for (ic, tip, flag) in [
+                        (Icon::REGEX, "Regex", &mut self.regex),
+                        (Icon::WHOLE_WORD, "Whole Word", &mut self.whole_word),
+                        (Icon::CASE_SENSITIVE, "Match Case", &mut self.case_sensitive),
+                    ] {
+                        if icon(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
+                            *flag = !*flag;
+                            result.term_changed = true;
+                        }
                     }
 
-                    if icon(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
-                        result.closed = true;
+                    input_width = ui.available_width();
+                    let input_resp = input_frame().show(ui, |ui| {
+                        ui.with_layout(rtl, |ui| {
+                            let label = match self.current_match {
+                                Some(idx) => format!("{} / {}", idx + 1, self.matches.len()),
+                                None if !term.is_empty() => "No results".into(),
+                                _ => String::new(),
+                            };
+                            if !label.is_empty() {
+                                Label::new(egui::RichText::new(label).small())
+                                    .selectable(false)
+                                    .ui(ui);
+                            }
+
+                            let mut edit =
+                                GlyphonTextEdit::new(term).id(self.id).hint_text("Search");
+                            if self.select_all_on_focus {
+                                edit = edit.select_all();
+                                self.select_all_on_focus = false;
+                            }
+                            edit.show(ui);
+                        });
+                    });
+                    if input_resp.response.clicked() {
+                        ui.memory_mut(|m| m.request_focus(self.id));
                     }
 
-                    has_focus
+                    ui.memory(|m| m.has_focus(self.id))
                 })
                 .inner;
 
             ui.add_space(4.);
 
-            // replace row: [  input  ] [replace] [replace all]
+            // replace row: LTR — input at same width as search, then buttons
             let replace_has_focus = ui
                 .horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 4.;
 
-                    Frame::NONE
-                        .fill(input_bg)
-                        .corner_radius(input_rounding)
-                        .inner_margin(input_padding)
-                        .show(ui, |ui| {
-                            ui.set_max_width(input_area_width);
-                            GlyphonTextEdit::new(&mut self.replace_term)
-                                .id(self.replace_id)
-                                .hint_text("Replace")
-                                .show(ui);
-                        });
-                    let has_focus = ui.memory(|m| m.has_focus(self.replace_id));
+                    input_frame().show(ui, |ui| {
+                        ui.set_width(input_width - input_padding.sum().x);
+                        GlyphonTextEdit::new(&mut self.replace_term)
+                            .id(self.replace_id)
+                            .hint_text("Replace")
+                            .show(ui);
+                    });
 
                     if icon(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
                         result.replace_one = true;
@@ -322,14 +269,13 @@ impl Find {
                         result.replace_all = true;
                     }
 
-                    has_focus
+                    ui.memory(|m| m.has_focus(self.replace_id))
                 })
                 .inner;
 
             if ui.input(|i| i.key_pressed(Key::Escape)) && (find_has_focus || replace_has_focus) {
                 result.closed = true;
             }
-
             if result.closed {
                 self.term = None;
                 self.matches.clear();

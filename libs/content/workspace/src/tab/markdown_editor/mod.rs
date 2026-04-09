@@ -522,9 +522,7 @@ impl Editor {
         let scroll_area_id = ui
             .vertical(|ui| {
                 let scroll_area_id = if self.touch_mode {
-                    // touch devices: show find...
-                    let find_resp = self.find.show(&self.buffer, ui);
-                    self.process_find_response(find_resp);
+                    self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
@@ -597,15 +595,10 @@ impl Editor {
                             .y
                     });
 
-                    // non-touch devices: show toolbar + find, centered to editor width...
-                    ui.vertical_centered(|ui| {
-                        ui.set_max_width(self.width);
-                        if !self.readonly {
-                            self.show_toolbar(root, ui);
-                        }
-                        let find_resp = self.find.show(&self.buffer, ui);
-                        self.process_find_response(find_resp);
-                    });
+                    if !self.readonly {
+                        self.show_toolbar(root, ui);
+                    }
+                    self.show_find_centered(ui);
 
                     // these are computed during render
                     self.galleys.galleys.clear();
@@ -927,6 +920,22 @@ impl Editor {
                     self.scroll_to_find_match(ui);
                 }
             })
+    }
+
+    fn show_find_centered(&mut self, ui: &mut Ui) {
+        let available = ui.available_width();
+        let content_width = self.width - 2. * self.layout.margin;
+        let content_left =
+            ui.max_rect().left() + (available - self.width) / 2. + self.layout.margin;
+        let top = ui.cursor().min.y;
+        let find_rect =
+            Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
+        let find_resp = ui
+            .scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
+                self.find.show(&self.buffer, ui)
+            })
+            .inner;
+        self.process_find_response(find_resp);
     }
 
     fn process_find_response(&mut self, resp: widget::find::Response) {
