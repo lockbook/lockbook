@@ -15,7 +15,7 @@ jobs:
     env:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       MAC_MINI_LOGIN_KEYCHAIN: ${{ secrets.MAC_MINI_LOGIN_KEYCHAIN }}
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.FH_PAT }}
     steps:
     - uses: actions/checkout@v4
     - name: Configure PATH
