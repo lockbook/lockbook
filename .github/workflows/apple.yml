@@ -26,6 +26,8 @@ jobs:
       run: cargo r -p lbdev releaser apple mac-app-store
     - name: build CLI
       run: cargo r -p lbdev releaser apple cli-build
+    - name: build egui
+      run: cargo build -p lockbook-egui --release
     - name: Upload macOS app
       uses: actions/upload-artifact@v4
       with:
@@ -36,3 +38,8 @@ jobs:
       with:
         name: lockbook-cli-macos
         path: target/universal-cli/lockbook-cli-macos.tar.gz
+    - name: Upload macOS egui
+      uses: actions/upload-artifact@v4
+      with:
+        name: lockbook-egui-macos
+        path: target/release/lockbook-egui

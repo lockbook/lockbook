@@ -17,20 +17,44 @@ jobs:
     uses: ./.github/workflows/apple.yml
     secrets: inherit
 
-  build-server:
+  build-linux:
     if: github.repository == 'lockbook/lockbook'
-    runs-on: [self-hosted, ci]
-    env:
-      CARGO_HOME: /home/parth/lockbook-ci-cache/home
-      CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup musl target
-        run: rustup target add x86_64-unknown-linux-musl
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+      - name: Install dependencies
+        run: sudo apt-get install -y musl-tools pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
       - name: Build server
-        run: nix-shell -p musl --command "cargo r -p lbdev releaser server build"
-      - name: Upload server binary
+        run: cargo build -p lockbook-server --release --target x86_64-unknown-linux-musl
+      - name: Build CLI
+        run: cargo build -p lockbook --release --target x86_64-unknown-linux-musl
+      - name: Build egui
+        run: cargo build -p lockbook-egui --release --target x86_64-unknown-linux-musl
+      - name: Build linux
+        run: cargo build -p lockbook-linux --release --target x86_64-unknown-linux-musl
+      - name: Upload server
         uses: actions/upload-artifact@v4
         with:
           name: lockbook-server
           path: target/x86_64-unknown-linux-musl/release/lockbook-server
+      - name: Upload CLI
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockbook-cli-linux
+          path: target/x86_64-unknown-linux-musl/release/lockbook
+      - name: Upload egui
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockbook-egui-linux
+          path: target/x86_64-unknown-linux-musl/release/lockbook-egui
+      - name: Upload linux
+        uses: actions/upload-artifact@v4
+        with:
+          name: lockbook-linux
+          path: target/x86_64-unknown-linux-musl/release/lockbook-linux
