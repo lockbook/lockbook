@@ -17,6 +17,7 @@ jobs:
       ANDROID_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
       GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_CLOUD_SERVICE_ACCOUNT_KEY }}
       ANDROID_RELEASE_STORE_BASE64: ${{ secrets.ANDROID_RELEASE_STORE_BASE64 }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       NIXPKGS_ALLOW_UNFREE: 1
       NIXPKGS_ACCEPT_ANDROID_SDK_LICENSE: 1
     steps:
@@ -32,6 +33,10 @@ jobs:
           echo $ANDROID_RELEASE_STORE_BASE64 | base64 --decode > $HOME/lockbook-android-upload.keystore
           echo "ANDROID_RELEASE_STORE_FILE=$HOME/lockbook-android-upload.keystore" >> $GITHUB_ENV
       - name: deploy android
+        if: ${{ inputs.environment == 'prod-play-store' }}
+        run: nix-shell clients/android --command "cargo r -p lbdev releaser android all"
+      - name: deploy android
+        if: ${{ inputs.environment != 'prod-play-store' }}
         run: nix-shell clients/android --command "cargo r -p lbdev releaser android ${{ inputs.environment || 'internal-play-store' }}"
       - name: Upload APK
         uses: actions/upload-artifact@v4
