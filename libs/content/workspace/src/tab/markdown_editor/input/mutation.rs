@@ -359,8 +359,12 @@ impl<'ast> Editor {
                 operations.push(Operation::Select(current_selection));
             }
             Event::Find { term, backwards } => {
-                if let Some(result) = self.find(term, backwards) {
-                    operations.push(Operation::Select(result));
+                self.find.matches = self.find_all(&term);
+                if !self.find.matches.is_empty() {
+                    self.find_navigate(!backwards);
+                    self.scroll_to_find_match = true;
+                } else {
+                    self.find.current_match = None;
                 }
             }
             Event::Undo => {

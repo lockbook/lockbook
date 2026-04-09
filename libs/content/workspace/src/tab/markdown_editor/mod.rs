@@ -133,6 +133,7 @@ pub struct Editor {
     // misc
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
+    scroll_to_find_match: bool,
     pub unprocessed_scroll: Option<Instant>,
 
     // layout
@@ -300,6 +301,7 @@ impl Editor {
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
+            scroll_to_find_match: Default::default(),
             unprocessed_scroll: Default::default(),
 
             top_left: Default::default(),
@@ -482,6 +484,19 @@ impl Editor {
 
             self.calc_words();
 
+            // recompute find matches when text changes
+            if let Some(term) = &self.find.term {
+                let term = term.clone();
+                self.find.matches = self.find_all(&term);
+                if self.find.matches.is_empty() {
+                    self.find.current_match = None;
+                } else if let Some(idx) = self.find.current_match {
+                    if idx >= self.find.matches.len() {
+                        self.find.current_match = Some(self.find.matches.len() - 1);
+                    }
+                }
+            }
+
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection
@@ -509,11 +524,7 @@ impl Editor {
                 let scroll_area_id = if self.touch_mode {
                     // touch devices: show find...
                     let find_resp = self.find.show(&self.buffer, ui);
-                    if let Some(term) = find_resp.term {
-                        self.event
-                            .internal_events
-                            .push(Event::Find { term, backwards: find_resp.backwards });
-                    }
+                    self.process_find_response(find_resp);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
@@ -593,11 +604,7 @@ impl Editor {
 
                     // ...then show find...
                     let find_resp = self.find.show(&self.buffer, ui);
-                    if let Some(term) = find_resp.term {
-                        self.event
-                            .internal_events
-                            .push(Event::Find { term, backwards: find_resp.backwards });
-                    }
+                    self.process_find_response(find_resp);
 
                     // these are computed during render
                     self.galleys.galleys.clear();
@@ -891,13 +898,85 @@ impl Editor {
                         }
                     }
                 }
+                // render find match highlights
+                if !self.find.matches.is_empty() {
+                    let theme = self.ctx.get_lb_theme();
+                    let highlight_color = theme.bg().get_color(theme.prefs().secondary)
+                        .lerp_to_gamma(theme.neutral_bg(), 0.7);
+                    let current_color = theme.bg().get_color(theme.prefs().primary)
+                        .lerp_to_gamma(theme.neutral_bg(), 0.5);
+                    for (i, &match_range) in self.find.matches.iter().enumerate() {
+                        let color = if self.find.current_match == Some(i) {
+                            current_color
+                        } else {
+                            highlight_color
+                        };
+                        self.show_range(ui, match_range, color);
+                    }
+                }
+
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);
                 }
                 if mem::take(&mut self.scroll_to_cursor) {
                     self.scroll_to_cursor(ui);
                 }
+                if mem::take(&mut self.scroll_to_find_match) {
+                    self.scroll_to_find_match(ui);
+                }
             })
+    }
+
+    fn process_find_response(&mut self, resp: widget::find::Response) {
+        let old_match = self.find.current_match
+            .and_then(|idx| self.find.matches.get(idx).copied());
+
+        if resp.term_changed {
+            let term = self.find.term.clone().unwrap_or_default();
+            self.find.matches = self.find_all(&term);
+            if !self.find.matches.is_empty() {
+                let cursor_pos = self.buffer.current.selection.1;
+                let idx = self.find.matches.iter().position(|m| m.0 >= cursor_pos)
+                    .unwrap_or(0);
+                self.find.current_match = Some(idx);
+                self.scroll_to_find_match = true;
+            } else {
+                self.find.current_match = None;
+            }
+        }
+        if let Some(forward) = resp.navigate {
+            if self.find_navigate(forward) {
+                self.scroll_to_find_match = true;
+            }
+        }
+        if resp.closed {
+            self.find.matches.clear();
+            self.find.current_match = None;
+        }
+
+        // invalidate layout cache if the current find match changed, since
+        // reveal state (and thus node heights) depends on it
+        let new_match = self.find.current_match
+            .and_then(|idx| self.find.matches.get(idx).copied());
+        if old_match != new_match {
+            if let Some(old) = old_match {
+                self.layout_cache.invalidate_selection_change(old, old);
+            }
+            if let Some(new) = new_match {
+                self.layout_cache.invalidate_selection_change(new, new);
+            }
+        }
+    }
+
+    fn scroll_to_find_match(&self, ui: &mut Ui) {
+        if let Some(idx) = self.find.current_match {
+            if let Some(match_range) = self.find.matches.get(idx) {
+                let rects = self.range_rects(*match_range);
+                if let Some(rect) = rects.first() {
+                    ui.scroll_to_rect(rect.expand(rect.height()), None);
+                }
+            }
+        }
     }
 }
 

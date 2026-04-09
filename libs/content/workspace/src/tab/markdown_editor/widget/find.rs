@@ -1,6 +1,6 @@
 use egui::{EventFilter, Frame, Id, Key, Label, Margin, Stroke, TextEdit, Ui, Widget as _};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
 
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
@@ -10,19 +10,26 @@ use super::super::Editor;
 pub struct Find {
     pub id: egui::Id,
     pub term: Option<String>,
-    pub match_count: usize,
+    /// All match ranges in the document for the current search term.
+    pub matches: Vec<(DocCharOffset, DocCharOffset)>,
+    /// Index into `matches` for the currently focused match, if any.
+    pub current_match: Option<usize>,
 }
 
 impl Default for Find {
     fn default() -> Self {
-        Self { id: Id::new("find"), term: None, match_count: 0 }
+        Self { id: Id::new("find"), term: None, matches: Vec::new(), current_match: None }
     }
 }
 
 #[derive(Default)]
 pub struct Response {
-    pub term: Option<String>,
-    pub backwards: bool,
+    /// Signals that the user wants to navigate: Some(true) = next, Some(false) = previous.
+    pub navigate: Option<bool>,
+    /// The search term changed (including on first open).
+    pub term_changed: bool,
+    /// The find widget was closed this frame.
+    pub closed: bool,
 }
 
 impl Find {
@@ -31,7 +38,7 @@ impl Find {
             Frame::canvas(ui.style())
                 .stroke(Stroke::NONE)
                 .inner_margin(Margin::symmetric(10, 10))
-                .show(ui, |ui| self.show_inner(&buffer.current.text, ui))
+                .show(ui, |ui| self.show_inner(ui))
                 .inner
         } else {
             Response::default()
@@ -40,11 +47,14 @@ impl Find {
         if ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift) {
             if self.term.is_none() {
                 let term = String::from(&buffer[buffer.current.selection]);
-                self.match_count = Self::match_count(&term, &buffer.current.text);
                 self.term = Some(term);
                 ui.memory_mut(|m| m.request_focus(self.id));
+                return Response { term_changed: true, ..Default::default() };
             } else if ui.memory(|m| m.has_focus(self.id)) {
                 self.term = None;
+                self.matches.clear();
+                self.current_match = None;
+                return Response { closed: true, ..Default::default() };
             } else {
                 ui.memory_mut(|m| m.request_focus(self.id));
             }
@@ -66,7 +76,7 @@ impl Find {
         resp
     }
 
-    pub fn show_inner(&mut self, text: &str, ui: &mut Ui) -> Response {
+    pub fn show_inner(&mut self, ui: &mut Ui) -> Response {
         ui.horizontal(|ui| {
             let mut result = Response::default();
             let Some(term) = &mut self.term else {
@@ -84,7 +94,7 @@ impl Find {
                 .hint_text("Search")
                 .ui(ui);
             if term != &before_term {
-                self.match_count = Self::match_count(term, text);
+                result.term_changed = true;
             }
             ui.add_space(5.);
 
@@ -94,8 +104,7 @@ impl Find {
                 .clicked()
                 || ui.input(|i| i.key_pressed(Key::Enter) && i.modifiers.shift)
             {
-                result.term = Some(term.clone());
-                result.backwards = true;
+                result.navigate = Some(false); // previous
             }
             ui.add_space(5.);
             if IconButton::new(Icon::CHEVRON_RIGHT)
@@ -104,11 +113,18 @@ impl Find {
                 .clicked()
                 || ui.input(|i| i.key_pressed(Key::Enter) && !i.modifiers.shift)
             {
-                result.term = Some(term.clone());
+                result.navigate = Some(true); // next
             }
             ui.add_space(5.);
 
-            Label::new(format!("{:?} matches", self.match_count))
+            let match_label = if let Some(idx) = self.current_match {
+                format!("{} of {}", idx + 1, self.matches.len())
+            } else if self.matches.is_empty() {
+                "No results".to_string()
+            } else {
+                format!("{} matches", self.matches.len())
+            };
+            Label::new(match_label)
                 .selectable(false)
                 .ui(ui);
 
@@ -116,6 +132,9 @@ impl Find {
 
             if ui.input(|i| i.key_pressed(Key::Escape)) && resp.has_focus() {
                 self.term = None;
+                self.matches.clear();
+                self.current_match = None;
+                result.closed = true;
                 ui.ctx().request_repaint();
             }
 
@@ -123,44 +142,64 @@ impl Find {
         })
         .inner
     }
-
-    fn match_count(term: &str, text: &str) -> usize {
-        if term.is_empty() {
-            0
-        } else {
-            text.to_lowercase()
-                .matches(term.to_lowercase().as_str())
-                .count()
-        }
-    }
 }
 
 impl Editor {
-    pub fn find(&self, term: String, backwards: bool) -> Option<(DocCharOffset, DocCharOffset)> {
-        let buffer = &self.buffer.current;
-        let result_start = if !backwards {
-            let mut start = buffer.selection.start();
-            if start != buffer.segs.last_cursor_position() {
-                start += 1;
+    /// Compute all match ranges in the document for the given search term.
+    pub fn find_all(&self, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
+        if term.is_empty() {
+            return Vec::new();
+        }
+        let text = &self.buffer.current.text;
+        let segs = &self.buffer.current.segs;
+        let lower_term = term.to_lowercase();
+        let lower_text = text.to_lowercase();
+        let mut matches = Vec::new();
+        let mut byte_start = 0;
+        while let Some(pos) = lower_text[byte_start..].find(&lower_term) {
+            let abs_pos = byte_start + pos;
+            let abs_end = abs_pos + lower_term.len();
+            matches.push((
+                segs.offset_to_char(DocByteOffset(abs_pos)),
+                segs.offset_to_char(DocByteOffset(abs_end)),
+            ));
+            byte_start = abs_pos + 1; // advance by 1 byte to find overlapping matches
+        }
+        matches
+    }
+
+    /// Navigate to the next or previous match relative to the current cursor position.
+    /// Sets `find.current_match` and returns true if a match was found.
+    pub fn find_navigate(&mut self, forward: bool) -> bool {
+        if self.find.matches.is_empty() {
+            self.find.current_match = None;
+            return false;
+        }
+
+        let cursor_pos = self.buffer.current.selection.1;
+        let new_idx = if forward {
+            match self.find.current_match {
+                Some(idx) => (idx + 1) % self.find.matches.len(),
+                None => {
+                    // Find the first match at or after cursor
+                    self.find.matches.iter().position(|m| m.0 >= cursor_pos)
+                        .unwrap_or(0)
+                }
             }
-            let byte_start = buffer.segs.offset_to_byte(start);
-            let slice_result = &buffer.text[byte_start.0..]
-                .to_lowercase()
-                .find(&term.to_lowercase())?;
-            slice_result + byte_start.0
         } else {
-            let mut end = buffer.selection.end();
-            if end != 0 {
-                end -= 1;
+            match self.find.current_match {
+                Some(idx) => {
+                    if idx == 0 { self.find.matches.len() - 1 } else { idx - 1 }
+                }
+                None => {
+                    // Find the last match before cursor
+                    self.find.matches.iter().rposition(|m| m.0 < cursor_pos)
+                        .unwrap_or(self.find.matches.len() - 1)
+                }
             }
-            buffer.text[..buffer.segs.offset_to_byte(end).0]
-                .to_lowercase()
-                .rfind(&term.to_lowercase())?
         };
-        let result_end = result_start + term.len();
-        Some((
-            buffer.segs.offset_to_char(DocByteOffset(result_start)),
-            buffer.segs.offset_to_char(DocByteOffset(result_end)),
-        ))
+
+        self.find.current_match = Some(new_idx);
+        true
     }
 }
