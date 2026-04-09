@@ -79,6 +79,9 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
+
+    // Used to restrict iOS TextInteraction area
+    pub find_widget_height: f32,
 }
 
 pub struct Editor {
@@ -934,7 +937,9 @@ impl Editor {
             self.find.show(&self.buffer, ui)
         });
         let find_resp = scope_resp.inner;
-        ui.advance_cursor_after_rect(scope_resp.response.rect);
+        let rendered_rect = scope_resp.response.rect;
+        ui.advance_cursor_after_rect(rendered_rect);
+        self.next_resp.find_widget_height = rendered_rect.height();
         self.process_find_response(find_resp);
     }
 

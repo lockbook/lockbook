@@ -30,6 +30,7 @@ use egui::{EventFilter, Frame, Id, Key, Label, Margin, Ui, Widget as _};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
 
+use crate::tab::ExtendedOutput as _;
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonTextEdit, IconButton};
@@ -96,6 +97,7 @@ impl Find {
                 self.term = Some(term);
                 self.select_all_on_focus = true;
                 ui.memory_mut(|m| m.request_focus(self.id));
+                ui.ctx().set_virtual_keyboard_shown(true);
                 return Response { term_changed: true, ..Default::default() };
             } else {
                 let find_focused = ui.memory(|m| m.has_focus(self.id));

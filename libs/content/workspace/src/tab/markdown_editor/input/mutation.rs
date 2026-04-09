@@ -364,10 +364,11 @@ impl<'ast> Editor {
                     .current_match
                     .and_then(|idx| self.find.matches.get(idx).copied());
 
-                // remember position of current match to find nearest after recompute
+                // remember position of current match to find nearest after recompute;
+                // use selection start so a match containing the cursor is found
                 let anchor = old_match
                     .map(|m| m.0)
-                    .unwrap_or(self.buffer.current.selection.1);
+                    .unwrap_or(self.buffer.current.selection.start());
 
                 self.find.term = Some(term.clone());
                 self.find.matches = self.find_all(&term);
