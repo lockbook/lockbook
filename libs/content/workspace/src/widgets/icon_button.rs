@@ -58,6 +58,18 @@ impl IconButton {
         Self { hover_bg, ..self }
     }
 
+    /// Returns the size this button would occupy without drawing it.
+    pub fn measure(&self, ui: &Ui) -> Vec2 {
+        let icon_text: WidgetText = (&self.icon).into();
+        let galley =
+            icon_text.into_galley(ui, Some(TextWrapMode::Extend), f32::MAX, TextStyle::Body);
+        if let Some(size) = self.size {
+            Vec2::splat(size.max(galley.mesh_bounds.size().max_elem()))
+        } else {
+            Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
+        }
+    }
+
     pub fn show(self, ui: &mut Ui) -> Response {
         let wrap_width = ui.available_width();
         let theme = ui.ctx().get_lb_theme();

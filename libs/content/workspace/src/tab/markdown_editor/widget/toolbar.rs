@@ -64,15 +64,79 @@ pub struct ToolbarPersistence {
 
 impl<'ast> Editor {
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
-        Frame::canvas(ui.style())
-            .stroke(Stroke::NONE)
-            .inner_margin(Margin::symmetric(10, 10))
+        Frame::NONE
+            .inner_margin(Margin::symmetric(0, 10))
             .show(ui, |ui| self.show_toolbar_inner(root, ui))
             .inner
     }
 
+    /// Computes the toolbar's content width without drawing it.
+    fn toolbar_width(&self, ui: &Ui) -> f32 {
+        let btn = IconButton::new(Icon::UNDO.size(ICON_SIZE)).measure(ui).x;
+        let sep = 20.; // separator spacing
+        let gap = 5.; // intra-group spacing
+        let margin = 10.; // padding on each side
+
+        let persistence = self.persistence.get_markdown().toolbar;
+        let is_default = persistence == Default::default();
+        let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
+        let is_ios = cfg!(target_os = "ios");
+
+        // width of a group of n buttons with intra-group spacing + trailing separator
+        let group = |n: usize| -> f32 {
+            if n > 0 { btn * n as f32 + gap * (n - 1) as f32 + sep } else { 0. }
+        };
+        let count =
+            |flags: &[bool]| -> usize { flags.iter().filter(|&&on| on || is_default).count() };
+
+        let mut w = 2. * margin;
+
+        if is_mobile && self.virtual_keyboard_shown {
+            w += btn + sep;
+        }
+
+        w += group(count(&[persistence.undo, persistence.redo]));
+        w += group(count(&[
+            persistence.heading,
+            persistence.bold,
+            persistence.emph,
+            persistence.code,
+            persistence.strikethrough,
+            persistence.highlight,
+            persistence.underline,
+            persistence.spoiler,
+            persistence.subscript,
+            persistence.superscript,
+        ]));
+        w += group(count(&[
+            persistence.ordered_list,
+            persistence.unordered_list,
+            persistence.task_list,
+        ]));
+
+        // media group (camera is iOS-only)
+        let mut media = count(&[persistence.link]);
+        if (persistence.image || is_default) && is_ios {
+            media += 1;
+        }
+        w += group(media);
+
+        // indent group (no trailing separator — last group)
+        let n = count(&[persistence.indent, persistence.deindent]);
+        if n > 0 {
+            w += btn * n as f32 + gap * (n - 1) as f32;
+        }
+
+        w
+    }
+
     #[allow(clippy::option_map_unit_fn)] // use of .map() reduces line wrapping, improving readability
     pub fn show_toolbar_inner(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
+        // center the toolbar content horizontally
+        let toolbar_w = self.toolbar_width(ui);
+        let available = ui.available_width();
+        let offset = ((available - toolbar_w) / 2.).max(0.);
+
         ScrollArea::horizontal()
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
@@ -83,6 +147,12 @@ impl<'ast> Editor {
                     let is_mobile = is_ios || cfg!(target_os = "android");
 
                     ui.spacing_mut().button_padding = egui::vec2(5., 5.);
+
+                    let toolbar_margin = 10.;
+                    ui.add_space(toolbar_margin);
+                    if offset > toolbar_margin {
+                        ui.add_space(offset - toolbar_margin);
+                    }
 
                     let persistence = self.persistence.get_markdown().toolbar;
                     let toolbar_is_default = persistence == Default::default();
@@ -373,6 +443,7 @@ impl<'ast> Editor {
                         ui.add_space(5.);
                     }
 
+                    ui.add_space(toolbar_margin);
                     ui.add_space(ui.available_width());
 
                     for event in events {

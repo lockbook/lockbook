@@ -904,7 +904,7 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    pub fn get_markdown(&mut self) -> MdPersistence {
+    pub fn get_markdown(&self) -> MdPersistence {
         self.data.read().unwrap().markdown.clone()
     }
 
