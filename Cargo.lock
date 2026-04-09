@@ -4225,6 +4225,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-metrics"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "flate2",
+ "jsonwebtoken",
+ "lazy_static",
+ "prometheus",
+ "reqwest",
+ "serde",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "warp",
+]
+
+[[package]]
 name = "lb-rs"
 version = "26.4.9"
 dependencies = [
