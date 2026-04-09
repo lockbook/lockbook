@@ -23,13 +23,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          target: x86_64-unknown-linux-musl
-      - name: Install dependencies
-        run: sudo apt-get install -y musl-tools pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
+        run: |
+          rustup target add x86_64-unknown-linux-musl
+          sudo apt-get install -y musl-tools pkg-config cmake libfontconfig1-dev libxkbcommon-x11-dev
       - name: Build server
         run: cargo build -p lockbook-server --release --target x86_64-unknown-linux-musl
       - name: Build CLI
