@@ -59,6 +59,11 @@ jobs:
     uses: ./.github/workflows/aur.yml
     secrets: inherit
 
+  deploy_linux:
+    needs: release
+    uses: ./.github/workflows/linux-release.yml
+    secrets: inherit
+
   deploy_snap:
     needs: release
     uses: ./.github/workflows/snap.yml
