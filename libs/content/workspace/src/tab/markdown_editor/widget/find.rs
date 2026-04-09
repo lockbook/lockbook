@@ -375,7 +375,7 @@ impl Editor {
                 ));
             }
 
-            byte_start = abs_pos + 1;
+            byte_start = abs_end;
         }
         matches
     }
