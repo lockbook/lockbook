@@ -110,6 +110,11 @@ impl Icon {
     pub const RECTANGLE: Self = ic("\u{f0e5e}"); // 󰹞
     pub const FIT_WIDTH: Self = ic("\u{f0e74}"); // 󰹴
     pub const FIT_HEIGHT: Self = ic("\u{f0e79}"); // 󰹹
+    pub const CASE_SENSITIVE: Self = ic("\u{eab1}"); // nf-cod-case_sensitive
+    pub const WHOLE_WORD: Self = ic("\u{eb7e}"); // nf-cod-whole_word
+    pub const REGEX: Self = ic("\u{eb38}"); // nf-cod-regex
+    pub const REPLACE: Self = ic("\u{eb3d}"); // nf-cod-replace
+    pub const REPLACE_ALL: Self = ic("\u{eb3c}"); // nf-cod-replace_all
 
     pub fn color(self, color: egui::Color32) -> Self {
         let mut this = self;

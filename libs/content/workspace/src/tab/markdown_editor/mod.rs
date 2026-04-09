@@ -597,14 +597,15 @@ impl Editor {
                             .y
                     });
 
-                    // non-touch devices: show toolbar...
-                    if !self.readonly {
-                        self.show_toolbar(root, ui);
-                    }
-
-                    // ...then show find...
-                    let find_resp = self.find.show(&self.buffer, ui);
-                    self.process_find_response(find_resp);
+                    // non-touch devices: show toolbar + find, centered to editor width
+                    ui.vertical_centered(|ui| {
+                        ui.set_max_width(self.width);
+                        if !self.readonly {
+                            self.show_toolbar(root, ui);
+                        }
+                        let find_resp = self.find.show(&self.buffer, ui);
+                        self.process_find_response(find_resp);
+                    });
 
                     // these are computed during render
                     self.galleys.galleys.clear();
@@ -901,10 +902,8 @@ impl Editor {
                 // render find match highlights
                 if !self.find.matches.is_empty() {
                     let theme = self.ctx.get_lb_theme();
-                    let highlight_color = theme.bg().get_color(theme.prefs().secondary)
-                        .lerp_to_gamma(theme.neutral_bg(), 0.7);
-                    let current_color = theme.bg().get_color(theme.prefs().primary)
-                        .lerp_to_gamma(theme.neutral_bg(), 0.5);
+                    let highlight_color = theme.neutral_bg_tertiary();
+                    let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                     for (i, &match_range) in self.find.matches.iter().enumerate() {
                         let color = if self.find.current_match == Some(i) {
                             current_color
@@ -928,9 +927,6 @@ impl Editor {
     }
 
     fn process_find_response(&mut self, resp: widget::find::Response) {
-        let old_match = self.find.current_match
-            .and_then(|idx| self.find.matches.get(idx).copied());
-
         if resp.replace_one {
             if let Some(idx) = self.find.current_match {
                 if let Some(&match_range) = self.find.matches.get(idx) {
@@ -940,14 +936,11 @@ impl Editor {
                         text: replacement,
                         advance_cursor: false,
                     });
-                    // matches will be recomputed on the text_updated path;
-                    // advance current_match so it lands on the next match
                 }
             }
         }
         if resp.replace_all {
             let replacement = self.find.replace_term.clone();
-            // replace in reverse order to preserve earlier offsets
             for &match_range in self.find.matches.iter().rev() {
                 self.event.internal_events.push(Event::Replace {
                     region: match_range.into(),
@@ -958,38 +951,15 @@ impl Editor {
         }
         if resp.term_changed {
             let term = self.find.term.clone().unwrap_or_default();
-            self.find.matches = self.find_all(&term);
-            if !self.find.matches.is_empty() {
-                let cursor_pos = self.buffer.current.selection.1;
-                let idx = self.find.matches.iter().position(|m| m.0 >= cursor_pos)
-                    .unwrap_or(0);
-                self.find.current_match = Some(idx);
-                self.scroll_to_find_match = true;
-            } else {
-                self.find.current_match = None;
-            }
+            self.event.internal_events.push(Event::FindSearch { term });
         }
         if let Some(forward) = resp.navigate {
-            if self.find_navigate(forward) {
-                self.scroll_to_find_match = true;
-            }
+            self.event.internal_events.push(Event::FindNavigate { backwards: !forward });
         }
         if resp.closed {
             self.find.matches.clear();
             self.find.current_match = None;
-        }
-
-        // invalidate layout cache if the current find match changed, since
-        // reveal state (and thus node heights) depends on it
-        let new_match = self.find.current_match
-            .and_then(|idx| self.find.matches.get(idx).copied());
-        if old_match != new_match {
-            if let Some(old) = old_match {
-                self.layout_cache.invalidate_selection_change(old, old);
-            }
-            if let Some(new) = new_match {
-                self.layout_cache.invalidate_selection_change(new, new);
-            }
+            self.layout_cache.clear();
         }
     }
 
@@ -998,7 +968,7 @@ impl Editor {
             if let Some(match_range) = self.find.matches.get(idx) {
                 let rects = self.range_rects(*match_range);
                 if let Some(rect) = rects.first() {
-                    ui.scroll_to_rect(rect.expand(rect.height()), None);
+                    ui.scroll_to_rect(rect.expand(rect.height()), Some(egui::Align::Center));
                 }
             }
         }
