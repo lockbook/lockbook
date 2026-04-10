@@ -119,27 +119,27 @@ impl PdfViewer {
         let tn_render_settings =
             RenderSettings { x_scale: 0.15, y_scale: 0.15, ..Default::default() };
 
-        let thumbnails = self
-            .pdf
-            .pages()
-            .iter()
-            .map(|page| {
-                let image =
-                    hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
-                let size = [image.width() as _, image.height() as _];
-                let image =
-                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
-                Content {
-                    texture: self.ctx.load_texture(
-                        "pdf_thumbnail",
-                        image,
-                        egui::TextureOptions::LINEAR,
-                    ),
-                }
-            })
-            .collect();
+        // let thumbnails = self
+        //     .pdf
+        //     .pages()
+        //     .iter()
+        //     .map(|page| {
+        //         let image =
+        //             hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
+        //         let size = [image.width() as _, image.height() as _];
+        //         let image =
+        //             egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
+        //         Content {
+        //             texture: self.ctx.load_texture(
+        //                 "pdf_thumbnail",
+        //                 image,
+        //                 egui::TextureOptions::LINEAR,
+        //             ),
+        //         }
+        //     })
+        //     .collect();
 
-        self.sidebar = Some(SideBar { thumbnails, is_visible: true, scroll_target: 0 });
+        self.sidebar = Some(SideBar { thumbnails: vec![], is_visible: true, scroll_target: 0 });
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
