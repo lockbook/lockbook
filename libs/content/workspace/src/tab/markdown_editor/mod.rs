@@ -1298,18 +1298,13 @@ mod test {
 
     /// Android autocorrect: the IME deletes the old word then inserts the
     /// replacement, all computed against pre-deletion offsets. The buffer's
-    /// OT should adjust the stale insert position, but currently the insert
-    /// is dropped because the OT conflict resolution treats an empty insert
-    /// touching the end of a preceding replacement as a conflict.
+    /// OT adjusts the stale insert position so it lands where the deletion
+    /// happened.
     ///
     /// Reproduces the sequence from Android logs:
     ///   APPLY REPL 6 9          (delete "teh")
     ///   APPLY REPL 9 9 "the"    (insert at old position 9)
     ///   END FRAME
-    ///
-    /// The fix is non-trivial: the same OT conflict rule that drops this
-    /// insert also ensures merge conflicts pick one winner rather than
-    /// keeping both versions.
     #[test]
     fn android_autocorrect() {
         let mut ws = TestEditor::new("hello teh world");
