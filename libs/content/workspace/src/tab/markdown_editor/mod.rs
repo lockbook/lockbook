@@ -1233,3 +1233,87 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .unwrap()
         .push("icons".to_owned());
 }
+
+/// Headless editor harness matching the Android FFI surface so tests read
+/// like the Kotlin call sites (`replace`, `setSelection`, `enterFrame`, …).
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::tab::ExtendedInput as _;
+    use crate::theme::palette_v2::{Mode, Theme};
+    use egui::RawInput;
+    use input::{Event, Location, Region};
+    use lb_rs::model::text::offset_types::DocCharOffset;
+
+    struct TestEditor {
+        editor: Editor,
+        pending: Vec<Event>,
+    }
+
+    impl TestEditor {
+        fn new(md: &str) -> Self {
+            let mut harness = Self { editor: Editor::test(md), pending: vec![] };
+            harness.enter_frame();
+            harness
+        }
+
+        /// Workspace.replace(start, end, text)
+        fn replace(&mut self, start: usize, end: usize, text: &str) {
+            self.pending.push(Event::Replace {
+                region: Region::BetweenLocations {
+                    start: Location::DocCharOffset(DocCharOffset(start)),
+                    end: Location::DocCharOffset(DocCharOffset(end)),
+                },
+                text: text.to_string(),
+                advance_cursor: true,
+            });
+        }
+
+        /// Workspace.enterFrame() — runs a full headless egui frame through
+        /// Editor::show(), processing all pending events.
+        fn enter_frame(&mut self) {
+            let ctx = self.editor.ctx.clone();
+            let pending = std::mem::take(&mut self.pending);
+            let _ = ctx.run(RawInput::default(), |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                for event in &pending {
+                    ctx.push_markdown_event(event.clone());
+                }
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    self.editor.show(ui);
+                });
+            });
+        }
+
+        fn get_text(&self) -> &str {
+            &self.editor.buffer.current.text
+        }
+
+        fn get_selection(&self) -> (usize, usize) {
+            let sel = self.editor.buffer.current.selection;
+            (sel.0.0, sel.1.0)
+        }
+    }
+
+    /// Android autocorrect: the IME deletes the old word then inserts the
+    /// replacement, all computed against pre-deletion offsets. The buffer's
+    /// OT adjusts the stale insert position so it lands where the deletion
+    /// happened.
+    ///
+    /// Reproduces the sequence from Android logs:
+    ///   APPLY REPL 6 9          (delete "teh")
+    ///   APPLY REPL 9 9 "the"    (insert at old position 9)
+    ///   END FRAME
+    #[test]
+    fn android_autocorrect() {
+        let mut ws = TestEditor::new("hello teh world");
+
+        ws.replace(6, 9, ""); // delete "teh"    → "hello  world"
+        ws.replace(9, 9, "the"); // insert at 9     → stale, OT adjusts to 6
+        ws.enter_frame();
+
+        assert_eq!(ws.get_text(), "hello the world");
+        assert_eq!(ws.get_selection(), (9, 9)); // cursor after "the"
+    }
+}
