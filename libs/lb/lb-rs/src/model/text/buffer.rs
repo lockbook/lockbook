@@ -770,10 +770,11 @@ mod test {
     ];
 
     /// Generate a random grapheme-level edit of a document. Picks uniformly from:
-    ///   0. Delete: remove 1-5 consecutive graphemes at a random position
-    ///   1. Insert: add 1-5 random graphemes from POOL at a random position
-    ///   2. Replace: swap 1-5 consecutive graphemes with 1-3 random graphemes from POOL
-    ///   3. Clear: remove everything
+    /// - 0: Delete 1-5 consecutive graphemes at a random position
+    /// - 1: Insert 1-5 random graphemes from POOL at a random position
+    /// - 2: Replace 1-5 consecutive graphemes with 1-3 random graphemes from POOL
+    /// - 3: Clear everything
+    ///
     /// When the document is empty, cases 0/2/3 fall through to insert (the _ arm).
     fn random_edit(rng: &mut StdRng, doc: &str) -> String {
         let graphemes: Vec<&str> = UnicodeSegmentation::graphemes(doc, true).collect();

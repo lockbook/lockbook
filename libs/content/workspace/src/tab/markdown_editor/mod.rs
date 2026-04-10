@@ -1240,7 +1240,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
 mod test {
     use super::*;
     use crate::tab::ExtendedInput as _;
-    use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+    use crate::theme::palette_v2::{Mode, Theme};
     use egui::RawInput;
     use input::{Event, Location, Region};
     use lb_rs::model::text::offset_types::DocCharOffset;
