@@ -353,7 +353,7 @@ impl Buffer {
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
-                    if preceding_replaced_range.intersects(transformed_range, true)
+                    if preceding_replaced_range.intersects(transformed_range, false)
                         && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
                     {
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
@@ -631,6 +631,7 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use unicode_segmentation::UnicodeSegmentation;
 
     #[test]
     fn buffer_merge_nonintersecting_replace() {
@@ -717,11 +718,11 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content local"
+            "remote"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "remote"
+            "remote local"
         );
     }
 
@@ -734,5 +735,111 @@ mod test {
 
         let _ = Buffer::from(base_content).merge(local_content.into(), remote_content.into());
         let _ = Buffer::from(base_content).merge(remote_content.into(), local_content.into());
+    }
+
+    // ── Fuzz ──────────────────────────────────────────────────────────────
+
+    use rand::prelude::*;
+
+    /// Grapheme clusters for fuzz testing. Includes ASCII, multi-byte, multi-codepoint emoji
+    /// (ZWJ sequences, skin tones, flags), and combining characters.
+    const POOL: &[&str] = &[
+        "a",
+        "b",
+        "z",
+        " ",
+        "\n",
+        "\t",
+        "é",
+        "ñ",
+        "ü",
+        "日",
+        "本",
+        "語",
+        "👋",
+        "🎉",
+        "🔥",
+        "❤️",
+        "👨‍👩‍👧‍👦",
+        "🏳️‍🌈",
+        "👍🏽",
+        "🇺🇸",
+        "🇯🇵",
+        "e\u{0301}",
+        "a\u{0308}", // combining sequences: é, ä
+    ];
+
+    /// Generate a random grapheme-level edit of a document. Picks uniformly from:
+    ///   0. Delete: remove 1-5 consecutive graphemes at a random position
+    ///   1. Insert: add 1-5 random graphemes from POOL at a random position
+    ///   2. Replace: swap 1-5 consecutive graphemes with 1-3 random graphemes from POOL
+    ///   3. Clear: remove everything
+    /// When the document is empty, cases 0/2/3 fall through to insert (the _ arm).
+    fn random_edit(rng: &mut StdRng, doc: &str) -> String {
+        let graphemes: Vec<&str> = UnicodeSegmentation::graphemes(doc, true).collect();
+        let len = graphemes.len();
+
+        let mut g: Vec<String> = graphemes.iter().map(|s| s.to_string()).collect();
+
+        match rng.gen_range(0..4) {
+            0 if len > 0 => {
+                let pos = rng.gen_range(0..len);
+                let del = rng.gen_range(1..=(len - pos).min(5));
+                g.drain(pos..pos + del);
+            }
+            1 => {
+                let pos = rng.gen_range(0..=len);
+                let n = rng.gen_range(1..=5);
+                for j in 0..n {
+                    g.insert(pos + j, POOL[rng.gen_range(0..POOL.len())].into());
+                }
+            }
+            2 if len > 0 => {
+                let pos = rng.gen_range(0..len);
+                let del = rng.gen_range(1..=(len - pos).min(5));
+                let ins: Vec<String> = (0..rng.gen_range(1..=3))
+                    .map(|_| POOL[rng.gen_range(0..POOL.len())].into())
+                    .collect();
+                g.splice(pos..pos + del, ins);
+            }
+            3 if len > 0 => {
+                g.clear();
+            }
+            _ => {
+                let n = rng.gen_range(1..=5);
+                for _ in 0..n {
+                    g.push(POOL[rng.gen_range(0..POOL.len())].into());
+                }
+            }
+        }
+        g.concat()
+    }
+
+    #[test]
+    fn buffer_merge_fuzz() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let bases = ["hello world", "👨‍👩‍👧‍👦🇺🇸🔥", "café ñoño 日本語", ""];
+        for _ in 0..10_000 {
+            let base = bases[rng.gen_range(0..bases.len())];
+            let a = random_edit(&mut rng, base);
+            let b = random_edit(&mut rng, base);
+
+            // must not panic
+            let _ = Buffer::from(base).merge(a.clone(), b.clone());
+            let _ = Buffer::from(base).merge(b, a);
+        }
+    }
+
+    #[test]
+    fn buffer_merge_fuzz_chained() {
+        let mut rng = StdRng::seed_from_u64(77);
+        for _ in 0..5_000 {
+            let mut base = "hey 👋🏽 world 🇯🇵".to_string();
+            for _ in 0..rng.gen_range(2..=4) {
+                let a = random_edit(&mut rng, &base);
+                let b = random_edit(&mut rng, &base);
+                base = Buffer::from(base.as_str()).merge(a, b);
+            }
+        }
     }
 }
