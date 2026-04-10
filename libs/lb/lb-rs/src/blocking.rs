@@ -189,6 +189,10 @@ impl Lb {
         self.block_on(self.lb.list_paths(filter))
     }
 
+    pub fn list_paths_with_ids(&self, filter: Option<Filter>) -> LbResult<Vec<(Uuid, String)>> {
+        self.block_on(self.lb.list_paths_with_ids(filter))
+    }
+
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
         Ok(self.block_on(self.lb.local_changes()))
     }
