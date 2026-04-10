@@ -831,16 +831,109 @@ mod test {
         }
     }
 
+    // ── Chain convergence ──
+
+    /// Simulates a sync channel between two adjacent nodes. Holds the last-agreed-upon
+    /// document text, which serves as the 3-way merge base. When two nodes sync, their
+    /// documents are merged against this base, both nodes adopt the result, and the base
+    /// advances. This mirrors how lockbook's sync works: each client keeps a base (last
+    /// synced state) and merges local vs remote changes against it.
+    struct SyncLink {
+        base: String,
+    }
+
+    impl SyncLink {
+        fn new(base: &str) -> Self {
+            Self { base: base.into() }
+        }
+
+        fn sync(&mut self, left: &mut String, right: &mut String) {
+            let merged = Buffer::from(self.base.as_str()).merge(left.clone(), right.clone());
+            *left = merged.clone();
+            *right = merged.clone();
+            self.base = merged;
+        }
+    }
+
+    /// Sync all adjacent pairs in both directions until the chain stabilizes.
+    /// With N nodes and N-1 links, 2*N passes ensures changes propagate end-to-end.
+    fn full_sync(nodes: &mut [String], links: &mut [SyncLink]) {
+        for _ in 0..nodes.len() * 2 {
+            for i in 0..links.len() {
+                let (left, right) = nodes.split_at_mut(i + 1);
+                links[i].sync(&mut left[i], &mut right[0]);
+            }
+            for i in (0..links.len()).rev() {
+                let (left, right) = nodes.split_at_mut(i + 1);
+                links[i].sync(&mut left[i], &mut right[0]);
+            }
+        }
+    }
+
+    fn partial_sync(nodes: &mut [String], links: &mut [SyncLink], rng: &mut StdRng) {
+        for _ in 0..3 {
+            for i in 0..links.len() {
+                if rng.gen_bool(0.5) {
+                    let (left, right) = nodes.split_at_mut(i + 1);
+                    links[i].sync(&mut left[i], &mut right[0]);
+                }
+            }
+        }
+    }
+
+    fn assert_converged(nodes: &[String]) {
+        for (i, node) in nodes.iter().enumerate().skip(1) {
+            assert_eq!(
+                &nodes[0], node,
+                "node 0 and node {} diverged: {:?} vs {:?}",
+                i, nodes[0], node
+            );
+        }
+    }
+
     #[test]
-    fn buffer_merge_fuzz_chained() {
+    fn buffer_merge_fuzz_chain_2() {
+        let mut rng = StdRng::seed_from_u64(42);
+        for _ in 0..10_000 {
+            let init = if rng.gen_bool(0.5) { "hello 👋🏽" } else { "" };
+            let mut nodes: Vec<String> = (0..2).map(|_| init.into()).collect();
+            let mut links: Vec<SyncLink> = (0..1).map(|_| SyncLink::new(init)).collect();
+
+            for _ in 0..rng.gen_range(1..=4) {
+                for _ in 0..rng.gen_range(1..=3) {
+                    let i = rng.gen_range(0..2);
+                    nodes[i] = random_edit(&mut rng, &nodes[i]);
+                }
+                if rng.gen_bool(0.5) {
+                    partial_sync(&mut nodes, &mut links, &mut rng);
+                }
+            }
+
+            full_sync(&mut nodes, &mut links);
+            assert_converged(&nodes);
+        }
+    }
+
+    #[test]
+    fn buffer_merge_fuzz_chain_5() {
         let mut rng = StdRng::seed_from_u64(77);
         for _ in 0..5_000 {
-            let mut base = "hey 👋🏽 world 🇯🇵".to_string();
-            for _ in 0..rng.gen_range(2..=4) {
-                let a = random_edit(&mut rng, &base);
-                let b = random_edit(&mut rng, &base);
-                base = Buffer::from(base.as_str()).merge(a, b);
+            let init = if rng.gen_bool(0.5) { "café 日本語 🇯🇵" } else { "abc" };
+            let mut nodes: Vec<String> = (0..5).map(|_| init.into()).collect();
+            let mut links: Vec<SyncLink> = (0..4).map(|_| SyncLink::new(init)).collect();
+
+            for _ in 0..rng.gen_range(1..=3) {
+                for _ in 0..rng.gen_range(1..=5) {
+                    let i = rng.gen_range(0..5);
+                    nodes[i] = random_edit(&mut rng, &nodes[i]);
+                }
+                if rng.gen_bool(0.5) {
+                    partial_sync(&mut nodes, &mut links, &mut rng);
+                }
             }
+
+            full_sync(&mut nodes, &mut links);
+            assert_converged(&nodes);
         }
     }
 }
