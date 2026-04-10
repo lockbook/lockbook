@@ -23,8 +23,8 @@ async fn refresh_all(client: &Client, config: &env::Config) {
 
 #[tokio::main]
 async fn main() {
-    fmt::init();
-
+    loggers::init();
+    info!("lb-metrics started");
     let config = env::Config::from_env();
     let port = config.port;
 
@@ -55,6 +55,7 @@ mod app_store;
 mod env;
 mod flathub;
 mod github;
+mod loggers;
 
 use std::time::Duration;
 
@@ -64,7 +65,6 @@ use reqwest::Client;
 use serde::de::DeserializeOwned;
 use tokio::time::sleep;
 use tracing::*;
-use tracing_subscriber::fmt;
 use warp::Filter;
 use warp::path;
 use warp::reply::with_header;
