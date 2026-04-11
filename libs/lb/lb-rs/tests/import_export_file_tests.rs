@@ -4,7 +4,7 @@ use rand::Rng;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use test_utils::test_core_with_account;
+use test_utils::{test_core_with_account, url};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -111,4 +111,15 @@ async fn export_file_successfully() {
         .unwrap();
 
     assert!(tmp_path.join(parent_name).join(child_name).exists());
+}
+
+#[tokio::test]
+async fn test_get_file_link_url() {
+    let core = test_core_with_account().await;
+    let id = core.create_at_path("test.md").await.unwrap().id;
+
+    let link_url = core.get_file_link_url(&id).await.unwrap();
+    let expected_link = format!("{}/open/{}", &url(), id);
+
+    assert_eq!(expected_link, link_url);
 }

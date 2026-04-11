@@ -242,6 +242,10 @@ impl Lb {
     ) -> LbResult<()> {
         self.block_on(self.lb.export_file(id, dest, edit, export_progress))
     }
+    
+    pub fn get_file_link_url(&self, id: Uuid) -> LbResult<String> {
+        self.block_on(self.lb.get_file_link_url(id))
+    }
 
     #[cfg(not(target_family = "wasm"))]
     pub fn search_file_paths(&self, input: &str) -> LbResult<Vec<SearchResult>> {
