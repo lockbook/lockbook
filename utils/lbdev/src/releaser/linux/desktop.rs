@@ -306,7 +306,8 @@ pub fn overwrite_flatpak_manifest(
        "--socket=x11",
        "--device=dri",
        "--share=network",
-       "--share=ipc"
+       "--share=ipc",
+       "--persist=.lockbook"
     ],
     "modules": [
         {{
