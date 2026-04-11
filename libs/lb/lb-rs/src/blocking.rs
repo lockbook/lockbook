@@ -242,7 +242,7 @@ impl Lb {
     ) -> LbResult<()> {
         self.block_on(self.lb.export_file(id, dest, edit, export_progress))
     }
-    
+
     pub fn get_file_link_url(&self, id: Uuid) -> LbResult<String> {
         self.block_on(self.lb.get_file_link_url(id))
     }

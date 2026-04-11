@@ -10,36 +10,54 @@ struct OnLbLinkViewModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onOpenURL(perform: { url in
-                if url.scheme == "lb" {
-                    if url.host == "sharedFiles" {
-                        handleImportLink(url: url)
-                    } else {
-                        handleOpenLink(url: url)
-                    }
-                }
+                openUrl(url: url)
             })
             .onReceive(workspaceOutput.$urlsOpened, perform: { urls in
                 for url in urls {
-                    if AppState.isInternalLink(url) {
-                        handleOpenLink(url: url)
-                    } else {
-                        openURLExternally(url)
-                    }
+                    openUrl(url: url)
                 }
             })
     }
-
-    func openURLExternally(_ url: URL) {
-        DispatchQueue.main.async {
-            #if os(iOS)
-                UIApplication.shared.open(url)
-            #else
-                NSWorkspace.shared.open(url)
-            #endif
+    
+    func openUrl(url: URL) {
+        switch url.scheme {
+        case "lb":
+            if url.host == "sharedFiles" {
+                importInternalLink(url: url)
+            } else {
+                openLbUrl(url: url)
+            }
+        case "http", "https":
+            openExternalUrl(url: url)
+        default:
+            break
         }
     }
+    
+    private func openLbUrl(url: URL) {
+        guard let uuidString = url.host, let id = UUID(uuidString: uuidString) else {
+            AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid URL")
+            return
+        }
 
-    func handleImportLink(url: URL) {
+        self.openFile(id: id)
+    }
+    
+    private func openExternalUrl(url: URL) {
+        guard url.pathComponents.count >= 3,
+              url.pathComponents[1] == "open",
+              let id = UUID(uuidString: url.pathComponents[2]) else {
+            AppState.shared.error = .custom(
+                title: "Could not open link",
+                msg: "Invalid URL"
+            )
+            return
+        }
+
+        self.openFile(id: id)
+    }
+
+    private func importInternalLink(url: URL) {
         DispatchQueue.global(qos: .userInitiated).async {
             while filesModel.root == nil {
                 Thread.sleep(until: .now + 0.1)
@@ -66,12 +84,8 @@ struct OnLbLinkViewModifier: ViewModifier {
         }
     }
 
-    func handleOpenLink(url: URL) {
-        guard let uuidString = url.host, let id = UUID(uuidString: uuidString) else {
-            AppState.shared.error = .custom(title: "Could not open link", msg: "Invalid URL")
-            return
-        }
-
+    
+    private func openFile(id: UUID) {
         DispatchQueue.global(qos: .userInitiated).async {
             while filesModel.root == nil {
                 Thread.sleep(until: .now + 1)

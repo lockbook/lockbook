@@ -691,9 +691,7 @@ pub struct LbCopyFileLinkUrlRes {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_get_file_link_url(
-    lb: *mut Lb, id: LbUuid,
-) -> LbCopyFileLinkUrlRes {
+pub extern "C" fn lb_get_file_link_url(lb: *mut Lb, id: LbUuid) -> LbCopyFileLinkUrlRes {
     let lb = rlb(lb);
 
     match lb.get_file_link_url(id.into()) {
