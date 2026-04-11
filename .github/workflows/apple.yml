@@ -3,6 +3,10 @@ name: Apple Deployment
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      release:
+        type: boolean
+        default: false
 
 jobs:
   DeployApple:
@@ -11,8 +15,9 @@ jobs:
     env:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       MAC_MINI_LOGIN_KEYCHAIN: ${{ secrets.MAC_MINI_LOGIN_KEYCHAIN }}
+      GITHUB_TOKEN: ${{ secrets.FH_PAT }}
     steps:
-    - uses: actions/checkout@v4 
+    - uses: actions/checkout@v4
     - name: Configure PATH
       run: echo "$HOME/.cargo/bin" >> $GITHUB_PATH
     - name: Setup Machine
@@ -20,25 +25,35 @@ jobs:
         rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-darwin x86_64-apple-darwin aarch64-apple-ios-sim
         cargo install cbindgen
         security unlock-keychain -p $MAC_MINI_LOGIN_KEYCHAIN "$HOME/Library/Keychains/login.keychain-db"
+    - name: Release all
+      if: ${{ inputs.release }}
+      run: cargo r -p lbdev releaser apple all
     - name: deploy iOS
+      if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple ios
     - name: deploy macOS
+      if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple mac-app-store
     - name: build CLI
+      if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple cli-build
     - name: build egui
+      if: ${{ !inputs.release }}
       run: cargo build -p lockbook-egui --release
     - name: Upload macOS app
+      if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
       with:
         name: lockbook-macos
         path: clients/apple/build/lockbook-macos.app.zip
     - name: Upload macOS CLI
+      if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
       with:
         name: lockbook-cli-macos
         path: target/universal-cli/lockbook-cli-macos.tar.gz
     - name: Upload macOS egui
+      if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
       with:
         name: lockbook-egui-macos

@@ -1,0 +1,20 @@
+name: Snap Deployment
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy-snap:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: ubuntu-latest
+    env:
+      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Snapcraft
+        run: sudo snap install snapcraft --classic
+      - name: Deploy CLI to Snap Store
+        run: cargo run -p lbdev -- releaser linux cli snap
+      - name: Deploy Desktop to Snap Store
+        run: cargo run -p lbdev -- releaser linux desktop snap

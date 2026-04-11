@@ -108,7 +108,7 @@ impl<'ast> Editor {
 
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
-        if line_content.intersects(&self.buffer.current.selection, true) {
+        if self.range_revealed(line_content, true) {
             result += self.height_section(
                 &mut self.new_wrap(self.width(node) - self.layout.indent),
                 line_content,
@@ -149,7 +149,7 @@ impl<'ast> Editor {
     ) {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
-        if line_content.intersects(&self.buffer.current.selection, true) {
+        if self.range_revealed(line_content, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
             let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);

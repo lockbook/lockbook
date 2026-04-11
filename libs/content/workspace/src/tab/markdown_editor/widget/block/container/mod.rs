@@ -96,8 +96,14 @@ impl<'ast> Editor {
     ) {
         let children = self.sorted_children(node);
 
-        let required_range = self.galley_required_range();
+        let required_ranges = self.galley_required_ranges();
         let viewport = ui.clip_rect();
+
+        let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
+            required_ranges.iter().any(|rr| range.intersects(rr, true))
+        };
+        let past_all_required =
+            |offset: DocCharOffset| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
         for child in &children {
             let child_range = self.node_range(child);
@@ -109,9 +115,7 @@ impl<'ast> Editor {
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            let pre_spacing_needed = self
-                .spacing_range(&pre_lines)
-                .intersects(&required_range, true);
+            let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
             if pre_spacing_visible || pre_spacing_needed {
                 self.show_block_pre_spacing(ui, child, top_left, &children);
             }
@@ -133,7 +137,7 @@ impl<'ast> Editor {
             let block_below_viewport = viewport.max.y < top_left.y;
             let block_above_viewport = viewport.min.y > top_left.y + child_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
-            let block_needed = child_range.intersects(&required_range, true);
+            let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left, &children);
             }
@@ -144,17 +148,15 @@ impl<'ast> Editor {
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            let post_spacing_needed = self
-                .spacing_range(&post_lines)
-                .intersects(&required_range, true);
+            let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
             if post_spacing_visible || post_spacing_needed {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
             top_left.y += post_spacing;
 
             // safe to stop: everything remaining is below the viewport and
-            // past the range that needs galleys
-            if block_below_viewport && child_range.start() > required_range.end() {
+            // past all ranges that need galleys
+            if block_below_viewport && past_all_required(child_range.start()) {
                 break;
             }
         }
@@ -532,11 +534,7 @@ impl<'ast> Editor {
                 continue;
             }
 
-            let selection = self.buffer.current.selection;
-            if line_prefix.contains(selection.start(), true, false) {
-                return true;
-            }
-            if line_prefix.contains(selection.end(), true, false) {
+            if self.range_contains_reveal_endpoint(line_prefix, true, false) {
                 return true;
             }
         }

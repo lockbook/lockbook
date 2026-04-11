@@ -41,6 +41,34 @@ jobs:
       package: lockbook-linux
       artifact-name: lockbook-linux
 
+  build-linux-server-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-server
+      artifact-name: lockbook-server-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-cli-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-egui-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-linux
+      artifact-name: lockbook-linux-arm
+      runner: ubuntu-24.04-arm
+
   build-windows-cli:
     uses: ./.github/workflows/windows-build.yml
     with:
@@ -59,8 +87,47 @@ jobs:
       package: lockbook-egui
       artifact-name: lockbook-egui-windows
 
-  build-windows-installer:
+  build-windows-cli-arm:
     uses: ./.github/workflows/windows-build.yml
     with:
-      package: winstaller
-      artifact-name: winstaller
+      package: lockbook
+      artifact-name: lockbook-cli-windows-arm
+      runner: windows-11-arm
+
+  build-windows-arm:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-windows
+      artifact-name: lockbook-windows-arm
+      runner: windows-11-arm
+
+  build-windows-egui-arm:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-windows-arm
+      runner: windows-11-arm
+
+  build-windows-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build winstaller
+        run: cargo run -p lbdev -- releaser windows desktop-build
+      - name: Upload winstaller
+        uses: actions/upload-artifact@v4
+        with:
+          name: winstaller
+          path: target/x86_64-pc-windows-msvc/release/winstaller.exe
+
+  build-windows-installer-arm:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build winstaller
+        run: cargo run -p lbdev -- releaser windows desktop-build-arm
+      - name: Upload winstaller
+        uses: actions/upload-artifact@v4
+        with:
+          name: winstaller-arm
+          path: target/aarch64-pc-windows-msvc/release/winstaller.exe

@@ -3,9 +3,10 @@ use crate::releaser::utils::{lb_repo, lb_version, sha_file};
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
-use std::fs;
-use std::fs::{File, OpenOptions};
+use std::env;
+use std::fs::{self, File};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 
 static CLI_NAME: &str = "lockbook-cli-macos.tar.gz";
@@ -83,12 +84,29 @@ fn upload() {
 }
 
 fn update_brew() -> CliResult<()> {
-    overwrite_lockbook_rb();
-    push_brew()?;
+    let gh = Github::env();
+    let temp_dir = env::temp_dir().join("homebrew-lockbook");
+
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+
+    clone_brew_repo(&gh, &temp_dir)?;
+    overwrite_lockbook_rb(&temp_dir);
+    push_brew(&temp_dir)?;
+
+    fs::remove_dir_all(&temp_dir).unwrap();
     Ok(())
 }
 
-fn overwrite_lockbook_rb() {
+fn clone_brew_repo(gh: &Github, temp_dir: &Path) -> CliResult<()> {
+    let repo_url = format!("https://parth:{}@github.com/lockbook/homebrew-lockbook.git", gh.0);
+    Command::new("git")
+        .args(["clone", &repo_url, temp_dir.to_str().unwrap()])
+        .assert_success()
+}
+
+fn overwrite_lockbook_rb(temp_dir: &Path) {
     let version = lb_version();
     let sha = sha_file(&tarred_binary());
 
@@ -114,27 +132,23 @@ end
 "#
     );
 
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(false)
-        .truncate(true)
-        .open("../homebrew-lockbook/Formula/lockbook.rb")
-        .unwrap();
+    let formula_path = temp_dir.join("Formula/lockbook.rb");
+    let mut file = File::create(formula_path).unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 }
 
-fn push_brew() -> CliResult<()> {
+fn push_brew(temp_dir: &Path) -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
-        .current_dir("../homebrew-lockbook")
+        .current_dir(temp_dir)
         .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
-        .current_dir("../homebrew-lockbook")
+        .current_dir(temp_dir)
         .assert_success()?;
     Command::new("git")
         .args(["push", "origin", "master"])
-        .current_dir("../homebrew-lockbook")
+        .current_dir(temp_dir)
         .assert_success()?;
     Ok(())
 }

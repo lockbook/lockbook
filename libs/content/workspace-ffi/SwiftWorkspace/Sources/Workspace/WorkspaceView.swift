@@ -278,11 +278,13 @@ import SwiftUI
                     textWrapper.translatesAutoresizingMaskIntoConstraints =
                         false
                     addSubview(textWrapper)
+                    let topConstraint = textWrapper.topAnchor.constraint(
+                        equalTo: topAnchor,
+                        constant: headerSize
+                    )
+                    textWrapper.topConstraint = topConstraint
                     NSLayoutConstraint.activate([
-                        textWrapper.topAnchor.constraint(
-                            equalTo: topAnchor,
-                            constant: headerSize
-                        ),
+                        topConstraint,
                         textWrapper.leftAnchor.constraint(
                             equalTo: leftAnchor
                         ),

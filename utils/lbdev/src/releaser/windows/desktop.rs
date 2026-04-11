@@ -11,7 +11,7 @@ use crate::utils::CommandRunner;
 
 pub fn release() -> CliResult<()> {
     let gh = Github::env();
-    build_x86()?;
+    build()?;
     upload(
         &gh,
         "lockbook-windows-setup-x86_64.exe",
@@ -21,19 +21,39 @@ pub fn release() -> CliResult<()> {
     Ok(())
 }
 
-fn build_x86() -> CliResult<()> {
+pub fn release_arm() -> CliResult<()> {
+    let gh = Github::env();
+    build_arm()?;
+    upload(
+        &gh,
+        "lockbook-windows-setup-arm64.exe",
+        "target/aarch64-pc-windows-msvc/release/winstaller.exe",
+    )?;
+
+    Ok(())
+}
+
+pub fn build() -> CliResult<()> {
+    build_for_target("x86_64-pc-windows-msvc")
+}
+
+pub fn build_arm() -> CliResult<()> {
+    build_for_target("aarch64-pc-windows-msvc")
+}
+
+fn build_for_target(target: &str) -> CliResult<()> {
     Command::new("cargo")
-        .args(["build", "-p", "lockbook-windows", "--release", "--target=x86_64-pc-windows-msvc"])
+        .args(["build", "-p", "lockbook-windows", "--release", &format!("--target={target}")])
         .assert_success()?;
 
     Command::new("cargo")
-        .env("LB_TARGET", "x86_64-pc-windows-msvc")
+        .env("LB_TARGET", target)
         .args([
             "build",
             "-p",
             "winstaller",
             "--release",
-            "--target=x86_64-pc-windows-msvc",
+            &format!("--target={target}"),
             "--features",
             "build-winstaller",
         ])

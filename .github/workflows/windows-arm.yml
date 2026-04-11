@@ -1,0 +1,16 @@
+name: Windows ARM Deployment
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy-windows-arm:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Windows ARM
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo run -p lbdev -- releaser windows all-arm

@@ -41,6 +41,7 @@ impl From<crate::Response> for AndroidResponse {
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated: _,
+                    markdown_editor_find_widget_height: _,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed: _,

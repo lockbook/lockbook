@@ -8,6 +8,7 @@ use std::{
 
 use futures::{StreamExt, stream};
 use tokio::sync::{Mutex, broadcast::error::TryRecvError};
+use tokio::time;
 use usvg::Transform;
 use uuid::Uuid;
 
@@ -1250,6 +1251,7 @@ impl Lb {
             };
 
             loop {
+                time::sleep(Duration::from_millis(500)).await;
                 let mut should_sync = false;
 
                 // drain the current channel, so we don't sync for each keystroke if they pile up
