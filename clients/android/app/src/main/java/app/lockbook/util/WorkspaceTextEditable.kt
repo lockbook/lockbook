@@ -8,9 +8,6 @@ import android.text.Spanned
 import android.view.KeyEvent
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import kotlin.concurrent.withLock
 import kotlin.text.iterator
 
 class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
@@ -168,15 +165,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            view.nativeLock.withLock {
-                Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
-            }
+            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end))
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            view.nativeLock.withLock {
-                Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
-            }
+            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end))
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
@@ -205,11 +198,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         println("WorkspaceTextEditable: append ${text}")
 
         text?.let { realText ->
-            view.nativeLock.withLock {
-                Workspace.append(WorkspaceView.WGPU_OBJ, realText.toString())
-
-            }
-
+            view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(realText.toString()))
             view.drawImmediately()
         }
 
@@ -219,9 +208,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
 //        println("WorkspaceTextEditable: append ${start} ${end}")
 
-        view.nativeLock.withLock {
-            Workspace.append(WorkspaceView.WGPU_OBJ, text?.substring(start, end) ?: "null")
-        }
+        view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
         view.drawImmediately()
 
         return this
@@ -230,10 +217,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun append(text: Char): Editable {
         println("WorkspaceTextEditable: append ${text}")
 
-        view.nativeLock.withLock {
-            Workspace.append(WorkspaceView.WGPU_OBJ, text.toString())
-
-        }
+        view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(text.toString()))
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated(true)
 
@@ -264,12 +248,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
-        println("WorkspaceTextEditable: REPL $st $en $text")
+        println("WorkspaceTextEditable: REPL $st $en $text | ${wsInputConnection.batchEditCount}")
 
         text?.let { realText ->
 
             val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, realText.toString(), wsInputConnection.batchEditCount)
-            view.textMutations.add(pendingCommand)
+            view.textMutations.get().add(pendingCommand)
             if (en < composingStart) {
                 val replacedLen = en - st
 
@@ -315,21 +299,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         text?.let { realText ->
             val subRealText = realText.substring(start, end)
 
-            view.nativeLock.withLock {
-
-                if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                    Workspace.sendKeyEvent(
-                        WorkspaceView.WGPU_OBJ,
-                        KeyEvent.KEYCODE_ENTER,
-                        "",
-                        true,
-                        false,
-                        false,
-                        false
-                    )
-                } else {
-                    Workspace.insert(WorkspaceView.WGPU_OBJ, where, subRealText)
-                }
+            if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
+                view.textMutations.get().add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
+                    "",
+                    true,
+                    false,
+                    false,
+                    false)
+                )
+            } else {
+                view.textMutations.get().add(WorkspaceView.WsTextMutation.Insert(where, subRealText))
             }
             if (where < composingStart) {
                 composingStart += subRealText.length
@@ -347,22 +326,19 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         println("WorkspaceTextEditable: insert $text")
 
         text?.let { realText ->
-            view.nativeLock.withLock {
 
-                if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                    Workspace.sendKeyEvent(
-                        WorkspaceView.WGPU_OBJ,
-                        KeyEvent.KEYCODE_ENTER,
-                        "",
-                        true,
-                        false,
-                        false,
-                        false
-                    )
-                } else {
-                    Workspace.insert(WorkspaceView.WGPU_OBJ, where, realText.toString())
-                }
+            if (realText == "\n" && selectionEnd == where && selectionStart == where) {
+                view.textMutations.get().add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
+                    "",
+                    true,
+                    false,
+                    false,
+                    false)
+                )
+            } else {
+                view.textMutations.get().add(WorkspaceView.WsTextMutation.Insert(where, realText.toString()))
             }
+
             if (where < composingStart) {
                 composingStart += realText.length
                 composingEnd += realText.length
@@ -376,10 +352,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
-        println("WorkspaceTextEditable: DEL $st $en")
+        println("WorkspaceTextEditable: DEL $st $en | ${wsInputConnection.batchEditCount}")
 
         val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, "", wsInputConnection.batchEditCount)
-        view.textMutations.add(pendingCommand)
+        view.textMutations.get().add(pendingCommand)
 
         if (en < composingStart) {
             composingStart -= (en - st)
@@ -395,9 +371,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun clear() {
         println("WorkspaceTextEditable: clear ")
 
-        view.nativeLock.withLock {
-            Workspace.clear(WorkspaceView.WGPU_OBJ)
-        }
+        view.textMutations.get().add(WorkspaceView.WsTextMutation.Clear)
 
         composingStart = -1
         composingEnd = -1

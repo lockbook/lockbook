@@ -46,10 +46,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.json.Json
 import net.lockbook.Lb
+import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.math.max
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -60,7 +60,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var renderJob: Job? = null
 
-    val nativeLock = ReentrantLock()
+    private val nativeLock = ReentrantLock()
 
     private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
     private val frameOutputJsonParser = Json {
@@ -74,7 +74,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
 
-    var textMutations = ArrayDeque<WsTextMutation>()
+    var textMutations = AtomicReference(ConcurrentLinkedDeque<WsTextMutation>())
 
     sealed class WsTextMutation {
         data class Replace(
@@ -88,7 +88,39 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val text: String
         ) : WsTextMutation()
 
+        data class Insert(
+            val where: Int,
+            val text: String
+        ) : WsTextMutation()
+
+        data class Append(
+            val text: String
+        ) : WsTextMutation()
+
         object NotifySelectionUpdate : WsTextMutation()
+
+        data class ClipboardPaste(
+            val text: String
+        ) : WsTextMutation()
+
+        data class SendKeyEvent(
+            val keyCode: Int,
+            val content: String,
+            val isDown: Boolean,
+            val isAlt: Boolean,
+            val isCtrl: Boolean,
+            val isShift: Boolean,
+        ) : WsTextMutation()
+
+        data class SetSelection(
+            val start: Int,
+            val end: Int,
+        ) : WsTextMutation()
+
+        object SelectAll : WsTextMutation()
+        object ClipboardCut : WsTextMutation()
+        object ClipboardCopy : WsTextMutation()
+        object Clear : WsTextMutation()
     }
 
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
@@ -363,34 +395,66 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (surface?.isValid != true) {
                 return 0
             }
-            var delta = 0
-            while (textMutations.isNotEmpty()) {
-                when (val mutation = textMutations.removeFirst()) {
-                    is WsTextMutation.Replace ->{
-                        println("WorkspaceTextEditable: APPLY REPL ${mutation.start} ${mutation.end} ${mutation.text}" )
-                        delta = max(delta, mutation.end - mutation.start)
-                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
+            val nextFrameMutations = ArrayDeque<WsTextMutation>()
+            val notBatch = if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                    textInputWrapper.wsInputConnection.batchEditCount <= 1
+                }
+            } else {false} ?: false
 
+            while (notBatch && textMutations.get().isNotEmpty()) {
+                when (val mutation = textMutations.get().removeFirst()) {
+                    is WsTextMutation.Replace ->{
+                        println("WorkspaceTextEditable: APPLY REPL ${mutation.start} ${mutation.end} ${mutation.text} | ${mutation.batchEditCount}" )
+                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
                     }
                     is WsTextMutation.InsertAtCursor ->{
                         println("WorkspaceTextEditable: APPLY INSERT ${mutation.text}")
                         Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
                     }
+                    is WsTextMutation.ClipboardPaste -> {
+                        Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
+                    }
+                    is WsTextMutation.SendKeyEvent -> {
+                        Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
+                    }
+                    is WsTextMutation.SelectAll -> {
+                        Workspace.selectAll(WGPU_OBJ)
+                    }
+                    is WsTextMutation.ClipboardCut -> {
+                        Workspace.clipboardCut(WGPU_OBJ)
+                    }
+                    is WsTextMutation.ClipboardCopy -> {
+                        Workspace.clipboardCopy(WGPU_OBJ)
+                    }
                     is WsTextMutation.NotifySelectionUpdate -> {
                         containsNotify = true
+                    }
+                    is WsTextMutation.Clear -> {
+                        Workspace.clear(WGPU_OBJ)
+                    }
+                    is WsTextMutation.SetSelection -> {
+                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
+                    }
+
+                    is WsTextMutation.Append -> {
+                        Workspace.append(WGPU_OBJ, mutation.text)
+                    }
+                    is WsTextMutation.Insert -> {
+                        Workspace.insert(WGPU_OBJ, mutation.where, mutation.text)
                     }
                 }
             }
 
             val selection : JTextRange= frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
 
-            pendingSelection.set(JTextRange(selection.none, selection.start - delta, selection.end - delta))
+            pendingSelection.set(JTextRange(selection.none, selection.start , selection.end ))
             pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
             pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
                 (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (containsNotify){
+                    if (containsNotify && textMutations.get().isEmpty()){
                         textInputWrapper.wsInputConnection.applySelectionNotification()
                     }
                 }
@@ -444,10 +508,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         contextMenu?.finish()
                     }
 
-//                    if (response.selectionUpdated) {
-//                        println("workspaceTextEditable: editor updated selection ${textMutations.isEmpty()}")
+                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount <= 1) {
+                        textMutations.get().add(WsTextMutation.NotifySelectionUpdate)
+                        println("workspaceTextEditable: RES SEL")
 //                        textInputWrapper.wsInputConnection.applySelectionNotification()
-//                    }
+                    }
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =

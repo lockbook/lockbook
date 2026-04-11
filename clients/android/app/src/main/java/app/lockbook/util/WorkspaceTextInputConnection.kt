@@ -10,8 +10,6 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
-import app.lockbook.workspace.Workspace
-import kotlin.concurrent.withLock
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
 
@@ -26,7 +24,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated(isImmediate: Boolean = false) {
-        workspaceView.textMutations.add(WorkspaceView.WsTextMutation.NotifySelectionUpdate)
+        workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.NotifySelectionUpdate)
 //        println("textInputConnection: notify selection update with $batchEditCount ${cursorMonitorStatus.monitor} $isImmediate")
 
 //        if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
@@ -64,9 +62,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
-            workspaceView.nativeLock.withLock {
-                Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
-            }
+            workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.SendKeyEvent(event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed))
         }
 
         workspaceView.drawImmediately()
@@ -77,15 +73,12 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun performContextMenuAction(id: Int): Boolean {
         println("textInputConnection: preformContextMenuAction ${id}")
         when (id) {
-            android.R.id.selectAll -> Workspace.selectAll(WorkspaceView.WGPU_OBJ)
-            android.R.id.cut -> Workspace.clipboardCut(WorkspaceView.WGPU_OBJ)
-            android.R.id.copy -> Workspace.clipboardCopy(WorkspaceView.WGPU_OBJ)
+            android.R.id.selectAll -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.SelectAll)
+            android.R.id.cut -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCut)
+            android.R.id.copy ->workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCopy)
             android.R.id.paste -> {
                 getClipboardManager().primaryClip?.getItemAt(0)?.text.let { clipboardText ->
-                    Workspace.clipboardPaste(
-                        WorkspaceView.WGPU_OBJ,
-                        clipboardText.toString()
-                    )
+                    workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()))
                 }
             }
             android.R.id.copyUrl,
@@ -162,4 +155,8 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun getEditable(): Editable {
         return wsEditable
     }
+
+    private lateinit var localMutations : ArrayDeque<WorkspaceView.WsTextMutation>;
+
+
 }
