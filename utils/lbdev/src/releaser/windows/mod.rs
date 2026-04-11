@@ -17,3 +17,15 @@ pub fn release() -> CliResult<()> {
     fs::remove_dir_all("windows-build").unwrap();
     Ok(())
 }
+
+pub fn release_arm() -> CliResult<()> {
+    let build_dir = Path::new("windows-build");
+    if !build_dir.exists() {
+        fs::create_dir("windows-build").unwrap();
+    }
+    cli::release_arm()?;
+    desktop::release_arm()?;
+
+    fs::remove_dir_all("windows-build").unwrap();
+    Ok(())
+}

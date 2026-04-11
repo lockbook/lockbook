@@ -113,4 +113,5 @@ pub mod loggers;
 pub mod metrics;
 pub mod router_service;
 pub mod schema;
+pub mod static_files;
 pub mod utils;

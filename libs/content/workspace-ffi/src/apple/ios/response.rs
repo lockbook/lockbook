@@ -26,6 +26,10 @@ pub struct IOSResponse {
     pub scroll_updated: bool,
     pub tab_title_clicked: bool,
     pub selected_folder_changed: bool,
+
+    /// Height in points of content above the editor (find widget) that the
+    /// text interaction overlay should not cover.
+    pub text_input_top_offset: f32,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -43,6 +47,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
+                    markdown_editor_find_widget_height,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
@@ -85,6 +90,7 @@ impl From<crate::Response> for IOSResponse {
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
+            text_input_top_offset: markdown_editor_find_widget_height,
         }
     }
 }

@@ -1,4 +1,3 @@
-
 name: Github Release
 on:
   workflow_dispatch:
@@ -28,7 +27,7 @@ jobs:
 
   call_publish_flatpak:
     needs: release
-    uses: ./.github/workflows/deploy-flatpak.yml
+    uses: ./.github/workflows/flatpak.yml
     secrets: inherit
 
   deploy_android:
@@ -36,4 +35,36 @@ jobs:
     uses: ./.github/workflows/android.yml
     with:
       environment: prod-play-store
+    secrets: inherit
+
+  deploy_windows:
+    needs: release
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
+
+  deploy_windows_arm:
+    needs: release
+    uses: ./.github/workflows/windows-arm.yml
+    secrets: inherit
+
+  deploy_apple:
+    needs: release
+    uses: ./.github/workflows/apple.yml
+    with:
+      release: true
+    secrets: inherit
+
+  deploy_aur:
+    needs: release
+    uses: ./.github/workflows/aur.yml
+    secrets: inherit
+
+  deploy_linux:
+    needs: release
+    uses: ./.github/workflows/linux-release.yml
+    secrets: inherit
+
+  deploy_snap:
+    needs: release
+    uses: ./.github/workflows/snap.yml
     secrets: inherit

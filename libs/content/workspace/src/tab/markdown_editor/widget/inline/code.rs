@@ -29,7 +29,7 @@ impl<'ast> Editor {
         let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
         let postfix_range = (node_range.end() - 1, node_range.end()).trim(&range);
 
-        let reveal = self.node_intersects_selection(node);
+        let reveal = self.node_revealed(node);
         let mut tmp_wrap = wrap.clone();
 
         if !prefix_range.is_empty() && reveal {
@@ -66,7 +66,7 @@ impl<'ast> Editor {
         let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
         let postfix_range = (node_range.end() - 1, node_range.end()).trim(&range);
 
-        let reveal = self.node_intersects_selection(node);
+        let reveal = self.node_revealed(node);
         let mut response = Default::default();
 
         if !prefix_range.is_empty() {

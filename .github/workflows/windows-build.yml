@@ -1,0 +1,28 @@
+name: Windows Build
+
+on:
+  workflow_call:
+    inputs:
+      package:
+        required: true
+        type: string
+      artifact-name:
+        required: true
+        type: string
+      runner:
+        type: string
+        default: windows-latest
+
+jobs:
+  build:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: ${{ inputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ${{ inputs.package }}
+        run: cargo build -p ${{ inputs.package }} --release
+      - name: Upload ${{ inputs.artifact-name }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: target/release/${{ inputs.package }}.exe

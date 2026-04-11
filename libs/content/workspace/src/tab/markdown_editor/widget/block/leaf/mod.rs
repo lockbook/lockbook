@@ -62,7 +62,7 @@ impl<'ast> Editor {
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-            if node_line.intersects(&self.buffer.current.selection, true) {
+            if self.range_revealed(node_line, true) {
                 return true;
             }
         }

@@ -81,6 +81,8 @@ object Workspace {
     }
 
     external fun initWS(surface: Surface, core: Long, darkMode: Boolean): Long
+    external fun dropWS(ptr: Long)
+
     external fun enterFrame(rustObj: Long): String
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
@@ -120,6 +122,9 @@ object Workspace {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+
+    external fun getBuffer(rustObj: Long): String
+
     external fun getAllText(rustObj: Long): String
 
 

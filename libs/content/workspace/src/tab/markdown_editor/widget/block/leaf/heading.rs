@@ -89,16 +89,14 @@ impl<'ast> Editor {
 
     pub fn reveal_setext_syntax(&self, node: &'ast AstNode<'ast>) -> bool {
         // reveal syntax even if the cursor is in the indentation before the node
-        let mut reveal = false;
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
 
-            if line.intersects(&self.buffer.current.selection, true) {
-                reveal = true;
-                break;
+            if self.range_revealed(line, true) {
+                return true;
             }
         }
-        reveal
+        false
     }
 
     // https://github.github.com/gfm/#atx-headings
@@ -110,7 +108,7 @@ impl<'ast> Editor {
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
         let node_line = self.node_line(node, line);
 
-        let reveal = line.intersects(&self.buffer.current.selection, true);
+        let reveal = self.range_revealed(line, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
             self.split_range(node, node_line)
@@ -291,7 +289,7 @@ impl<'ast> Editor {
         let node_line = self.node_line(node, line);
 
         let height = self.height_atx_heading(node);
-        let reveal = line.intersects(&self.buffer.current.selection, true);
+        let reveal = self.range_revealed(line, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
             self.split_range(node, node_line)
@@ -561,10 +559,6 @@ impl<'ast> Editor {
     pub fn heading_fold_reveal(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
     ) -> bool {
-        self.heading_contents(node, siblings).contains_range(
-            &self.buffer.current.selection,
-            false,
-            true,
-        )
+        self.range_contains_revealed(self.heading_contents(node, siblings), false, true)
     }
 }

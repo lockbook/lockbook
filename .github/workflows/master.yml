@@ -17,20 +17,117 @@ jobs:
     uses: ./.github/workflows/apple.yml
     secrets: inherit
 
-  build-server:
-    if: github.repository == 'lockbook/lockbook'
-    runs-on: [self-hosted, ci]
-    env:
-      CARGO_HOME: /home/parth/lockbook-ci-cache/home
-      CARGO_TARGET_DIR: /home/parth/lockbook-ci-cache/target
+  build-linux-server:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-server
+      artifact-name: lockbook-server
+
+  build-linux-cli:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-linux
+
+  build-linux-egui:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-linux
+
+  build-linux:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-linux
+      artifact-name: lockbook-linux
+
+  build-linux-server-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-server
+      artifact-name: lockbook-server-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-cli-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-egui-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-linux-arm:
+    uses: ./.github/workflows/linux-build.yml
+    with:
+      package: lockbook-linux
+      artifact-name: lockbook-linux-arm
+      runner: ubuntu-24.04-arm
+
+  build-windows-cli:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-windows
+
+  build-windows:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-windows
+      artifact-name: lockbook-windows
+
+  build-windows-egui:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-windows
+
+  build-windows-cli-arm:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook
+      artifact-name: lockbook-cli-windows-arm
+      runner: windows-11-arm
+
+  build-windows-arm:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-windows
+      artifact-name: lockbook-windows-arm
+      runner: windows-11-arm
+
+  build-windows-egui-arm:
+    uses: ./.github/workflows/windows-build.yml
+    with:
+      package: lockbook-egui
+      artifact-name: lockbook-egui-windows-arm
+      runner: windows-11-arm
+
+  build-windows-installer:
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup musl target
-        run: rustup target add x86_64-unknown-linux-musl
-      - name: Build server
-        run: nix-shell -p musl --command "cargo r -p lbdev releaser server build"
-      - name: Upload server binary
+      - name: Build winstaller
+        run: cargo run -p lbdev -- releaser windows desktop-build
+      - name: Upload winstaller
         uses: actions/upload-artifact@v4
         with:
-          name: lockbook-server
-          path: target/x86_64-unknown-linux-musl/release/lockbook-server
+          name: winstaller
+          path: target/x86_64-pc-windows-msvc/release/winstaller.exe
+
+  build-windows-installer-arm:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build winstaller
+        run: cargo run -p lbdev -- releaser windows desktop-build-arm
+      - name: Upload winstaller
+        uses: actions/upload-artifact@v4
+        with:
+          name: winstaller-arm
+          path: target/aarch64-pc-windows-msvc/release/winstaller.exe

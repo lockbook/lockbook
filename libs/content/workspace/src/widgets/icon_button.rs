@@ -9,6 +9,7 @@ pub struct IconButton {
     tooltip: Option<String>,
     colored: bool,
     disabled: bool,
+    subdued: bool,
     size: Option<f32>,
     hover_bg: bool,
 }
@@ -16,7 +17,15 @@ pub struct IconButton {
 impl IconButton {
     /// Create an icon button with the given icon.
     pub fn new(icon: Icon) -> Self {
-        Self { icon, tooltip: None, colored: false, size: None, disabled: false, hover_bg: true }
+        Self {
+            icon,
+            tooltip: None,
+            colored: false,
+            disabled: false,
+            subdued: false,
+            size: None,
+            hover_bg: true,
+        }
     }
 
     /// Add a tooltip for the button. Default: `None`.
@@ -39,9 +48,26 @@ impl IconButton {
         Self { disabled, ..self }
     }
 
+    /// Use a dimmer color for the icon. Default: `false`.
+    pub fn subdued(self, subdued: bool) -> Self {
+        Self { subdued, ..self }
+    }
+
     /// Hide the hover background. Default: `true` (background shown).
     pub fn hover_bg(self, hover_bg: bool) -> Self {
         Self { hover_bg, ..self }
+    }
+
+    /// Returns the size this button would occupy without drawing it.
+    pub fn measure(&self, ui: &Ui) -> Vec2 {
+        let icon_text: WidgetText = (&self.icon).into();
+        let galley =
+            icon_text.into_galley(ui, Some(TextWrapMode::Extend), f32::MAX, TextStyle::Body);
+        if let Some(size) = self.size {
+            Vec2::splat(size.max(galley.mesh_bounds.size().max_elem()))
+        } else {
+            Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
+        }
     }
 
     pub fn show(self, ui: &mut Ui) -> Response {
@@ -80,10 +106,12 @@ impl IconButton {
 
         let icon_color = if self.colored || resp.is_pointer_button_down_on() {
             theme.fg().get_color(theme.prefs().primary)
-        } else if !self.disabled {
-            theme.neutral_fg()
-        } else {
+        } else if self.disabled {
             theme.neutral()
+        } else if self.subdued {
+            theme.neutral_fg_secondary()
+        } else {
+            theme.neutral_fg()
         };
 
         ui.painter().galley(

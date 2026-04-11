@@ -3,9 +3,11 @@ use crate::releaser::utils::{lb_repo, lb_version};
 use crate::utils::CommandRunner;
 use cli_rs::cli_error::CliResult;
 use gh_release::ReleaseClient;
+use std::env;
 use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
+use std::path::Path;
 use std::process::Command;
 
 pub fn release() -> CliResult<()> {
@@ -29,7 +31,7 @@ pub fn update_snap() -> CliResult<()> {
     let new_content = format!(
         r#"
 name: lockbook
-base: core20
+base: core24
 version: '{version}'
 summary: The CLI version of Lockbook
 description: |
@@ -44,6 +46,8 @@ parts:
     source-tag: {version}
     build-packages:
       - git
+    stage-packages:
+      - nfs-common
     rust-path: ["clients/cli"]
 
 apps:
@@ -65,7 +69,8 @@ apps:
         .unwrap();
     file.write_all(new_content.as_bytes()).unwrap();
 
-    Command::new("snapcraft")
+    Command::new("sudo")
+        .args(["snapcraft", "pack", "--destructive-mode"])
         .current_dir("utils/dev/snap-packages/lockbook/")
         .assert_success()?;
     Command::new("snapcraft")
@@ -165,12 +170,27 @@ pub fn bin_gh() -> CliResult<()> {
 }
 
 pub fn update_aur() -> CliResult<()> {
-    overwrite_lockbook_pkg();
-    push_aur()?;
+    let temp_dir = env::temp_dir().join("aur-lockbook");
+
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir).unwrap();
+    }
+
+    clone_aur_repo(&temp_dir)?;
+    overwrite_lockbook_pkg(&temp_dir);
+    push_aur(&temp_dir)?;
+
+    fs::remove_dir_all(&temp_dir).unwrap();
     Ok(())
 }
 
-pub fn overwrite_lockbook_pkg() {
+fn clone_aur_repo(temp_dir: &Path) -> CliResult<()> {
+    Command::new("git")
+        .args(["clone", "ssh://aur@aur.archlinux.org/lockbook.git", temp_dir.to_str().unwrap()])
+        .assert_success()
+}
+
+fn overwrite_lockbook_pkg(temp_dir: &Path) {
     let version = lb_version();
     let new_makepkg_content = format!(
         r#"
@@ -238,40 +258,26 @@ pkgname = lockbook
         "#
     );
 
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(false)
-        .truncate(true)
-        .open("../aur-lockbook/PKGBUILD")
-        .unwrap();
+    let pkgbuild_path = temp_dir.join("PKGBUILD");
+    let mut file = File::create(pkgbuild_path).unwrap();
     file.write_all(new_makepkg_content.as_bytes()).unwrap();
 
-    let mut file = OpenOptions::new()
-        .write(true)
-        .create(false)
-        .truncate(true)
-        .open("../aur-lockbook/.SRCINFO")
-        .unwrap();
+    let srcinfo_path = temp_dir.join(".SRCINFO");
+    let mut file = File::create(srcinfo_path).unwrap();
     file.write_all(new_src_info_content.as_bytes()).unwrap();
 }
 
-pub fn push_aur() -> CliResult<()> {
+fn push_aur(temp_dir: &Path) -> CliResult<()> {
     Command::new("git")
         .args(["add", "-A"])
-        .current_dir("../aur-lockbook")
+        .current_dir(temp_dir)
         .assert_success()?;
     Command::new("git")
         .args(["commit", "-m", "releaser update"])
-        .current_dir("../aur-lockbook")
+        .current_dir(temp_dir)
         .assert_success()?;
     Command::new("git")
-        .args(["push", "aur", "master"])
-        .current_dir("../aur-lockbook")
-        .assert_success()?;
-    Command::new("git")
-        .args(["push", "github", "master"])
-        .current_dir("../aur-lockbook")
-        .assert_success()?;
-
-    Ok(())
+        .args(["push", "origin", "master"])
+        .current_dir(temp_dir)
+        .assert_success()
 }

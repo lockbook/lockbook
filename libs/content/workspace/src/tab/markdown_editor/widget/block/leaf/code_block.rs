@@ -236,12 +236,10 @@ impl<'ast> Editor {
                     .end()
                     .min(node_line.start() + if synthetic { 0 } else { 4 }),
             );
-            if indentation.intersects(&self.buffer.current.selection, false)
+            if self.range_revealed(indentation, false)
                 || self
-                    .buffer
-                    .current
-                    .selection
-                    .contains(indentation.start(), true, true)
+                    .reveal_ranges()
+                    .any(|rr| rr.contains(indentation.start(), true, true))
             {
                 reveal = true;
                 break;

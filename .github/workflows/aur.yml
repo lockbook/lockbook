@@ -1,0 +1,27 @@
+name: AUR Deployment
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  deploy-aur:
+    if: github.repository == 'lockbook/lockbook'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.AUR_SSH_KEY }}
+      - name: Trust AUR host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+      - name: Configure git identity
+        run: |
+          git config --global user.name "parth"
+          git config --global user.email "parth@mehrotra.me"
+      - name: Deploy CLI to AUR
+        run: cargo run -p lbdev -- releaser linux cli aur
+      - name: Deploy Desktop to AUR
+        run: cargo run -p lbdev -- releaser linux desktop aur

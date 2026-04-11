@@ -587,6 +587,28 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let markdown = match obj.workspace.current_tab_markdown_mut() {
+        Some(markdown) => markdown,
+        None => {
+            return env
+                .new_string("")
+                .expect("Couldn't create JString from rust string!")
+                .into_raw();
+        }
+    };
+
+    let selection = (DocCharOffset(0), markdown.buffer.current.segs.last_cursor_position());
+    env.new_string(&markdown.buffer[selection])
+        .expect("Couldn't create JString from rust string!")
+        .into_raw()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) {

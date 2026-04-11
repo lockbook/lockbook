@@ -56,26 +56,42 @@ impl Editor {
     /// Returns the document offset range for which galleys must exist,
     /// covering the selection ± 1 source line so that arrow-key navigation
     /// across the viewport edge has a galley to land on.
-    pub fn galley_required_range(&self) -> (DocCharOffset, DocCharOffset) {
+    pub fn galley_required_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
         if self.bounds.source_lines.is_empty() {
-            return Default::default();
+            return Vec::new();
         }
+
+        let mut ranges = Vec::new();
 
         let selection = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
+        ranges.push(self.source_line_range(selection));
 
+        // also require galleys for the current find match so scroll_to_find_match works
+        if let Some(idx) = self.find.current_match {
+            if let Some(&match_range) = self.find.matches.get(idx) {
+                ranges.push(self.source_line_range(match_range));
+            }
+        }
+
+        ranges
+    }
+
+    fn source_line_range(
+        &self, range: (DocCharOffset, DocCharOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
         let first_line = self
             .bounds
             .source_lines
-            .find_containing(selection.start(), true, true)
+            .find_containing(range.start(), true, true)
             .0
             .saturating_sub(1);
         let last_line = self
             .bounds
             .source_lines
-            .find_containing(selection.end(), true, true)
-            .1 // exclusive end from find_containing = one past the last match
+            .find_containing(range.end(), true, true)
+            .1
             .min(self.bounds.source_lines.len() - 1);
 
         let start = self.bounds.source_lines[first_line].start();

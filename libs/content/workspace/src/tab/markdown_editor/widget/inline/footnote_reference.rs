@@ -21,7 +21,7 @@ impl<'ast> Editor {
     ) -> f32 {
         let node_range = self.node_range(node);
 
-        if self.node_intersects_selection(node) {
+        if self.node_revealed(node) {
             let prefix_range = (node_range.start(), node_range.start() + 2);
             let infix_range = (node_range.start() + 2, node_range.end() - 1);
             let postfix_range = (node_range.end() - 1, node_range.end());
@@ -63,7 +63,7 @@ impl<'ast> Editor {
 
         let mut response = Default::default();
 
-        if self.node_intersects_selection(node) {
+        if self.node_revealed(node) {
             if range.contains_range(&prefix_range, true, true) {
                 response |=
                     self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());

@@ -105,6 +105,13 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
 }
 
 #[no_mangle]
+pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_dropWS(
+    _: JNIEnv, _: JClass, obj: jlong,
+) {
+    drop(Box::from_raw(obj as *mut WgpuWorkspace));
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_resizeWS(
     env: JNIEnv, _: JClass, obj: jlong, surface: jobject, scale_factor: jfloat,
 ) {
