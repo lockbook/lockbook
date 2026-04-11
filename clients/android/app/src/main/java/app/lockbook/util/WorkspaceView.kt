@@ -29,6 +29,7 @@ import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
+import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.coroutines.CoroutineScope
@@ -48,11 +49,10 @@ import net.lockbook.Lb
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.max
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
-    private var eraserToggledOnByPen = false
-
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
@@ -60,7 +60,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var renderJob: Job? = null
 
-    private val nativeLock = ReentrantLock()
+    val nativeLock = ReentrantLock()
 
     private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
     private val frameOutputJsonParser = Json {
@@ -73,6 +73,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingDx = AtomicReference(0f)
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
+
+    var textMutations = ArrayDeque<WsTextMutation>()
+
+    sealed class WsTextMutation {
+        data class Replace(
+            var start: Int,
+            var end: Int,
+            val text: String,
+            var batchEditCount: Int,
+        ) : WsTextMutation()
+
+        data class InsertAtCursor(
+            val text: String
+        ) : WsTextMutation()
+
+        object NotifySelectionUpdate : WsTextMutation()
+    }
 
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
@@ -148,6 +165,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
 
+    val pendingSelection = AtomicReference(JTextRange(false, 0, 0))
+    val pendingTextLength = AtomicReference(0)
+    val pendingBuffer = AtomicReference("")
+
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
             pendingZoom.set(1f)
@@ -193,7 +214,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     fun startRendering() {
 
         renderJob?.cancel()
-
         renderJob = renderScope.launch {
             while (isActive) {
                 val delayTime = drawWorkspace()
@@ -316,6 +336,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     private suspend fun drawWorkspace(): Long {
+        var containsNotify = false
         val responseJson = nativeLock.withLock {
             if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
                 return 0
@@ -342,8 +363,44 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (surface?.isValid != true) {
                 return 0
             }
+            var delta = 0
+            while (textMutations.isNotEmpty()) {
+                when (val mutation = textMutations.removeFirst()) {
+                    is WsTextMutation.Replace ->{
+                        println("WorkspaceTextEditable: APPLY REPL ${mutation.start} ${mutation.end} ${mutation.text}" )
+                        delta = max(delta, mutation.end - mutation.start)
+                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
 
-            Workspace.enterFrame(WGPU_OBJ)
+                    }
+                    is WsTextMutation.InsertAtCursor ->{
+                        println("WorkspaceTextEditable: APPLY INSERT ${mutation.text}")
+                        Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
+                    }
+                    is WsTextMutation.NotifySelectionUpdate -> {
+                        containsNotify = true
+                    }
+                }
+            }
+
+            val selection : JTextRange= frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
+
+            pendingSelection.set(JTextRange(selection.none, selection.start - delta, selection.end - delta))
+            pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
+            pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
+
+            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                    if (containsNotify){
+                        textInputWrapper.wsInputConnection.applySelectionNotification()
+                    }
+                }
+            }
+
+            val res = Workspace.enterFrame(WGPU_OBJ)
+            println("WorkspaceTextEditable: ENDF")
+
+
+            res
         }
 
         val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
@@ -387,9 +444,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         contextMenu?.finish()
                     }
 
-                    if (response.selectionUpdated) {
-                        textInputWrapper.wsInputConnection.notifySelectionUpdated()
-                    }
+//                    if (response.selectionUpdated) {
+//                        println("workspaceTextEditable: editor updated selection ${textMutations.isEmpty()}")
+//                        textInputWrapper.wsInputConnection.applySelectionNotification()
+//                    }
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =
