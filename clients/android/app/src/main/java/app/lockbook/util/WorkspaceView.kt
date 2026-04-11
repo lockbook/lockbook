@@ -395,18 +395,21 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (surface?.isValid != true) {
                 return 0
             }
+            val nextFrameMutations = ArrayDeque<WsTextMutation>()
             val notBatch = if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
                 (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
                     textInputWrapper.wsInputConnection.batchEditCount <= 1
                 }
-            } else { false } ?: false
+            } else {false} ?: false
 
             while (notBatch && textMutations.get().isNotEmpty()) {
                 when (val mutation = textMutations.get().removeFirst()) {
-                    is WsTextMutation.Replace -> {
+                    is WsTextMutation.Replace ->{
+                        println("WorkspaceTextEditable: APPLY REPL ${mutation.start} ${mutation.end} ${mutation.text} | ${mutation.batchEditCount}" )
                         Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
                     }
-                    is WsTextMutation.InsertAtCursor -> {
+                    is WsTextMutation.InsertAtCursor ->{
+                        println("WorkspaceTextEditable: APPLY INSERT ${mutation.text}")
                         Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.ClipboardPaste -> {
@@ -443,21 +446,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
             }
 
-            val selection: JTextRange = frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
+            val selection : JTextRange= frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
 
-            pendingSelection.set(JTextRange(selection.none, selection.start, selection.end))
+            pendingSelection.set(JTextRange(selection.none, selection.start , selection.end ))
             pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
             pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
                 (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (containsNotify && textMutations.get().isEmpty()) {
+                    if (containsNotify && textMutations.get().isEmpty()){
                         textInputWrapper.wsInputConnection.applySelectionNotification()
                     }
                 }
             }
 
             val res = Workspace.enterFrame(WGPU_OBJ)
+            println("WorkspaceTextEditable: ENDF")
+
 
             res
         }
@@ -505,6 +510,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
                     if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount <= 1) {
                         textMutations.get().add(WsTextMutation.NotifySelectionUpdate)
+                        println("workspaceTextEditable: RES SEL")
+//                        textInputWrapper.wsInputConnection.applySelectionNotification()
                     }
 
                     if (response.hasEditMenu && contextMenu == null) {

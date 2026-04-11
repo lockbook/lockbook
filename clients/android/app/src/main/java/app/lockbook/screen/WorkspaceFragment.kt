@@ -2,18 +2,24 @@ package app.lockbook.screen
 
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
+import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
 import android.text.InputType
+
 import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.ViewGroup
 import android.view.animation.Interpolator
+import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -27,6 +33,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
 import androidx.recyclerview.widget.LinearLayoutManager
+import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.model.FileTreeViewModel
