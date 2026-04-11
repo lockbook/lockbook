@@ -122,6 +122,9 @@ object Workspace {
     external fun insert(rustObj: Long, index: Int, text: String)
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
+
+    external fun getBuffer(rustObj: Long): String
+
     external fun getAllText(rustObj: Long): String
 
 

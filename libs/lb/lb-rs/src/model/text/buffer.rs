@@ -353,7 +353,7 @@ impl Buffer {
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
-                    if preceding_replaced_range.intersects(transformed_range, true)
+                    if preceding_replaced_range.intersects(transformed_range, false)
                         && !(preceding_replaced_range.is_empty() && transformed_range.is_empty())
                     {
                         // concurrent replacements to intersecting ranges choose the first/local edit as the winner
@@ -631,6 +631,7 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use unicode_segmentation::UnicodeSegmentation;
 
     #[test]
     fn buffer_merge_nonintersecting_replace() {
@@ -717,11 +718,11 @@ mod test {
 
         assert_eq!(
             Buffer::from(base_content).merge(local_content.into(), remote_content.into()),
-            "content local"
+            "remote"
         );
         assert_eq!(
             Buffer::from(base_content).merge(remote_content.into(), local_content.into()),
-            "remote"
+            "remote local"
         );
     }
 
@@ -734,5 +735,205 @@ mod test {
 
         let _ = Buffer::from(base_content).merge(local_content.into(), remote_content.into());
         let _ = Buffer::from(base_content).merge(remote_content.into(), local_content.into());
+    }
+
+    // ── Fuzz ──────────────────────────────────────────────────────────────
+
+    use rand::prelude::*;
+
+    /// Grapheme clusters for fuzz testing. Includes ASCII, multi-byte, multi-codepoint emoji
+    /// (ZWJ sequences, skin tones, flags), and combining characters.
+    const POOL: &[&str] = &[
+        "a",
+        "b",
+        "z",
+        " ",
+        "\n",
+        "\t",
+        "é",
+        "ñ",
+        "ü",
+        "日",
+        "本",
+        "語",
+        "👋",
+        "🎉",
+        "🔥",
+        "❤️",
+        "👨‍👩‍👧‍👦",
+        "🏳️‍🌈",
+        "👍🏽",
+        "🇺🇸",
+        "🇯🇵",
+        "e\u{0301}",
+        "a\u{0308}", // combining sequences: é, ä
+    ];
+
+    /// Generate a random grapheme-level edit of a document. Picks uniformly from:
+    /// - 0: Delete 1-5 consecutive graphemes at a random position
+    /// - 1: Insert 1-5 random graphemes from POOL at a random position
+    /// - 2: Replace 1-5 consecutive graphemes with 1-3 random graphemes from POOL
+    /// - 3: Clear everything
+    ///
+    /// When the document is empty, cases 0/2/3 fall through to insert (the _ arm).
+    fn random_edit(rng: &mut StdRng, doc: &str) -> String {
+        let graphemes: Vec<&str> = UnicodeSegmentation::graphemes(doc, true).collect();
+        let len = graphemes.len();
+
+        let mut g: Vec<String> = graphemes.iter().map(|s| s.to_string()).collect();
+
+        match rng.gen_range(0..4) {
+            0 if len > 0 => {
+                let pos = rng.gen_range(0..len);
+                let del = rng.gen_range(1..=(len - pos).min(5));
+                g.drain(pos..pos + del);
+            }
+            1 => {
+                let pos = rng.gen_range(0..=len);
+                let n = rng.gen_range(1..=5);
+                for j in 0..n {
+                    g.insert(pos + j, POOL[rng.gen_range(0..POOL.len())].into());
+                }
+            }
+            2 if len > 0 => {
+                let pos = rng.gen_range(0..len);
+                let del = rng.gen_range(1..=(len - pos).min(5));
+                let ins: Vec<String> = (0..rng.gen_range(1..=3))
+                    .map(|_| POOL[rng.gen_range(0..POOL.len())].into())
+                    .collect();
+                g.splice(pos..pos + del, ins);
+            }
+            3 if len > 0 => {
+                g.clear();
+            }
+            _ => {
+                let n = rng.gen_range(1..=5);
+                for _ in 0..n {
+                    g.push(POOL[rng.gen_range(0..POOL.len())].into());
+                }
+            }
+        }
+        g.concat()
+    }
+
+    #[test]
+    fn buffer_merge_fuzz() {
+        let mut rng = StdRng::seed_from_u64(42);
+        let bases = ["hello world", "👨‍👩‍👧‍👦🇺🇸🔥", "café ñoño 日本語", ""];
+        for _ in 0..10_000 {
+            let base = bases[rng.gen_range(0..bases.len())];
+            let a = random_edit(&mut rng, base);
+            let b = random_edit(&mut rng, base);
+
+            // must not panic
+            let _ = Buffer::from(base).merge(a.clone(), b.clone());
+            let _ = Buffer::from(base).merge(b, a);
+        }
+    }
+
+    // ── Chain convergence ──
+
+    /// Simulates a sync channel between two adjacent nodes. Holds the last-agreed-upon
+    /// document text, which serves as the 3-way merge base. When two nodes sync, their
+    /// documents are merged against this base, both nodes adopt the result, and the base
+    /// advances. This mirrors how lockbook's sync works: each client keeps a base (last
+    /// synced state) and merges local vs remote changes against it.
+    struct SyncLink {
+        base: String,
+    }
+
+    impl SyncLink {
+        fn new(base: &str) -> Self {
+            Self { base: base.into() }
+        }
+
+        fn sync(&mut self, left: &mut String, right: &mut String) {
+            let merged = Buffer::from(self.base.as_str()).merge(left.clone(), right.clone());
+            *left = merged.clone();
+            *right = merged.clone();
+            self.base = merged;
+        }
+    }
+
+    /// Sync all adjacent pairs in both directions until the chain stabilizes.
+    /// With N nodes and N-1 links, 2*N passes ensures changes propagate end-to-end.
+    fn full_sync(nodes: &mut [String], links: &mut [SyncLink]) {
+        for _ in 0..nodes.len() * 2 {
+            for i in 0..links.len() {
+                let (left, right) = nodes.split_at_mut(i + 1);
+                links[i].sync(&mut left[i], &mut right[0]);
+            }
+            for i in (0..links.len()).rev() {
+                let (left, right) = nodes.split_at_mut(i + 1);
+                links[i].sync(&mut left[i], &mut right[0]);
+            }
+        }
+    }
+
+    fn partial_sync(nodes: &mut [String], links: &mut [SyncLink], rng: &mut StdRng) {
+        for _ in 0..3 {
+            for i in 0..links.len() {
+                if rng.gen_bool(0.5) {
+                    let (left, right) = nodes.split_at_mut(i + 1);
+                    links[i].sync(&mut left[i], &mut right[0]);
+                }
+            }
+        }
+    }
+
+    fn assert_converged(nodes: &[String]) {
+        for (i, node) in nodes.iter().enumerate().skip(1) {
+            assert_eq!(
+                &nodes[0], node,
+                "node 0 and node {} diverged: {:?} vs {:?}",
+                i, nodes[0], node
+            );
+        }
+    }
+
+    #[test]
+    fn buffer_merge_fuzz_chain_2() {
+        let mut rng = StdRng::seed_from_u64(42);
+        for _ in 0..10_000 {
+            let init = if rng.gen_bool(0.5) { "hello 👋🏽" } else { "" };
+            let mut nodes: Vec<String> = (0..2).map(|_| init.into()).collect();
+            let mut links: Vec<SyncLink> = (0..1).map(|_| SyncLink::new(init)).collect();
+
+            for _ in 0..rng.gen_range(1..=4) {
+                for _ in 0..rng.gen_range(1..=3) {
+                    let i = rng.gen_range(0..2);
+                    nodes[i] = random_edit(&mut rng, &nodes[i]);
+                }
+                if rng.gen_bool(0.5) {
+                    partial_sync(&mut nodes, &mut links, &mut rng);
+                }
+            }
+
+            full_sync(&mut nodes, &mut links);
+            assert_converged(&nodes);
+        }
+    }
+
+    #[test]
+    fn buffer_merge_fuzz_chain_5() {
+        let mut rng = StdRng::seed_from_u64(77);
+        for _ in 0..5_000 {
+            let init = if rng.gen_bool(0.5) { "café 日本語 🇯🇵" } else { "abc" };
+            let mut nodes: Vec<String> = (0..5).map(|_| init.into()).collect();
+            let mut links: Vec<SyncLink> = (0..4).map(|_| SyncLink::new(init)).collect();
+
+            for _ in 0..rng.gen_range(1..=3) {
+                for _ in 0..rng.gen_range(1..=5) {
+                    let i = rng.gen_range(0..5);
+                    nodes[i] = random_edit(&mut rng, &nodes[i]);
+                }
+                if rng.gen_bool(0.5) {
+                    partial_sync(&mut nodes, &mut links, &mut rng);
+                }
+            }
+
+            full_sync(&mut nodes, &mut links);
+            assert_converged(&nodes);
+        }
     }
 }
