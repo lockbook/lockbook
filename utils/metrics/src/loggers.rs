@@ -1,3 +1,6 @@
+use std::backtrace::Backtrace;
+use std::panic;
+
 use tracing_appender::rolling::RollingFileAppender;
 use tracing_appender::rolling::never;
 use tracing_subscriber::Layer;
@@ -25,8 +28,17 @@ pub fn init() {
                 .with_filter(LevelFilter::INFO),
         )
         .init();
+
+    panic_hook();
 }
 
 fn file_logger() -> RollingFileAppender {
     never("/var/log", LOG_FILE)
+}
+
+fn panic_hook() {
+    panic::set_hook(Box::new(move |panic_info| {
+        let bt = Backtrace::force_capture();
+        tracing::error!("panic detected: {panic_info} {}", bt);
+    }));
 }
