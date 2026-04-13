@@ -35,7 +35,14 @@ struct Claims {
 #[derive(Serialize, Deserialize, Default)]
 struct DailyReport {
     date: String,
-    units: HashMap<(String, String), i64>, // (product, country) -> units
+    units: Vec<DailyEntry>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+struct DailyEntry {
+    product: String,
+    country: String,
+    units: i64,
 }
 
 pub struct AppStoreState {
@@ -91,8 +98,9 @@ impl AppStoreState {
             if path.extension().map(|e| e == "json").unwrap_or(false) {
                 if let Ok(contents) = fs::read_to_string(&path) {
                     if let Ok(report) = serde_json::from_str::<DailyReport>(&contents) {
-                        for ((product, country), units) in report.units {
-                            *self.cumulative.entry((product, country)).or_default() += units;
+                        for entry in report.units {
+                            *self.cumulative.entry((entry.product, entry.country)).or_default() +=
+                                entry.units;
                         }
                     }
                 }
@@ -146,7 +154,11 @@ impl AppStoreState {
 
             match fetch_and_parse_report(client, &token, &config.vendor_number, &date_str).await {
                 Some(units) => {
-                    let report = DailyReport { date: date_str, units };
+                    let entries: Vec<_> = units
+                        .into_iter()
+                        .map(|((product, country), units)| DailyEntry { product, country, units })
+                        .collect();
+                    let report = DailyReport { date: date_str, units: entries };
                     self.save_report(&report);
                     consecutive_failures = 0;
                 }
@@ -190,7 +202,15 @@ impl AppStoreState {
         };
 
         if let Some(units) = fetch_and_parse_report(client, &token, &config.vendor_number, &yesterday).await {
-            let report = DailyReport { date: yesterday, units: units.clone() };
+            let entries: Vec<_> = units
+                .iter()
+                .map(|((product, country), &units)| DailyEntry {
+                    product: product.clone(),
+                    country: country.clone(),
+                    units,
+                })
+                .collect();
+            let report = DailyReport { date: yesterday, units: entries };
             self.save_report(&report);
 
             // Add to cumulative
