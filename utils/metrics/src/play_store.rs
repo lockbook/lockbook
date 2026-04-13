@@ -141,7 +141,7 @@ impl PlayStoreState {
     pub fn update_metrics(&self) {
         for (country, count) in &self.cumulative {
             INSTALLS
-                .with_label_values(&["play_store", "lockbook", country])
+                .with_label_values(&["play_store", "android", "android", country])
                 .set(*count);
         }
     }

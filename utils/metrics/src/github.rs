@@ -7,7 +7,7 @@ use serde::Deserialize;
 use tracing::*;
 
 use crate::get;
-use crate::metrics::INSTALLS;
+use crate::metrics::{INSTALLS, Normalized, normalize_github_asset};
 
 lazy_static! {
     static ref VIEWS: IntGaugeVec =
@@ -57,7 +57,7 @@ pub async fn refresh(client: &Client, token: &str) {
 
     info!("refreshing github metrics");
 
-    let mut downloads_by_asset: HashMap<String, i64> = HashMap::new();
+    let mut downloads: HashMap<Normalized, i64> = HashMap::new();
     let mut page = 1;
     loop {
         let url = format!("{api}/repos/{repo}/releases?per_page=100&page={page}");
@@ -65,8 +65,9 @@ pub async fn refresh(client: &Client, token: &str) {
             Some(releases) if !releases.is_empty() => {
                 for release in &releases {
                     for asset in &release.assets {
-                        *downloads_by_asset.entry(asset.name.clone()).or_default() +=
-                            asset.download_count;
+                        if let Some(normalized) = normalize_github_asset(&asset.name) {
+                            *downloads.entry(normalized).or_default() += asset.download_count;
+                        }
                     }
                 }
                 page += 1;
@@ -75,8 +76,10 @@ pub async fn refresh(client: &Client, token: &str) {
         }
     }
 
-    for (asset, count) in downloads_by_asset {
-        INSTALLS.with_label_values(&["github", &asset, ""]).set(count);
+    for (normalized, count) in downloads {
+        INSTALLS
+            .with_label_values(&["github", normalized.client, normalized.os, ""])
+            .set(count);
     }
 
     if let Some(views) =

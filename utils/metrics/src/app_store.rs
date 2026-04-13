@@ -15,7 +15,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::*;
 
-use crate::metrics::INSTALLS;
+use crate::metrics::{INSTALLS, Normalized, normalize_app_store};
 
 pub struct AppStoreConfig {
     pub issuer_id: String,
@@ -41,6 +41,7 @@ struct DailyReport {
 #[derive(Serialize, Deserialize, Clone)]
 struct DailyEntry {
     product: String,
+    product_type: String,
     country: String,
     units: i64,
 }
@@ -48,7 +49,7 @@ struct DailyEntry {
 pub struct AppStoreState {
     data_dir: PathBuf,
     backfill_complete: bool,
-    cumulative: HashMap<(String, String), i64>,
+    cumulative: HashMap<(String, String, String), i64>, // (product, product_type, country) -> units
 }
 
 impl AppStoreState {
@@ -99,8 +100,10 @@ impl AppStoreState {
                 if let Ok(contents) = fs::read_to_string(&path) {
                     if let Ok(report) = serde_json::from_str::<DailyReport>(&contents) {
                         for entry in report.units {
-                            *self.cumulative.entry((entry.product, entry.country)).or_default() +=
-                                entry.units;
+                            *self
+                                .cumulative
+                                .entry((entry.product, entry.product_type, entry.country))
+                                .or_default() += entry.units;
                         }
                     }
                 }
@@ -115,10 +118,20 @@ impl AppStoreState {
             return;
         }
 
-        for ((product, country), units) in &self.cumulative {
+        // Aggregate by (normalized, country), filtering out non-app products
+        let mut by_normalized_country: HashMap<(Normalized, String), i64> = HashMap::new();
+        for ((product, product_type, country), units) in &self.cumulative {
+            if let Some(normalized) = normalize_app_store(product, product_type) {
+                *by_normalized_country
+                    .entry((normalized, country.clone()))
+                    .or_default() += units;
+            }
+        }
+
+        for ((normalized, country), units) in by_normalized_country {
             INSTALLS
-                .with_label_values(&["app_store", product, country])
-                .set(*units);
+                .with_label_values(&["app_store", normalized.client, normalized.os, &country])
+                .set(units);
         }
     }
 
@@ -179,7 +192,12 @@ impl AppStoreState {
                 Some(units) => {
                     let entries: Vec<_> = units
                         .into_iter()
-                        .map(|((product, country), units)| DailyEntry { product, country, units })
+                        .map(|((product, product_type, country), units)| DailyEntry {
+                            product,
+                            product_type,
+                            country,
+                            units,
+                        })
                         .collect();
                     let report = DailyReport { date: date_str, units: entries };
                     self.save_report(&report);
@@ -227,8 +245,9 @@ impl AppStoreState {
         if let Some(units) = fetch_and_parse_report(client, &token, &config.vendor_number, &yesterday).await {
             let entries: Vec<_> = units
                 .iter()
-                .map(|((product, country), &units)| DailyEntry {
+                .map(|((product, product_type, country), &units)| DailyEntry {
                     product: product.clone(),
+                    product_type: product_type.clone(),
                     country: country.clone(),
                     units,
                 })
@@ -237,8 +256,11 @@ impl AppStoreState {
             self.save_report(&report);
 
             // Add to cumulative
-            for ((product, country), count) in units {
-                *self.cumulative.entry((product, country)).or_default() += count;
+            for ((product, product_type, country), count) in units {
+                *self
+                    .cumulative
+                    .entry((product, product_type, country))
+                    .or_default() += count;
             }
         }
     }
@@ -280,7 +302,7 @@ async fn fetch_and_parse_report(
     token: &str,
     vendor_number: &str,
     date: &str,
-) -> Option<HashMap<(String, String), i64>> {
+) -> Option<HashMap<(String, String, String), i64>> {
     let resp = client
         .get("https://api.appstoreconnect.apple.com/v1/salesReports")
         .header("Authorization", format!("Bearer {token}"))
@@ -312,7 +334,7 @@ async fn fetch_and_parse_report(
     Some(parse_report(&tsv))
 }
 
-fn parse_report(tsv: &str) -> HashMap<(String, String), i64> {
+fn parse_report(tsv: &str) -> HashMap<(String, String, String), i64> {
     let mut result = HashMap::new();
 
     let mut lines = tsv.lines();
@@ -322,14 +344,20 @@ fn parse_report(tsv: &str) -> HashMap<(String, String), i64> {
 
     let columns: Vec<&str> = header.split('\t').collect();
     let col = |name| columns.iter().position(|c| *c == name);
-    let (Some(title_idx), Some(units_idx), Some(country_idx)) =
-        (col("Title"), col("Units"), col("Country Code"))
-    else {
+    let (Some(title_idx), Some(units_idx), Some(country_idx), Some(type_idx)) = (
+        col("Title"),
+        col("Units"),
+        col("Country Code"),
+        col("Product Type Identifier"),
+    ) else {
         warn!("unexpected report format: {header}");
         return result;
     };
 
-    let max_idx = [title_idx, units_idx, country_idx].into_iter().max().unwrap();
+    let max_idx = [title_idx, units_idx, country_idx, type_idx]
+        .into_iter()
+        .max()
+        .unwrap();
 
     for line in lines {
         let fields: Vec<&str> = line.split('\t').collect();
@@ -338,10 +366,11 @@ fn parse_report(tsv: &str) -> HashMap<(String, String), i64> {
         }
 
         let title = fields[title_idx].to_string();
+        let product_type = fields[type_idx].to_string();
         let country = fields[country_idx].to_string();
         let units: i64 = fields[units_idx].parse().unwrap_or(0);
 
-        *result.entry((title, country)).or_default() += units;
+        *result.entry((title, product_type, country)).or_default() += units;
     }
 
     result

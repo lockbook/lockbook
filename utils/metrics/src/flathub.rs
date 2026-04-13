@@ -9,7 +9,6 @@ use crate::metrics::INSTALLS;
 
 #[derive(Deserialize)]
 struct Stats {
-    installs_total: i64,
     #[serde(default)]
     installs_per_country: HashMap<String, i64>,
 }
@@ -22,13 +21,9 @@ pub async fn refresh(client: &Client) {
         return;
     };
 
-    INSTALLS
-        .with_label_values(&["flathub", "lockbook", ""])
-        .set(stats.installs_total);
-
     for (country, count) in &stats.installs_per_country {
         INSTALLS
-            .with_label_values(&["flathub", "lockbook", country])
+            .with_label_values(&["flathub", "linux", "linux", country])
             .set(*count);
     }
 }
