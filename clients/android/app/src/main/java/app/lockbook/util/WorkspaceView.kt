@@ -30,7 +30,6 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
-import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.coroutines.CoroutineScope
