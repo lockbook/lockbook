@@ -492,8 +492,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         containsNotify = true
                     }
                     WsTextMutation.WsNotifySelectionUpdate -> {
-                        containsNotify = !lastFrameDirty
-                        println("WorkspaceTextEditable: NOTIFY SEL ${containsNotify}")
+//                        containsNotify = !lastFrameDirty
+//                        println("WorkspaceTextEditable: NOTIFY SEL ${containsNotify}")
                     }
                     is WsTextMutation.Clear -> {
                         println("WorkspaceTextEditable: CLEAR")
@@ -501,7 +501,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     }
                     is WsTextMutation.SetSelection -> {
                         println("WorkspaceTextEditable: SET SEL ${mutation.start} ${mutation.end}")
-//                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
+                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
                     }
                     is WsTextMutation.Append -> {
                         println("WorkspaceTextEditable: APPEND")

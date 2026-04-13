@@ -5,15 +5,15 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.text.Editable
+import android.text.Selection
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
-import java.lang.reflect.Field
-import java.lang.reflect.Modifier
 import java.util.concurrent.atomic.AtomicReference
+
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
 
@@ -60,7 +60,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                 wsEditable.composingEnd
         )
     }
-
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
@@ -147,6 +146,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun requestCursorUpdates(cursorUpdateMode: Int, cursorUpdateFilter: Int): Boolean {
         return requestCursorUpdates(cursorUpdateMode or cursorUpdateFilter)
     }
+
 
     @Synchronized
     override fun beginBatchEdit(): Boolean {
