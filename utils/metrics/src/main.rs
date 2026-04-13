@@ -1,3 +1,26 @@
+mod app_store;
+mod env;
+mod flathub;
+mod github;
+mod loggers;
+mod metrics;
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use prometheus::TextEncoder;
+use prometheus::gather;
+use reqwest::Client;
+use serde::de::DeserializeOwned;
+use tokio::sync::Mutex;
+use tokio::time::sleep;
+use tracing::*;
+use warp::Filter;
+use warp::path;
+use warp::reply::with_header;
+
+use app_store::AppStoreState;
+
 async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Option<T> {
     let mut req = client.get(url).header("User-Agent", "lb-metrics");
     if !auth.is_empty() {
@@ -13,26 +36,44 @@ async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Opt
     resp.json().await.ok()
 }
 
-async fn refresh_all(client: &Client, config: &env::Config) {
-    info!("refreshing metrics");
-    github::refresh(client, &config.github_token).await;
-    flathub::refresh(client).await;
-    app_store::refresh(client, &config.app_store).await;
-    info!("metrics refresh complete");
-}
-
 #[tokio::main]
 async fn main() {
     loggers::init();
     info!("lb-metrics started");
+
     let config = env::Config::from_env();
     let port = config.port;
+    let client = Client::new();
 
+    // Initialize App Store state and run backfill
+    let mut app_store_state = AppStoreState::new(&config.data_dir);
+    app_store_state.backfill(&client, &config.app_store).await;
+
+    // Initial metrics refresh
+    info!("performing initial metrics refresh");
+    github::refresh(&client, &config.github_token).await;
+    flathub::refresh(&client).await;
+    app_store_state.update_metrics();
+
+    info!("backfill complete, starting metrics server");
+
+    let app_store_state = Arc::new(Mutex::new(app_store_state));
+
+    // Spawn refresh loop
+    let refresh_state = app_store_state.clone();
     tokio::spawn(async move {
-        let client = Client::new();
         loop {
-            refresh_all(&client, &config).await;
             sleep(Duration::from_secs(300)).await;
+
+            info!("refreshing metrics");
+            github::refresh(&client, &config.github_token).await;
+            flathub::refresh(&client).await;
+
+            let mut state = refresh_state.lock().await;
+            state.refresh(&client, &config.app_store).await;
+            state.update_metrics();
+
+            info!("metrics refresh complete");
         }
     });
 
@@ -47,24 +88,6 @@ async fn main() {
         }
     });
 
-    info!("lb-metrics listening on :{port}");
-    warp::serve(metrics_route).run(([0, 0, 0, 0], port)).await;
+    info!("lb-metrics listening on 127.0.0.1:{port}");
+    warp::serve(metrics_route).run(([127, 0, 0, 1], port)).await;
 }
-
-mod app_store;
-mod env;
-mod flathub;
-mod github;
-mod loggers;
-
-use std::time::Duration;
-
-use prometheus::TextEncoder;
-use prometheus::gather;
-use reqwest::Client;
-use serde::de::DeserializeOwned;
-use tokio::time::sleep;
-use tracing::*;
-use warp::Filter;
-use warp::path;
-use warp::reply::with_header;

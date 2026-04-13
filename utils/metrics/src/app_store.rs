@@ -1,27 +1,21 @@
-use std::io::Read;
+use std::collections::HashMap;
+use std::fs;
+use std::io::Read as IoRead;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
+use chrono::{Duration, Local};
 use flate2::read::GzDecoder;
 use jsonwebtoken::Algorithm;
 use jsonwebtoken::EncodingKey;
 use jsonwebtoken::Header;
 use jsonwebtoken::encode;
-use lazy_static::lazy_static;
-use prometheus::IntGaugeVec;
-use prometheus::register_int_gauge_vec;
 use reqwest::Client;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::*;
 
-lazy_static! {
-    static ref UNITS: IntGaugeVec = register_int_gauge_vec!(
-        "app_store_units",
-        "App Store units by product and type",
-        &["product", "type", "country"]
-    )
-    .unwrap();
-}
+use crate::metrics::INSTALLS;
 
 pub struct AppStoreConfig {
     pub issuer_id: String,
@@ -36,6 +30,176 @@ struct Claims {
     iat: u64,
     exp: u64,
     aud: String,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct DailyReport {
+    date: String,
+    units: HashMap<(String, String), i64>, // (product, country) -> units
+}
+
+pub struct AppStoreState {
+    data_dir: PathBuf,
+    backfill_complete: bool,
+    cumulative: HashMap<(String, String), i64>,
+}
+
+impl AppStoreState {
+    pub fn new(data_dir: &Path) -> Self {
+        let data_dir = data_dir.join("app_store");
+        fs::create_dir_all(&data_dir).expect("failed to create app store data directory");
+
+        Self { data_dir, backfill_complete: false, cumulative: HashMap::new() }
+    }
+
+    fn backfill_marker(&self) -> PathBuf {
+        self.data_dir.join(".backfill_complete")
+    }
+
+    fn is_backfill_complete(&self) -> bool {
+        self.backfill_marker().exists()
+    }
+
+    fn mark_backfill_complete(&self) {
+        fs::write(self.backfill_marker(), "").expect("failed to write backfill marker");
+    }
+
+    fn report_path(&self, date: &str) -> PathBuf {
+        self.data_dir.join(format!("{date}.json"))
+    }
+
+    fn has_report(&self, date: &str) -> bool {
+        self.report_path(date).exists()
+    }
+
+    fn save_report(&self, report: &DailyReport) {
+        let path = self.report_path(&report.date);
+        let json = serde_json::to_string(report).expect("failed to serialize report");
+        fs::write(path, json).expect("failed to write report");
+    }
+
+    fn load_all_reports(&mut self) {
+        self.cumulative.clear();
+
+        let entries = match fs::read_dir(&self.data_dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map(|e| e == "json").unwrap_or(false) {
+                if let Ok(contents) = fs::read_to_string(&path) {
+                    if let Ok(report) = serde_json::from_str::<DailyReport>(&contents) {
+                        for ((product, country), units) in report.units {
+                            *self.cumulative.entry((product, country)).or_default() += units;
+                        }
+                    }
+                }
+            }
+        }
+
+        info!("loaded {} product/country combinations from history", self.cumulative.len());
+    }
+
+    pub fn update_metrics(&self) {
+        if !self.backfill_complete {
+            return;
+        }
+
+        for ((product, country), units) in &self.cumulative {
+            INSTALLS
+                .with_label_values(&["app_store", product, country])
+                .set(*units);
+        }
+    }
+
+    pub async fn backfill(&mut self, client: &Client, config: &AppStoreConfig) {
+        if self.is_backfill_complete() {
+            info!("app store backfill already complete, loading historical data");
+            self.load_all_reports();
+            self.backfill_complete = true;
+            return;
+        }
+
+        info!("starting app store backfill");
+
+        let Some(token) = generate_token(config) else {
+            error!("failed to generate token for backfill");
+            return;
+        };
+
+        let mut date = Local::now().date_naive() - Duration::days(1);
+        let mut consecutive_failures = 0;
+
+        loop {
+            let date_str = date.format("%Y-%m-%d").to_string();
+
+            if self.has_report(&date_str) {
+                info!("already have report for {date_str}, skipping");
+                date -= Duration::days(1);
+                consecutive_failures = 0;
+                continue;
+            }
+
+            info!("fetching report for {date_str}");
+
+            match fetch_and_parse_report(client, &token, &config.vendor_number, &date_str).await {
+                Some(units) => {
+                    let report = DailyReport { date: date_str, units };
+                    self.save_report(&report);
+                    consecutive_failures = 0;
+                }
+                None => {
+                    consecutive_failures += 1;
+                    if consecutive_failures >= 3 {
+                        info!("stopping backfill after 3 consecutive failures at {date_str}");
+                        break;
+                    }
+                }
+            }
+
+            date -= Duration::days(1);
+
+            // Rate limiting
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+        }
+
+        self.mark_backfill_complete();
+        self.load_all_reports();
+        self.backfill_complete = true;
+        info!("app store backfill complete");
+    }
+
+    pub async fn refresh(&mut self, client: &Client, config: &AppStoreConfig) {
+        if !self.backfill_complete {
+            return;
+        }
+
+        let yesterday = (Local::now() - Duration::days(1)).format("%Y-%m-%d").to_string();
+
+        if self.has_report(&yesterday) {
+            return;
+        }
+
+        info!("refreshing app store metrics for {yesterday}");
+
+        let Some(token) = generate_token(config) else {
+            error!("failed to generate App Store Connect JWT");
+            return;
+        };
+
+        if let Some(units) = fetch_and_parse_report(client, &token, &config.vendor_number, &yesterday).await {
+            let report = DailyReport { date: yesterday, units: units.clone() };
+            self.save_report(&report);
+
+            // Add to cumulative
+            for ((product, country), count) in units {
+                *self.cumulative.entry((product, country)).or_default() += count;
+            }
+        }
+    }
+
 }
 
 fn generate_token(config: &AppStoreConfig) -> Option<String> {
@@ -68,44 +232,12 @@ fn generate_token(config: &AppStoreConfig) -> Option<String> {
     }
 }
 
-pub async fn refresh(client: &Client, config: &AppStoreConfig) {
-    info!("refreshing app store metrics");
-
-    let Some(token) = generate_token(config) else {
-        error!("failed to generate App Store Connect JWT");
-        return;
-    };
-
-    let yesterday = (chrono::Local::now() - chrono::Duration::days(1))
-        .format("%Y-%m-%d")
-        .to_string();
-
-    let resp = match fetch_report(client, &token, &config.vendor_number, &yesterday).await {
-        Some(r) => r,
-        None => return,
-    };
-
-    let bytes = match resp.bytes().await {
-        Ok(b) => b,
-        Err(e) => {
-            warn!("failed to read app store response: {e}");
-            return;
-        }
-    };
-
-    let mut decoder = GzDecoder::new(&bytes[..]);
-    let mut tsv = String::new();
-    if decoder.read_to_string(&mut tsv).is_err() {
-        warn!("failed to decompress app store report");
-        return;
-    }
-
-    parse_report(&tsv);
-}
-
-async fn fetch_report(
-    client: &Client, token: &str, vendor_number: &str, date: &str,
-) -> Option<reqwest::Response> {
+async fn fetch_and_parse_report(
+    client: &Client,
+    token: &str,
+    vendor_number: &str,
+    date: &str,
+) -> Option<HashMap<(String, String), i64>> {
     let resp = client
         .get("https://api.appstoreconnect.apple.com/v1/salesReports")
         .header("Authorization", format!("Bearer {token}"))
@@ -125,28 +257,36 @@ async fn fetch_report(
         return None;
     }
 
-    Some(resp)
+    let bytes = resp.bytes().await.ok()?;
+
+    let mut decoder = GzDecoder::new(&bytes[..]);
+    let mut tsv = String::new();
+    if decoder.read_to_string(&mut tsv).is_err() {
+        warn!("failed to decompress app store report for {date}");
+        return None;
+    }
+
+    Some(parse_report(&tsv))
 }
 
-fn parse_report(tsv: &str) {
+fn parse_report(tsv: &str) -> HashMap<(String, String), i64> {
+    let mut result = HashMap::new();
+
     let mut lines = tsv.lines();
     let Some(header) = lines.next() else {
-        return;
+        return result;
     };
 
     let columns: Vec<&str> = header.split('\t').collect();
     let col = |name| columns.iter().position(|c| *c == name);
-    let (Some(title_idx), Some(units_idx), Some(type_idx), Some(country_idx)) =
-        (col("Title"), col("Units"), col("Product Type Identifier"), col("Country Code"))
+    let (Some(title_idx), Some(units_idx), Some(country_idx)) =
+        (col("Title"), col("Units"), col("Country Code"))
     else {
         warn!("unexpected report format: {header}");
-        return;
+        return result;
     };
 
-    let max_idx = [title_idx, units_idx, type_idx, country_idx]
-        .into_iter()
-        .max()
-        .unwrap();
+    let max_idx = [title_idx, units_idx, country_idx].into_iter().max().unwrap();
 
     for line in lines {
         let fields: Vec<&str> = line.split('\t').collect();
@@ -154,13 +294,12 @@ fn parse_report(tsv: &str) {
             continue;
         }
 
-        let title = fields[title_idx];
-        let product_type = fields[type_idx];
-        let country = fields[country_idx];
+        let title = fields[title_idx].to_string();
+        let country = fields[country_idx].to_string();
         let units: i64 = fields[units_idx].parse().unwrap_or(0);
 
-        UNITS
-            .with_label_values(&[title, product_type, country])
-            .set(units);
+        *result.entry((title, country)).or_default() += units;
     }
+
+    result
 }
