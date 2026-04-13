@@ -8,6 +8,7 @@ import android.text.Spanned
 import android.view.KeyEvent
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.text.iterator
 
 class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
@@ -20,6 +21,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     private var composingFlag = 0
     private var composingTag: Any? = null
+
+    var localQueue: ArrayDeque<WorkspaceView.WsTextMutation> = ArrayDeque()
+
+    val queueId : Int get(){
+        return view.frameCount.get()
+    }
 
     val selectionStart: Int get() {
         return getSelection().start
@@ -73,7 +80,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-//        println("WorkspaceTextEditable: get spand ${start}, ${end}")
+        println("WorkspaceTextEditable: get spand ${start}, ${end}")
 
         val spans: MutableList<Any> = mutableListOf()
         val spanRange = start..end
@@ -165,11 +172,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end))
+            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end) to -1)
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end))
+            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end)to -1)
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
@@ -184,7 +191,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun removeSpan(what: Any?) {
-//        println("WorkspaceTextEditable: removeSpan  ${what}")
+        println("WorkspaceTextEditable: removeSpan  ${what}")
 
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
             composingStart = -1
@@ -198,7 +205,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         println("WorkspaceTextEditable: append ${text}")
 
         text?.let { realText ->
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(realText.toString()))
+            localQueue.add(WorkspaceView.WsTextMutation.Append(realText.toString()))
             view.drawImmediately()
         }
 
@@ -206,9 +213,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
-//        println("WorkspaceTextEditable: append ${start} ${end}")
+        println("WorkspaceTextEditable: append ${start} ${end}")
 
-        view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
+        localQueue.add(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
+
         view.drawImmediately()
 
         return this
@@ -217,7 +225,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun append(text: Char): Editable {
         println("WorkspaceTextEditable: append ${text}")
 
-        view.textMutations.get().add(WorkspaceView.WsTextMutation.Append(text.toString()))
+        localQueue.add(WorkspaceView.WsTextMutation.Append(text.toString()))
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated(true)
 
@@ -249,11 +257,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
         println("WorkspaceTextEditable: REPL $st $en $text | ${wsInputConnection.batchEditCount}")
-
         text?.let { realText ->
 
-            val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, realText.toString(), wsInputConnection.batchEditCount)
-            view.textMutations.get().add(pendingCommand)
+            val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, realText.toString(), wsInputConnection.batchEditCount.get())
+
+            localQueue.add(pendingCommand)
             if (en < composingStart) {
                 val replacedLen = en - st
 
@@ -300,7 +308,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             val subRealText = realText.substring(start, end)
 
             if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                view.textMutations.get().add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
+                localQueue.add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
                     "",
                     true,
                     false,
@@ -308,7 +316,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                     false)
                 )
             } else {
-                view.textMutations.get().add(WorkspaceView.WsTextMutation.Insert(where, subRealText))
+                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, subRealText))
             }
             if (where < composingStart) {
                 composingStart += subRealText.length
@@ -328,7 +336,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         text?.let { realText ->
 
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                view.textMutations.get().add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
+                localQueue.add(WorkspaceView.WsTextMutation.SendKeyEvent(KeyEvent.KEYCODE_ENTER,
                     "",
                     true,
                     false,
@@ -336,7 +344,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                     false)
                 )
             } else {
-                view.textMutations.get().add(WorkspaceView.WsTextMutation.Insert(where, realText.toString()))
+                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, realText.toString()))
             }
 
             if (where < composingStart) {
@@ -354,8 +362,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun delete(st: Int, en: Int): Editable {
         println("WorkspaceTextEditable: DEL $st $en | ${wsInputConnection.batchEditCount}")
 
-        val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, "", wsInputConnection.batchEditCount)
-        view.textMutations.get().add(pendingCommand)
+        val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, "", wsInputConnection.batchEditCount.get())
+        localQueue.add(pendingCommand)
 
         if (en < composingStart) {
             composingStart -= (en - st)
@@ -371,7 +379,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun clear() {
         println("WorkspaceTextEditable: clear ")
 
-        view.textMutations.get().add(WorkspaceView.WsTextMutation.Clear)
+        localQueue.add(WorkspaceView.WsTextMutation.Clear)
 
         composingStart = -1
         composingEnd = -1
@@ -401,5 +409,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     private fun getTextInRange(st: Int, en: Int): String {
         return view.pendingBuffer.get().slice(st..<en)
+    }
+
+    fun flushQueue(){
+        while (localQueue.isNotEmpty()) {
+            val mutation = localQueue.removeFirst()
+            view.textMutations.get().add(mutation to queueId)
+        }
     }
 }
