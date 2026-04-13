@@ -30,6 +30,7 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
+import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import kotlinx.coroutines.CoroutineScope
@@ -74,7 +75,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
 
-    var textMutations = AtomicReference(ConcurrentLinkedDeque<WsTextMutation>())
+    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, Int>>())
+
+    var lastFrameTransform = 0
+
+    var frameCount = AtomicReference(0)
 
     sealed class WsTextMutation {
         data class Replace(
@@ -99,6 +104,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         object NotifySelectionUpdate : WsTextMutation()
 
+        object WsNotifySelectionUpdate : WsTextMutation()
+
         data class ClipboardPaste(
             val text: String
         ) : WsTextMutation()
@@ -113,14 +120,39 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ) : WsTextMutation()
 
         data class SetSelection(
-            val start: Int,
-            val end: Int,
+            var start: Int,
+            var end: Int,
         ) : WsTextMutation()
 
         object SelectAll : WsTextMutation()
         object ClipboardCut : WsTextMutation()
         object ClipboardCopy : WsTextMutation()
         object Clear : WsTextMutation()
+
+        fun transformed(offset: Int): WsTextMutation {
+            return when (this) {
+                is Replace -> {
+                    this.start += offset
+                    this.end += offset
+                    this
+                }
+                is SetSelection -> {
+                    this.start += offset
+                    this.end += offset
+                    this
+                }
+                else -> this
+            }
+        }
+
+        fun delta(): Int {
+            return when (this) {
+                is Replace -> {
+                    this.text.length - (this.start - this.end)
+                }
+                else -> 0
+            }
+        }
     }
 
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
@@ -200,6 +232,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     val pendingSelection = AtomicReference(JTextRange(false, 0, 0))
     val pendingTextLength = AtomicReference(0)
     val pendingBuffer = AtomicReference("")
+
+    var lastFrameDirty = false
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
@@ -395,24 +429,42 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (surface?.isValid != true) {
                 return 0
             }
-            val notBatch = if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    textInputWrapper.wsInputConnection.batchEditCount <= 1
-                }
-            } else { false } ?: false
 
-            while (notBatch && textMutations.get().isNotEmpty()) {
-                when (val mutation = textMutations.get().removeFirst()) {
+            val thisFrameDirty = textMutations.get().any { it.first is WsTextMutation.Replace }
+
+            while (true) {
+
+                val event = textMutations.get().pollFirst() ?: break
+                val mutation = event.first
+                if (event.second != -1) {
+                    if (event.second != frameCount.get()) {
+                        if (lastFrameDirty) {
+
+                            mutation.transformed(lastFrameTransform)
+                            if (textMutations.get().isEmpty()) {
+                                lastFrameTransform = 0
+                            }
+                        }
+                    } else {
+                        lastFrameTransform = mutation.delta()
+                        if (lastFrameTransform != 0) {
+                        }
+                    }
+                }
+                when (mutation) {
                     is WsTextMutation.Replace -> {
+
                         Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
                     }
                     is WsTextMutation.InsertAtCursor -> {
+
                         Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.ClipboardPaste -> {
                         Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.SendKeyEvent -> {
+
                         Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
                     }
                     is WsTextMutation.SelectAll -> {
@@ -427,13 +479,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     is WsTextMutation.NotifySelectionUpdate -> {
                         containsNotify = true
                     }
+                    WsTextMutation.WsNotifySelectionUpdate -> {
+//                        containsNotify = !lastFrameDirty
+//                        
+                    }
                     is WsTextMutation.Clear -> {
+
                         Workspace.clear(WGPU_OBJ)
                     }
                     is WsTextMutation.SetSelection -> {
                         Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
                     }
-
                     is WsTextMutation.Append -> {
                         Workspace.append(WGPU_OBJ, mutation.text)
                     }
@@ -443,6 +499,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 }
             }
 
+            val res = Workspace.enterFrame(WGPU_OBJ)
+
+            lastFrameDirty = thisFrameDirty
+            frameCount.getAndUpdate { it + 1 }
+
+            // you get the update here
             val selection: JTextRange = frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
 
             pendingSelection.set(JTextRange(selection.none, selection.start, selection.end))
@@ -456,8 +518,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     }
                 }
             }
-
-            val res = Workspace.enterFrame(WGPU_OBJ)
 
             res
         }
@@ -503,9 +563,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         contextMenu?.finish()
                     }
 
-                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount <= 1) {
-                        textMutations.get().add(WsTextMutation.NotifySelectionUpdate)
-                    }
+//                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount.get() == 0) {
+
+//                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
+//                    }
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =

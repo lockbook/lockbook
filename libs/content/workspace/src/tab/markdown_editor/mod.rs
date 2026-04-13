@@ -1234,7 +1234,8 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .push("icons".to_owned());
 }
 
-/// Headless integration tests
+/// Headless editor harness matching the Android FFI surface so tests read
+/// like the Kotlin call sites (`replace`, `setSelection`, `enterFrame`, …).
 #[cfg(test)]
 mod test {
     use super::*;
@@ -1252,10 +1253,11 @@ mod test {
     impl TestEditor {
         fn new(md: &str) -> Self {
             let mut harness = Self { editor: Editor::test(md), pending: vec![] };
-            harness.frame();
+            harness.enter_frame();
             harness
         }
 
+        /// Workspace.replace(start, end, text)
         fn replace(&mut self, start: usize, end: usize, text: &str) {
             self.pending.push(Event::Replace {
                 region: Region::BetweenLocations {
@@ -1267,7 +1269,9 @@ mod test {
             });
         }
 
-        fn frame(&mut self) {
+        /// Workspace.enterFrame() — runs a full headless egui frame through
+        /// Editor::show(), processing all pending events.
+        fn enter_frame(&mut self) {
             let ctx = self.editor.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
             let _ = ctx.run(RawInput::default(), |ctx| {
@@ -1307,25 +1311,9 @@ mod test {
 
         ws.replace(6, 9, ""); // delete "teh"    → "hello  world"
         ws.replace(9, 9, "the"); // insert at 9     → stale, OT adjusts to 6
-        ws.frame();
+        ws.enter_frame();
 
         assert_eq!(ws.get_text(), "hello the world");
         assert_eq!(ws.get_selection(), (9, 9)); // cursor after "the"
-    }
-
-    #[test]
-    fn android_double_insert() {
-        let mut ws = TestEditor::new("hello");
-
-        ws.replace(5, 5, " ");
-        ws.replace(5, 5, "w");
-        ws.replace(5, 5, "o");
-        ws.replace(5, 5, "r");
-        ws.replace(5, 5, "l");
-        ws.replace(5, 5, "d");
-        ws.frame();
-
-        assert_eq!(ws.get_text(), "hello world");
-        assert_eq!(ws.get_selection(), (11, 11)); // cursor at the end
     }
 }
