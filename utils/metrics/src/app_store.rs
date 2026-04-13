@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use chrono::{Duration, Local};
+use chrono::{Duration, Local, NaiveDate};
 use flate2::read::GzDecoder;
 use jsonwebtoken::Algorithm;
 use jsonwebtoken::EncodingKey;
@@ -120,6 +120,29 @@ impl AppStoreState {
                 .with_label_values(&["app_store", product, country])
                 .set(*units);
         }
+    }
+
+    pub fn earliest_date(&self) -> Option<NaiveDate> {
+        let entries = fs::read_dir(&self.data_dir).ok()?;
+
+        let mut earliest: Option<NaiveDate> = None;
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map(|e| e == "json").unwrap_or(false) {
+                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                    if let Ok(date) = NaiveDate::parse_from_str(stem, "%Y-%m-%d") {
+                        earliest = Some(match earliest {
+                            Some(e) if date < e => date,
+                            Some(e) => e,
+                            None => date,
+                        });
+                    }
+                }
+            }
+        }
+
+        earliest
     }
 
     pub async fn backfill(&mut self, client: &Client, config: &AppStoreConfig) {

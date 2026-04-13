@@ -3,11 +3,13 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::app_store::AppStoreConfig;
+use crate::play_store::PlayStoreConfig;
 
 pub struct Config {
     pub github_token: String,
     pub port: u16,
     pub app_store: AppStoreConfig,
+    pub play_store: PlayStoreConfig,
     pub data_dir: PathBuf,
 }
 
@@ -21,6 +23,10 @@ impl Config {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("/home/parth/metrics-data"));
 
+        let play_store_key_path = required("PLAY_STORE_SERVICE_ACCOUNT_KEY_PATH");
+        let play_store_key = fs::read_to_string(&play_store_key_path)
+            .unwrap_or_else(|e| panic!("failed to read {play_store_key_path}: {e}"));
+
         Self {
             github_token: required("GITHUB_TOKEN"),
             port: env::var("PORT")
@@ -32,6 +38,10 @@ impl Config {
                 key_id: required("APP_STORE_CONNECT_KEY_ID"),
                 private_key,
                 vendor_number: required("APP_STORE_CONNECT_VENDOR_NUMBER"),
+            },
+            play_store: PlayStoreConfig {
+                service_account_key: play_store_key,
+                bucket: required("PLAY_STORE_BUCKET"),
             },
             data_dir,
         }

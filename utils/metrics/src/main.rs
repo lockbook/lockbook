@@ -4,6 +4,7 @@ mod flathub;
 mod github;
 mod loggers;
 mod metrics;
+mod play_store;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,6 +21,7 @@ use warp::path;
 use warp::reply::with_header;
 
 use app_store::AppStoreState;
+use play_store::PlayStoreState;
 
 async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Option<T> {
     let mut req = client.get(url).header("User-Agent", "lb-metrics");
@@ -49,18 +51,31 @@ async fn main() {
     let mut app_store_state = AppStoreState::new(&config.data_dir);
     app_store_state.backfill(&client, &config.app_store).await;
 
+    // Initialize Play Store state with date range from App Store
+    let mut play_store_state = PlayStoreState::new(&config.data_dir);
+    if let Some(earliest) = app_store_state.earliest_date() {
+        info!("using App Store earliest date: {earliest}");
+        play_store_state.set_earliest_date(earliest);
+        play_store_state.backfill(&client, &config.play_store).await;
+    } else {
+        warn!("no App Store data found, Play Store metrics will be skipped");
+    }
+
     // Initial metrics refresh
     info!("performing initial metrics refresh");
     github::refresh(&client, &config.github_token).await;
     flathub::refresh(&client).await;
     app_store_state.update_metrics();
+    play_store_state.update_metrics();
 
     info!("backfill complete, starting metrics server");
 
     let app_store_state = Arc::new(Mutex::new(app_store_state));
+    let play_store_state = Arc::new(Mutex::new(play_store_state));
 
     // Spawn refresh loop
-    let refresh_state = app_store_state.clone();
+    let refresh_app_store = app_store_state.clone();
+    let refresh_play_store = play_store_state.clone();
     tokio::spawn(async move {
         loop {
             sleep(Duration::from_secs(300)).await;
@@ -69,9 +84,13 @@ async fn main() {
             github::refresh(&client, &config.github_token).await;
             flathub::refresh(&client).await;
 
-            let mut state = refresh_state.lock().await;
-            state.refresh(&client, &config.app_store).await;
-            state.update_metrics();
+            let mut app_state = refresh_app_store.lock().await;
+            app_state.refresh(&client, &config.app_store).await;
+            app_state.update_metrics();
+
+            let mut play_state = refresh_play_store.lock().await;
+            play_state.refresh(&client, &config.play_store).await;
+            play_state.update_metrics();
 
             info!("metrics refresh complete");
         }
