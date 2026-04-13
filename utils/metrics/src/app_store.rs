@@ -50,9 +50,22 @@ fn generate_token(config: &AppStoreConfig) -> Option<String> {
 
     let header =
         Header { alg: Algorithm::ES256, kid: Some(config.key_id.clone()), ..Default::default() };
-    let key = EncodingKey::from_ec_pem(config.private_key.as_bytes()).ok()?;
 
-    encode(&header, &claims, &key).ok()
+    let key = match EncodingKey::from_ec_pem(config.private_key.as_bytes()) {
+        Ok(k) => k,
+        Err(e) => {
+            error!("failed to parse App Store private key: {e}");
+            return None;
+        }
+    };
+
+    match encode(&header, &claims, &key) {
+        Ok(token) => Some(token),
+        Err(e) => {
+            error!("failed to encode App Store JWT: {e}");
+            None
+        }
+    }
 }
 
 pub async fn refresh(client: &Client, config: &AppStoreConfig) {
