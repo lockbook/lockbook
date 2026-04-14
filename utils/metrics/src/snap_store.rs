@@ -30,7 +30,7 @@ fn parse_authorization_header(macaroon: &str) -> Option<String> {
         .decode(macaroon.trim())
         .ok()?;
     let cred: SnapcraftCredential = serde_json::from_slice(&decoded).ok()?;
-    Some(format!("Macaroon root=\"{}\", discharge=\"{}\"", cred.v.r, cred.v.d))
+    Some(format!("Macaroon root={}, discharge={}", cred.v.r, cred.v.d))
 }
 
 #[derive(Serialize)]
