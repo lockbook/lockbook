@@ -78,28 +78,43 @@ impl Workspace {
     }
 
     pub fn show_search(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
-        let theme = self.ctx.get_lb_theme();
-
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
+            ui.add_space(6.0);
             self.search_type_selector(ui);
+            ui.add_space(6.0);
+            Self::hairline(ui, true);
 
-            // Search bar
-            Frame::new()
-                .fill(theme.neutral_bg())
-                .outer_margin(Margin::symmetric(5, 5))
-                .show(ui, |ui| {
-                    ui.vertical(|ui| {
-                        ui.add_space(5.0);
-                        self.search_bar(ui);
-                        ui.add_space(5.0);
-                        self.results_and_preview(ui)
-                    })
-                    .inner
-                })
-                .inner
+            ui.add_space(6.0);
+            self.search_bar(ui);
+            ui.add_space(6.0);
+            Self::hairline(ui, true);
+
+            ui.add_space(6.0);
+            self.results_and_preview(ui)
         })
         .inner
+    }
+
+    /// A 1px separator that matches the modal's subtle divider treatment.
+    fn hairline(ui: &mut Ui, horizontal: bool) {
+        let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
+        let stroke = egui::Stroke { width: 1.0, color };
+        if horizontal {
+            let (rect, _) = ui.allocate_exact_size(
+                Vec2::new(ui.available_width(), 1.0),
+                egui::Sense::hover(),
+            );
+            ui.painter()
+                .hline(rect.x_range(), rect.center().y, stroke);
+        } else {
+            let (rect, _) = ui.allocate_exact_size(
+                Vec2::new(1.0, ui.available_height()),
+                egui::Sense::hover(),
+            );
+            ui.painter()
+                .vline(rect.center().x, rect.y_range(), stroke);
+        }
     }
 
     fn search_type_selector(&mut self, ui: &mut Ui) {
@@ -123,7 +138,6 @@ impl Workspace {
                 .frame_when_inactive(true)
                 .min_size(Vec2::new(85., 0.))
                 .fill(if selected {
-                    //theme.bg().get_color(theme.prefs().primary)
                     theme.neutral_bg()
                 } else {
                     theme.neutral_bg_secondary()
@@ -146,18 +160,16 @@ impl Workspace {
             ui.visuals_mut().selection.stroke =
                 egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
 
-            // todo stick search icon like we do in full doc search
-            // Vertical padding is added by the surrounding layout (see
-            // show_search) rather than via TextEdit::margin — the latter's
-            // top/bottom aren't reserved in the widget's allocated rect, so
-            // they bleed into whatever is placed below.
+            ui.add_space(10.0);
+            // todo stick search icon like we do in full doc search.
+            // No background color — the text edit sits directly on the modal
+            // surface, so tabs/search/results read as one continuous area.
             let resp = TextEdit::singleline(&mut self.search.query)
                 .text_color(theme.neutral_fg())
-                .frame(true)
-                .background_color(theme.neutral_bg())
+                .frame(false)
                 .hint_text("Search")
-                .desired_width(ui.available_size_before_wrap().x)
-                .margin(Margin { left: 30, top: 5, bottom: 5, ..Margin::ZERO })
+                .desired_width(ui.available_size_before_wrap().x - 10.0)
+                .margin(Margin { left: 20, top: 5, bottom: 5, ..Margin::ZERO })
                 .show(ui)
                 .response;
 
@@ -166,11 +178,13 @@ impl Workspace {
     }
 
     fn results_and_preview(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
-        let theme = self.ctx.get_lb_theme();
         let size = ui.available_size();
         ui.horizontal(|ui| {
             ui.set_min_size(size);
-            let half = ui.available_width() / 2.;
+            // Leave 10px of inset on the outside and 10px between the pane and
+            // the hairline so the result rows have horizontal breathing room.
+            ui.add_space(10.0);
+            let half = (ui.available_width() - 31.0) / 2.;
             let activated = ui
                 .allocate_ui_with_layout(
                     Vec2::new(half, ui.available_height()),
@@ -178,14 +192,16 @@ impl Workspace {
                     |ui| self.search.executor.show_result_picker(ui),
                 )
                 .inner;
+            ui.add_space(10.0);
 
-            Frame::new()
-                .fill(theme.neutral_bg_secondary())
-                .outer_margin(Margin::symmetric(5, 5))
-                .show(ui, |ui| {
-                    ui.set_min_size(ui.available_size());
-                    self.search.executor.show_preview(ui);
-                });
+            Self::hairline(ui, false);
+
+            ui.add_space(10.0);
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width() - 10.0, ui.available_height()),
+                egui::Layout::top_down(egui::Align::LEFT),
+                |ui| self.search.executor.show_preview(ui),
+            );
 
             activated
         })
@@ -254,8 +270,8 @@ use std::{
 };
 
 use egui::{
-    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit,
-    Ui, Vec2, Widget,
+    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui,
+    Vec2, Widget,
 };
 use lb_rs::{blocking::Lb, model::file::File};
 use nucleo::{

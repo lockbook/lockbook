@@ -59,8 +59,10 @@ impl SearchExecutor for PathSearch {
         // Row height = two text line-heights plus the Frame's vertical margin.
         const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
 
-        egui::ScrollArea::vertical().show_rows(ui, ROW_HEIGHT, n, |ui, range| {
-            ui.spacing_mut().item_spacing.y = 0.0;
+        egui::ScrollArea::vertical()
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+            .show_rows(ui, ROW_HEIGHT, n, |ui, range| {
+                ui.spacing_mut().item_spacing.y = 0.0;
             let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
             for index in range {
@@ -190,8 +192,9 @@ impl PathSearch {
         let parent_path = entry.parent_path();
         let parent_char_len = parent_path.chars().count() as u32;
 
+        // Extra right padding so the ⌘N hint stays clear of the scrollbar.
         let mut frame = Frame::new()
-            .inner_margin(Margin::symmetric(8, 3))
+            .inner_margin(Margin { left: 8, right: 40, top: 3, bottom: 3 })
             .corner_radius(CornerRadius::same(4));
         if selected {
             // Use a subtle neutral fill rather than the accent selection color
