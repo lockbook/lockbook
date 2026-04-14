@@ -59,34 +59,42 @@ impl SearchExecutor for PathSearch {
         // Row height = two text line-heights plus the Frame's vertical margin.
         const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
 
+        // Scrollbar styling copied from `show_tree` in clients/egui: a solid
+        // floating bar that's always visible, wider than the default.
+        ui.style_mut().spacing.scroll = egui::style::ScrollStyle::solid();
+        ui.style_mut().spacing.scroll.floating = true;
+        ui.style_mut().spacing.scroll.bar_width *= 2.0;
+        ui.spacing_mut().scroll.floating_width = 12.0;
+        ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
+
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show_rows(ui, ROW_HEIGHT, n, |ui, range| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-            let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
+                let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
-            for index in range {
-                let Some(item) = snapshot.get_matched_item(index as u32) else { continue };
+                for index in range {
+                    let Some(item) = snapshot.get_matched_item(index as u32) else { continue };
 
-                let mut entry = item.data.clone();
-                let mut indices = Vec::new();
-                self.nucleo.pattern.column_pattern(0).indices(
-                    item.matcher_columns[0].slice(..),
-                    &mut matcher,
-                    &mut indices,
-                );
-                entry.highlight = indices;
+                    let mut entry = item.data.clone();
+                    let mut indices = Vec::new();
+                    self.nucleo.pattern.column_pattern(0).indices(
+                        item.matcher_columns[0].slice(..),
+                        &mut matcher,
+                        &mut indices,
+                    );
+                    entry.highlight = indices;
 
-                let resp = self.show_result_cell(ui, &entry, index, index == self.selected);
-                if resp.hovered() {
-                    hovered = Some(index);
+                    let resp = self.show_result_cell(ui, &entry, index, index == self.selected);
+                    if resp.hovered() {
+                        hovered = Some(index);
+                    }
+                    if resp.clicked() {
+                        clicked = Some(index);
+                        clicked_id = Some(item.data.file.id);
+                    }
                 }
-                if resp.clicked() {
-                    clicked = Some(index);
-                    clicked_id = Some(item.data.file.id);
-                }
-            }
-        });
+            });
 
         // Phase 3: apply mouse-driven selection now that the snapshot is gone.
         // In keyboard mode hover is ignored, but explicit clicks always apply.
@@ -148,8 +156,15 @@ impl PathSearch {
     fn process_keys(&mut self, ctx: &Context) {
         // ⌘1..⌘9 (Ctrl on Linux/Windows) jumps to and activates that row.
         const NUM_KEYS: [Key; 9] = [
-            Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7,
-            Key::Num8, Key::Num9,
+            Key::Num1,
+            Key::Num2,
+            Key::Num3,
+            Key::Num4,
+            Key::Num5,
+            Key::Num6,
+            Key::Num7,
+            Key::Num8,
+            Key::Num9,
         ];
 
         ctx.input_mut(|i| {
@@ -195,90 +210,83 @@ impl PathSearch {
         // Extra right padding so the ⌘N hint stays clear of the scrollbar.
         let mut frame = Frame::new()
             .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
+            .outer_margin(Margin { left: 0, right: 20, top: 0, bottom: 0 })
             .corner_radius(CornerRadius::same(4));
         if selected {
             // Use a subtle neutral fill rather than the accent selection color
             // so the text colors still contrast cleanly.
             frame = frame.fill(theme.neutral_bg_tertiary());
         }
-        let inner = frame
-            .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 10.0;
-                    // establish the row height up front so Align::Center
-                    // actually centers the icon against the two lines of text.
-                    // line heights are ~size * 1.3 + inter-line spacing.
-                    ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
+        let inner = frame.show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 10.0;
+                // establish the row height up front so Align::Center
+                // actually centers the icon against the two lines of text.
+                // line heights are ~size * 1.3 + inter-line spacing.
+                ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
 
-                    let icon_size = 19.;
-                    let (icon, icon_color) = if entry.file.is_document() {
-                        (
-                            DocType::from_name(&entry.file.name).to_icon().size(icon_size),
-                            theme.neutral_fg_secondary(),
-                        )
+                let icon_size = 19.;
+                let (icon, icon_color) = if entry.file.is_document() {
+                    (
+                        DocType::from_name(&entry.file.name)
+                            .to_icon()
+                            .size(icon_size),
+                        theme.neutral_fg_secondary(),
+                    )
+                } else {
+                    let is_shared = !entry.file.shares.is_empty();
+                    let icon =
+                        if is_shared { Icon::SHARED_FOLDER } else { Icon::FOLDER }.size(icon_size);
+                    let color = if is_shared {
+                        theme.fg().get_color(theme.prefs().secondary)
                     } else {
-                        let is_shared = !entry.file.shares.is_empty();
-                        let icon = if is_shared { Icon::SHARED_FOLDER } else { Icon::FOLDER }
-                            .size(icon_size);
-                        let color = if is_shared {
-                            theme.fg().get_color(theme.prefs().secondary)
-                        } else {
-                            theme.fg().get_color(theme.prefs().primary)
-                        };
-                        (icon, color)
+                        theme.fg().get_color(theme.prefs().primary)
                     };
-                    icon.color(icon_color).show(ui);
+                    (icon, color)
+                };
+                icon.color(icon_color).show(ui);
 
-                    // Reserve the keycaps on the right first (right_to_left)
-                    // so the text block in the middle gets the remaining width.
-                    ui.with_layout(
-                        egui::Layout::right_to_left(egui::Align::Center),
-                        |ui| {
-                            ui.spacing_mut().item_spacing.x = 3.0;
-                            // Only the first 9 rows get a ⌘N / CtrlN shortcut.
-                            if index < 9 {
-                                let modifier =
-                                    if cfg!(any(target_os = "macos", target_os = "ios")) {
-                                        "⌘"
-                                    } else {
-                                        "Ctrl"
-                                    };
-                                // laid out right-to-left, so the number (rightmost) draws first.
-                                let number = (index + 1).to_string();
-                                for glyph in [number.as_str(), modifier] {
-                                    ui.label(
-                                        RichText::new(glyph).color(parent_color).size(12.0),
-                                    );
-                                }
-                            }
+                // Reserve the keycaps on the right first (right_to_left)
+                // so the text block in the middle gets the remaining width.
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 3.0;
+                    // Only the first 9 rows get a ⌘N / CtrlN shortcut.
+                    if index < 9 {
+                        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                            "⌘"
+                        } else {
+                            "Ctrl"
+                        };
+                        // laid out right-to-left, so the number (rightmost) draws first.
+                        let number = (index + 1).to_string();
+                        for glyph in [number.as_str(), modifier] {
+                            ui.label(RichText::new(glyph).color(parent_color).size(12.0));
+                        }
+                    }
 
-                            // Remaining width goes to the text block.
-                            ui.with_layout(
-                                egui::Layout::top_down(egui::Align::LEFT),
-                                |ui| {
-                                    ui.spacing_mut().item_spacing.y = 0.0;
-                                    Self::highlighted_line(
-                                        ui,
-                                        &entry.file.name,
-                                        &entry.highlight,
-                                        parent_char_len,
-                                        name_color,
-                                        16.0,
-                                    );
-                                    Self::highlighted_line(
-                                        ui,
-                                        parent_path,
-                                        &entry.highlight,
-                                        0,
-                                        parent_color,
-                                        13.0,
-                                    );
-                                },
-                            );
-                        },
-                    );
+                    // Remaining width goes to the text block.
+                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.spacing_mut().item_spacing.y = 0.0;
+                        Self::highlighted_line(
+                            ui,
+                            &entry.file.name,
+                            &entry.highlight,
+                            parent_char_len,
+                            name_color,
+                            16.0,
+                        );
+                        Self::highlighted_line(
+                            ui,
+                            parent_path,
+                            &entry.highlight,
+                            0,
+                            parent_color,
+                            13.0,
+                        );
+                    });
                 });
             });
+        });
         // Promote the frame's allocated rect to a click+hover surface.
         ui.interact(
             inner.response.rect,
@@ -286,7 +294,6 @@ impl PathSearch {
             egui::Sense::click(),
         )
     }
-
 
     /// Render `text` as a single laid-out line, bolding any character whose
     /// char-index (plus `char_offset`) appears in `highlights`. Background
