@@ -250,7 +250,7 @@ async fn fetch_daily_report(
 
         let resp = match client
             .post("https://dashboard.snapcraft.io/dev/api/snaps/metrics")
-            .header("Authorization", format!("Macaroon {}", config.macaroon))
+            .header("Authorization", &config.macaroon)
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
