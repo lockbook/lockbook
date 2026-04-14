@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use base64::Engine;
 use chrono::NaiveDate;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,25 @@ use crate::metrics::INSTALLS;
 
 pub struct SnapStoreConfig {
     pub macaroon: String,
+}
+
+#[derive(Deserialize)]
+struct SnapcraftCredential {
+    v: CredentialValue,
+}
+
+#[derive(Deserialize)]
+struct CredentialValue {
+    r: String,
+    d: String,
+}
+
+fn parse_authorization_header(macaroon: &str) -> Option<String> {
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(macaroon.trim())
+        .ok()?;
+    let cred: SnapcraftCredential = serde_json::from_slice(&decoded).ok()?;
+    Some(format!("Macaroon root=\"{}\", discharge=\"{}\"", cred.v.r, cred.v.d))
 }
 
 #[derive(Serialize)]
@@ -230,6 +250,14 @@ async fn fetch_daily_report(
     config: &SnapStoreConfig,
     date: &str,
 ) -> Option<DailyReport> {
+    let auth_header = match parse_authorization_header(&config.macaroon) {
+        Some(h) => h,
+        None => {
+            error!("failed to parse snapcraft credentials");
+            return None;
+        }
+    };
+
     let snaps = ["lockbook", "lockbook-desktop"];
     let mut entries = Vec::new();
 
@@ -250,7 +278,7 @@ async fn fetch_daily_report(
 
         let resp = match client
             .post("https://dashboard.snapcraft.io/dev/api/snaps/metrics")
-            .header("Authorization", &config.macaroon)
+            .header("Authorization", &auth_header)
             .header("Content-Type", "application/json")
             .json(&request)
             .send()
