@@ -2122,6 +2122,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
+dependencies = [
+ "signature",
+]
+
+[[package]]
 name = "eframe"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4233,6 +4242,7 @@ dependencies = [
  "flate2",
  "jsonwebtoken",
  "lazy_static",
+ "macaroon",
  "prometheus",
  "reqwest",
  "serde",
@@ -4527,6 +4537,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "libsodium-sys"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b779387cd56adfbc02ea4a668e704f729be8d6a6abd2c27ca5ee537849a92fd"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "walkdir",
+]
+
+[[package]]
 name = "libz-sys"
 version = "1.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4787,6 +4809,19 @@ name = "mac"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
+
+[[package]]
+name = "macaroon"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b15778101dd1d3a58a95fd2af33821b38bc44a408bcf03e0e5e194f42c08050"
+dependencies = [
+ "base64 0.13.1",
+ "log",
+ "serde",
+ "serde_json",
+ "sodiumoxide",
+]
 
 [[package]]
 name = "malloc_buf"
@@ -7272,6 +7307,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "1.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7488,6 +7529,18 @@ checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "sodiumoxide"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e26be3acb6c2d9a7aac28482586a7856436af4cfe7100031d219de2d2ecb0028"
+dependencies = [
+ "ed25519",
+ "libc",
+ "libsodium-sys",
+ "serde",
 ]
 
 [[package]]

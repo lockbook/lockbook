@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use chrono::NaiveDate;
+use macaroon::{Format, Macaroon};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::*;
@@ -40,10 +41,37 @@ fn parse_authorization_header(macaroon: &str) -> Option<String> {
             return None;
         }
     };
-    let header = format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, cred.v.d);
-    info!("snap auth header: Macaroon root={}..., discharge={}...",
-        &cred.v.r[..20.min(cred.v.r.len())],
-        &cred.v.d[..20.min(cred.v.d.len())]);
+
+    // Parse and bind the discharge macaroon to the root
+    let root = match Macaroon::deserialize(&cred.v.r) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("failed to deserialize root macaroon: {e}");
+            return None;
+        }
+    };
+    let mut discharge = match Macaroon::deserialize(&cred.v.d) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("failed to deserialize discharge macaroon: {e}");
+            return None;
+        }
+    };
+
+    // Bind discharge to root
+    root.bind(&mut discharge);
+
+    // Serialize the bound discharge
+    let bound_discharge = match discharge.serialize(Format::V2) {
+        Ok(s) => s,
+        Err(e) => {
+            error!("failed to serialize bound discharge: {e}");
+            return None;
+        }
+    };
+
+    let header = format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, bound_discharge);
+    info!("snap auth: bound discharge macaroon to root");
     Some(header)
 }
 
