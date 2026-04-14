@@ -531,12 +531,13 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
             WorkspaceTabType.Graph -> { }
             WorkspaceTabType.Markdown,
             WorkspaceTabType.PlainText -> {
+                val connection = (currentWrapper as? WorkspaceTextInputWrapper)?.wsInputConnection
+                    ?: return
+
+                connection.closeConnection()
+                currentWrapper?.clearFocus()
                 (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                     .hideSoftInputFromWindow(this.windowToken, 0)
-
-                currentWrapper?.clearFocus()
-
-                (currentWrapper as WorkspaceTextInputWrapper).wsInputConnection.closeConnection()
 
                 val instanceWrapper = currentWrapper
                 Handler(Looper.getMainLooper()).postDelayed(
