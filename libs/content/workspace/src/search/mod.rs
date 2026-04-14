@@ -34,9 +34,11 @@ impl SearchType {
 pub trait SearchExecutor {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
-    fn show_result_picker(&mut self, ui: &mut Ui);
+    /// Render the result list. Return `Some(id)` when the user activated a
+    /// result (e.g., via a row shortcut) — the caller should dismiss the modal
+    /// and open that file.
+    fn show_result_picker(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid>;
     fn show_preview(&mut self, ui: &mut Ui);
-    // todo: maybe ws_action() -> Enum of resps
 }
 
 impl Workspace {
@@ -47,7 +49,7 @@ impl Workspace {
         let theme = self.ctx.get_lb_theme();
 
         if self.search.search_shown {
-            egui::Window::new("")
+            let activated = egui::Window::new("")
                 .anchor(egui::Align2::CENTER_CENTER, Vec2::ZERO)
                 .min_width(size.width() * 0.8)
                 .min_height(size.height() * 0.8)
@@ -64,11 +66,18 @@ impl Workspace {
                 .show(&self.ctx.clone(), |ui| {
                     ui.set_min_size(ui.available_size());
                     self.show_search(ui)
-                });
+                })
+                .and_then(|r| r.inner)
+                .flatten();
+
+            if let Some(id) = activated {
+                self.search.search_shown = false;
+                self.open_file(id, true, true);
+            }
         }
     }
 
-    pub fn show_search(&mut self, ui: &mut Ui) {
+    pub fn show_search(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
         let theme = self.ctx.get_lb_theme();
 
         ui.vertical(|ui| {
@@ -82,10 +91,13 @@ impl Workspace {
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
                         self.search_bar(ui);
-                        self.results_and_preview(ui);
-                    });
+                        self.results_and_preview(ui)
+                    })
+                    .inner
                 })
-        });
+                .inner
+        })
+        .inner
     }
 
     fn search_type_selector(&mut self, ui: &mut Ui) {
@@ -147,16 +159,19 @@ impl Workspace {
         });
     }
 
-    fn results_and_preview(&mut self, ui: &mut Ui) {
+    fn results_and_preview(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
         let theme = self.ctx.get_lb_theme();
         let size = ui.available_size();
         ui.horizontal(|ui| {
             ui.set_min_size(size);
-            ScrollArea::both()
-                .max_width(ui.available_width() / 2.)
-                .show(ui, |ui| {
-                    self.search.executor.show_result_picker(ui);
-                });
+            let half = ui.available_width() / 2.;
+            let activated = ui
+                .allocate_ui_with_layout(
+                    Vec2::new(half, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| self.search.executor.show_result_picker(ui),
+                )
+                .inner;
 
             Frame::new()
                 .fill(theme.neutral_bg_secondary())
@@ -165,7 +180,10 @@ impl Workspace {
                     ui.set_min_size(ui.available_size());
                     self.search.executor.show_preview(ui);
                 });
-        });
+
+            activated
+        })
+        .inner
     }
     
 
@@ -230,7 +248,7 @@ use std::{
 };
 
 use egui::{
-    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, ScrollArea, TextEdit,
+    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit,
     Ui, Vec2, Widget,
 };
 use lb_rs::{blocking::Lb, model::file::File};

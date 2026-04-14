@@ -194,7 +194,7 @@ impl SearchExecutor for ContentSearch {
         results.ellapsed_ms = start.elapsed().as_millis();
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) {
+    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> Option<lb_rs::Uuid> {
         ui.set_min_size(ui.available_size());
         let doc_store = self.doc_store.read().unwrap();
         let query_state = self.query_state.read().unwrap();
@@ -244,6 +244,8 @@ impl SearchExecutor for ContentSearch {
                 }
             });
         });
+
+        None
     }
 
     fn show_preview(&mut self, ui: &mut egui::Ui) {}

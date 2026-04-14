@@ -2,6 +2,12 @@ pub struct PathSearch {
     submitted_query: String,
     nucleo: Nucleo<PathResult>,
     selected: usize,
+    /// Set by input handling when a row shortcut is pressed. Resolved to a
+    /// file id in `show_result_picker` where the snapshot is available.
+    activate: bool,
+    /// True after arrow-key navigation; hover is ignored so the mouse doesn't
+    /// fight the keyboard. Cleared as soon as the pointer moves.
+    kb_mode: bool,
 }
 
 impl SearchExecutor for PathSearch {
@@ -20,53 +26,77 @@ impl SearchExecutor for PathSearch {
             );
             self.submitted_query = query.to_string();
             self.selected = 0;
+            self.kb_mode = true;
         }
         self.nucleo.tick(1);
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) {
+    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> Option<lb_rs::Uuid> {
+        self.process_keys(ui.ctx());
+
+        // Phase 1: clamp the (possibly over-incremented) selection, and if a
+        // keyboard shortcut activated a row, return that id immediately — the
+        // caller is about to dismiss the modal, so skip rendering.
         let snapshot = self.nucleo.snapshot();
         let n = snapshot.matched_item_count() as usize;
-
-        // Arrow-key navigation.
-        ui.ctx().input_mut(|i| {
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) && n > 0 {
-                self.selected = (self.selected + 1).min(n - 1);
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
-                self.selected = self.selected.saturating_sub(1);
-            }
-        });
-
-        // Clamp in case the result set shrank under us.
         if n > 0 && self.selected >= n {
             self.selected = n - 1;
         }
+        if self.activate {
+            self.activate = false;
+            return snapshot
+                .get_matched_item(self.selected as u32)
+                .map(|it| it.data.file.id);
+        }
 
-        ui.vertical(|ui| {
+        // Phase 2: render only the visible rows via `ScrollArea::show_rows`,
+        // collecting mouse input into locals (self can't be mutated while the
+        // snapshot borrow is alive).
+        let mut hovered: Option<usize> = None;
+        let mut clicked: Option<usize> = None;
+        let mut clicked_id: Option<lb_rs::Uuid> = None;
+
+        // Row height = two text line-heights plus the Frame's vertical margin.
+        const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
+
+        egui::ScrollArea::vertical().show_rows(ui, ROW_HEIGHT, n, |ui, range| {
             ui.spacing_mut().item_spacing.y = 0.0;
-
             let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
-            for (index, item) in snapshot
-                .matched_items(0..snapshot.matched_item_count())
-                .enumerate()
-            {
+            for index in range {
+                let Some(item) = snapshot.get_matched_item(index as u32) else { continue };
+
                 let mut entry = item.data.clone();
-
                 let mut indices = Vec::new();
-
                 self.nucleo.pattern.column_pattern(0).indices(
                     item.matcher_columns[0].slice(..),
                     &mut matcher,
                     &mut indices,
                 );
-
                 entry.highlight = indices;
 
-                self.show_result_cell(ui, &entry, index, index == self.selected);
+                let resp = self.show_result_cell(ui, &entry, index, index == self.selected);
+                if resp.hovered() {
+                    hovered = Some(index);
+                }
+                if resp.clicked() {
+                    clicked = Some(index);
+                    clicked_id = Some(item.data.file.id);
+                }
             }
         });
+
+        // Phase 3: apply mouse-driven selection now that the snapshot is gone.
+        // In keyboard mode hover is ignored, but explicit clicks always apply.
+        if let Some(i) = clicked {
+            self.selected = i;
+        } else if !self.kb_mode {
+            if let Some(i) = hovered {
+                self.selected = i;
+            }
+        }
+
+        clicked_id
     }
 
     fn show_preview(&mut self, ui: &mut egui::Ui) {
@@ -102,13 +132,54 @@ impl PathSearch {
             );
         }
 
-        Self { submitted_query: Default::default(), nucleo, selected: 0 }
+        Self {
+            submitted_query: Default::default(),
+            nucleo,
+            selected: 0,
+            activate: false,
+            kb_mode: true,
+        }
     }
 
-    fn show_result_cell(&self, ui: &mut Ui, entry: &PathResult, index: usize, selected: bool) {
+    /// Keyboard input for the path picker. Only touches `self.selected` and
+    /// `self.activate`; snapshot-based clamping happens in `show_result_picker`.
+    fn process_keys(&mut self, ctx: &Context) {
+        // ⌘1..⌘9 (Ctrl on Linux/Windows) jumps to and activates that row.
+        const NUM_KEYS: [Key; 9] = [
+            Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7,
+            Key::Num8, Key::Num9,
+        ];
+
+        ctx.input_mut(|i| {
+            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
+                self.selected = self.selected.saturating_add(1);
+                self.kb_mode = true;
+            }
+            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
+                self.selected = self.selected.saturating_sub(1);
+                self.kb_mode = true;
+            }
+            if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
+                self.activate = true;
+            }
+            for (idx, &k) in NUM_KEYS.iter().enumerate() {
+                if i.consume_key_exact(Modifiers::COMMAND, k) {
+                    self.selected = idx;
+                    self.activate = true;
+                }
+            }
+        });
+
+        // Any pointer movement hands control back to the mouse.
+        if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
+            self.kb_mode = false;
+        }
+    }
+
+    fn show_result_cell(
+        &self, ui: &mut Ui, entry: &PathResult, index: usize, selected: bool,
+    ) -> egui::Response {
         // functionality:
-        // todo: keyboard shortcut to open a result
-        // todo: response that opens the tab
         // todo: support folders, and generally a richer icon experience
         let theme = ui.ctx().get_lb_theme();
         let name_color = theme.neutral_fg();
@@ -123,9 +194,11 @@ impl PathSearch {
             .inner_margin(Margin::symmetric(8, 3))
             .corner_radius(CornerRadius::same(4));
         if selected {
-            frame = frame.fill(ui.style().visuals.selection.bg_fill);
+            // Use a subtle neutral fill rather than the accent selection color
+            // so the text colors still contrast cleanly.
+            frame = frame.fill(theme.neutral_bg_tertiary());
         }
-        frame
+        let inner = frame
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
@@ -159,17 +232,21 @@ impl PathSearch {
                         egui::Layout::right_to_left(egui::Align::Center),
                         |ui| {
                             ui.spacing_mut().item_spacing.x = 3.0;
-                            let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                                "⌘"
-                            } else {
-                                "Ctrl"
-                            };
-                            // laid out right-to-left, so the number (rightmost) draws first.
-                            let number = (index + 1).to_string();
-                            for glyph in [number.as_str(), modifier] {
-                                ui.label(
-                                    RichText::new(glyph).color(parent_color).size(12.0),
-                                );
+                            // Only the first 9 rows get a ⌘N / CtrlN shortcut.
+                            if index < 9 {
+                                let modifier =
+                                    if cfg!(any(target_os = "macos", target_os = "ios")) {
+                                        "⌘"
+                                    } else {
+                                        "Ctrl"
+                                    };
+                                // laid out right-to-left, so the number (rightmost) draws first.
+                                let number = (index + 1).to_string();
+                                for glyph in [number.as_str(), modifier] {
+                                    ui.label(
+                                        RichText::new(glyph).color(parent_color).size(12.0),
+                                    );
+                                }
                             }
 
                             // Remaining width goes to the text block.
@@ -199,6 +276,12 @@ impl PathSearch {
                     );
                 });
             });
+        // Promote the frame's allocated rect to a click+hover surface.
+        ui.interact(
+            inner.response.rect,
+            ui.id().with(("search_row", entry.file.id)),
+            egui::Sense::click(),
+        )
     }
 
 
