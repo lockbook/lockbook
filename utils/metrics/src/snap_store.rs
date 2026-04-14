@@ -40,7 +40,7 @@ fn parse_authorization_header(macaroon: &str) -> Option<String> {
             return None;
         }
     };
-    let header = format!("Macaroon root={},discharge={}", cred.v.r, cred.v.d);
+    let header = format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, cred.v.d);
     info!("snap auth header: Macaroon root={}..., discharge={}...",
         &cred.v.r[..20.min(cred.v.r.len())],
         &cred.v.d[..20.min(cred.v.d.len())]);
