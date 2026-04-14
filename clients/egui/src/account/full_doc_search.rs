@@ -191,28 +191,32 @@ impl FullDocSearch {
         let Ok(results) = self.results.lock() else { return None };
 
         for sr in results.iter() {
-            let sr_res = ui.vertical(|ui| {
-                match sr {
-                    SearchResult::DocumentMatch { id, path, content_matches } => {
-                        let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path);
-                        ui.horizontal(|ui| {
-                            ui.add_space(15.0);
+            let sr_res = egui::Frame::default()
+                .fill(if ui.visuals().dark_mode {
+                    ui.visuals().widgets.inactive.bg_fill.gamma_multiply(0.2)
+                } else {
+                    ui.visuals().extreme_bg_color
+                })
+                .inner_margin(10.0)
+                .outer_margin(egui::vec2(5.0, 10.0))
+                .corner_radius(ui.visuals().window_corner_radius)
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    match sr {
+                        SearchResult::DocumentMatch { id, path, content_matches } => {
+                            let file = &core.get_file_by_id(*id).unwrap();
+                            Self::show_file(ui, file, path);
                             ui.horizontal_wrapped(|ui| {
                                 let font_size = 15.0;
                                 self.show_content_match(ui, &content_matches[0], font_size);
                             });
-                        });
+                        }
+                        SearchResult::PathMatch { id, path, matched_indices: _, score: _ } => {
+                            let file = &core.get_file_by_id(*id).unwrap();
+                            Self::show_file(ui, file, path);
+                        }
                     }
-                    SearchResult::PathMatch { id, path, matched_indices: _, score: _ } => {
-                        let file = &core.get_file_by_id(*id).unwrap();
-                        Self::show_file(ui, file, path);
-                    }
-                };
-                ui.add_space(10.0);
-            });
-            ui.add(egui::Separator::default().shrink(ui.available_width() / 1.5));
-            ui.add_space(10.0);
+                });
 
             let sr_res = ui.interact(sr_res.response.rect, ui.next_auto_id(), egui::Sense::click());
             if sr_res.hovered() {
@@ -228,44 +232,22 @@ impl FullDocSearch {
     }
 
     fn show_file(ui: &mut egui::Ui, file: &File, path: &str) {
-        ui.horizontal_wrapped(|ui| {
-            ui.add_space(Self::X_MARGIN);
-
+        ui.horizontal(|ui| {
             DocType::from_name(file.name.as_str()).to_icon().show(ui);
 
-            ui.add_space(7.0);
-
-            let mut job = egui::text::LayoutJob::single_section(
-                file.name.clone(),
-                egui::TextFormat::simple(
-                    egui::FontId::proportional(18.0),
-                    ui.visuals().text_color(),
-                ),
+            ui.add(
+                egui::Label::new(egui::RichText::new(file.name.to_owned()).size(18.0)).truncate(),
             );
-            job.wrap = egui::epaint::text::TextWrapping {
-                overflow_character: Some('…'),
-                max_rows: 1,
-                break_anywhere: true,
-                ..Default::default()
-            };
-            ui.label(job);
         });
-        ui.horizontal_wrapped(|ui| {
-            ui.add_space(Self::X_MARGIN);
 
-            let mut job = egui::text::LayoutJob::single_section(
-                path.to_owned(),
-                egui::TextFormat::simple(egui::FontId::proportional(15.0), egui::Color32::GRAY),
-            );
-
-            job.wrap = egui::epaint::text::TextWrapping {
-                overflow_character: Some('…'),
-                max_rows: 1,
-                break_anywhere: true,
-                ..Default::default()
-            };
-            ui.label(job);
-        });
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(path.to_owned())
+                    .color(egui::Color32::GRAY)
+                    .size(15.0),
+            )
+            .truncate(),
+        );
     }
 
     fn show_content_match(&self, ui: &mut egui::Ui, content_match: &ContentMatch, font_size: f32) {
