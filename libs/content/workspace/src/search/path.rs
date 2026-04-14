@@ -194,7 +194,7 @@ impl PathSearch {
 
         // Extra right padding so the ⌘N hint stays clear of the scrollbar.
         let mut frame = Frame::new()
-            .inner_margin(Margin { left: 8, right: 40, top: 3, bottom: 3 })
+            .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
             .corner_radius(CornerRadius::same(4));
         if selected {
             // Use a subtle neutral fill rather than the accent selection color

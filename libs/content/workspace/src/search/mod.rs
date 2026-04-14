@@ -192,11 +192,9 @@ impl Workspace {
                     |ui| self.search.executor.show_result_picker(ui),
                 )
                 .inner;
-            ui.add_space(10.0);
 
             Self::hairline(ui, false);
 
-            ui.add_space(10.0);
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width() - 10.0, ui.available_height()),
                 egui::Layout::top_down(egui::Align::LEFT),
