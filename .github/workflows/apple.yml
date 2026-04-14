@@ -2,6 +2,10 @@ name: Apple Deployment
 
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        type: boolean
+        default: false
   workflow_call:
     inputs:
       release:
