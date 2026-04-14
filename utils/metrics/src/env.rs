@@ -4,12 +4,14 @@ use std::path::PathBuf;
 
 use crate::app_store::AppStoreConfig;
 use crate::play_store::PlayStoreConfig;
+use crate::snap_store::SnapStoreConfig;
 
 pub struct Config {
     pub github_token: String,
     pub port: u16,
     pub app_store: AppStoreConfig,
     pub play_store: PlayStoreConfig,
+    pub snap_store: SnapStoreConfig,
     pub data_dir: PathBuf,
 }
 
@@ -42,6 +44,9 @@ impl Config {
             play_store: PlayStoreConfig {
                 service_account_key: play_store_key,
                 bucket: required("PLAY_STORE_BUCKET"),
+            },
+            snap_store: SnapStoreConfig {
+                macaroon: required("SNAPCRAFT_MACAROON"),
             },
             data_dir,
         }

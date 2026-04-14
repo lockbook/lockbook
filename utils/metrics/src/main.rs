@@ -5,6 +5,7 @@ mod github;
 mod loggers;
 mod metrics;
 mod play_store;
+mod snap_store;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -22,6 +23,7 @@ use warp::reply::with_header;
 
 use app_store::AppStoreState;
 use play_store::PlayStoreState;
+use snap_store::SnapStoreState;
 
 async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Option<T> {
     let mut req = client.get(url).header("User-Agent", "lb-metrics");
@@ -51,14 +53,17 @@ async fn main() {
     let mut app_store_state = AppStoreState::new(&config.data_dir);
     app_store_state.backfill(&client, &config.app_store).await;
 
-    // Initialize Play Store state with date range from App Store
+    // Initialize Play Store and Snap Store state with date range from App Store
     let mut play_store_state = PlayStoreState::new(&config.data_dir);
+    let mut snap_store_state = SnapStoreState::new(&config.data_dir);
     if let Some(earliest) = app_store_state.earliest_date() {
         info!("using App Store earliest date: {earliest}");
         play_store_state.set_earliest_date(earliest);
         play_store_state.backfill(&client, &config.play_store).await;
+        snap_store_state.set_earliest_date(earliest);
+        snap_store_state.backfill(&client, &config.snap_store).await;
     } else {
-        warn!("no App Store data found, Play Store metrics will be skipped");
+        warn!("no App Store data found, Play Store and Snap Store metrics will be skipped");
     }
 
     // Initial metrics refresh
@@ -67,15 +72,18 @@ async fn main() {
     flathub::refresh(&client).await;
     app_store_state.update_metrics();
     play_store_state.update_metrics();
+    snap_store_state.update_metrics();
 
     info!("backfill complete, starting metrics server");
 
     let app_store_state = Arc::new(Mutex::new(app_store_state));
     let play_store_state = Arc::new(Mutex::new(play_store_state));
+    let snap_store_state = Arc::new(Mutex::new(snap_store_state));
 
     // Spawn refresh loop
     let refresh_app_store = app_store_state.clone();
     let refresh_play_store = play_store_state.clone();
+    let refresh_snap_store = snap_store_state.clone();
     tokio::spawn(async move {
         loop {
             sleep(Duration::from_secs(300)).await;
@@ -91,6 +99,10 @@ async fn main() {
             let mut play_state = refresh_play_store.lock().await;
             play_state.refresh(&client, &config.play_store).await;
             play_state.update_metrics();
+
+            let mut snap_state = refresh_snap_store.lock().await;
+            snap_state.refresh(&client, &config.snap_store).await;
+            snap_state.update_metrics();
 
             info!("metrics refresh complete");
         }
