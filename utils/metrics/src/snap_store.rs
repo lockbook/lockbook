@@ -160,25 +160,41 @@ impl SnapStoreState {
 
         let earliest = self.earliest_date.unwrap();
         let mut date = chrono::Local::now().date_naive() - chrono::Duration::days(1);
+        let mut consecutive_failures = 0;
 
-        while date >= earliest {
+        loop {
+            if date < earliest {
+                break;
+            }
+
             let date_str = date.format("%Y-%m-%d").to_string();
 
             if self.has_report(&date_str) {
                 date -= chrono::Duration::days(1);
+                consecutive_failures = 0;
                 continue;
             }
 
             info!("fetching snap store data for {date_str}");
 
-            if let Some(report) = fetch_daily_report(client, config, &date_str).await {
-                self.save_report(&report);
+            match fetch_daily_report(client, config, &date_str).await {
+                Some(report) => {
+                    self.save_report(&report);
+                    consecutive_failures = 0;
+                }
+                None => {
+                    consecutive_failures += 1;
+                    if consecutive_failures >= 3 {
+                        info!("stopping backfill after 3 consecutive failures at {date_str}");
+                        break;
+                    }
+                }
             }
 
             date -= chrono::Duration::days(1);
 
             // Rate limiting
-            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
         }
 
         self.load_all_reports();
@@ -191,13 +207,17 @@ async fn get_snap_id(client: &Client, snap_name: &str) -> Option<String> {
 
     let resp = client
         .get(&url)
+        .header("User-Agent", "lb-metrics")
         .header("Snap-Device-Series", "16")
+        .header("Accept", "application/json")
         .send()
         .await
         .ok()?;
 
     if !resp.status().is_success() {
-        warn!("failed to get snap info for {}: {}", snap_name, resp.status());
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        warn!("failed to get snap info for {snap_name}: {status} - {body}");
         return None;
     }
 
