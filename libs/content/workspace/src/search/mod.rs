@@ -90,7 +90,9 @@ impl Workspace {
                 .outer_margin(Margin::symmetric(5, 5))
                 .show(ui, |ui| {
                     ui.vertical(|ui| {
+                        ui.add_space(5.0);
                         self.search_bar(ui);
+                        ui.add_space(5.0);
                         self.results_and_preview(ui)
                     })
                     .inner
@@ -145,6 +147,10 @@ impl Workspace {
                 egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
 
             // todo stick search icon like we do in full doc search
+            // Vertical padding is added by the surrounding layout (see
+            // show_search) rather than via TextEdit::margin — the latter's
+            // top/bottom aren't reserved in the widget's allocated rect, so
+            // they bleed into whatever is placed below.
             let resp = TextEdit::singleline(&mut self.search.query)
                 .text_color(theme.neutral_fg())
                 .frame(true)
