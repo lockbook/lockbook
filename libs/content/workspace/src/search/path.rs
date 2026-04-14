@@ -24,6 +24,8 @@ impl SearchExecutor for PathSearch {
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing.y = 2.0;
+
             let snapshot = self.nucleo.snapshot();
             let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
@@ -40,7 +42,6 @@ impl SearchExecutor for PathSearch {
 
                 entry.highlight = indices;
 
-                ui.spacing_mut().item_spacing.y = 5.0;
                 self.show_result_cell(ui, &entry);
             }
         });
@@ -83,21 +84,71 @@ impl PathSearch {
     }
 
     fn show_result_cell(&self, ui: &mut Ui, entry: &PathResult) {
-        ui.horizontal(|ui| {
-            // aesthetics:
-            // todo: spacing, background color, vertical centering
-            // todo: support folders, and generally a richer icon experience
-            // 
-            // functionality:
-            // todo: keyboard shortcut to open a result
-            // todo: response that opens the tab
-            DocType::from_name(&entry.path).to_icon().show(ui);
+        // functionality:
+        // todo: keyboard shortcut to open a result
+        // todo: response that opens the tab
+        // todo: support folders, and generally a richer icon experience
+        let theme = ui.ctx().get_lb_theme();
+        let name_color = theme.neutral_fg();
+        let parent_color = theme.neutral_fg_secondary();
 
-            ui.vertical(|ui| {
-                ui.label(&entry.file.name);
-                ui.label(entry.parent_path());
-            })
-        });
+        // nucleo returns char indices into the full path; pass a char offset
+        // so each sub-line filters the shared slice without allocating.
+        let parent_path = entry.parent_path();
+        let parent_char_len = parent_path.chars().count() as u32;
+
+        Frame::new()
+            .inner_margin(Margin::symmetric(8, 6))
+            .corner_radius(CornerRadius::same(4))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 10.0;
+
+                    DocType::from_name(&entry.file.name).to_icon().show(ui);
+
+                    ui.vertical(|ui| {
+                        ui.spacing_mut().item_spacing.y = 2.0;
+                        Self::highlighted_line(
+                            ui,
+                            &entry.file.name,
+                            &entry.highlight,
+                            parent_char_len,
+                            name_color,
+                            14.0,
+                        );
+                        Self::highlighted_line(
+                            ui,
+                            parent_path,
+                            &entry.highlight,
+                            0,
+                            parent_color,
+                            11.0,
+                        );
+                    });
+                });
+            });
+    }
+
+    /// Render `text` as a single laid-out line, bolding any character whose
+    /// char-index (plus `char_offset`) appears in `highlights`. Background
+    /// color is reserved for the current selection.
+    fn highlighted_line(
+        ui: &mut Ui, text: &str, highlights: &[u32], char_offset: u32, color: egui::Color32,
+        size: f32,
+    ) {
+        let regular = egui::FontId::new(size, egui::FontFamily::Proportional);
+        let bold = egui::FontId::new(size, egui::FontFamily::Name(Arc::from("Bold")));
+        let mut job = egui::text::LayoutJob::default();
+        for (i, c) in text.chars().enumerate() {
+            let hi = highlights.contains(&(char_offset + i as u32));
+            let fmt = egui::TextFormat {
+                font_id: if hi { bold.clone() } else { regular.clone() },
+                color,
+                ..Default::default()
+            };
+            job.append(&c.to_string(), 0.0, fmt);
+        }
+        ui.label(job);
     }
 }
 
@@ -122,13 +173,15 @@ impl PathResult {
 
 use std::sync::Arc;
 
-use egui::{Context, Ui};
+use egui::{Context, CornerRadius, Frame, Margin, RichText, Ui};
 use lb_rs::{blocking::Lb, model::file::File};
 use nucleo::{
-    pattern::{CaseMatching, Normalization}, Matcher, Nucleo
+    Matcher, Nucleo,
+    pattern::{CaseMatching, Normalization},
 };
 
 use crate::{
-    search::{SearchType, SearchExecutor},
+    search::{SearchExecutor, SearchType},
     show::DocType,
+    theme::palette_v2::ThemeExt,
 };
