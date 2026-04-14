@@ -3,7 +3,6 @@ mod modals;
 mod syncing;
 mod tree;
 
-use std::cmp::max;
 use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock, mpsc};
