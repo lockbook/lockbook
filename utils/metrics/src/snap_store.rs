@@ -26,11 +26,23 @@ struct CredentialValue {
 }
 
 fn parse_authorization_header(macaroon: &str) -> Option<String> {
-    let decoded = base64::engine::general_purpose::STANDARD
-        .decode(macaroon.trim())
-        .ok()?;
-    let cred: SnapcraftCredential = serde_json::from_slice(&decoded).ok()?;
-    Some(format!("Macaroon root={}, discharge={}", cred.v.r, cred.v.d))
+    let decoded = match base64::engine::general_purpose::STANDARD.decode(macaroon.trim()) {
+        Ok(d) => d,
+        Err(e) => {
+            error!("failed to base64 decode macaroon: {e}");
+            return None;
+        }
+    };
+    let cred: SnapcraftCredential = match serde_json::from_slice(&decoded) {
+        Ok(c) => c,
+        Err(e) => {
+            error!("failed to parse macaroon JSON: {e}");
+            return None;
+        }
+    };
+    let header = format!("Macaroon root={}, discharge={}", cred.v.r, cred.v.d);
+    debug!("snap auth header length: {}", header.len());
+    Some(header)
 }
 
 #[derive(Serialize)]
