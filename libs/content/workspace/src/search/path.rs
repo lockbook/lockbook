@@ -24,7 +24,7 @@ impl SearchExecutor for PathSearch {
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) {
         ui.vertical(|ui| {
-            ui.spacing_mut().item_spacing.y = 2.0;
+            ui.spacing_mut().item_spacing.y = 0.0;
 
             let snapshot = self.nucleo.snapshot();
             let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
@@ -98,36 +98,82 @@ impl PathSearch {
         let parent_char_len = parent_path.chars().count() as u32;
 
         Frame::new()
-            .inner_margin(Margin::symmetric(8, 6))
+            .inner_margin(Margin::symmetric(8, 3))
             .corner_radius(CornerRadius::same(4))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
+                    // establish the row height up front so Align::Center
+                    // actually centers the icon against the two lines of text.
+                    // line heights are ~size * 1.3 + inter-line spacing.
+                    ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
 
-                    DocType::from_name(&entry.file.name).to_icon().show(ui);
+                    let icon_size = 19.;
+                    let (icon, icon_color) = if entry.file.is_document() {
+                        (
+                            DocType::from_name(&entry.file.name).to_icon().size(icon_size),
+                            theme.neutral_fg_secondary(),
+                        )
+                    } else {
+                        let is_shared = !entry.file.shares.is_empty();
+                        let icon = if is_shared { Icon::SHARED_FOLDER } else { Icon::FOLDER }
+                            .size(icon_size);
+                        let color = if is_shared {
+                            theme.fg().get_color(theme.prefs().secondary)
+                        } else {
+                            theme.fg().get_color(theme.prefs().primary)
+                        };
+                        (icon, color)
+                    };
+                    icon.color(icon_color).show(ui);
 
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.y = 2.0;
-                        Self::highlighted_line(
-                            ui,
-                            &entry.file.name,
-                            &entry.highlight,
-                            parent_char_len,
-                            name_color,
-                            14.0,
-                        );
-                        Self::highlighted_line(
-                            ui,
-                            parent_path,
-                            &entry.highlight,
-                            0,
-                            parent_color,
-                            11.0,
-                        );
-                    });
+                    // Reserve the keycaps on the right first (right_to_left)
+                    // so the text block in the middle gets the remaining width.
+                    ui.with_layout(
+                        egui::Layout::right_to_left(egui::Align::Center),
+                        |ui| {
+                            ui.spacing_mut().item_spacing.x = 3.0;
+                            let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                                "⌘"
+                            } else {
+                                "Ctrl"
+                            };
+                            // laid out right-to-left, so "Enter" (rightmost) draws first.
+                            for glyph in ["Enter", modifier] {
+                                ui.label(
+                                    RichText::new(glyph).color(parent_color).size(12.0),
+                                );
+                            }
+
+                            // Remaining width goes to the text block.
+                            ui.with_layout(
+                                egui::Layout::top_down(egui::Align::LEFT),
+                                |ui| {
+                                    ui.spacing_mut().item_spacing.y = 0.0;
+                                    Self::highlighted_line(
+                                        ui,
+                                        &entry.file.name,
+                                        &entry.highlight,
+                                        parent_char_len,
+                                        name_color,
+                                        16.0,
+                                    );
+                                    Self::highlighted_line(
+                                        ui,
+                                        parent_path,
+                                        &entry.highlight,
+                                        0,
+                                        parent_color,
+                                        13.0,
+                                    );
+                                },
+                            );
+                        },
+                    );
                 });
             });
     }
+
 
     /// Render `text` as a single laid-out line, bolding any character whose
     /// char-index (plus `char_offset`) appears in `highlights`. Background
@@ -139,6 +185,12 @@ impl PathSearch {
         let regular = egui::FontId::new(size, egui::FontFamily::Proportional);
         let bold = egui::FontId::new(size, egui::FontFamily::Name(Arc::from("Bold")));
         let mut job = egui::text::LayoutJob::default();
+        job.wrap = egui::text::TextWrapping {
+            max_width: ui.available_width(),
+            max_rows: 1,
+            break_anywhere: true,
+            overflow_character: Some('…'),
+        };
         for (i, c) in text.chars().enumerate() {
             let hi = highlights.contains(&(char_offset + i as u32));
             let fmt = egui::TextFormat {
@@ -183,5 +235,5 @@ use nucleo::{
 use crate::{
     search::{SearchExecutor, SearchType},
     show::DocType,
-    theme::palette_v2::ThemeExt,
+    theme::{icons::Icon, palette_v2::ThemeExt},
 };
