@@ -1,6 +1,7 @@
 pub struct PathSearch {
     submitted_query: String,
     nucleo: Nucleo<PathResult>,
+    selected: usize,
 }
 
 impl SearchExecutor for PathSearch {
@@ -18,18 +19,39 @@ impl SearchExecutor for PathSearch {
                 self.submitted_query.starts_with(query),
             );
             self.submitted_query = query.to_string();
+            self.selected = 0;
         }
         self.nucleo.tick(1);
     }
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) {
+        let snapshot = self.nucleo.snapshot();
+        let n = snapshot.matched_item_count() as usize;
+
+        // Arrow-key navigation.
+        ui.ctx().input_mut(|i| {
+            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) && n > 0 {
+                self.selected = (self.selected + 1).min(n - 1);
+            }
+            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
+                self.selected = self.selected.saturating_sub(1);
+            }
+        });
+
+        // Clamp in case the result set shrank under us.
+        if n > 0 && self.selected >= n {
+            self.selected = n - 1;
+        }
+
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 0.0;
 
-            let snapshot = self.nucleo.snapshot();
             let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
-            for item in snapshot.matched_items(0..snapshot.matched_item_count()) {
+            for (index, item) in snapshot
+                .matched_items(0..snapshot.matched_item_count())
+                .enumerate()
+            {
                 let mut entry = item.data.clone();
 
                 let mut indices = Vec::new();
@@ -42,7 +64,7 @@ impl SearchExecutor for PathSearch {
 
                 entry.highlight = indices;
 
-                self.show_result_cell(ui, &entry);
+                self.show_result_cell(ui, &entry, index, index == self.selected);
             }
         });
     }
@@ -80,10 +102,10 @@ impl PathSearch {
             );
         }
 
-        Self { submitted_query: Default::default(), nucleo }
+        Self { submitted_query: Default::default(), nucleo, selected: 0 }
     }
 
-    fn show_result_cell(&self, ui: &mut Ui, entry: &PathResult) {
+    fn show_result_cell(&self, ui: &mut Ui, entry: &PathResult, index: usize, selected: bool) {
         // functionality:
         // todo: keyboard shortcut to open a result
         // todo: response that opens the tab
@@ -97,9 +119,13 @@ impl PathSearch {
         let parent_path = entry.parent_path();
         let parent_char_len = parent_path.chars().count() as u32;
 
-        Frame::new()
+        let mut frame = Frame::new()
             .inner_margin(Margin::symmetric(8, 3))
-            .corner_radius(CornerRadius::same(4))
+            .corner_radius(CornerRadius::same(4));
+        if selected {
+            frame = frame.fill(ui.style().visuals.selection.bg_fill);
+        }
+        frame
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 10.0;
@@ -138,8 +164,9 @@ impl PathSearch {
                             } else {
                                 "Ctrl"
                             };
-                            // laid out right-to-left, so "Enter" (rightmost) draws first.
-                            for glyph in ["Enter", modifier] {
+                            // laid out right-to-left, so the number (rightmost) draws first.
+                            let number = (index + 1).to_string();
+                            for glyph in [number.as_str(), modifier] {
                                 ui.label(
                                     RichText::new(glyph).color(parent_color).size(12.0),
                                 );
@@ -225,7 +252,7 @@ impl PathResult {
 
 use std::sync::Arc;
 
-use egui::{Context, CornerRadius, Frame, Margin, RichText, Ui};
+use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, Ui};
 use lb_rs::{blocking::Lb, model::file::File};
 use nucleo::{
     Matcher, Nucleo,
@@ -234,6 +261,6 @@ use nucleo::{
 
 use crate::{
     search::{SearchExecutor, SearchType},
-    show::DocType,
+    show::{DocType, InputStateExt},
     theme::{icons::Icon, palette_v2::ThemeExt},
 };
