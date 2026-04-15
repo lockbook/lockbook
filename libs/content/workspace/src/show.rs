@@ -139,27 +139,10 @@ impl Workspace {
             }
 
             ui.centered_and_justified(|ui| {
+                self.show_current_tab_content(ui);
+
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
-                if let Some(tab) = self.current_tab_mut() {
-                    let id = tab.id();
-                    let resp = tab.show(ui);
-
-                    self.out.open_camera = resp.open_camera;
-                    if resp.text_updated {
-                        self.out.markdown_editor_text_updated = true;
-                        self.out.markdown_editor_selection_updated = true;
-                    }
-                    if resp.selection_updated {
-                        self.out.markdown_editor_selection_updated = true;
-                    }
-                    self.out.markdown_editor_find_widget_height = resp.find_widget_height;
-                    if resp.scroll_updated {
-                        self.out.markdown_editor_scroll_updated = true;
-                    }
-                    if let Some(file) = resp.open_file {
-                        self.open_file(file, true, false);
-                    }
-
+                if let Some(id) = self.current_tab_id() {
                     ui.ctx().output_mut(|w| {
                         w.commands.retain(|c| {
                             let egui::OutputCommand::OpenUrl(url) = c else { return true };
@@ -171,9 +154,6 @@ impl Workspace {
                                 }
                                 return false;
                             }
-
-                            // only intercept open urls for tabs representing files
-                            let Some(id) = id else { return true };
 
                             let files_arc = std::sync::Arc::clone(&self.files);
                             let files_guard = files_arc.read().unwrap();
@@ -200,6 +180,28 @@ impl Workspace {
                 }
             });
         });
+    }
+
+    fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
+        if let Some(tab) = self.current_tab_mut() {
+            let resp = tab.show(ui);
+
+            self.out.open_camera = resp.open_camera;
+            if resp.text_updated {
+                self.out.markdown_editor_text_updated = true;
+                self.out.markdown_editor_selection_updated = true;
+            }
+            if resp.selection_updated {
+                self.out.markdown_editor_selection_updated = true;
+            }
+            self.out.markdown_editor_find_widget_height = resp.find_widget_height;
+            if resp.scroll_updated {
+                self.out.markdown_editor_scroll_updated = true;
+            }
+            if let Some(file) = resp.open_file {
+                self.open_file(file, true, false);
+            }
+        }
     }
 
     fn show_tab_strip(&mut self, ui: &mut egui::Ui) {
@@ -246,6 +248,9 @@ impl Workspace {
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
                                 for i in 0..self.tabs.len() {
+                                    if self.tabs[i].is_preview {
+                                        continue;
+                                    }
                                     if let Some(resp) = self.tab_label(
                                         ui,
                                         i,
@@ -458,19 +463,20 @@ impl Workspace {
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab
-            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
-                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
-                && self.current_tab != 0
+            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab))
             {
-                goto_tab = Some(self.current_tab - 1);
+                goto_tab = (0..self.current_tab)
+                    .rev()
+                    .find(|&i| !self.tabs[i].is_preview);
             }
 
             // Cmd+Shift+] or ctrl tab to go to next tab
-            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
-                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
-                && self.current_tab != self.tabs.len() - 1
+            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab))
             {
-                goto_tab = Some(self.current_tab + 1);
+                goto_tab = (self.current_tab + 1..self.tabs.len())
+                    .find(|&i| !self.tabs[i].is_preview);
             }
         });
 

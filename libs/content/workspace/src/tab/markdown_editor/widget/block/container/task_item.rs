@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
-use egui::{CursorIcon, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
+use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
 use crate::tab::markdown_editor::{Editor, Event};
@@ -36,7 +36,9 @@ impl<'ast> Editor {
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
         let checkbox_response =
-            ui.interact(clickable_space, Id::new(self.node_range(node)), Sense::click());
+            // ui.id().with() instead of Id::new() so two views of the same document
+            // get distinct checkbox IDs
+            ui.interact(clickable_space, ui.id().with(self.node_range(node)), Sense::click());
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };

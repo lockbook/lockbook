@@ -39,6 +39,7 @@ pub struct Tab {
     pub rename: Option<String>,
     pub is_closing: bool,
     pub read_only: bool,
+    pub is_preview: bool,
 }
 
 impl Tab {
@@ -133,6 +134,13 @@ impl Tab {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if self.is_preview {
+            return ui.push_id("preview", |ui| self.show_inner(ui)).inner;
+        }
+        self.show_inner(ui)
+    }
+
+    fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
         match &mut self.content {
             ContentState::Loading(_) => {
                 ui.spinner();
