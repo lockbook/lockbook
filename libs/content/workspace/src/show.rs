@@ -475,8 +475,8 @@ impl Workspace {
             if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
                 || (!APPLE && input.consume_key_exact(CTRL, Key::Tab))
             {
-                goto_tab = (self.current_tab + 1..self.tabs.len())
-                    .find(|&i| !self.tabs[i].is_preview);
+                goto_tab =
+                    (self.current_tab + 1..self.tabs.len()).find(|&i| !self.tabs[i].is_preview);
             }
         });
 
