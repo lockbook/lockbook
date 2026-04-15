@@ -22,11 +22,13 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::resolvers::{FileCacheLinkResolver, ImageCache};
 use crate::search::Search;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
+use crate::tab::markdown_editor::{MdEdit, MdPersistence};
+type Markdown = MdEdit<ImageCache, FileCacheLinkResolver>;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -88,6 +90,7 @@ impl Workspace {
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        let search = Search::new(core, ctx);
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
@@ -114,7 +117,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
-            search: Search::new(core, ctx),
+            search,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
@@ -147,6 +150,7 @@ impl Workspace {
             forward: Vec::new(),
             last_changed: now,
             last_saved: now,
+            hmac: None,
             rename: None,
             is_closing: false,
             read_only: false,
@@ -465,12 +469,12 @@ impl Workspace {
                         DocType::SVG => {
                             let reload = if tab.svg().is_some() { !tab_created } else { false };
                             if !reload {
+                                tab.hmac = maybe_hmac;
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
                                     &bytes,
                                     &ctx,
                                     core.clone(),
                                     id,
-                                    maybe_hmac,
                                     &self.cfg,
                                     tab.read_only,
                                 )));
@@ -488,7 +492,7 @@ impl Workspace {
                                     ),
                                 );
 
-                                svg.open_file_hmac = maybe_hmac;
+                                tab.hmac = maybe_hmac;
                             }
                         }
                         DocType::PlainText
@@ -500,27 +504,37 @@ impl Workspace {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
+                                tab.hmac = maybe_hmac;
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         &String::from_utf8_lossy(&bytes),
                                         id,
-                                        maybe_hmac,
-                                        MdResources {
-                                            ctx: self.ctx.clone(),
-                                            core: core.clone(),
-                                            persistence: self.cfg.clone(),
-                                            files: Arc::clone(&self.files),
-                                        },
-                                        MdConfig {
-                                            readonly: tab.read_only,
-                                            ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
-                                        },
+                                        self.ctx.clone(),
+                                        self.cfg.clone(),
+                                        Arc::clone(&self.files),
+                                        ext.clone(),
+                                        tab.read_only,
+                                        show_tabs,
+                                        ImageCache::new(
+                                            self.ctx.clone(),
+                                            Default::default(),
+                                            core.clone(),
+                                            id,
+                                            Arc::clone(&self.files),
+                                        ),
+                                        FileCacheLinkResolver::new(
+                                            Arc::clone(&self.files),
+                                            id,
+                                            Default::default(),
+                                            self.ctx.clone(),
+                                        ),
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
-                                md.hmac = maybe_hmac;
+                                md.renderer
+                                    .buffer
+                                    .reload(String::from_utf8_lossy(&bytes).into());
+                                tab.hmac = maybe_hmac;
                             }
                         }
                         _ => {
@@ -559,14 +573,13 @@ impl Workspace {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
+                                tab.hmac = Some(hmac);
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
-                                        md.hmac = Some(hmac);
-                                        md.buffer.saved(seq, content);
+                                        md.renderer.buffer.saved(seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
-                                        svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
                                 }

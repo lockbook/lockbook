@@ -1,4 +1,5 @@
-use crate::tab::markdown_editor::{self, Editor};
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
@@ -25,7 +26,7 @@ impl From<Modifiers> for Advance {
 
 const PAGE_LINES: usize = 50;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
     pub fn translate_egui_keyboard_event(
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
@@ -85,7 +86,7 @@ impl<'ast> Editor {
                 // with text selected, pasting a link turns selected text into a
                 // markdown link...
                 let mut link_paste = false;
-                if !self.buffer.current.selection.is_empty() {
+                if !self.renderer.buffer.current.selection.is_empty() {
                     // use comrak's auto-link detector
                     let arena = comrak::Arena::new();
                     let mut options = comrak::Options::default();
@@ -109,8 +110,9 @@ impl<'ast> Editor {
                         descendant.data().value,
                         NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
                     ) && self
+                        .renderer
                         .node_range(descendant)
-                        .intersects(&self.buffer.current.selection, false)
+                        .intersects(&self.renderer.buffer.current.selection, false)
                     {
                         link_paste = false;
                         break;
@@ -152,7 +154,8 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") && modifiers.command =>
             {
-                self.open_links_in_selection(root, &self.ctx);
+                self.renderer
+                    .open_links_in_selection(root, &self.renderer.ctx);
                 None
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }

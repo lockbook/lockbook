@@ -8,6 +8,7 @@ pub struct PathSearch {
     /// True after arrow-key navigation; hover is ignored so the mouse doesn't
     /// fight the keyboard. Cleared as soon as the pointer moves.
     kb_mode: bool,
+    label_renderer: MdLabel,
 }
 
 impl SearchExecutor for PathSearch {
@@ -110,7 +111,16 @@ impl SearchExecutor for PathSearch {
     }
 
     fn show_preview(&mut self, ui: &mut egui::Ui) {
-        // todo!()
+        let md = "# Search Preview\n\nThis is a **test** of the markdown renderer.\n\n- Item 1\n- Item 2\n\n`code` and *emphasis*";
+        let width = ui.available_width();
+        let text_areas = self.label_renderer.render(ui, ui.cursor().min, md, width);
+        if !text_areas.is_empty() {
+            ui.painter()
+                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                    ui.max_rect(),
+                    crate::GlyphonRendererCallback::new(text_areas),
+                ));
+        }
     }
 }
 
@@ -120,6 +130,8 @@ impl PathSearch {
         // todo there may be gains to be had to retrieve FilePaths instead of id paths
         let mut id_paths = lb.list_paths_with_ids(None).unwrap();
         id_paths.retain(|(_, path)| path != "/");
+
+        let label_renderer = MdLabel::new(ctx.clone(), "md".into(), (), ());
 
         let ctx = ctx.clone();
         let notify = Arc::new(move || {
@@ -148,6 +160,7 @@ impl PathSearch {
             selected: 0,
             activate: false,
             kb_mode: true,
+            label_renderer,
         }
     }
 
@@ -355,5 +368,6 @@ use nucleo::{
 use crate::{
     search::{SearchExecutor, SearchType},
     show::{DocType, InputStateExt},
+    tab::markdown_editor::MdLabel,
     theme::{icons::Icon, palette_v2::ThemeExt},
 };

@@ -1,10 +1,11 @@
 use egui::style::{WidgetVisuals, Widgets};
 use egui::{Stroke, Ui};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::theme::palette_v2::ThemeExt;
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     // todo: all egui needs to be themed this way and this should be removed
     pub fn apply_theme(&self, ui: &mut Ui) {
         let theme = self.ctx.get_lb_theme();

@@ -3,7 +3,8 @@ use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
@@ -12,7 +13,7 @@ const MAX_RESULTS: usize = 5;
 const MIN_QUERY_LEN: usize = 2;
 const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct EmojiCompletions {
     /// Set each frame before process_events so translate_egui_keyboard_event
     /// can check it and swallow arrow/enter keys when the popup is open.
@@ -255,16 +256,17 @@ fn matching_shortcode<'a>(emoji: &'a emojis::Emoji, query: &str) -> &'a str {
         .unwrap_or("")
 }
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
     pub fn show_emoji_completions(&mut self, ui: &mut Ui) {
         if self.readonly || !self.emoji_completions.active {
             return;
         }
 
-        let Some((colon_offset, replace_end)) = detect_query(&self.buffer) else {
+        let Some((colon_offset, replace_end)) = detect_query(&self.renderer.buffer) else {
             return;
         };
-        let Some(query) = query_from_range(&self.buffer, (colon_offset, replace_end)) else {
+        let Some(query) = query_from_range(&self.renderer.buffer, (colon_offset, replace_end))
+        else {
             return;
         };
 
@@ -374,8 +376,8 @@ impl Editor {
                 let span_refs: Vec<(&str, bool)> =
                     s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
                 let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                    .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height);
+                    .font_size(self.renderer.layout.completion_font_size)
+                    .line_height(self.renderer.layout.completion_line_height);
                 if let Some(hint) = hints.get(i) {
                     label = label.hint(hint, hint_color);
                 }
@@ -385,7 +387,7 @@ impl Editor {
 
         // -- Position popup --------------------------------------------------------
         let popup_width = max_width + POPUP_PADDING;
-        let popup_height = results.len() as f32 * self.layout.completion_row_height;
+        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
             cursor_top.y - popup_height
@@ -396,16 +398,16 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
-        self.touch_consuming_rects.push(popup_rect);
+        self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
                     Pos2::new(
                         popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.layout.completion_row_height,
+                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
                     ),
-                    Vec2::new(popup_width, self.layout.completion_row_height),
+                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
                 )
             })
             .collect();
@@ -421,7 +423,7 @@ impl Editor {
         }
 
         // -- Draw backgrounds ------------------------------------------------------
-        self.draw_completion_popup(
+        self.renderer.draw_completion_popup(
             ui,
             popup_rect,
             &row_rects,
@@ -438,14 +440,14 @@ impl Editor {
             let text_top = rect.min.y + 4.0;
             let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.layout.completion_line_height),
+                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
             );
 
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height);
+                .font_size(self.renderer.layout.completion_font_size)
+                .line_height(self.renderer.layout.completion_line_height);
             if let Some(hint) = hints.get(idx) {
                 label = label.hint(hint, hint_color);
             }

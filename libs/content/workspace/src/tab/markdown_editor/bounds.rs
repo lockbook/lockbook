@@ -1,4 +1,5 @@
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use comrak::nodes::{LineColumn, Sourcepos};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
 use std::cmp::Ordering;
@@ -14,7 +15,7 @@ pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are (inclusive, exclusive). Regions do not
 /// overlap, have region.0 <= region.1, and are sorted ascending.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Bounds {
     /// Source lines are separated by newline characters and include all characters in the document except the newline
     /// characters. These accelerate translating AST source positions to character offsets and back and are computed
@@ -49,7 +50,7 @@ pub struct Bounds {
     pub inline_paragraphs: Paragraphs,
 }
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
 
@@ -596,7 +597,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
     }
 }
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn print_bounds(&self) {
         self.print_words_bounds();
         self.print_wrap_lines_bounds();
@@ -638,7 +639,7 @@ mod test {
     use lb_rs::model::text::offset_types::DocCharOffset;
 
     use super::Bounds;
-    use crate::tab::markdown_editor::Editor;
+    use crate::tab::markdown_editor::MdEdit;
     use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
     use crate::tab::markdown_editor::input::Bound;
 
@@ -1604,8 +1605,8 @@ mod test {
     #[test]
     fn sourcepos_to_range_fenced_code_block() {
         let text = "```\nfn main() {}\n```";
-        let mut md = Editor::test(text);
-        md.calc_source_lines();
+        let mut md = MdEdit::test(text);
+        md.renderer.calc_source_lines();
 
         let sourcepos = Sourcepos {
             start: LineColumn { line: 1, column: 1 },
@@ -1613,15 +1614,15 @@ mod test {
         };
         let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
 
-        assert_eq!(md.sourcepos_to_range(sourcepos), range);
-        assert_eq!(md.range_to_sourcepos(range), sourcepos);
+        assert_eq!(md.renderer.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.renderer.range_to_sourcepos(range), sourcepos);
     }
 
     #[test]
     fn sourcepos_to_range_unclosed_fenced_code_block() {
         let text = "```\n";
-        let mut md = Editor::test(text);
-        md.calc_source_lines();
+        let mut md = MdEdit::test(text);
+        md.renderer.calc_source_lines();
 
         let sourcepos = Sourcepos {
             start: LineColumn { line: 1, column: 1 },
@@ -1629,7 +1630,7 @@ mod test {
         };
         let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
 
-        assert_eq!(md.sourcepos_to_range(sourcepos), range);
-        assert_eq!(md.range_to_sourcepos(range), sourcepos);
+        assert_eq!(md.renderer.sourcepos_to_range(sourcepos), range);
+        assert_eq!(md.renderer.range_to_sourcepos(range), sourcepos);
     }
 }

@@ -6,11 +6,12 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 
 use crate::theme::icons::Icon;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
         let parent_text_format = self.text_format(parent);
         Format {

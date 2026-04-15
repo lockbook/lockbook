@@ -28,7 +28,6 @@ use element::PromoteBufferWeakImages;
 pub use history::{DeleteElement, Event, InsertElement};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::svg::buffer::{Buffer, u_transform_to_bezier};
 use lb_rs::model::svg::diff::DiffState;
 use lb_rs::model::svg::element::{DynamicColor, Element};
@@ -43,7 +42,6 @@ use tracing::{Level, info, span};
 pub struct SVGEditor {
     pub buffer: Buffer,
     pub opened_content: Buffer,
-    pub open_file_hmac: Option<DocumentHmac>,
 
     pub cfg: WsPersistentStore,
 
@@ -149,7 +147,7 @@ enum BackgroundOverlay {
 impl SVGEditor {
     pub fn new(
         bytes: &[u8], ctx: &egui::Context, lb: lb_rs::blocking::Lb, open_file: Uuid,
-        hmac: Option<DocumentHmac>, cfg: &WsPersistentStore, read_only: bool,
+        cfg: &WsPersistentStore, read_only: bool,
     ) -> Self {
         let content = std::str::from_utf8(bytes).unwrap();
 
@@ -186,7 +184,6 @@ impl SVGEditor {
         Self {
             buffer,
             opened_content: Buffer::new(content),
-            open_file_hmac: hmac,
             history: History::default(),
             toolbar,
             lb,

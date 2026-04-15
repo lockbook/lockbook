@@ -101,19 +101,13 @@ impl Workspace {
         let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
         let stroke = egui::Stroke { width: 1.0, color };
         if horizontal {
-            let (rect, _) = ui.allocate_exact_size(
-                Vec2::new(ui.available_width(), 1.0),
-                egui::Sense::hover(),
-            );
-            ui.painter()
-                .hline(rect.x_range(), rect.center().y, stroke);
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
+            ui.painter().hline(rect.x_range(), rect.center().y, stroke);
         } else {
-            let (rect, _) = ui.allocate_exact_size(
-                Vec2::new(1.0, ui.available_height()),
-                egui::Sense::hover(),
-            );
-            ui.painter()
-                .vline(rect.center().x, rect.y_range(), stroke);
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(1.0, ui.available_height()), egui::Sense::hover());
+            ui.painter().vline(rect.center().x, rect.y_range(), stroke);
         }
     }
 
@@ -137,11 +131,7 @@ impl Workspace {
                 .corner_radius(CornerRadius::ZERO)
                 .frame_when_inactive(true)
                 .min_size(Vec2::new(85., 0.))
-                .fill(if selected {
-                    theme.neutral_bg()
-                } else {
-                    theme.neutral_bg_secondary()
-                })
+                .fill(if selected { theme.neutral_bg() } else { theme.neutral_bg_secondary() })
                 .ui(ui);
 
                 if button_resp.clicked() {
@@ -205,12 +195,14 @@ impl Workspace {
         })
         .inner
     }
-    
 
     fn manage_executors(&mut self) {
         let executor_search_type = self.search.executor.search_type();
         if executor_search_type != self.search.search_type {
-            self.search.executor = self.search.search_type.create_executor(&self.core, &self.ctx);
+            self.search.executor = self
+                .search
+                .search_type
+                .create_executor(&self.core, &self.ctx);
         }
 
         self.search.executor.handle_query(&self.search.query);
@@ -223,11 +215,7 @@ impl Search {
             search_shown: false,
             search_type: SearchType::Path,
             query: String::new(),
-            // this may make results go stale, perhaps the executor should be created upon showing
-            // search, maybe not always, sometimes it could be good to keep content search results
-            // and that whole state around. maybe empty query is a good signal whether or not the
-            // state is valuable?
-            executor: SearchType::Path.create_executor(lb, ctx), 
+            executor: SearchType::Path.create_executor(lb, ctx),
         }
     }
 
@@ -260,26 +248,15 @@ impl SearchType {
     }
 }
 
-use std::{
-    ops::Deref,
-    sync::{Arc, RwLock},
-    thread::{self, available_parallelism},
-    time::Instant,
-};
-
 use egui::{
-    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui,
-    Vec2, Widget,
+    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui, Vec2,
+    Widget,
 };
-use lb_rs::{blocking::Lb, model::file::File};
-use nucleo::{
-    Matcher, Nucleo,
-    pattern::{CaseMatching, Normalization},
-};
+use lb_rs::blocking::Lb;
 
 use crate::{
     search::{content::ContentSearch, path::PathSearch},
-    show::{DocType, InputStateExt},
+    show::InputStateExt,
     theme::palette_v2::ThemeExt,
     workspace::Workspace,
 };

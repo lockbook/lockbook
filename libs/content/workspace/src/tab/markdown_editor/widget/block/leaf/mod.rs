@@ -1,7 +1,8 @@
 use comrak::nodes::AstNode;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 
 pub(crate) mod code_block;
 pub(crate) mod front_matter;
@@ -11,7 +12,7 @@ pub(crate) mod paragraph;
 pub(crate) mod table_cell;
 pub(crate) mod thematic_break;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     /// Returns 5 ranges representing the pre-node range, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node range.
     #[allow(clippy::type_complexity)]

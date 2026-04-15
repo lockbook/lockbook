@@ -1,9 +1,10 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui, Vec2};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn height_table_cell(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node) - 2.0 * self.layout.block_padding;
         let mut wrap = self.new_wrap(width);

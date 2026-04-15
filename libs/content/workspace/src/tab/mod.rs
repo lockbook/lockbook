@@ -1,9 +1,11 @@
 use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
+use crate::resolvers::{FileCacheLinkResolver, ImageCache};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::Editor as Markdown;
+use crate::tab::markdown_editor::MdEdit;
+type Markdown = MdEdit<ImageCache, FileCacheLinkResolver>;
 use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
@@ -36,6 +38,7 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
 
+    pub hmac: Option<DocumentHmac>,
     pub rename: Option<String>,
     pub is_closing: bool,
     pub read_only: bool,
@@ -51,16 +54,12 @@ impl Tab {
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
-        match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.hmac,
-            ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
-            _ => None,
-        }
+        self.hmac
     }
 
     pub fn seq(&self) -> usize {
         match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            ContentState::Open(TabContent::Markdown(md)) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -208,17 +207,9 @@ impl TabContent {
         }
     }
 
-    pub fn hmac(&self) -> Option<DocumentHmac> {
-        match self {
-            TabContent::Markdown(md) => md.hmac,
-            TabContent::Svg(svg) => svg.open_file_hmac,
-            _ => None,
-        }
-    }
-
     pub fn seq(&self) -> usize {
         match self {
-            TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::Markdown(md) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -228,7 +219,7 @@ impl TabContent {
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
-                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+                Some(TabSaveContent::String(md.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             _ => None,

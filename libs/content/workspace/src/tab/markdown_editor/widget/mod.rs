@@ -5,8 +5,9 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterEx
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
-use super::Editor;
+use super::MdLabel;
 use super::bounds::RangesExt as _;
+use crate::resolvers::{EmbedResolver, LinkResolver};
 
 pub(crate) mod block;
 pub(crate) mod debug;
@@ -17,7 +18,7 @@ pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
         // Check cache first
@@ -181,11 +182,11 @@ impl<'ast> Editor {
             NodeValue::Highlight => self.text_format_highlight(parent()),
             NodeValue::HtmlInline(_) => self.text_format_html_inline(parent()),
             NodeValue::Image(ni) => {
-                self.text_format_link(parent(), self.link_state_for_url(&ni.url))
+                self.text_format_link(parent(), self.link_resolver.link_state(&ni.url))
             }
             NodeValue::LineBreak => parent_text_format(),
             NodeValue::Link(nl) => {
-                self.text_format_link(parent(), self.link_state_for_url(&nl.url))
+                self.text_format_link(parent(), self.link_resolver.link_state(&nl.url))
             }
             NodeValue::Math(_) => self.text_format_math(parent()),
             NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
@@ -199,7 +200,7 @@ impl<'ast> Editor {
             NodeValue::Text(_) => parent_text_format(),
             NodeValue::Underline => self.text_format_underline(parent()),
             NodeValue::WikiLink(nwl) => {
-                self.text_format_link(parent(), self.link_state_for_wikilink(&nwl.url))
+                self.text_format_link(parent(), self.link_resolver.wikilink_state(&nwl.url))
             }
 
             // leaf_block

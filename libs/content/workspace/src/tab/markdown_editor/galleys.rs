@@ -3,15 +3,16 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::{MdEdit, MdLabel};
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Galleys {
     pub galleys: Vec<GalleyInfo>,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GalleyInfo {
     pub is_override: bool,
     pub range: (DocCharOffset, DocCharOffset),
@@ -52,32 +53,35 @@ impl Galleys {
     }
 }
 
-impl Editor {
-    /// Returns the document offset range for which galleys must exist,
-    /// covering the selection ± 1 source line so that arrow-key navigation
-    /// across the viewport edge has a galley to land on.
-    pub fn galley_required_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
-        if self.bounds.source_lines.is_empty() {
-            return Vec::new();
+impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
+    /// Computes and stores the document offset ranges for which galleys must
+    /// exist, covering the selection ± 1 source line so that arrow-key
+    /// navigation across the viewport edge has a galley to land on.
+    pub fn populate_galley_required_ranges(&mut self) {
+        if self.renderer.bounds.source_lines.is_empty() {
+            self.renderer.galley_required_ranges.clear();
+            return;
         }
 
         let mut ranges = Vec::new();
 
         let selection = self
             .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
-        ranges.push(self.source_line_range(selection));
+            .unwrap_or(self.renderer.buffer.current.selection);
+        ranges.push(self.renderer.source_line_range(selection));
 
         // also require galleys for the current find match so scroll_to_find_match works
         if let Some(idx) = self.find.current_match {
             if let Some(&match_range) = self.find.matches.get(idx) {
-                ranges.push(self.source_line_range(match_range));
+                ranges.push(self.renderer.source_line_range(match_range));
             }
         }
 
-        ranges
+        self.renderer.galley_required_ranges = ranges;
     }
+}
 
+impl<E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     fn source_line_range(
         &self, range: (DocCharOffset, DocCharOffset),
     ) -> (DocCharOffset, DocCharOffset) {

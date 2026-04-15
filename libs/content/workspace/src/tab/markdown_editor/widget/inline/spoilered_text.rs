@@ -2,12 +2,13 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_spoilered_text(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format {

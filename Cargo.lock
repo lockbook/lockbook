@@ -9829,6 +9829,7 @@ dependencies = [
  "scraper",
  "serde",
  "serde_json",
+ "smallvec",
  "syntect",
  "syntect-assets",
  "time",

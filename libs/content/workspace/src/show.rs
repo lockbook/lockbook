@@ -8,14 +8,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
+use std::sync::{Arc, Mutex};
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, relative_path};
 use crate::output::Response;
-use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
+use crate::tab::markdown_editor::{Event as MdEvent, input::Region};
+use crate::tab::{
+    ClipContent, ContentState, ExtendedInput as _, ExtendedOutput as _, TabContent, TabStatus,
+    image_viewer, import_image,
+};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
+use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
@@ -23,6 +29,13 @@ use lb_rs::Uuid;
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            cache.lock().unwrap().begin_frame();
+        }
+
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.core.app_foregrounded();
         }
@@ -32,7 +45,7 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
-        
+
         self.show_search_modal();
 
         if self.is_empty() {
@@ -46,6 +59,8 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        self.process_unhandled_events();
+
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tabs, self.current_tab);
         }
@@ -55,7 +70,58 @@ impl Workspace {
             self.cfg.set_zoom_factor(zoom);
         }
 
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            cache.lock().unwrap().end_frame();
+        }
+
         mem::take(&mut self.out)
+    }
+
+    /// The editor puts back events it doesn't handle (e.g. image drop/paste)
+    /// so the workspace can process them with full access to core and file cache.
+    fn process_unhandled_events(&mut self) {
+        let events = self.ctx.pop_events();
+        for event in events {
+            if let crate::tab::Event::Drop { content, .. }
+            | crate::tab::Event::Paste { content, .. } = &event
+            {
+                if let Some(file_id) = self.current_tab_id() {
+                    for clip in content {
+                        if let ClipContent::Image(data) = clip {
+                            // import as a file in an "imports" sibling folder
+                            let file = import_image(&self.core, file_id, data);
+
+                            // compute the relative path from the document to the new image;
+                            // the file cache may not yet contain the imports folder, so we
+                            // augment a local copy with the newly created file and its parent
+                            let rel_path = {
+                                let guard = self.files.read().unwrap();
+                                let parent = guard.get_by_id(file_id).unwrap().parent;
+                                let mut augmented = guard.files.clone();
+                                if augmented.get_by_id(file.parent).is_none() {
+                                    if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                        augmented.push(folder);
+                                    }
+                                }
+                                augmented.push(file.clone());
+                                relative_path(&augmented.path(parent), &augmented.path(file.id))
+                            };
+
+                            // insert a markdown image link at the cursor
+                            let markdown_image_link = format!("![{}]({})", file.name, rel_path);
+                            self.ctx.push_markdown_event(MdEvent::Replace {
+                                region: Region::Selection,
+                                text: markdown_image_link,
+                                advance_cursor: true,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
@@ -1009,7 +1075,7 @@ impl DocType {
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
-            _ if crate::tab::markdown_editor::syntax_set()
+            _ if crate::tab::markdown_editor::widget::block::leaf::code_block::syntax::syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&ext))
                 .is_some() =>
             {
