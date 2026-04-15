@@ -132,6 +132,56 @@ impl Tab {
         }
     }
 
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        match &mut self.content {
+            ContentState::Loading(_) => {
+                ui.spinner();
+                Response::default()
+            }
+            ContentState::Failed(fail) => {
+                ui.label(fail.msg());
+                Response::default()
+            }
+            ContentState::Open(content) => {
+                let mut resp = Response::default();
+                match content {
+                    TabContent::Markdown(md) => {
+                        let initialized = md.initialized;
+                        let md_resp = md.show(ui);
+                        if !self.read_only && md_resp.text_updated && initialized {
+                            self.last_changed = Instant::now();
+                        }
+                        resp.open_camera = md_resp.open_camera;
+                        resp.text_updated = md_resp.text_updated;
+                        resp.selection_updated = md_resp.selection_updated;
+                        resp.scroll_updated = md_resp.scroll_updated;
+                        resp.find_widget_height = md_resp.find_widget_height;
+                    }
+                    TabContent::Image(img) => {
+                        if let Err(err) = img.show(ui) {
+                            self.content = ContentState::Failed(err.into());
+                        }
+                    }
+                    TabContent::Pdf(pdf) => pdf.show(ui),
+                    TabContent::Svg(svg) => {
+                        let res = svg.show(ui);
+                        if res.request_save {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    #[cfg(not(target_family = "wasm"))]
+                    TabContent::MindMap(mm) => {
+                        resp.open_file = mm.show(ui);
+                    }
+                    TabContent::SpaceInspector(sv) => {
+                        sv.show(ui);
+                    }
+                }
+                resp
+            }
+        }
+    }
+
     pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
         if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
             self.last_changed > queued_at
@@ -253,6 +303,16 @@ impl TabSaveContent {
             TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
         }
     }
+}
+
+#[derive(Default)]
+pub struct Response {
+    pub text_updated: bool,
+    pub selection_updated: bool,
+    pub scroll_updated: bool,
+    pub open_camera: bool,
+    pub find_widget_height: f32,
+    pub open_file: Option<Uuid>,
 }
 
 #[derive(Debug)]
