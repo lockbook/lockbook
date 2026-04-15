@@ -335,7 +335,7 @@ impl PathSearch {
                         // laid out right-to-left, so the number (rightmost) draws first.
                         let number = (index + 1).to_string();
                         for glyph in [number.as_str(), modifier] {
-                            ui.label(RichText::new(glyph).color(parent_color).size(12.0));
+                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
                         }
                     }
 
@@ -377,25 +377,20 @@ impl PathSearch {
         ui: &mut Ui, text: &str, highlights: &[u32], char_offset: u32, color: egui::Color32,
         size: f32,
     ) {
-        let regular = egui::FontId::new(size, egui::FontFamily::Proportional);
-        let bold = egui::FontId::new(size, egui::FontFamily::Name(Arc::from("Bold")));
-        let mut job = egui::text::LayoutJob::default();
-        job.wrap = egui::text::TextWrapping {
-            max_width: ui.available_width(),
-            max_rows: 1,
-            break_anywhere: true,
-            overflow_character: Some('…'),
-        };
+        let mut spans: Vec<(String, bool)> = Vec::new();
         for (i, c) in text.chars().enumerate() {
-            let hi = highlights.contains(&(char_offset + i as u32));
-            let fmt = egui::TextFormat {
-                font_id: if hi { bold.clone() } else { regular.clone() },
-                color,
-                ..Default::default()
-            };
-            job.append(&c.to_string(), 0.0, fmt);
+            let bold = highlights.contains(&(char_offset + i as u32));
+            match spans.last_mut() {
+                Some((s, b)) if *b == bold => s.push(c),
+                _ => spans.push((c.to_string(), bold)),
+            }
         }
-        ui.label(job);
+        let span_refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+        ui.add(
+            GlyphonLabel::new_rich(span_refs, color)
+                .font_size(size)
+                .max_width(ui.available_width()),
+        );
     }
 }
 
@@ -420,7 +415,7 @@ impl PathResult {
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, Ui};
+use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::{Uuid, blocking::Lb, model::file::File, spawn};
 use nucleo::{
     Matcher, Nucleo,
@@ -432,4 +427,5 @@ use crate::{
     show::{DocType, InputStateExt},
     tab::markdown_editor::MdLabel,
     theme::{icons::Icon, palette_v2::ThemeExt},
+    widgets::GlyphonLabel,
 };
