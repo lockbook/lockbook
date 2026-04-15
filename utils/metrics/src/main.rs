@@ -67,8 +67,9 @@ async fn main() {
     }
 
     // Initial metrics refresh
+    let earliest_date = app_store_state.earliest_date();
     info!("performing initial metrics refresh");
-    github::refresh(&client, &config.github_token).await;
+    github::refresh(&client, &config.github_token, earliest_date).await;
     flathub::refresh(&client).await;
     app_store_state.update_metrics();
     play_store_state.update_metrics();
@@ -89,7 +90,7 @@ async fn main() {
             sleep(Duration::from_secs(300)).await;
 
             info!("refreshing metrics");
-            github::refresh(&client, &config.github_token).await;
+            github::refresh(&client, &config.github_token, earliest_date).await;
             flathub::refresh(&client).await;
 
             let mut app_state = refresh_app_store.lock().await;

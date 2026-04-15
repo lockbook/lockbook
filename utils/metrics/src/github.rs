@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::NaiveDate;
 use lazy_static::lazy_static;
 use prometheus::{IntGaugeVec, register_int_gauge_vec};
 use reqwest::Client;
@@ -22,6 +23,7 @@ lazy_static! {
 
 #[derive(Deserialize)]
 struct Release {
+    published_at: String,
     assets: Vec<Asset>,
 }
 
@@ -50,7 +52,14 @@ struct Repo {
     forks_count: i64,
 }
 
-pub async fn refresh(client: &Client, token: &str) {
+fn parse_github_date(date_str: &str) -> Option<NaiveDate> {
+    // GitHub dates are ISO 8601: "2024-01-15T10:30:00Z"
+    chrono::DateTime::parse_from_rfc3339(date_str)
+        .ok()
+        .map(|dt| dt.date_naive())
+}
+
+pub async fn refresh(client: &Client, token: &str, earliest_date: Option<NaiveDate>) {
     let repo = "lockbook/lockbook";
     let auth = format!("Bearer {token}");
     let api = "https://api.github.com";
@@ -64,6 +73,13 @@ pub async fn refresh(client: &Client, token: &str) {
         match get::<Vec<Release>>(client, &url, &auth).await {
             Some(releases) if !releases.is_empty() => {
                 for release in &releases {
+                    if let Some(earliest) = earliest_date {
+                        if let Some(published) = parse_github_date(&release.published_at) {
+                            if published < earliest {
+                                continue;
+                            }
+                        }
+                    }
                     for asset in &release.assets {
                         if let Some(normalized) = normalize_github_asset(&asset.name) {
                             *downloads.entry(normalized).or_default() += asset.download_count;
