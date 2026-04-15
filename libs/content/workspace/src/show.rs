@@ -85,41 +85,44 @@ impl Workspace {
     fn process_unhandled_events(&mut self) {
         let events = self.ctx.pop_events();
         for event in events {
-            if let crate::tab::Event::Drop { content, .. }
-            | crate::tab::Event::Paste { content, .. } = &event
-            {
-                if let Some(file_id) = self.current_tab_id() {
-                    for clip in content {
-                        if let ClipContent::Image(data) = clip {
-                            // import as a file in an "imports" sibling folder
-                            let file = import_image(&self.core, file_id, data);
+            match event {
+                crate::tab::Event::Drop { content, .. }
+                | crate::tab::Event::Paste { content, .. } => {
+                    if let Some(file_id) = self.current_tab_id() {
+                        for clip in &content {
+                            if let ClipContent::Image(data) = clip {
+                                let file = import_image(&self.core, file_id, data);
 
-                            // compute the relative path from the document to the new image;
-                            // the file cache may not yet contain the imports folder, so we
-                            // augment a local copy with the newly created file and its parent
-                            let rel_path = {
-                                let guard = self.files.read().unwrap();
-                                let parent = guard.get_by_id(file_id).unwrap().parent;
-                                let mut augmented = guard.files.clone();
-                                if augmented.get_by_id(file.parent).is_none() {
-                                    if let Ok(folder) = self.core.get_file_by_id(file.parent) {
-                                        augmented.push(folder);
+                                let rel_path = {
+                                    let guard = self.files.read().unwrap();
+                                    let parent = guard.get_by_id(file_id).unwrap().parent;
+                                    let mut augmented = guard.files.clone();
+                                    if augmented.get_by_id(file.parent).is_none() {
+                                        if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                            augmented.push(folder);
+                                        }
                                     }
-                                }
-                                augmented.push(file.clone());
-                                relative_path(&augmented.path(parent), &augmented.path(file.id))
-                            };
+                                    augmented.push(file.clone());
+                                    relative_path(
+                                        &augmented.path(parent),
+                                        &augmented.path(file.id),
+                                    )
+                                };
 
-                            // insert a markdown image link at the cursor
-                            let markdown_image_link = format!("![{}]({})", file.name, rel_path);
-                            self.ctx.push_markdown_event(MdEvent::Replace {
-                                region: Region::Selection,
-                                text: markdown_image_link,
-                                advance_cursor: true,
-                            });
+                                let markdown_image_link =
+                                    format!("![{}]({})", file.name, rel_path);
+                                self.ctx.push_markdown_event(MdEvent::Replace {
+                                    region: Region::Selection,
+                                    text: markdown_image_link,
+                                    advance_cursor: true,
+                                });
+                            }
                         }
                     }
                 }
+                // put back events we don't handle so they survive to next frame
+                // (e.g. toolbar Markdown events pushed during show_tabs)
+                other => self.ctx.push_event(other),
             }
         }
     }
