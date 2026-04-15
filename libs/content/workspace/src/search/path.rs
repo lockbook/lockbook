@@ -8,15 +8,7 @@ pub struct PathSearch {
     /// True after arrow-key navigation; hover is ignored so the mouse doesn't
     /// fight the keyboard. Cleared as soon as the pointer moves.
     kb_mode: bool,
-    label_renderer: MdLabel,
-    lb: Lb,
-    ctx: Context,
     selected_id: Option<Uuid>,
-    /// Background thread writes here when done loading.
-    preview_pending: Arc<Mutex<Option<(Uuid, String, String)>>>,
-    /// Moved out of preview_pending on the first frame after load completes.
-    preview: Option<(Uuid, String, String)>,
-    preview_requested: Option<Uuid>,
 }
 
 impl SearchExecutor for PathSearch {
@@ -40,7 +32,7 @@ impl SearchExecutor for PathSearch {
         self.nucleo.tick(1);
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> Option<lb_rs::Uuid> {
+    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
         self.process_keys(ui.ctx());
 
         // Phase 1: clamp the (possibly over-incremented) selection, and if a
@@ -53,9 +45,10 @@ impl SearchExecutor for PathSearch {
         }
         if self.activate {
             self.activate = false;
-            return snapshot
+            let activated = snapshot
                 .get_matched_item(self.selected as u32)
                 .map(|it| it.data.file.id);
+            return super::PickerResponse { activated, selected: self.selected_id };
         }
 
         // Phase 2: render only the visible rows via `ScrollArea::show_rows`,
@@ -107,7 +100,6 @@ impl SearchExecutor for PathSearch {
 
         // Phase 3: apply mouse-driven selection now that the snapshot is gone.
         // In keyboard mode hover is ignored, but explicit clicks always apply.
-        let prev_selected = self.selected;
         if let Some(i) = clicked {
             self.selected = i;
         } else if !self.kb_mode {
@@ -126,55 +118,12 @@ impl SearchExecutor for PathSearch {
             }
         }
 
-        clicked_id
+        super::PickerResponse { activated: clicked_id, selected: self.selected_id }
     }
 
-    fn show_preview(&mut self, ui: &mut egui::Ui) {
-        let Some(id) = self.selected_id else { return };
-
-        // Take completed load from background thread (cheap — just moves an Option).
-        if let Some(loaded) = self.preview_pending.lock().unwrap().take() {
-            self.preview = Some(loaded);
-        }
-
-        // Spawn load if needed.
-        let cached_id = self.preview.as_ref().map(|(cid, _, _)| *cid);
-        if cached_id != Some(id) && self.preview_requested != Some(id) {
-            self.preview_requested = Some(id);
-            let lb = self.lb.clone();
-            let pending = self.preview_pending.clone();
-            let ctx = self.ctx.clone();
-            spawn!({
-                let result = lb
-                    .get_file_by_id(id)
-                    .ok()
-                    .filter(|f| f.is_document())
-                    .and_then(|file| {
-                        let ext = file.name.rsplit('.').next().unwrap_or("md").to_string();
-                        let bytes = lb.read_document(id, false).ok()?;
-                        let content = String::from_utf8(bytes).ok()?;
-                        Some((id, ext, content))
-                    });
-                *pending.lock().unwrap() = result;
-                ctx.request_repaint();
-            });
-        }
-
-        // Render from owned data — no lock held, no clone.
-        let Some((_, ref ext, ref content)) = self.preview else { return };
-
-        self.label_renderer.ext = ext.clone();
-        self.label_renderer.layout.margin = 0.;
-        let cursor = ui.cursor().min;
-        let width = ui.available_width();
-
-        let text_areas = self.label_renderer.render(ui, cursor, content, width);
-        if !text_areas.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
+    fn show_preview(&mut self, ui: &mut egui::Ui, tab: Option<&mut crate::tab::Tab>) {
+        if let Some(tab) = tab {
+            tab.show(ui);
         }
     }
 }
@@ -186,12 +135,9 @@ impl PathSearch {
         let mut id_paths = lb.list_paths_with_ids(None).unwrap();
         id_paths.retain(|(_, path)| path != "/");
 
-        let label_renderer = MdLabel::new(ctx.clone(), "md".into(), (), ());
-        let ctx_stored = ctx.clone();
-
-        let ctx = ctx.clone();
+        let ctx_clone = ctx.clone();
         let notify = Arc::new(move || {
-            ctx.request_repaint();
+            ctx_clone.request_repaint();
         });
 
         let nucleo = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1);
@@ -216,13 +162,7 @@ impl PathSearch {
             selected: 0,
             activate: false,
             kb_mode: true,
-            label_renderer,
-            lb: lb.clone(),
-            ctx: ctx_stored,
             selected_id: None,
-            preview_pending: Default::default(),
-            preview: None,
-            preview_requested: None,
         }
     }
 
@@ -413,10 +353,10 @@ impl PathResult {
     }
 }
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
-use lb_rs::{Uuid, blocking::Lb, model::file::File, spawn};
+use lb_rs::{Uuid, blocking::Lb, model::file::File};
 use nucleo::{
     Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
@@ -425,7 +365,6 @@ use nucleo::{
 use crate::{
     search::{SearchExecutor, SearchType},
     show::{DocType, InputStateExt},
-    tab::markdown_editor::MdLabel,
     theme::{icons::Icon, palette_v2::ThemeExt},
     widgets::GlyphonLabel,
 };

@@ -104,6 +104,7 @@ pub struct MdEdit<E: EmbedResolver, L: LinkResolver> {
 
     // input
     pub file_id: Uuid,
+    pub id_salt: Id,
     pub readonly: bool,
     pub phone_mode: bool,
     pub initialized: bool,
@@ -378,6 +379,7 @@ impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
             files,
 
             file_id,
+            id_salt: Id::NULL,
             readonly,
             phone_mode,
             initialized: Default::default(),
@@ -404,7 +406,7 @@ impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.file_id)
+        Id::new(self.file_id).with(self.id_salt)
     }
 
     pub fn focus(&self, ctx: &Context) {

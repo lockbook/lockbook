@@ -474,7 +474,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    markdown.renderer.buffer.current.segs.last_cursor_position().0 as jint
+    markdown
+        .renderer
+        .buffer
+        .current
+        .segs
+        .last_cursor_position()
+        .0 as jint
 }
 
 #[no_mangle]
@@ -491,7 +497,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(markdown.renderer.buffer.current.segs.last_cursor_position()),
+            end: Location::DocCharOffset(
+                markdown.renderer.buffer.current.segs.last_cursor_position(),
+            ),
         },
         text: "".to_string(),
         advance_cursor: false,
@@ -602,7 +610,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
         }
     };
 
-    let selection = (DocCharOffset(0), markdown.renderer.buffer.current.segs.last_cursor_position());
+    let selection =
+        (DocCharOffset(0), markdown.renderer.buffer.current.segs.last_cursor_position());
     env.new_string(&markdown.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()

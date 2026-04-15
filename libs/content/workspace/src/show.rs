@@ -16,8 +16,7 @@ use crate::file_cache::{FilesExt as _, ResolvedLink, relative_path};
 use crate::output::Response;
 use crate::tab::markdown_editor::{Event as MdEvent, input::Region};
 use crate::tab::{
-    ClipContent, ContentState, ExtendedInput as _, ExtendedOutput as _, TabContent, TabStatus,
-    image_viewer, import_image,
+    ClipContent, ExtendedInput as _, ExtendedOutput as _, TabStatus, image_viewer, import_image,
 };
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
@@ -46,8 +45,6 @@ impl Workspace {
         self.process_task_updates();
         self.process_keys();
 
-        self.show_search_modal();
-
         if self.is_empty() {
             if self.show_tabs {
                 self.show_landing_page(ui);
@@ -59,6 +56,9 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        // search modal renders after tabs so it draws on top: its cursor icon and
+        // interaction responses take priority over the background editor's
+        self.show_search_modal();
         self.process_unhandled_events();
 
         if self.out.tabs_changed || self.current_tab_changed {
@@ -210,65 +210,22 @@ impl Workspace {
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
-                    match &mut tab.content {
-                        ContentState::Loading(_) => {
-                            ui.spinner();
-                        }
-                        ContentState::Failed(fail) => {
-                            ui.label(fail.msg());
-                        }
-                        ContentState::Open(content) => {
-                            match content {
-                                TabContent::Markdown(md) => {
-                                    let initialized = md.initialized;
-                                    let resp = md.show(ui);
-                                    // The editor signals a text change when the buffer is initially
-                                    // loaded. Since we use that signal to trigger saves, we need to
-                                    // check that this change was not from the initial frame.
-                                    if !tab.read_only && resp.text_updated && initialized {
-                                        tab.last_changed = Instant::now();
-                                    }
+                    let resp = tab.show(ui);
 
-                                    self.out.open_camera = resp.open_camera;
-
-                                    if resp.text_updated {
-                                        self.out.markdown_editor_text_updated = true;
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    if resp.selection_updated {
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    self.out.markdown_editor_find_widget_height =
-                                        resp.find_widget_height;
-                                    if resp.scroll_updated {
-                                        self.out.markdown_editor_scroll_updated = true;
-                                    }
-                                }
-                                TabContent::Image(img) => {
-                                    if let Err(err) = img.show(ui) {
-                                        tab.content = ContentState::Failed(err.into());
-                                    }
-                                }
-                                TabContent::Pdf(pdf) => pdf.show(ui),
-                                TabContent::Svg(svg) => {
-                                    let res = svg.show(ui);
-                                    if res.request_save {
-                                        tab.last_changed = Instant::now();
-                                    }
-                                }
-
-                                #[cfg(not(target_family = "wasm"))]
-                                TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui);
-                                    if let Some(value) = response {
-                                        self.open_file(value, true, false);
-                                    }
-                                }
-                                TabContent::SpaceInspector(sv) => {
-                                    sv.show(ui);
-                                }
-                            };
-                        }
+                    self.out.open_camera = resp.open_camera;
+                    if resp.text_updated {
+                        self.out.markdown_editor_text_updated = true;
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    if resp.selection_updated {
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    self.out.markdown_editor_find_widget_height = resp.find_widget_height;
+                    if resp.scroll_updated {
+                        self.out.markdown_editor_scroll_updated = true;
+                    }
+                    if let Some(file) = resp.open_file {
+                        self.open_file(file, true, false);
                     }
 
                     ui.ctx().output_mut(|w| {
@@ -357,6 +314,9 @@ impl Workspace {
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
                                 for i in 0..self.tabs.len() {
+                                    if self.tabs[i].is_preview {
+                                        continue;
+                                    }
                                     if let Some(resp) = self.tab_label(
                                         ui,
                                         i,

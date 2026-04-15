@@ -404,7 +404,6 @@ impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
             self.persistence.write_to_file();
         }
 
-        // focus editor when first shown or when nothing else has focus
         if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             self.focus(ui.ctx());
         }
