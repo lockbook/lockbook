@@ -13,7 +13,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
-use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
+use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
@@ -142,65 +142,22 @@ impl Workspace {
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
-                    match &mut tab.content {
-                        ContentState::Loading(_) => {
-                            ui.spinner();
-                        }
-                        ContentState::Failed(fail) => {
-                            ui.label(fail.msg());
-                        }
-                        ContentState::Open(content) => {
-                            match content {
-                                TabContent::Markdown(md) => {
-                                    let initialized = md.initialized;
-                                    let resp = md.show(ui);
-                                    // The editor signals a text change when the buffer is initially
-                                    // loaded. Since we use that signal to trigger saves, we need to
-                                    // check that this change was not from the initial frame.
-                                    if !tab.read_only && resp.text_updated && initialized {
-                                        tab.last_changed = Instant::now();
-                                    }
+                    let resp = tab.show(ui);
 
-                                    self.out.open_camera = resp.open_camera;
-
-                                    if resp.text_updated {
-                                        self.out.markdown_editor_text_updated = true;
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    if resp.selection_updated {
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    self.out.markdown_editor_find_widget_height =
-                                        resp.find_widget_height;
-                                    if resp.scroll_updated {
-                                        self.out.markdown_editor_scroll_updated = true;
-                                    }
-                                }
-                                TabContent::Image(img) => {
-                                    if let Err(err) = img.show(ui) {
-                                        tab.content = ContentState::Failed(err.into());
-                                    }
-                                }
-                                TabContent::Pdf(pdf) => pdf.show(ui),
-                                TabContent::Svg(svg) => {
-                                    let res = svg.show(ui);
-                                    if res.request_save {
-                                        tab.last_changed = Instant::now();
-                                    }
-                                }
-
-                                #[cfg(not(target_family = "wasm"))]
-                                TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui);
-                                    if let Some(value) = response {
-                                        self.open_file(value, true, false);
-                                    }
-                                }
-                                TabContent::SpaceInspector(sv) => {
-                                    sv.show(ui);
-                                }
-                            };
-                        }
+                    self.out.open_camera = resp.open_camera;
+                    if resp.text_updated {
+                        self.out.markdown_editor_text_updated = true;
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    if resp.selection_updated {
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    self.out.markdown_editor_find_widget_height = resp.find_widget_height;
+                    if resp.scroll_updated {
+                        self.out.markdown_editor_scroll_updated = true;
+                    }
+                    if let Some(file) = resp.open_file {
+                        self.open_file(file, true, false);
                     }
 
                     ui.ctx().output_mut(|w| {
