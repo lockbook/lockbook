@@ -414,10 +414,11 @@ impl Workspace {
         // apple: command+control+shift [ ]
         let change: i32 = self.ctx.input_mut(|input| {
             if APPLE {
-                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenBracket) {
+                if input.consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::OpenCurlyBracket)
+                {
                     -1
                 } else if input
-                    .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseBracket)
+                    .consume_key_exact(Modifiers::MAC_CMD | CTRL | SHIFT, Key::CloseCurlyBracket)
                 {
                     1
                 } else {
@@ -463,7 +464,7 @@ impl Workspace {
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab
-            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenBracket))
+            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenCurlyBracket))
                 || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab))
             {
                 goto_tab = (0..self.current_tab)
@@ -472,7 +473,7 @@ impl Workspace {
             }
 
             // Cmd+Shift+] or ctrl tab to go to next tab
-            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseBracket))
+            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseCurlyBracket))
                 || (!APPLE && input.consume_key_exact(CTRL, Key::Tab))
             {
                 goto_tab =
