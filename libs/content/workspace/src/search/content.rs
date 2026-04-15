@@ -2,15 +2,12 @@
 pub struct ContentSearch {
     doc_store: Arc<RwLock<DocStore>>,
     query_state: Arc<RwLock<QueryState>>,
-    label: MdLabel,
 }
 
 impl ContentSearch {
     pub fn new(lb: &Lb, ctx: &Context) -> Self {
-        let label = MdLabel::new(ctx.clone(), "md".into(), (), ());
-
         let content_search =
-            ContentSearch { doc_store: Default::default(), query_state: Default::default(), label };
+            ContentSearch { doc_store: Default::default(), query_state: Default::default() };
 
         let lb = lb.clone();
         let ctx = ctx.clone();
@@ -250,18 +247,7 @@ impl SearchExecutor for ContentSearch {
         None
     }
 
-    fn show_preview(&mut self, ui: &mut egui::Ui) {
-        let md = "# Search Preview\n\nThis is a **test** of the markdown renderer.\n\n- Item 1\n- Item 2\n\n`code` and *emphasis*";
-        let width = ui.available_width();
-        let text_areas = self.label.render(ui, ui.cursor().min, md, width);
-        if !text_areas.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
-        }
-    }
+    fn show_preview(&mut self, _ui: &mut egui::Ui) {}
 }
 
 use std::{
@@ -274,7 +260,4 @@ use std::{
 use egui::Context;
 use lb_rs::{Uuid, blocking::Lb, model::file::File};
 
-use crate::{
-    search::{SearchExecutor, SearchType},
-    tab::markdown_editor::MdLabel,
-};
+use crate::search::{SearchExecutor, SearchType};

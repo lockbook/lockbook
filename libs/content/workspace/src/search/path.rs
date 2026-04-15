@@ -9,6 +9,14 @@ pub struct PathSearch {
     /// fight the keyboard. Cleared as soon as the pointer moves.
     kb_mode: bool,
     label_renderer: MdLabel,
+    lb: Lb,
+    ctx: Context,
+    selected_id: Option<Uuid>,
+    /// Background thread writes here when done loading.
+    preview_pending: Arc<Mutex<Option<(Uuid, String, String)>>>,
+    /// Moved out of preview_pending on the first frame after load completes.
+    preview: Option<(Uuid, String, String)>,
+    preview_requested: Option<Uuid>,
 }
 
 impl SearchExecutor for PathSearch {
@@ -99,6 +107,7 @@ impl SearchExecutor for PathSearch {
 
         // Phase 3: apply mouse-driven selection now that the snapshot is gone.
         // In keyboard mode hover is ignored, but explicit clicks always apply.
+        let prev_selected = self.selected;
         if let Some(i) = clicked {
             self.selected = i;
         } else if !self.kb_mode {
@@ -107,13 +116,58 @@ impl SearchExecutor for PathSearch {
             }
         }
 
+        {
+            let snapshot = self.nucleo.snapshot();
+            let new_id = snapshot
+                .get_matched_item(self.selected as u32)
+                .map(|item| item.data.file.id);
+            if new_id != self.selected_id {
+                self.selected_id = new_id;
+            }
+        }
+
         clicked_id
     }
 
     fn show_preview(&mut self, ui: &mut egui::Ui) {
-        let md = "# Search Preview\n\nThis is a **test** of the markdown renderer.\n\n- Item 1\n- Item 2\n\n`code` and *emphasis*";
+        let Some(id) = self.selected_id else { return };
+
+        // Take completed load from background thread (cheap — just moves an Option).
+        if let Some(loaded) = self.preview_pending.lock().unwrap().take() {
+            self.preview = Some(loaded);
+        }
+
+        // Spawn load if needed.
+        let cached_id = self.preview.as_ref().map(|(cid, _, _)| *cid);
+        if cached_id != Some(id) && self.preview_requested != Some(id) {
+            self.preview_requested = Some(id);
+            let lb = self.lb.clone();
+            let pending = self.preview_pending.clone();
+            let ctx = self.ctx.clone();
+            spawn!({
+                let result = lb
+                    .get_file_by_id(id)
+                    .ok()
+                    .filter(|f| f.is_document())
+                    .and_then(|file| {
+                        let ext = file.name.rsplit('.').next().unwrap_or("md").to_string();
+                        let bytes = lb.read_document(id, false).ok()?;
+                        let content = String::from_utf8(bytes).ok()?;
+                        Some((id, ext, content))
+                    });
+                *pending.lock().unwrap() = result;
+                ctx.request_repaint();
+            });
+        }
+
+        // Render from owned data — no lock held, no clone.
+        let Some((_, ref ext, ref content)) = self.preview else { return };
+
+        self.label_renderer.ext = ext.clone();
         let width = ui.available_width();
-        let text_areas = self.label_renderer.render(ui, ui.cursor().min, md, width);
+        let text_areas = self
+            .label_renderer
+            .render(ui, ui.cursor().min, content, width);
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
@@ -132,6 +186,7 @@ impl PathSearch {
         id_paths.retain(|(_, path)| path != "/");
 
         let label_renderer = MdLabel::new(ctx.clone(), "md".into(), (), ());
+        let ctx_stored = ctx.clone();
 
         let ctx = ctx.clone();
         let notify = Arc::new(move || {
@@ -161,6 +216,12 @@ impl PathSearch {
             activate: false,
             kb_mode: true,
             label_renderer,
+            lb: lb.clone(),
+            ctx: ctx_stored,
+            selected_id: None,
+            preview_pending: Default::default(),
+            preview: None,
+            preview_requested: None,
         }
     }
 
@@ -356,10 +417,10 @@ impl PathResult {
     }
 }
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, Ui};
-use lb_rs::{blocking::Lb, model::file::File};
+use lb_rs::{Uuid, blocking::Lb, model::file::File, spawn};
 use nucleo::{
     Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
