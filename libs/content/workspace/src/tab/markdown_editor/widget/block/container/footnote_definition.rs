@@ -3,12 +3,13 @@ use egui::text::LayoutJob;
 use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_footnote_definition(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { color: self.ctx.get_lb_theme().neutral_fg_secondary(), ..parent_text_format }

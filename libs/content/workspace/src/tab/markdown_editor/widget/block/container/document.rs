@@ -1,15 +1,18 @@
-use crate::tab::markdown_editor::{syntax_set, syntax_theme};
+use crate::tab::markdown_editor::widget::block::leaf::code_block::syntax::{
+    syntax_set, syntax_theme,
+};
 use comrak::nodes::AstNode;
 use egui::{Color32, Pos2, Ui};
 use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _, RangeIterExt as _};
 use syntect::easy::HighlightLines;
 
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use crate::show::syntax_ext_for;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_document(&self) -> Format {
         Format {
             family: FontFamily::Sans,

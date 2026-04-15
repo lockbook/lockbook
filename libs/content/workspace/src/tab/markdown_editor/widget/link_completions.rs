@@ -8,8 +8,9 @@ use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path};
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use crate::tab::image_viewer::is_supported_image_fmt;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -32,7 +33,7 @@ pub enum CompletionMode {
     ImageLink,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct LinkCompletions {
     /// Set before process_events so translate_egui_keyboard_event can swallow
     /// arrow/enter keys when the popup is open.
@@ -560,17 +561,17 @@ fn abbreviate_segments(
     }
 }
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdEdit<E, L> {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.readonly || !self.link_completions.active {
             return;
         }
 
-        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.buffer) else {
+        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.renderer.buffer) else {
             return;
         };
-        let qr = query_range(&self.buffer, (bracket_start, replace_end), mode);
-        let query = self.buffer[qr].to_string();
+        let qr = query_range(&self.renderer.buffer, (bracket_start, replace_end), mode);
+        let query = self.renderer.buffer[qr].to_string();
 
         if self.link_completions.suppressed.as_deref() == Some(query.as_str()) {
             return;
@@ -672,8 +673,8 @@ impl Editor {
             .enumerate()
             .map(|(i, r)| {
                 let mut label = GlyphonLabel::new(&r.name, text_color)
-                    .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height);
+                    .font_size(self.renderer.layout.completion_font_size)
+                    .line_height(self.renderer.layout.completion_line_height);
                 if let Some(shortcut) = shortcuts.get(i) {
                     label = label.hint(shortcut, hint_color);
                 }
@@ -683,8 +684,8 @@ impl Editor {
 
         let measure_path = |text: &str| -> f32 {
             GlyphonLabel::new(text, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .measure(ui)
                 .x
         };
@@ -708,7 +709,7 @@ impl Editor {
             })
             .fold(0.0_f32, f32::max);
 
-        let popup_height = results.len() as f32 * self.layout.completion_row_height;
+        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
             cursor_top.y - popup_height
@@ -719,16 +720,16 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
-        self.touch_consuming_rects.push(popup_rect);
+        self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
                     Pos2::new(
                         popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.layout.completion_row_height,
+                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
                     ),
-                    Vec2::new(popup_width, self.layout.completion_row_height),
+                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
                 )
             })
             .collect();
@@ -744,7 +745,7 @@ impl Editor {
         }
 
         // -- Draw backgrounds ------------------------------------------------------
-        self.draw_completion_popup(
+        self.renderer.draw_completion_popup(
             ui,
             popup_rect,
             &row_rects,
@@ -761,7 +762,7 @@ impl Editor {
             let text_top = rect.min.y + 4.0;
             let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.layout.completion_line_height),
+                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
             );
 
             // Name (bold on matched chars) + shortcut hint (e.g. ⌘1).
@@ -770,8 +771,8 @@ impl Editor {
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height);
+                .font_size(self.renderer.layout.completion_font_size)
+                .line_height(self.renderer.layout.completion_line_height);
             if let Some(shortcut) = shortcuts.get(idx) {
                 label = label.hint(shortcut, hint_color);
             }
@@ -789,12 +790,12 @@ impl Editor {
                 })
                 .collect();
             let shaped = GlyphonLabel::new_colored(colored_spans, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .build(ui.ctx());
             let path_rect = Rect::from_min_size(
                 Pos2::new(content_rect.max.x - shortcut_width - 8.0 - shaped.size.x, text_top),
-                Vec2::new(shaped.size.x, self.layout.completion_line_height),
+                Vec2::new(shaped.size.x, self.renderer.layout.completion_line_height),
             );
             text_areas.push(shaped.text_area(path_rect, ui.ctx(), clip_rect));
         }

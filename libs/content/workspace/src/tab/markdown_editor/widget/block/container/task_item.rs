@@ -1,11 +1,12 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
-use egui::{CursorIcon, Id, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
+use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
 
-use crate::tab::markdown_editor::{Editor, Event};
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::{Event, MdLabel};
 use crate::theme::palette_v2::ThemeExt;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         self.height_item(node)
     }
@@ -35,12 +36,14 @@ impl<'ast> Editor {
         let extra_height = self.layout.row_spacing / 2.;
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
+        // ui.id().with() instead of Id::new() so two views of the same document get distinct
+        // checkbox IDs — otherwise the background tab's interaction rect shadows the preview's
         let checkbox_response =
-            ui.interact(clickable_space, Id::new(self.node_range(node)), Sense::click());
+            ui.interact(clickable_space, ui.id().with(self.node_range(node)), Sense::click());
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
-            self.event.internal_events.push(Event::Replace {
+            self.render_events.push(Event::Replace {
                 region: (check_offset, check_offset + 1).into(),
                 text: new_check.into(),
                 advance_cursor: false,
@@ -109,12 +112,13 @@ impl<'ast> Editor {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || annotation_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_fold_item(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || annotation_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_fold_item(node));
         if !show_fold_button {
             return;
         }

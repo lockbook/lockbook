@@ -2,14 +2,15 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> Format {
         Format {
             color: self.ctx.get_lb_theme().neutral_fg_secondary(),

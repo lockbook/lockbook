@@ -78,7 +78,7 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.buffer.is_empty()
+    !markdown.renderer.buffer.is_empty()
 }
 
 /// # Safety
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     if let Some(range) = range {
-        CString::new(&markdown.buffer[range])
+        CString::new(&markdown.renderer.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
@@ -155,8 +155,11 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 
     CTextRange {
         none: false,
-        start: CTextPosition { pos: markdown.buffer.current.selection.start().0, none: false },
-        end: CTextPosition { pos: markdown.buffer.current.selection.end().0, none: false },
+        start: CTextPosition {
+            pos: markdown.renderer.buffer.current.selection.start().0,
+            none: false,
+        },
+        end: CTextPosition { pos: markdown.renderer.buffer.current.selection.end().0, none: false },
     }
 }
 
@@ -248,7 +251,13 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    markdown.buffer.current.segs.last_cursor_position().into()
+    markdown
+        .renderer
+        .buffer
+        .current
+        .segs
+        .last_cursor_position()
+        .into()
 }
 
 /// # Safety
@@ -465,7 +474,7 @@ pub unsafe extern "C" fn position_offset(
 
     let start: Option<DocCharOffset> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown.buffer.current.segs.last_cursor_position();
+        let last_cursor_position = markdown.renderer.buffer.current.segs.last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             DocCharOffset::default()
@@ -695,7 +704,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         None => return null(),
     };
 
-    let value = markdown.buffer.current.text.as_str();
+    let value = markdown.renderer.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -837,7 +846,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.readonly && markdown.buffer.can_undo()
+    !markdown.readonly && markdown.renderer.buffer.can_undo()
 }
 
 /// # Safety
@@ -850,7 +859,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.readonly && markdown.buffer.can_redo()
+    !markdown.readonly && markdown.renderer.buffer.can_redo()
 }
 
 /// # Safety

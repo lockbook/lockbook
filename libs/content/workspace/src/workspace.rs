@@ -22,10 +22,13 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::resolvers::{FileCacheLinkResolver, ImageCache};
+use crate::search::Search;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
+use crate::tab::markdown_editor::{MdEdit, MdPersistence};
+type Markdown = MdEdit<ImageCache, FileCacheLinkResolver>;
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -45,6 +48,8 @@ pub struct Workspace {
     pub current_tab: usize,
     pub landing_page: LandingPage,
     pub account: Account,
+
+    pub search: Search,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -85,6 +90,7 @@ impl Workspace {
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        let search = Search::new(core, ctx);
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
@@ -111,6 +117,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
+            search,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
@@ -143,9 +150,11 @@ impl Workspace {
             forward: Vec::new(),
             last_changed: now,
             last_saved: now,
+            hmac: None,
             rename: None,
             is_closing: false,
             read_only: false,
+            is_preview: false,
         };
         self.tabs.push(new_tab);
         if make_current {
@@ -171,15 +180,30 @@ impl Workspace {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tabs.is_empty()
+        self.tabs.iter().all(|t| t.is_preview)
+    }
+
+    // without !is_closing, a dirty preview mid-save would shadow the newly created replacement
+    pub fn preview_tab(&self) -> Option<(usize, &Tab)> {
+        self.tabs
+            .iter()
+            .enumerate()
+            .find(|(_, t)| t.is_preview && !t.is_closing)
+    }
+
+    pub fn preview_tab_mut(&mut self) -> Option<(usize, &mut Tab)> {
+        self.tabs
+            .iter_mut()
+            .enumerate()
+            .find(|(_, t)| t.is_preview && !t.is_closing)
     }
 
     pub fn current_tab(&self) -> Option<&Tab> {
-        self.tabs.get(self.current_tab)
+        self.tabs.get(self.current_tab).filter(|t| !t.is_preview)
     }
 
     pub fn current_tab_id(&self) -> Option<Uuid> {
-        self.tabs.get(self.current_tab).and_then(|tab| tab.id())
+        self.current_tab().and_then(|tab| tab.id())
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
@@ -187,7 +211,9 @@ impl Workspace {
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
-        self.tabs.get_mut(self.current_tab)
+        self.tabs
+            .get_mut(self.current_tab)
+            .filter(|t| !t.is_preview)
     }
 
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
@@ -243,7 +269,8 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(i) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
-                    self.tasks.queue_save(SaveRequest { id });
+                    let is_preview = tab.is_preview;
+                    self.tasks.queue_save(SaveRequest { id, is_preview });
                 }
             }
         }
@@ -277,7 +304,7 @@ impl Workspace {
         }
 
         self.tasks
-            .queue_load(LoadRequest { id, tab_created: create_tab, make_current });
+            .queue_load(LoadRequest { id, tab_created: create_tab, make_current, is_preview: false });
     }
 
     pub fn back(&mut self) {
@@ -291,6 +318,7 @@ impl Workspace {
                         id: back_id,
                         tab_created: true,
                         make_current: false,
+                        is_preview: false,
                     });
                 }
             }
@@ -308,6 +336,7 @@ impl Workspace {
                         id: forward_id,
                         tab_created: true,
                         make_current: false,
+                        is_preview: false,
                     });
                 }
             }
@@ -408,7 +437,7 @@ impl Workspace {
             // scope indentation preserves git history
             {
                 let CompletedLoad {
-                    request: LoadRequest { id, tab_created, make_current },
+                    request: LoadRequest { id, tab_created, make_current, is_preview },
                     content_result,
                     timing: _,
                 } = load;
@@ -417,7 +446,14 @@ impl Workspace {
                 let core = self.core.clone();
                 let show_tabs = self.show_tabs;
 
-                if let Some(tab) = self.tabs.get_mut_by_id(id) {
+                // use is_preview to route the completion to the correct tab when two
+                // tabs have the same file id (regular + preview)
+                let tab_idx = self
+                    .tabs
+                    .iter()
+                    .position(|t| t.id() == Some(id) && t.is_preview == is_preview)
+                    .or_else(|| self.tabs.position_by_id(id));
+                if let Some(tab) = tab_idx.map(|i| &mut self.tabs[i]) {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
@@ -461,12 +497,12 @@ impl Workspace {
                         DocType::SVG => {
                             let reload = if tab.svg().is_some() { !tab_created } else { false };
                             if !reload {
+                                tab.hmac = maybe_hmac;
                                 tab.content = ContentState::Open(TabContent::Svg(SVGEditor::new(
                                     &bytes,
                                     &ctx,
                                     core.clone(),
                                     id,
-                                    maybe_hmac,
                                     &self.cfg,
                                     tab.read_only,
                                 )));
@@ -484,7 +520,7 @@ impl Workspace {
                                     ),
                                 );
 
-                                svg.open_file_hmac = maybe_hmac;
+                                tab.hmac = maybe_hmac;
                             }
                         }
                         DocType::PlainText
@@ -496,27 +532,45 @@ impl Workspace {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
+                                tab.hmac = maybe_hmac;
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         &String::from_utf8_lossy(&bytes),
                                         id,
-                                        maybe_hmac,
-                                        MdResources {
-                                            ctx: self.ctx.clone(),
-                                            core: core.clone(),
-                                            persistence: self.cfg.clone(),
-                                            files: Arc::clone(&self.files),
-                                        },
-                                        MdConfig {
-                                            readonly: tab.read_only,
-                                            ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
-                                        },
+                                        self.ctx.clone(),
+                                        self.cfg.clone(),
+                                        Arc::clone(&self.files),
+                                        ext.clone(),
+                                        tab.read_only,
+                                        show_tabs,
+                                        ImageCache::new(
+                                            self.ctx.clone(),
+                                            Default::default(),
+                                            core.clone(),
+                                            id,
+                                            Arc::clone(&self.files),
+                                        ),
+                                        FileCacheLinkResolver::new(
+                                            Arc::clone(&self.files),
+                                            id,
+                                            Default::default(),
+                                            self.ctx.clone(),
+                                        ),
                                     )));
+                                if tab.is_preview {
+                                    let md = tab.markdown_mut().unwrap();
+                                    // without initialized, the editor auto-focuses and steals from the search bar
+                                    md.initialized = true;
+                                    // without id_salt, two editors for the same file share an egui ID,
+                                    // causing response/focus/interaction collisions (e.g. can't place cursor)
+                                    md.id_salt = egui::Id::new("search_preview");
+                                }
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
-                                md.hmac = maybe_hmac;
+                                md.renderer
+                                    .buffer
+                                    .reload(String::from_utf8_lossy(&bytes).into());
+                                tab.hmac = maybe_hmac;
                             }
                         }
                         _ => {
@@ -544,27 +598,48 @@ impl Workspace {
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id },
+                        request: SaveRequest { id, is_preview },
                         seq,
                         content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                    // without is_preview matching, the save completion updates the wrong tab's
+                    // hmac and content, causing the editing tab's next save to silently discard changes
+                    let tab_idx = self
+                        .tabs
+                        .iter()
+                        .position(|t| t.id() == Some(id) && t.is_preview == is_preview)
+                        .or_else(|| self.tabs.position_by_id(id));
+                    if let Some(tab) = tab_idx.map(|i| &mut self.tabs[i]) {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
+                                tab.hmac = Some(hmac);
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
-                                        md.hmac = Some(hmac);
-                                        md.buffer.saved(seq, content);
+                                        md.renderer.buffer.saved(seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
-                                        svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
+                                }
+
+                                // reload the sibling tab so edits appear in both views
+                                let has_sibling = self.tabs.iter().any(|t| {
+                                    t.id() == Some(id)
+                                        && t.is_preview != is_preview
+                                        && !t.is_closing
+                                });
+                                if has_sibling {
+                                    self.tasks.queue_load(LoadRequest {
+                                        id,
+                                        tab_created: false,
+                                        make_current: false,
+                                        is_preview: !is_preview,
+                                    });
                                 }
                             }
                             Err(err) => {
@@ -872,7 +947,11 @@ impl WsPersistentStore {
     // todo: store non-file (mind map) tabs?
     pub fn set_tabs(&mut self, tabs: &[Tab], current_tab_index: usize) {
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tabs.iter().flat_map(|t| t.id()).collect();
+        data_lock.open_tabs = tabs
+            .iter()
+            .filter(|t| !t.is_preview)
+            .flat_map(|t| t.id())
+            .collect();
         if !tabs.is_empty() {
             if let Some(tab) = tabs.get(current_tab_index) {
                 data_lock.current_tab = tab.id();

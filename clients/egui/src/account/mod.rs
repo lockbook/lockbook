@@ -122,23 +122,9 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0);
 
         // focus management
-        let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
 
         let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
-        if ctx.input(|i| i.key_pressed(Key::F) && i.modifiers.command && i.modifiers.shift) {
-            if !sidebar_expanded {
-                self.update_zen_mode(false);
-
-                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
-            } else if ctx.memory(|m| m.has_focus(full_doc_search_id)) {
-                self.update_zen_mode(true);
-
-                ctx.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f))); // surrender focus - editor will take it
-            } else {
-                ctx.memory_mut(|m| m.request_focus(full_doc_search_id));
-            }
-        }
 
         let sidebar_min_width: f32 = 300.0;
         // max width is 2/3 of screen, but at least sidebar_min_width to avoid looking weird on small screens
@@ -380,20 +366,6 @@ impl AccountScreen {
         if ctx.input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::E)) {
             let current_zen_mode = self.settings.read().unwrap().zen_mode;
             self.update_zen_mode(!current_zen_mode);
-        }
-
-        // Ctrl-Space or Ctrl-O or Ctrl-L pressed while search modal is not open.
-        let is_search_open = ctx.input_mut(|i| {
-            i.consume_key(COMMAND, egui::Key::Space)
-                || i.consume_key(COMMAND, egui::Key::O)
-                || i.consume_key(COMMAND, egui::Key::L)
-        });
-        if is_search_open {
-            if let Some(search) = &mut self.modals.search {
-                search.focus_select_all();
-            } else {
-                self.modals.search = Some(SearchModal::new(self.core.clone()));
-            }
         }
 
         // Ctrl-, to open settings modal.

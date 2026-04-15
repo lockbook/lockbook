@@ -1,15 +1,15 @@
 use comrak::nodes::{AstNode, NodeWikiLink};
 use egui::{OpenUrl, Pos2, Ui};
-use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::file_cache::FilesExt as _;
+use crate::resolvers::LinkState;
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn span_wikilink(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
@@ -24,9 +24,7 @@ impl<'ast> Editor {
 
         if response.hovered && self.inline_clickable(ui, node) {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if self.link_state_for_wikilink(&node_wiki_link.url)
-                == crate::tab::markdown_editor::widget::inline::link::LinkState::Warning
-            {
+            if self.link_resolver.wikilink_state(&node_wiki_link.url) == LinkState::Warning {
                 if let Some(pos) = ui.ctx().pointer_hover_pos() {
                     egui::Area::new(ui.id().with("wikilink_warning"))
                         .order(egui::Order::Tooltip)
@@ -41,7 +39,7 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            if let Some(id) = self.resolve_wikilink(&node_wiki_link.url) {
+            if let Some(id) = self.link_resolver.resolve_wikilink(&node_wiki_link.url) {
                 ui.ctx().open_file(id, false);
             } else {
                 ui.ctx()
@@ -50,11 +48,5 @@ impl<'ast> Editor {
         }
 
         response
-    }
-
-    pub fn resolve_wikilink(&self, url: &str) -> Option<Uuid> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_wikilink(url, from_id)
     }
 }

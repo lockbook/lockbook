@@ -51,7 +51,7 @@ use web_time::{Duration, Instant};
 /// when it was applied. We store information necessary to undo applied operations alongside the operations themselves
 /// i.e. the text replaced in the application. When the operation is transformed for any reason, this undo information
 /// is invalidated.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Buffer {
     /// Current contents of the buffer (what should be displayed in the editor). Todo: hide behind a read-only accessor
     pub current: Snapshot,
@@ -67,7 +67,7 @@ pub struct Buffer {
     external: External,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub text: String,
     pub segs: UnicodeSegs,
@@ -115,7 +115,7 @@ impl Snapshot {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct Ops {
     /// Operations that have been received by the buffer
     all: Vec<Operation>,
@@ -171,7 +171,7 @@ impl Ops {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct External {
     /// Text last loaded into the editor. Used as a reference point for merging out-of-editor changes with in-editor
     /// changes, similar to a base in a 3-way merge. May be a state that never appears in the buffer's history.

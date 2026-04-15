@@ -1,4 +1,6 @@
-use crate::tab::markdown_editor::{syntax_set, syntax_theme};
+pub(crate) mod syntax;
+
+use self::syntax::{syntax_set, syntax_theme};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -8,12 +10,13 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { family: FontFamily::Mono, ..parent_text_format }

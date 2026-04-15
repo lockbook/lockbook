@@ -80,11 +80,14 @@ pub struct LoadRequest {
     // what focuses the tab and the tab must be shown every frame to hold focus
     // todo: hold focus for loading tabs and all the rest in one proper place
     pub make_current: bool,
+
+    pub is_preview: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct SaveRequest {
     pub id: Uuid,
+    pub is_preview: bool,
 }
 
 // Timing
@@ -353,7 +356,13 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                let Some(tab) = tabs.get_by_id(request.id) else {
+                // without is_preview matching, save reads content/hmac from the wrong tab
+                // when two tabs have the same file id
+                let Some(tab) = tabs
+                    .iter()
+                    .find(|t| t.id() == Some(request.id) && t.is_preview == request.is_preview)
+                    .or_else(|| tabs.get_by_id(request.id))
+                else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };

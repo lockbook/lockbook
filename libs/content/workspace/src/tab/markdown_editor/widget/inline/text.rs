@@ -2,12 +2,13 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn span_text(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
@@ -38,12 +39,7 @@ impl<'ast> Editor {
             return Default::default();
         }
 
-        // While a completion popup is active, draw the search text in accent color.
-        let search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-        if let Some(search_range) = search_range {
+        if let Some(search_range) = self.text_highlight_range {
             let start = search_range.0.max(node_range.0);
             let end = search_range.1.min(node_range.1);
             if start < end {

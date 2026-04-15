@@ -1,35 +1,23 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{OpenUrl, Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
-use lb_rs::spawn;
-use scraper::{Html, Selector};
-use std::collections::hash_map::Entry;
-use std::sync::{Arc, Mutex};
+use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
 
-use crate::file_cache::{FilesExt as _, ResolvedLink};
-use crate::show::DocType;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::resolvers::{LinkPreview, LinkState, ResolvedLink};
 use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::block::TitleState;
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
-enum DestinationTitle {
-    Loading,
+pub enum DestinationTitle {
     Ready(String),
+    Loading,
     Absent,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LinkState {
-    Normal,
-    Warning, // access gap — some collaborators can't follow this link
-    Broken,  // target not found
-}
-
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
@@ -179,7 +167,7 @@ impl<'ast> Editor {
 
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if self.link_state_for_url(&node_link.url) == LinkState::Warning {
+            if self.link_resolver.link_state(&node_link.url) == LinkState::Warning {
                 if let Some(pos) = ui.ctx().pointer_hover_pos() {
                     egui::Area::new(ui.id().with("link_warning"))
                         .order(egui::Order::Tooltip)
@@ -194,7 +182,7 @@ impl<'ast> Editor {
         }
         if response.clicked {
             let cmd = ui.input(|i| i.modifiers.command);
-            match self.resolve_link(&node_link.url) {
+            match self.link_resolver.resolve_link(&node_link.url) {
                 Some(ResolvedLink::File(id)) => {
                     ui.ctx().open_file(id, cmd);
                 }
@@ -211,47 +199,6 @@ impl<'ast> Editor {
         response
     }
 
-    pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
-    }
-
-    pub fn link_state_for_url(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_link(url, from_id) {
-            None => LinkState::Broken,
-            Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
-    }
-
-    pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_wikilink(url, from_id) {
-            None => LinkState::Broken,
-            Some(target_id) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
-    }
-
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
         let selection = self.buffer.current.selection;
 
@@ -263,185 +210,47 @@ impl<'ast> Editor {
             if !node_range.intersects(&selection, true) {
                 continue;
             }
-
-            let (url, is_wikilink) = {
-                let data = node.data.borrow();
-                match &data.value {
-                    NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                    NodeValue::Link(nl) => (nl.url.clone(), false),
-                    NodeValue::Image(ni) => (ni.url.clone(), false),
-                    _ => continue,
+            match &node.data.borrow().value {
+                NodeValue::Link(link) => match self.link_resolver.resolve_link(&link.url) {
+                    Some(ResolvedLink::File(id)) => file_ids.push(id),
+                    Some(ResolvedLink::External(url)) => urls.push(url),
+                    None => urls.push(link.url.clone()),
+                },
+                NodeValue::WikiLink(wl) => {
+                    if let Some(id) = self.link_resolver.resolve_wikilink(&wl.url) {
+                        file_ids.push(id);
+                    } else {
+                        urls.push(wl.url.clone());
+                    }
                 }
-            };
-
-            if is_wikilink {
-                if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
-                }
-                continue;
-            }
-
-            match self.resolve_link(&url) {
-                Some(ResolvedLink::File(id)) => file_ids.push(id),
-                Some(ResolvedLink::External(url)) => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                _ => {}
             }
         }
 
-        let new_tab = file_ids.len() + urls.len() > 1;
+        let cmd = ctx.input(|i| i.modifiers.command);
         for id in file_ids {
-            ctx.open_file(id, new_tab);
-        }
-        if new_tab {
-            for url in &mut urls {
-                url.new_tab = true;
-            }
+            ctx.open_file(id, cmd);
         }
         for url in urls {
-            ctx.open_url(url);
+            ctx.open_url(OpenUrl { url, new_tab: cmd });
         }
     }
 
-    // Resolves the display title for a link with empty text.
-    // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
-    // External http/https links are fetched asynchronously; returns Loading on first call.
-    fn get_link_title(&self, url: &str) -> DestinationTitle {
-        let Some(resolved) = self.resolve_link(url) else {
-            return DestinationTitle::Absent;
-        };
-
-        let resolved_url = match resolved {
-            ResolvedLink::File(id) => {
-                let guard = self.files.read().unwrap();
-                let Some(file) = guard.get_by_id(id) else {
-                    return DestinationTitle::Absent;
-                };
-                let title = DocType::from_name(&file.name).display_name(&file.name);
-                return DestinationTitle::Ready(title.to_string());
-            }
-            ResolvedLink::External(url)
-                if url.starts_with("http://") || url.starts_with("https://") =>
-            {
-                url
-            }
-            ResolvedLink::External(_) => return DestinationTitle::Absent,
-        };
-
-        let arc = match self
-            .layout_cache
-            .link_titles
-            .borrow_mut()
-            .entry(resolved_url.clone())
-        {
-            Entry::Occupied(e) => e.get().clone(),
-            Entry::Vacant(e) => {
-                let arc = Arc::new(Mutex::new(TitleState::Loading));
-                e.insert(arc.clone());
-                let client = self.client.clone();
-                let ctx = self.ctx.clone();
-                let title_state = arc.clone();
-                spawn!({
-                    const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-                    const GOOGLEBOT: &str =
-                        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    let mut html = fetch_html(&client, &resolved_url, CHROME);
-                    #[cfg(target_arch = "wasm32")]
-                    let mut html = fetch_html(&client, &resolved_url, CHROME).await;
-
-                    // some sites (e.g. Twitter/X) only serve static content to known crawlers
-                    if html.as_deref().ok().and_then(extract_html_title).is_none() {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            html = fetch_html(&client, &resolved_url, GOOGLEBOT);
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        {
-                            html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
-                        }
-                    }
-
-                    *title_state.lock().unwrap() = html
-                        .ok()
-                        .and_then(|h| extract_html_title(&h))
-                        .map(TitleState::Loaded)
-                        .unwrap_or(TitleState::Failed);
-                    ctx.request_repaint();
-                });
-                arc
-            }
-        };
-
-        let state = arc.lock().unwrap();
-        match &*state {
-            TitleState::Loading => DestinationTitle::Loading,
-            TitleState::Loaded(t) => DestinationTitle::Ready(t.clone()),
-            TitleState::Failed => DestinationTitle::Absent,
+    pub fn get_link_title(&self, url: &str) -> DestinationTitle {
+        match self.link_resolver.link_preview(url) {
+            LinkPreview::Loading => DestinationTitle::Loading,
+            LinkPreview::Ready(data) => match data.title {
+                Some(t) => DestinationTitle::Ready(t),
+                None => DestinationTitle::Absent,
+            },
+            LinkPreview::Unavailable => DestinationTitle::Absent,
         }
     }
 }
 
-fn node_link_url(node: &AstNode<'_>) -> String {
-    use comrak::nodes::NodeValue;
+fn node_link_url<'ast>(node: &'ast AstNode<'ast>) -> String {
     match &node.data.borrow().value {
-        NodeValue::Link(link) => link.url.clone(),
+        NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .and_then(|r| r.text())
-        .map_err(|e| e.to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .text()
-        .await
-        .map_err(|e| e.to_string())
-}
-
-fn extract_html_title(html: &str) -> Option<String> {
-    let doc = Html::parse_document(html);
-
-    let title_sel = Selector::parse("title").ok()?;
-    let title = doc
-        .select(&title_sel)
-        .next()
-        .map(|e| e.text().collect::<String>());
-    if let Some(t) = title
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())
-    {
-        return Some(t);
-    }
-
-    // static / server rendered properties designed to support this use case for JS pages
-    let meta_sel = Selector::parse("meta[property='og:title'], meta[name='twitter:title']").ok()?;
-    let title = doc
-        .select(&meta_sel)
-        .find_map(|e| e.value().attr("content"))
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())?;
-    Some(title)
 }

@@ -4,14 +4,15 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::inline::Response;
 
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn heading_row_height(&self, level: u8) -> f32 {
         self.layout.row_height
             * match level {
@@ -162,11 +163,12 @@ impl<'ast> Editor {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_block(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_block(node));
         if !show_fold_button {
             return;
         }

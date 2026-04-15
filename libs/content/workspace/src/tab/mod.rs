@@ -1,9 +1,11 @@
 use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
+use crate::resolvers::{FileCacheLinkResolver, ImageCache};
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::Editor as Markdown;
+use crate::tab::markdown_editor::MdEdit;
+type Markdown = MdEdit<ImageCache, FileCacheLinkResolver>;
 use crate::tab::pdf_viewer::PdfViewer;
 
 use crate::tab::svg_editor::SVGEditor;
@@ -36,9 +38,11 @@ pub struct Tab {
     pub last_changed: Instant,
     pub last_saved: Instant,
 
+    pub hmac: Option<DocumentHmac>,
     pub rename: Option<String>,
     pub is_closing: bool,
     pub read_only: bool,
+    pub is_preview: bool,
 }
 
 impl Tab {
@@ -51,16 +55,12 @@ impl Tab {
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
-        match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.hmac,
-            ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
-            _ => None,
-        }
+        self.hmac
     }
 
     pub fn seq(&self) -> usize {
         match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            ContentState::Open(TabContent::Markdown(md)) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -129,6 +129,56 @@ impl Tab {
         match &self.content {
             ContentState::Open(content) => content.clone_content(),
             _ => None,
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) -> TabResponse {
+        match &mut self.content {
+            ContentState::Loading(_) => {
+                ui.spinner();
+                TabResponse::default()
+            }
+            ContentState::Failed(fail) => {
+                ui.label(fail.msg());
+                TabResponse::default()
+            }
+            ContentState::Open(content) => {
+                let mut resp = TabResponse::default();
+                match content {
+                    TabContent::Markdown(md) => {
+                        let initialized = md.initialized;
+                        let md_resp = md.show(ui);
+                        if !self.read_only && md_resp.text_updated && initialized {
+                            self.last_changed = Instant::now();
+                        }
+                        resp.open_camera = md_resp.open_camera;
+                        resp.text_updated = md_resp.text_updated;
+                        resp.selection_updated = md_resp.selection_updated;
+                        resp.scroll_updated = md_resp.scroll_updated;
+                        resp.find_widget_height = md_resp.find_widget_height;
+                    }
+                    TabContent::Image(img) => {
+                        if let Err(err) = img.show(ui) {
+                            self.content = ContentState::Failed(err.into());
+                        }
+                    }
+                    TabContent::Pdf(pdf) => pdf.show(ui),
+                    TabContent::Svg(svg) => {
+                        let res = svg.show(ui);
+                        if res.request_save {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    #[cfg(not(target_family = "wasm"))]
+                    TabContent::MindMap(mm) => {
+                        resp.open_file = mm.show(ui);
+                    }
+                    TabContent::SpaceInspector(sv) => {
+                        sv.show(ui);
+                    }
+                }
+                resp
+            }
         }
     }
 
@@ -208,17 +258,9 @@ impl TabContent {
         }
     }
 
-    pub fn hmac(&self) -> Option<DocumentHmac> {
-        match self {
-            TabContent::Markdown(md) => md.hmac,
-            TabContent::Svg(svg) => svg.open_file_hmac,
-            _ => None,
-        }
-    }
-
     pub fn seq(&self) -> usize {
         match self {
-            TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::Markdown(md) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -228,7 +270,7 @@ impl TabContent {
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
-                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+                Some(TabSaveContent::String(md.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             _ => None,
@@ -253,6 +295,16 @@ impl TabSaveContent {
             TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
         }
     }
+}
+
+#[derive(Default)]
+pub struct TabResponse {
+    pub text_updated: bool,
+    pub selection_updated: bool,
+    pub scroll_updated: bool,
+    pub open_camera: bool,
+    pub find_widget_height: f32,
+    pub open_file: Option<Uuid>,
 }
 
 #[derive(Debug)]

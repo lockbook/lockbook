@@ -2,7 +2,8 @@ use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 pub(crate) mod code;
@@ -40,7 +41,7 @@ impl std::ops::BitOrAssign for Response {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn span(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {
@@ -430,15 +431,8 @@ impl<'ast> Editor {
         self.range_revealed(self.node_range(node), false)
     }
 
-    /// Returns the ranges that force nodes to reveal their syntax. Currently
-    /// this is the selection and the current find match (if any).
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (DocCharOffset, DocCharOffset)> + '_ {
-        let selection = Some(self.buffer.current.selection);
-        let find_match = self
-            .find
-            .current_match
-            .and_then(|idx| self.find.matches.get(idx).copied());
-        selection.into_iter().chain(find_match)
+        self.reveal_ranges.iter().copied()
     }
 
     /// Returns true if `range` intersects any reveal range.

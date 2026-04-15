@@ -2,13 +2,12 @@ use std::sync::Arc;
 
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
-    tab::{
-        markdown_editor::{Editor, MdConfig, MdResources},
-        svg_editor::SVGEditor,
-    },
+    tab::{markdown_editor::MdEdit, svg_editor::SVGEditor},
     theme::palette_v2::{Mode, Theme, ThemeExt as _},
     workspace::WsPersistentStore,
 };
+
+type Editor = MdEdit<(), ()>;
 
 pub struct LbWebApp {
     core: Lb,
@@ -81,19 +80,20 @@ impl eframe::App for LbWebApp {
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
+                    let files = Arc::new(std::sync::RwLock::new(
+                        workspace_rs::file_cache::FileCache::empty(),
+                    ));
                     self.editor = Some(Editor::new(
                         include_str!("../resources/editor-demo.md"),
                         Uuid::new_v4(),
-                        None,
-                        MdResources {
-                            ctx: ctx.clone(),
-                            core: self.core.clone(),
-                            persistence: self.cfg.clone(),
-                            files: Arc::new(std::sync::RwLock::new(
-                                workspace_rs::file_cache::FileCache::empty(),
-                            )),
-                        },
-                        MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
+                        ctx.clone(),
+                        self.cfg.clone(),
+                        files,
+                        "md".into(),
+                        false,
+                        true,
+                        (),
+                        (),
                     ));
                 }
 
@@ -104,7 +104,6 @@ impl eframe::App for LbWebApp {
                         ui.ctx(),
                         self.core.clone(),
                         Uuid::new_v4(),
-                        None,
                         &self.cfg,
                         false,
                     ))

@@ -3,7 +3,8 @@ use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 
 struct SplitRow {
     text: String,
@@ -81,7 +82,7 @@ impl Wrap {
     }
 }
 
-impl Editor {
+impl<E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     pub fn new_wrap(&self, width: f32) -> Wrap {
         Wrap::new(width, self.layout.row_height, self.layout.row_spacing)
     }

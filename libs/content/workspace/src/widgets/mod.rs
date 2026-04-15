@@ -1,6 +1,8 @@
 pub mod button;
 pub mod button_group;
+pub mod glyphon_cache;
 pub mod glyphon_label;
+pub mod glyphon_render;
 pub mod glyphon_text_edit;
 pub mod icon_button;
 pub mod progress_bar;

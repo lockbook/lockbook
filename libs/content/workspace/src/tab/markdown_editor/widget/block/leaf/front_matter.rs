@@ -1,9 +1,10 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Pos2, Ui};
 
-use crate::tab::markdown_editor::Editor;
+use crate::resolvers::{EmbedResolver, LinkResolver};
+use crate::tab::markdown_editor::MdLabel;
 
-impl<'ast> Editor {
+impl<'ast, E: EmbedResolver, L: LinkResolver> MdLabel<E, L> {
     fn frontmatter_as_code_block() -> NodeCodeBlock {
         NodeCodeBlock {
             fenced: true,

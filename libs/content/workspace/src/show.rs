@@ -8,14 +8,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
+use std::sync::{Arc, Mutex};
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, relative_path};
 use crate::output::Response;
-use crate::tab::{ContentState, ExtendedOutput as _, TabContent, TabStatus, image_viewer};
+use crate::tab::markdown_editor::{Event as MdEvent, input::Region};
+use crate::tab::{
+    ClipContent, ExtendedInput as _, ExtendedOutput as _, TabStatus, image_viewer, import_image,
+};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
+use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
@@ -23,6 +28,13 @@ use lb_rs::Uuid;
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            cache.lock().unwrap().begin_frame();
+        }
+
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.core.app_foregrounded();
         }
@@ -44,6 +56,11 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        // search modal renders after tabs so it draws on top: its cursor icon and
+        // interaction responses take priority over the background editor's
+        self.show_search_modal();
+        self.process_unhandled_events();
+
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tabs, self.current_tab);
         }
@@ -53,7 +70,61 @@ impl Workspace {
             self.cfg.set_zoom_factor(zoom);
         }
 
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            cache.lock().unwrap().end_frame();
+        }
+
         mem::take(&mut self.out)
+    }
+
+    /// The editor puts back events it doesn't handle (e.g. image drop/paste)
+    /// so the workspace can process them with full access to core and file cache.
+    fn process_unhandled_events(&mut self) {
+        let events = self.ctx.pop_events();
+        for event in events {
+            match event {
+                crate::tab::Event::Drop { content, .. }
+                | crate::tab::Event::Paste { content, .. } => {
+                    if let Some(file_id) = self.current_tab_id() {
+                        for clip in &content {
+                            if let ClipContent::Image(data) = clip {
+                                let file = import_image(&self.core, file_id, data);
+
+                                let rel_path = {
+                                    let guard = self.files.read().unwrap();
+                                    let parent = guard.get_by_id(file_id).unwrap().parent;
+                                    let mut augmented = guard.files.clone();
+                                    if augmented.get_by_id(file.parent).is_none() {
+                                        if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                            augmented.push(folder);
+                                        }
+                                    }
+                                    augmented.push(file.clone());
+                                    relative_path(
+                                        &augmented.path(parent),
+                                        &augmented.path(file.id),
+                                    )
+                                };
+
+                                let markdown_image_link =
+                                    format!("![{}]({})", file.name, rel_path);
+                                self.ctx.push_markdown_event(MdEvent::Replace {
+                                    region: Region::Selection,
+                                    text: markdown_image_link,
+                                    advance_cursor: true,
+                                });
+                            }
+                        }
+                    }
+                }
+                // put back events we don't handle so they survive to next frame
+                // (e.g. toolbar Markdown events pushed during show_tabs)
+                other => self.ctx.push_event(other),
+            }
+        }
     }
 
     fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
@@ -142,65 +213,22 @@ impl Workspace {
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
                 if let Some(tab) = self.current_tab_mut() {
                     let id = tab.id();
-                    match &mut tab.content {
-                        ContentState::Loading(_) => {
-                            ui.spinner();
-                        }
-                        ContentState::Failed(fail) => {
-                            ui.label(fail.msg());
-                        }
-                        ContentState::Open(content) => {
-                            match content {
-                                TabContent::Markdown(md) => {
-                                    let initialized = md.initialized;
-                                    let resp = md.show(ui);
-                                    // The editor signals a text change when the buffer is initially
-                                    // loaded. Since we use that signal to trigger saves, we need to
-                                    // check that this change was not from the initial frame.
-                                    if !tab.read_only && resp.text_updated && initialized {
-                                        tab.last_changed = Instant::now();
-                                    }
+                    let resp = tab.show(ui);
 
-                                    self.out.open_camera = resp.open_camera;
-
-                                    if resp.text_updated {
-                                        self.out.markdown_editor_text_updated = true;
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    if resp.selection_updated {
-                                        self.out.markdown_editor_selection_updated = true;
-                                    }
-                                    self.out.markdown_editor_find_widget_height =
-                                        resp.find_widget_height;
-                                    if resp.scroll_updated {
-                                        self.out.markdown_editor_scroll_updated = true;
-                                    }
-                                }
-                                TabContent::Image(img) => {
-                                    if let Err(err) = img.show(ui) {
-                                        tab.content = ContentState::Failed(err.into());
-                                    }
-                                }
-                                TabContent::Pdf(pdf) => pdf.show(ui),
-                                TabContent::Svg(svg) => {
-                                    let res = svg.show(ui);
-                                    if res.request_save {
-                                        tab.last_changed = Instant::now();
-                                    }
-                                }
-
-                                #[cfg(not(target_family = "wasm"))]
-                                TabContent::MindMap(mm) => {
-                                    let response = mm.show(ui);
-                                    if let Some(value) = response {
-                                        self.open_file(value, true, false);
-                                    }
-                                }
-                                TabContent::SpaceInspector(sv) => {
-                                    sv.show(ui);
-                                }
-                            };
-                        }
+                    self.out.open_camera = resp.open_camera;
+                    if resp.text_updated {
+                        self.out.markdown_editor_text_updated = true;
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    if resp.selection_updated {
+                        self.out.markdown_editor_selection_updated = true;
+                    }
+                    self.out.markdown_editor_find_widget_height = resp.find_widget_height;
+                    if resp.scroll_updated {
+                        self.out.markdown_editor_scroll_updated = true;
+                    }
+                    if let Some(file) = resp.open_file {
+                        self.open_file(file, true, false);
                     }
 
                     ui.ctx().output_mut(|w| {
@@ -289,6 +317,9 @@ impl Workspace {
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
                                 for i in 0..self.tabs.len() {
+                                    if self.tabs[i].is_preview {
+                                        continue;
+                                    }
                                     if let Some(resp) = self.tab_label(
                                         ui,
                                         i,
@@ -1007,7 +1038,7 @@ impl DocType {
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
-            _ if crate::tab::markdown_editor::syntax_set()
+            _ if crate::tab::markdown_editor::widget::block::leaf::code_block::syntax::syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&ext))
                 .is_some() =>
             {
