@@ -98,6 +98,7 @@ pub struct Editor {
 
     // input
     pub file_id: Uuid,
+    pub id_salt: Id,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
     pub ext: String,
@@ -276,6 +277,7 @@ impl Editor {
 
             readonly,
             file_id,
+            id_salt: Id::NULL,
             hmac,
             initialized: Default::default(),
             ext,
@@ -343,7 +345,7 @@ impl Editor {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.file_id)
+        Id::new(self.file_id).with(self.id_salt)
     }
 
     pub fn focus(&self, ctx: &Context) {

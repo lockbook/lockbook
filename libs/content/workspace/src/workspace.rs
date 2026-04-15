@@ -146,6 +146,7 @@ impl Workspace {
             rename: None,
             is_closing: false,
             read_only: false,
+            is_preview: false,
         };
         self.tabs.push(new_tab);
         if make_current {
@@ -171,15 +172,15 @@ impl Workspace {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tabs.is_empty()
+        self.tabs.iter().all(|t| t.is_preview)
     }
 
     pub fn current_tab(&self) -> Option<&Tab> {
-        self.tabs.get(self.current_tab)
+        self.tabs.get(self.current_tab).filter(|t| !t.is_preview)
     }
 
     pub fn current_tab_id(&self) -> Option<Uuid> {
-        self.tabs.get(self.current_tab).and_then(|tab| tab.id())
+        self.current_tab().and_then(|tab| tab.id())
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
@@ -187,7 +188,81 @@ impl Workspace {
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
-        self.tabs.get_mut(self.current_tab)
+        self.tabs
+            .get_mut(self.current_tab)
+            .filter(|t| !t.is_preview)
+    }
+
+    // Preview tab lifecycle:
+    // * Create: `open_preview(id)` creates a tab with `ContentState::Loading`
+    // and queues a background load.
+    // * Navigate: calling `open_preview` with a different id closes the
+    // current preview (saving if dirty) and creates a new one.
+    // * Promote: `promote_preview()` sets `is_preview = false`, turning the
+    // preview into a regular tab with no reload.
+    // * Close: `close_preview()` removes the preview. Dirty previews queue
+    // a save and linger as `is_closing` until the save completes.
+    pub fn preview_tab(&self) -> Option<(usize, &Tab)> {
+        self.tabs
+            .iter()
+            .enumerate()
+            .find(|(_, t)| t.is_preview && !t.is_closing)
+    }
+
+    pub fn preview_tab_mut(&mut self) -> Option<(usize, &mut Tab)> {
+        self.tabs
+            .iter_mut()
+            .enumerate()
+            .find(|(_, t)| t.is_preview && !t.is_closing)
+    }
+
+    pub fn open_preview(&mut self, id: Uuid) {
+        let is_document = self
+            .files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .is_some_and(|f| f.is_document());
+        if !is_document {
+            return;
+        }
+
+        let current_preview_id = self.preview_tab().and_then(|(_, t)| t.id());
+        if current_preview_id == Some(id) {
+            return;
+        }
+
+        self.close_preview();
+        self.create_tab(ContentState::Loading(id), false);
+        let idx = self.tabs.len() - 1;
+        self.tabs[idx].is_preview = true;
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: true,
+        });
+    }
+
+    pub fn close_preview(&mut self) {
+        let Some((idx, _)) = self.preview_tab() else { return };
+        if self.tabs[idx].is_dirty(&self.tasks) {
+            self.tabs[idx].is_closing = true;
+            if let Some(id) = self.tabs[idx].id() {
+                self.tasks.queue_save(SaveRequest { id, is_preview: true });
+            }
+        } else {
+            self.tabs.remove(idx);
+            if self.current_tab >= self.tabs.len() && self.current_tab > 0 {
+                self.current_tab -= 1;
+            }
+        }
+    }
+
+    pub fn promote_preview(&mut self) {
+        let Some((idx, tab)) = self.preview_tab_mut() else { return };
+        tab.is_preview = false;
+        self.make_current(idx);
     }
 
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
@@ -201,9 +276,8 @@ impl Workspace {
         self.current_tab_mut()?.svg_mut()
     }
 
-    /// Makes the tab the current tab, if it exists. Returns true if the tab exists.
     pub fn make_current(&mut self, i: usize) -> bool {
-        if i < self.tabs.len() {
+        if i < self.tabs.len() && !self.tabs[i].is_preview {
             self.current_tab = i;
             self.current_tab_changed = true;
             self.tabs[i].is_closing = false;
@@ -243,7 +317,8 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(i) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
-                    self.tasks.queue_save(SaveRequest { id });
+                    self.tasks
+                        .queue_save(SaveRequest { id, is_preview: tab.is_preview });
                 }
             }
         }
@@ -276,8 +351,12 @@ impl Workspace {
             self.create_tab(ContentState::Loading(id), make_current);
         }
 
-        self.tasks
-            .queue_load(LoadRequest { id, tab_created: create_tab, make_current });
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: create_tab,
+            make_current,
+            is_preview: false,
+        });
     }
 
     pub fn back(&mut self) {
@@ -291,6 +370,7 @@ impl Workspace {
                         id: back_id,
                         tab_created: true,
                         make_current: false,
+                        is_preview: false,
                     });
                 }
             }
@@ -308,6 +388,7 @@ impl Workspace {
                         id: forward_id,
                         tab_created: true,
                         make_current: false,
+                        is_preview: false,
                     });
                 }
             }
@@ -408,7 +489,7 @@ impl Workspace {
             // scope indentation preserves git history
             {
                 let CompletedLoad {
-                    request: LoadRequest { id, tab_created, make_current },
+                    request: LoadRequest { id, tab_created, make_current, is_preview },
                     content_result,
                     timing: _,
                 } = load;
@@ -417,7 +498,13 @@ impl Workspace {
                 let core = self.core.clone();
                 let show_tabs = self.show_tabs;
 
-                if let Some(tab) = self.tabs.get_mut_by_id(id) {
+                // route to the correct tab when two tabs have the same file id
+                let tab_idx = self
+                    .tabs
+                    .iter()
+                    .position(|t| t.id() == Some(id) && t.is_preview == is_preview)
+                    .or_else(|| self.tabs.position_by_id(id));
+                if let Some(tab) = tab_idx.map(|i| &mut self.tabs[i]) {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
@@ -513,6 +600,15 @@ impl Workspace {
                                             tablet_or_desktop: show_tabs,
                                         },
                                     )));
+                                if tab.is_preview {
+                                    let md = tab.markdown_mut().unwrap();
+                                    // without initialized, the editor auto-focuses and
+                                    // steals from the search bar
+                                    md.initialized = true;
+                                    // without id_salt, two editors for the same file share
+                                    // an egui ID, causing response/focus/interaction collisions
+                                    md.id_salt = egui::Id::new("preview");
+                                }
                             } else {
                                 let md = tab.markdown_mut().unwrap();
                                 md.buffer.reload(String::from_utf8_lossy(&bytes).into());
@@ -544,14 +640,20 @@ impl Workspace {
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id },
+                        request: SaveRequest { id, is_preview },
                         seq,
                         content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                    // route to the correct tab when two tabs have the same file id
+                    let tab_idx = self
+                        .tabs
+                        .iter()
+                        .position(|t| t.id() == Some(id) && t.is_preview == is_preview)
+                        .or_else(|| self.tabs.position_by_id(id));
+                    if let Some(tab) = tab_idx.map(|i| &mut self.tabs[i]) {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
@@ -565,6 +667,21 @@ impl Workspace {
                                         svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
+                                }
+
+                                // reload sibling tab so edits appear in both views
+                                let has_sibling = self.tabs.iter().any(|t| {
+                                    t.id() == Some(id)
+                                        && t.is_preview != is_preview
+                                        && !t.is_closing
+                                });
+                                if has_sibling {
+                                    self.tasks.queue_load(LoadRequest {
+                                        id,
+                                        tab_created: false,
+                                        make_current: false,
+                                        is_preview: !is_preview,
+                                    });
                                 }
                             }
                             Err(err) => {
@@ -872,7 +989,11 @@ impl WsPersistentStore {
     // todo: store non-file (mind map) tabs?
     pub fn set_tabs(&mut self, tabs: &[Tab], current_tab_index: usize) {
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tabs.iter().flat_map(|t| t.id()).collect();
+        data_lock.open_tabs = tabs
+            .iter()
+            .filter(|t| !t.is_preview)
+            .flat_map(|t| t.id())
+            .collect();
         if !tabs.is_empty() {
             if let Some(tab) = tabs.get(current_tab_index) {
                 data_lock.current_tab = tab.id();
