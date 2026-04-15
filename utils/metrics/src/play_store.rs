@@ -260,7 +260,7 @@ impl PlayStoreState {
 }
 
 fn extract_month_from_filename(filename: &str) -> Option<String> {
-    // Format: stats/installs/installs_app.lockbook_YYYYMM_overview.csv
+    // Format: stats/installs/installs_app.lockbook_YYYYMM_country.csv
     let parts: Vec<&str> = filename.split('_').collect();
     for part in parts {
         if part.len() == 6 && part.chars().all(|c| c.is_ascii_digit()) {
@@ -346,7 +346,7 @@ async fn list_csv_files(client: &Client, token: &str, bucket: &str) -> Vec<Strin
         .unwrap_or_default()
         .into_iter()
         .map(|o| o.name)
-        .filter(|n| n.ends_with("_overview.csv"))
+        .filter(|n| n.ends_with("_country.csv"))
         .collect()
 }
 

@@ -70,9 +70,7 @@ fn parse_authorization_header(macaroon: &str) -> Option<String> {
         }
     };
 
-    let header = format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, bound_discharge);
-    info!("snap auth: bound discharge macaroon to root");
-    Some(header)
+    Some(format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, bound_discharge))
 }
 
 #[derive(Serialize)]
