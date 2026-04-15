@@ -164,10 +164,11 @@ impl SearchExecutor for PathSearch {
         let Some((_, ref ext, ref content)) = self.preview else { return };
 
         self.label_renderer.ext = ext.clone();
+        self.label_renderer.layout.margin = 0.;
+        let cursor = ui.cursor().min;
         let width = ui.available_width();
-        let text_areas = self
-            .label_renderer
-            .render(ui, ui.cursor().min, content, width);
+
+        let text_areas = self.label_renderer.render(ui, cursor, content, width);
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
