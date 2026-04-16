@@ -6,7 +6,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
-use egui::{Pos2, Ui};
+use egui::{Pos2, Ui, Vec2};
 use lb_rs::model::text::offset_types::{
     DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
@@ -591,6 +591,11 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
+    /// Intrinsic image dimensions by URL. Populated opportunistically from
+    /// the texture cache when an image is first rendered, so that layout
+    /// remains stable as images scroll in and out of view (textures evict,
+    /// dimensions persist).
+    pub image_dims: RefCell<HashMap<String, Vec2>>,
 }
 
 impl LayoutCache {
