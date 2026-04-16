@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
+use std::sync::{Arc, Mutex};
 use tracing::instrument;
 use web_time::{Duration, Instant};
 
@@ -16,6 +17,7 @@ use crate::output::Response;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
+use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
@@ -23,6 +25,13 @@ use lb_rs::Uuid;
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            cache.lock().unwrap().begin_frame();
+        }
+
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.core.app_foregrounded();
         }
@@ -52,6 +61,23 @@ impl Workspace {
         if zoom != self.cfg.get_zoom_factor() {
             self.cfg.set_zoom_factor(zoom);
         }
+
+        if let Some(cache) = self
+            .ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+        {
+            let mut c = cache.lock().unwrap();
+            c.end_frame();
+        }
+
+        let fps = 1.0 / ui.input(|i| i.stable_dt);
+        ui.ctx().debug_painter().text(
+            ui.ctx().screen_rect().right_bottom() + egui::vec2(-10., -10.),
+            egui::Align2::RIGHT_BOTTOM,
+            format!("{fps:.0} fps"),
+            egui::FontId::monospace(14.),
+            egui::Color32::from_rgb(255, 100, 100),
+        );
 
         mem::take(&mut self.out)
     }

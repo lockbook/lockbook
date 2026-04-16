@@ -590,35 +590,7 @@ pub struct LayoutCache {
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
-    pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
-}
-
-#[derive(Hash, PartialEq, Eq)]
-pub struct GlyphonBufferKey {
-    pub text: String,
-    pub font_size_bits: u32,
-    pub line_height_bits: u32,
-    pub width_bits: u32,
-    pub family: FontFamily,
-    pub bold: bool,
-    pub italic: bool,
-    pub color: [u8; 4],
-}
-
-impl GlyphonBufferKey {
-    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32, format: &Format) -> Self {
-        Self {
-            text: text.to_string(),
-            font_size_bits: font_size.to_bits(),
-            line_height_bits: line_height.to_bits(),
-            width_bits: width.to_bits(),
-            family: format.family.clone(),
-            bold: format.bold,
-            italic: format.italic,
-            color: format.color.to_array(),
-        }
-    }
 }
 
 impl LayoutCache {
@@ -628,7 +600,6 @@ impl LayoutCache {
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
-        self.glyphon_buffers.borrow_mut().clear();
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
@@ -690,6 +661,11 @@ impl LayoutCache {
 }
 
 impl Editor {
+    /// Look up or shape a glyphon buffer for the given text and formatting.
+    /// Delegates to the shared GlyphonCache so the same shaped buffer is reused
+    /// across frames (and across widgets). The editor-specific concern here is
+    /// emoji: graphemes containing emoji codepoints get the Twemoji font family
+    /// while everything else uses the format's font family.
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
@@ -697,58 +673,81 @@ impl Editor {
             .ctx
             .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))
             .unwrap();
+        let glyphon_cache = self
+            .ctx
+            .data(|d| {
+                d.get_temp::<Arc<Mutex<crate::widgets::glyphon_cache::GlyphonCache>>>(
+                    egui::Id::NULL,
+                )
+            })
+            .unwrap();
 
         let ppi = self.ctx.pixels_per_point();
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
         let width = width * ppi;
-        let key = GlyphonBufferKey::new(text, font_size, line_height, width, format);
-        let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
-        cache
-            .entry(key)
-            .or_insert_with(|| {
-                let attrs = glyphon::Attrs::new()
-                    .family(match format.family {
-                        FontFamily::Sans => glyphon::Family::SansSerif,
-                        FontFamily::Mono => glyphon::Family::Monospace,
-                        FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
-                    })
-                    .weight(if format.bold {
-                        glyphon::Weight::BOLD
-                    } else {
-                        glyphon::Weight::NORMAL
-                    })
-                    .style(if format.italic {
-                        glyphon::Style::Italic
-                    } else {
-                        glyphon::Style::Normal
-                    });
-                let metrics = glyphon::Metrics::new(font_size, line_height);
-                let mut b = glyphon::Buffer::new(&mut font_system.lock().unwrap(), metrics);
-                b.set_size(&mut font_system.lock().unwrap(), Some(width), None);
-                let emoji_attrs =
-                    glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
-                let spans = text.graphemes(true).map(|g| {
-                    let is_emoji = g.chars().any(|c| {
-                        matches!(
-                            c as u32,
-                            0xFE0F  // variation selector-16: emoji presentation
-                        | 0x1F000.. // supplementary multilingual plane: core emoji blocks
-                        )
-                    });
-                    (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+
+        use crate::widgets::glyphon_cache::*;
+        let key = GlyphonCacheKey::single(
+            text,
+            match format.family {
+                FontFamily::Sans => GlyphonFontFamily::SansSerif,
+                FontFamily::Mono => GlyphonFontFamily::Monospace,
+                FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
+            },
+            format.bold,
+            format.italic,
+            Some(format.color.to_array()),
+            font_size.to_bits(),
+            line_height.to_bits(),
+            width.to_bits(),
+        );
+
+        let fs = Arc::clone(&font_system);
+        let mut cache = glyphon_cache.lock().unwrap();
+        cache.get_or_shape(key, move || {
+            let attrs = glyphon::Attrs::new()
+                .family(match format.family {
+                    FontFamily::Sans => glyphon::Family::SansSerif,
+                    FontFamily::Mono => glyphon::Family::Monospace,
+                    FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
+                })
+                .weight(if format.bold {
+                    glyphon::Weight::BOLD
+                } else {
+                    glyphon::Weight::NORMAL
+                })
+                .style(if format.italic {
+                    glyphon::Style::Italic
+                } else {
+                    glyphon::Style::Normal
                 });
-                b.set_rich_text(
-                    &mut font_system.lock().unwrap(),
-                    spans,
-                    &attrs,
-                    glyphon::Shaping::Advanced,
-                    None,
-                );
-                b.shape_until_scroll(&mut font_system.lock().unwrap(), false);
-                Arc::new(RwLock::new(b))
-            })
-            .clone()
+            let metrics = glyphon::Metrics::new(font_size, line_height);
+            let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
+            b.set_size(&mut fs.lock().unwrap(), Some(width), None);
+            let emoji_attrs =
+                glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
+            let text = text.to_string();
+            let spans = text.graphemes(true).map(|g| {
+                let is_emoji = g.chars().any(|c| {
+                    matches!(
+                        c as u32,
+                        0xFE0F  // variation selector-16: emoji presentation
+                    | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+                    )
+                });
+                (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+            });
+            b.set_rich_text(
+                &mut fs.lock().unwrap(),
+                spans,
+                &attrs,
+                glyphon::Shaping::Advanced,
+                None,
+            );
+            b.shape_until_scroll(&mut fs.lock().unwrap(), false);
+            b
+        })
     }
 }
 
