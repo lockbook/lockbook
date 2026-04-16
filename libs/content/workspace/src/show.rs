@@ -31,6 +31,7 @@ impl Workspace {
         {
             cache.lock().unwrap().begin_frame();
         }
+        self.images.begin_frame();
 
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.core.app_foregrounded();
@@ -68,6 +69,7 @@ impl Workspace {
         {
             cache.lock().unwrap().end_frame();
         }
+        self.images.end_frame();
 
         mem::take(&mut self.out)
     }

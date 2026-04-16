@@ -22,7 +22,6 @@ enum DestinationTitle {
     Absent,
 }
 
-use crate::resolvers::LinkResolver as _;
 pub use crate::resolvers::LinkState;
 
 impl<'ast> Editor {

@@ -22,10 +22,13 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::resolvers::FileCacheLinkResolver;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
+use crate::tab::markdown_editor::{
+    Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
+};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
@@ -33,6 +36,7 @@ use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
+use crate::widgets::image_cache::ImageCache;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -49,6 +53,7 @@ pub struct Workspace {
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
+    pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -82,6 +87,8 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files =
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
+        let images =
+            ImageCache::new(ctx.clone(), HttpClient::default(), core.clone(), Arc::clone(&files));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
@@ -93,6 +100,7 @@ impl Workspace {
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
+            images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
@@ -592,7 +600,12 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
+                                            link_resolver: Box::new(FileCacheLinkResolver::new(
+                                                Arc::clone(&self.files),
+                                                id,
+                                            )),
                                             files: Arc::clone(&self.files),
+                                            images: self.images.clone(),
                                         },
                                         MdConfig {
                                             readonly: tab.read_only,

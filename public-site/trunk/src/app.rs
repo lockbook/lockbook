@@ -3,10 +3,11 @@ use std::sync::Arc;
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
     tab::{
-        markdown_editor::{Editor, MdConfig, MdResources},
+        markdown_editor::{Editor, HttpClient, MdConfig, MdResources},
         svg_editor::SVGEditor,
     },
     theme::palette_v2::{Mode, Theme, ThemeExt as _},
+    widgets::image_cache::ImageCache,
     workspace::WsPersistentStore,
 };
 
@@ -81,6 +82,15 @@ impl eframe::App for LbWebApp {
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
+                    let files = Arc::new(std::sync::RwLock::new(
+                        workspace_rs::file_cache::FileCache::empty(),
+                    ));
+                    let images = ImageCache::new(
+                        ctx.clone(),
+                        HttpClient::default(),
+                        self.core.clone(),
+                        Arc::clone(&files),
+                    );
                     self.editor = Some(Editor::new(
                         include_str!("../resources/editor-demo.md"),
                         Uuid::new_v4(),
@@ -89,9 +99,9 @@ impl eframe::App for LbWebApp {
                             ctx: ctx.clone(),
                             core: self.core.clone(),
                             persistence: self.cfg.clone(),
-                            files: Arc::new(std::sync::RwLock::new(
-                                workspace_rs::file_cache::FileCache::empty(),
-                            )),
+                            files,
+                            link_resolver: Box::new(()),
+                            images,
                         },
                         MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
                     ));
@@ -110,9 +120,11 @@ impl eframe::App for LbWebApp {
                     ))
                 }
                 if let Some(md) = &mut self.editor {
+                    md.images.begin_frame();
                     egui::Frame::default().show(ui, |ui| {
                         md.show(ui);
                     });
+                    md.images.end_frame();
                 }
 
                 if let Some(svg) = &mut self.canvas {

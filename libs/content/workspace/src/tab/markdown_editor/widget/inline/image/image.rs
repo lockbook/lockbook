@@ -16,7 +16,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
-use super::cache::ImageState;
+use crate::widgets::image_cache::ImageState;
 
 impl<'ast> Editor {
     pub fn span_image(
@@ -34,31 +34,24 @@ impl<'ast> Editor {
 
     pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str) -> f32 {
         let width = self.width(node);
-        if let Some(image_state) = self.images.map.get(url) {
-            let image_state = image_state.lock().unwrap().deref().clone();
-            match image_state {
-                ImageState::Loading => self.image_size(Vec2::splat(200.), width).y,
-                ImageState::Loaded(texture_id) => {
-                    let [image_width, image_height] =
-                        self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
-                    let size =
-                        self.image_size(Vec2::new(image_width as _, image_height as _), width);
 
-                    size.y
-                }
-                ImageState::Failed(_) => self.image_size(Vec2::splat(200.), width).y,
-            }
-        } else {
-            0.
-        }
+        let dims = self
+            .layout_cache
+            .image_dims
+            .borrow()
+            .get(url)
+            .copied()
+            .unwrap_or(Vec2::splat(200.));
+        self.image_size(dims, width).y
     }
 
     pub fn show_image_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, url: &str,
     ) {
         let width = self.width(node);
-        if let Some(image_state) = self.images.map.get(url) {
-            let image_state = image_state.lock().unwrap().deref().clone();
+        {
+            let state = self.images.get_or_load(url, self.file_id);
+            let image_state = state.lock().unwrap().deref().clone();
             match image_state {
                 ImageState::Loading => {
                     let icon = Icon::IMAGE;
@@ -97,9 +90,15 @@ impl<'ast> Editor {
                 ImageState::Loaded(texture_id) => {
                     let [image_width, image_height] =
                         self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
+                    let dims = Vec2::new(image_width as f32, image_height as f32);
+                    {
+                        let mut cache = self.layout_cache.image_dims.borrow_mut();
+                        if cache.get(url) != Some(&dims) {
+                            cache.insert(url.to_string(), dims);
+                        }
+                    }
 
-                    let size =
-                        self.image_size(Vec2::new(image_width as _, image_height as _), width);
+                    let size = self.image_size(dims, width);
                     let padding = (width - size.x) / 2.0;
                     let image_top_left = top_left + Vec2::new(padding, 0.);
                     let rect = Rect::from_min_size(image_top_left, size);
