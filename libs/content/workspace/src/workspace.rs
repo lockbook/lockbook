@@ -22,6 +22,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::resolvers::FileCacheLinkResolver;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
@@ -592,6 +593,10 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
+                                            link_resolver: Box::new(FileCacheLinkResolver::new(
+                                                Arc::clone(&self.files),
+                                                id,
+                                            )),
                                             files: Arc::clone(&self.files),
                                         },
                                         MdConfig {

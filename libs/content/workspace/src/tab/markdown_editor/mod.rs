@@ -6,7 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
-use crate::resolvers::FileCacheLinkResolver;
+use crate::resolvers::LinkResolver;
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -92,7 +92,7 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
-    pub link_resolver: FileCacheLinkResolver,
+    pub link_resolver: Box<dyn LinkResolver>,
     pub layout: MdLayout,
 
     // theme
@@ -180,6 +180,7 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
+    pub link_resolver: Box<dyn LinkResolver>,
 }
 
 pub struct MdConfig {
@@ -255,15 +256,13 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files } = res;
+        let MdResources { ctx, core, persistence, files, link_resolver } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
-
-        let link_resolver = FileCacheLinkResolver::new(files.clone(), file_id);
 
         Self {
             core,
@@ -343,6 +342,7 @@ impl Editor {
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
+                link_resolver: Box::new(()),
                 files,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },

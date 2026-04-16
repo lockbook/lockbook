@@ -3,7 +3,6 @@ use egui::{OpenUrl, Pos2, Ui};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::resolvers::LinkResolver as _;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::widget::inline::Response;

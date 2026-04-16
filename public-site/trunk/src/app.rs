@@ -92,6 +92,7 @@ impl eframe::App for LbWebApp {
                             files: Arc::new(std::sync::RwLock::new(
                                 workspace_rs::file_cache::FileCache::empty(),
                             )),
+                            link_resolver: Box::new(()),
                         },
                         MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
                     ));
