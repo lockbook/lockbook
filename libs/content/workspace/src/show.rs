@@ -69,16 +69,6 @@ impl Workspace {
             cache.lock().unwrap().end_frame();
         }
 
-        // todo: remove before merge
-        let fps = 1.0 / ui.input(|i| i.stable_dt);
-        ui.ctx().debug_painter().text(
-            ui.ctx().screen_rect().right_bottom() + egui::vec2(-10., -10.),
-            egui::Align2::RIGHT_BOTTOM,
-            format!("{fps:.0} fps"),
-            egui::FontId::monospace(14.),
-            egui::Color32::from_rgb(255, 100, 100),
-        );
-
         mem::take(&mut self.out)
     }
 

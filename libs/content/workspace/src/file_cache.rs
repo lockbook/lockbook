@@ -24,6 +24,11 @@ pub struct FileCache {
     pub shared: Vec<File>,
     pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: HashMap<Uuid, u64>,
+    pub last_modified_recursive: HashMap<Uuid, u64>,
+    pub last_modified_by_recursive: HashMap<Uuid, String>,
+    /// Max last_modified across all files. Used as a cache invalidation key
+    /// by the landing page sort cache — changes whenever the file tree changes.
+    pub last_modified: u64,
 }
 
 impl FileCache {
@@ -46,6 +51,9 @@ impl FileCache {
             shared: vec![],
             suggested: vec![],
             size_bytes_recursive: Default::default(),
+            last_modified_recursive: Default::default(),
+            last_modified_by_recursive: Default::default(),
+            last_modified: 0,
         }
     }
 
@@ -57,26 +65,61 @@ impl FileCache {
         let shared = lb.get_pending_share_files()?;
 
         let mut size_recursive = HashMap::new();
+        let mut modified_recursive = HashMap::new();
+        let mut modified_by_recursive = HashMap::new();
         for file in files.iter().chain(shared.iter()) {
+            let all_ids = files
+                .descendents(file.id)
+                .iter()
+                .chain(shared.descendents(file.id).iter())
+                .map(|f| f.id)
+                .chain(iter::once(file.id))
+                .collect::<Vec<_>>();
+
             size_recursive.insert(
                 file.id,
-                files
-                    .descendents(file.id)
+                all_ids
                     .iter()
-                    .chain(shared.descendents(file.id).iter())
-                    .map(|f| f.id)
-                    .chain(iter::once(file.id))
                     .filter_map(|id| {
                         files
-                            .get_by_id(id)
-                            .or_else(|| shared.get_by_id(id))
+                            .get_by_id(*id)
+                            .or_else(|| shared.get_by_id(*id))
                             .map(|f| f.size_bytes)
                     })
                     .sum::<_>(),
             );
+
+            let most_recent = all_ids
+                .iter()
+                .filter_map(|id| files.get_by_id(*id).or_else(|| shared.get_by_id(*id)))
+                .max_by_key(|f| f.last_modified);
+
+            modified_recursive.insert(file.id, most_recent.map(|f| f.last_modified).unwrap_or(0));
+            modified_by_recursive.insert(
+                file.id,
+                most_recent
+                    .map(|f| f.last_modified_by.clone())
+                    .unwrap_or_default(),
+            );
         }
 
-        Ok(Self { root, files, suggested, shared, size_bytes_recursive: size_recursive })
+        let last_modified = files
+            .iter()
+            .chain(shared.iter())
+            .map(|f| f.last_modified)
+            .max()
+            .unwrap_or(0);
+
+        Ok(Self {
+            root,
+            files,
+            suggested,
+            shared,
+            size_bytes_recursive: size_recursive,
+            last_modified_recursive: modified_recursive,
+            last_modified_by_recursive: modified_by_recursive,
+            last_modified,
+        })
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
@@ -85,13 +128,10 @@ impl FileCache {
     }
 
     pub fn last_modified_recursive(&self, id: Uuid) -> u64 {
-        self.descendents(id)
-            .iter()
-            .map(|f| f.id)
-            .chain(iter::once(id))
-            .map(|id| self.get_by_id(id).unwrap().last_modified)
-            .max()
-            .unwrap()
+        self.last_modified_recursive
+            .get(&id)
+            .copied()
+            .unwrap_or_else(|| self.get_by_id(id).map(|f| f.last_modified).unwrap_or(0))
     }
 
     /// Iterates all known files: the user's own tree plus pending shares.
@@ -189,14 +229,14 @@ impl FileCache {
     }
 
     pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
-        let last_modified_id = self
-            .descendents(id)
-            .iter()
-            .map(|f| f.id)
-            .chain(iter::once(id))
-            .max_by_key(|id| self.get_by_id(*id).unwrap().last_modified)
-            .unwrap();
-        &self.get_by_id(last_modified_id).unwrap().last_modified_by
+        self.last_modified_by_recursive
+            .get(&id)
+            .map(|s| s.as_str())
+            .unwrap_or_else(|| {
+                self.get_by_id(id)
+                    .map(|f| f.last_modified_by.as_str())
+                    .unwrap_or("")
+            })
     }
 }
 

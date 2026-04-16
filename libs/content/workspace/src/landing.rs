@@ -18,7 +18,7 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 
-#[derive(Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct LandingPage {
     search_term: String,
     doc_types: Vec<DocType>,
@@ -27,6 +27,25 @@ pub struct LandingPage {
     sort: Sort,
     sort_asc: bool,
     flatten_tree: bool,
+
+    #[serde(skip)]
+    cached_file_ids: Vec<Uuid>,
+    #[serde(skip)]
+    cache_generation: u64,
+    #[serde(skip)]
+    cache_snapshot: Option<Box<LandingPage>>,
+}
+
+impl PartialEq for LandingPage {
+    fn eq(&self, other: &Self) -> bool {
+        self.search_term == other.search_term
+            && self.doc_types == other.doc_types
+            && self.collaborators == other.collaborators
+            && self.only_me == other.only_me
+            && self.sort == other.sort
+            && self.sort_asc == other.sort_asc
+            && self.flatten_tree == other.flatten_tree
+    }
 }
 
 impl Default for LandingPage {
@@ -39,6 +58,9 @@ impl Default for LandingPage {
             sort: Default::default(),
             sort_asc: true,
             flatten_tree: true,
+            cached_file_ids: Vec::new(),
+            cache_generation: 0,
+            cache_snapshot: None,
         }
     }
 }
@@ -516,7 +538,20 @@ impl Workspace {
         response
     }
 
-    fn filtered_sorted_files<'a>(&self, files: &'a FileCache, account: &Account) -> Vec<&'a File> {
+    fn filtered_sorted_files<'a>(
+        &mut self, files: &'a FileCache, account: &Account,
+    ) -> Vec<&'a File> {
+        if self.landing_page.cache_generation == files.last_modified
+            && self.landing_page.cache_snapshot.as_deref() == Some(&self.landing_page)
+        {
+            return self
+                .landing_page
+                .cached_file_ids
+                .iter()
+                .filter_map(|id| files.get_by_id(*id).or_else(|| files.shared.get_by_id(*id)))
+                .collect();
+        }
+
         let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
 
         // Filter
@@ -637,6 +672,10 @@ impl Workspace {
             descendents.reverse()
         }
 
+        self.landing_page.cached_file_ids = descendents.iter().map(|f| f.id).collect();
+        self.landing_page.cache_generation = files.last_modified;
+        self.landing_page.cache_snapshot = Some(Box::new(self.landing_page.clone()));
+
         descendents
     }
 
@@ -647,8 +686,8 @@ impl Workspace {
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
-        let account = &self.account;
-        let descendents = self.filtered_sorted_files(files, account);
+        let account = self.account.clone();
+        let descendents = self.filtered_sorted_files(files, &account);
 
         // Show
         if !descendents.is_empty() {
