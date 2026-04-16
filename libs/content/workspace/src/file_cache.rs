@@ -84,21 +84,6 @@ impl FileCache {
             / self.size_bytes_recursive[&self.get_by_id(id).unwrap().parent] as f32
     }
 
-    /// returns the uncompressed, recursive size of a file scaled relative to
-    /// peers so that the biggest sibling is 1.0
-    pub fn usage_portion_scaled(&self, id: Uuid, peers: &[&File]) -> f32 {
-        let current_usage = self.size_bytes_recursive[&id];
-
-        let max_sibling_usage = peers
-            .iter()
-            .map(|peer| self.size_bytes_recursive[&peer.id])
-            .chain(std::iter::once(current_usage))
-            .max()
-            .unwrap_or(1);
-
-        current_usage as f32 / max_sibling_usage as f32
-    }
-
     pub fn last_modified_recursive(&self, id: Uuid) -> u64 {
         self.descendents(id)
             .iter()

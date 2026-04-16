@@ -794,6 +794,12 @@ impl Workspace {
 
                         ui.end_row();
 
+                        let max_usage = descendents
+                            .iter()
+                            .filter_map(|f| files.size_bytes_recursive.get(&f.id).copied())
+                            .max()
+                            .unwrap_or(1) as f32;
+
                         let mut current_time_category = "";
                         let mut child_idx = 0;
                         while child_idx < descendents.len() {
@@ -1190,8 +1196,8 @@ impl Workspace {
                                     Vec2::new(available_width, ui.available_height()),
                                 );
 
-                                let target_width = rect.width()
-                                    * files.usage_portion_scaled(child.id, &descendents);
+                                let usage = files.size_bytes_recursive[&child.id] as f32;
+                                let target_width = rect.width() * (usage / max_usage);
                                 let excess_width = rect.width() - target_width;
                                 rect.max.x -= excess_width;
 
