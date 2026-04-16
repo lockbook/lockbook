@@ -49,8 +49,6 @@ pub struct GlyphonCache {
     current: HashMap<GlyphonCacheKey, Arc<RwLock<glyphon::Buffer>>>,
     previous: HashMap<GlyphonCacheKey, Arc<RwLock<glyphon::Buffer>>>,
     began_this_frame: bool,
-    hits: usize,
-    misses: usize,
 }
 
 impl Default for GlyphonCache {
@@ -65,8 +63,6 @@ impl GlyphonCache {
             current: HashMap::new(),
             previous: HashMap::new(),
             began_this_frame: false,
-            hits: 0,
-            misses: 0,
         }
     }
 
@@ -75,11 +71,6 @@ impl GlyphonCache {
             return;
         }
         self.began_this_frame = true;
-        #[cfg(debug_assertions)]
-        {
-            self.hits = 0;
-            self.misses = 0;
-        }
         self.previous = std::mem::take(&mut self.current);
     }
 
@@ -87,23 +78,16 @@ impl GlyphonCache {
         self.began_this_frame = false;
     }
 
-    pub fn stats(&self) -> (usize, usize, usize) {
-        (self.hits, self.misses, self.previous.len())
-    }
-
     pub fn get_or_shape(
         &mut self, key: GlyphonCacheKey, shape_fn: impl FnOnce() -> glyphon::Buffer,
     ) -> Arc<RwLock<glyphon::Buffer>> {
         if let Some(buf) = self.current.get(&key) {
-            self.hits += 1;
             return buf.clone();
         }
         if let Some(buf) = self.previous.remove(&key) {
-            self.hits += 1;
             self.current.insert(key, buf.clone());
             return buf;
         }
-        self.misses += 1;
         let buf = Arc::new(RwLock::new(shape_fn()));
         self.current.insert(key, buf.clone());
         buf
