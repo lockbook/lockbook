@@ -332,6 +332,19 @@ impl Workspace {
         }
     }
 
+    fn image_content(&self, id: Uuid) -> ContentState {
+        ContentState::Open(TabContent::Image(ImageViewer::new(id, self.images.clone())))
+    }
+
+    fn is_image(&self, id: Uuid) -> bool {
+        self.files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .map(|f| DocType::from_name(&f.name) == DocType::Image)
+            .unwrap_or(false)
+    }
+
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let mut create_tab = || {
             if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
@@ -355,6 +368,16 @@ impl Workspace {
         };
         let create_tab = create_tab();
 
+        if self.is_image(id) {
+            let content = self.image_content(id);
+            if create_tab {
+                self.create_tab(content, make_current);
+            } else if let Some(tab) = self.current_tab_mut() {
+                tab.content = content;
+            }
+            return;
+        }
+
         if create_tab {
             self.create_tab(ContentState::Loading(id), make_current);
         }
@@ -368,38 +391,40 @@ impl Workspace {
     }
 
     pub fn back(&mut self) {
-        if let Some(current_tab) = self.current_tab_mut() {
-            if let Some(back_id) = current_tab.back.pop() {
-                if let Some(current_id) = current_tab.id() {
-                    current_tab.forward.push(current_id);
+        let Some(current_tab) = self.current_tab_mut() else { return };
+        let Some(back_id) = current_tab.back.pop() else { return };
+        let Some(current_id) = current_tab.id() else { return };
+        current_tab.forward.push(current_id);
 
-                    current_tab.content = ContentState::Loading(back_id);
-                    self.tasks.queue_load(LoadRequest {
-                        id: back_id,
-                        tab_created: true,
-                        make_current: false,
-                        is_preview: false,
-                    });
-                }
-            }
+        if self.is_image(back_id) {
+            self.current_tab_mut().unwrap().content = self.image_content(back_id);
+        } else {
+            self.current_tab_mut().unwrap().content = ContentState::Loading(back_id);
+            self.tasks.queue_load(LoadRequest {
+                id: back_id,
+                tab_created: true,
+                make_current: false,
+                is_preview: false,
+            });
         }
     }
 
     pub fn forward(&mut self) {
-        if let Some(current_tab) = self.current_tab_mut() {
-            if let Some(forward_id) = current_tab.forward.pop() {
-                if let Some(current_id) = current_tab.id() {
-                    current_tab.back.push(current_id);
+        let Some(current_tab) = self.current_tab_mut() else { return };
+        let Some(forward_id) = current_tab.forward.pop() else { return };
+        let Some(current_id) = current_tab.id() else { return };
+        current_tab.back.push(current_id);
 
-                    current_tab.content = ContentState::Loading(forward_id);
-                    self.tasks.queue_load(LoadRequest {
-                        id: forward_id,
-                        tab_created: true,
-                        make_current: false,
-                        is_preview: false,
-                    });
-                }
-            }
+        if self.is_image(forward_id) {
+            self.current_tab_mut().unwrap().content = self.image_content(forward_id);
+        } else {
+            self.current_tab_mut().unwrap().content = ContentState::Loading(forward_id);
+            self.tasks.queue_load(LoadRequest {
+                id: forward_id,
+                tab_created: true,
+                make_current: false,
+                is_preview: false,
+            });
         }
     }
 
@@ -544,7 +569,8 @@ impl Workspace {
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id, &ext, bytes,
+                                id,
+                                self.images.clone(),
                             )));
                         }
                         DocType::PDF => {
