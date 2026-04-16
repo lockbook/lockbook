@@ -137,11 +137,11 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
-            if (isRendering) {
-                workspaceWrapper.workspaceView.startRendering()
-            } else {
-                workspaceWrapper.workspaceView.stopRendering()
-            }
+//            if (isRendering) {
+//                workspaceWrapper.workspaceView.startRendering()
+//            } else {
+//                workspaceWrapper.workspaceView.stopRendering()
+//            }
         }
 
         binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)

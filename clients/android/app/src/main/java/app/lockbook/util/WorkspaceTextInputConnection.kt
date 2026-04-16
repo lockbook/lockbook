@@ -11,6 +11,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
+import app.lockbook.workspace.Workspace
 import java.util.concurrent.atomic.AtomicReference
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
@@ -27,20 +28,17 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated(isImmediate: Boolean = false) {
-        workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.NotifySelectionUpdate to -1)
-    }
+        if ((batchEditCount.get() == 0 && cursorMonitorStatus.monitor) || isImmediate) {
+            val selection = wsEditable.getSelection()
 
-    fun applySelectionNotification(isImmediate: Boolean = false) {
-
-        val selection = wsEditable.getSelection()
-
-        getInputMethodManager().updateSelection(
-            textInputWrapper,
-            selection.start,
-            selection.end,
-            wsEditable.composingStart,
-            wsEditable.composingEnd
-        )
+            getInputMethodManager().updateSelection(
+                textInputWrapper,
+                selection.start,
+                selection.end,
+                wsEditable.composingStart,
+                wsEditable.composingEnd
+            )
+        }
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
@@ -48,32 +46,25 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
-            workspaceView.textMutations.get().add(
-                WorkspaceView.WsTextMutation.SendKeyEvent(
-                    event.keyCode,
-                    content,
-                    event.action == KeyEvent.ACTION_DOWN,
-                    event.isAltPressed,
-                    event.isCtrlPressed,
-                    event.isShiftPressed
-                ) to -1
-            )
+            Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
-        workspaceView.drawImmediately()
+        workspaceView.invalidate()
 
         return true
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
-
         when (id) {
-            android.R.id.selectAll -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.SelectAll to -1)
-            android.R.id.cut -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCut to -1)
-            android.R.id.copy -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCopy to -1)
+            android.R.id.selectAll -> Workspace.selectAll(WorkspaceView.WGPU_OBJ)
+            android.R.id.cut -> Workspace.clipboardCut(WorkspaceView.WGPU_OBJ)
+            android.R.id.copy -> Workspace.clipboardCopy(WorkspaceView.WGPU_OBJ)
             android.R.id.paste -> {
                 getClipboardManager().primaryClip?.getItemAt(0)?.text.let { clipboardText ->
-                    workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()) to -1)
+                    Workspace.clipboardPaste(
+                        WorkspaceView.WGPU_OBJ,
+                        clipboardText.toString()
+                    )
                 }
             }
             android.R.id.copyUrl,
@@ -83,13 +74,12 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             else -> return false
         }
 
-        workspaceView.drawImmediately()
+        workspaceView.invalidate()
 
         return true
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
-
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
@@ -141,11 +131,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         batchEditCount.getAndUpdate { (it - 1.coerceAtLeast(0)) }
         notifySelectionUpdated()
 
-        val isBatchEditing = batchEditCount.get() > 0
-        if (!isBatchEditing) {
-            wsEditable.flushQueue()
-        }
-        return isBatchEditing
+        return batchEditCount.get() > 0
     }
 
     override fun getEditable(): Editable {

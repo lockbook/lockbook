@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
@@ -50,6 +51,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.min
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
@@ -59,6 +61,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var renderJob: Job? = null
+
+    var ignoreSelectionUpdate = false
 
     private val nativeLock = ReentrantLock()
 
@@ -74,9 +78,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
 
-    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, Int>>())
-
     var lastFrameTransform = 0
+
+    private var redrawTask: Runnable = Runnable {
+        invalidate()
+    }
 
     var frameCount = AtomicReference(0)
 
@@ -276,8 +282,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     var motionEventPredictor = MotionEventPredictor.newInstance(this)
 
-    fun startRendering() {
+    override fun draw(canvas: Canvas) {
+        super.draw(canvas)
 
+        blockDrawWorkspace()
+    }
+
+    fun startRendering() {
         renderJob?.cancel()
         renderJob = renderScope.launch {
             while (isActive) {
@@ -367,17 +378,15 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        stopRendering()
+//        stopRendering()
 
-        nativeLock.withLock {
-            Workspace.resizeWS(
-                WGPU_OBJ,
-                holder.surface,
-                context.resources.displayMetrics.scaledDensity
-            )
-        }
+        Workspace.resizeWS(
+            WGPU_OBJ,
+            holder.surface,
+            context.resources.displayMetrics.scaledDensity
+        )
 
-        startRendering()
+//        startRendering()
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -400,196 +409,114 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    private suspend fun drawWorkspace(): Long {
-        var containsNotify = false
-        val responseJson = nativeLock.withLock {
-            if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
-                return 0
-            }
+    private fun blockDrawWorkspace(): Long {
 
-            val dx = pendingDx.getAndSet(0f)
-            val dy = pendingDy.getAndSet(0f)
-            val zoom = pendingZoom.getAndSet(1f)
-            val focusX = pendingFocusX.getAndSet(0f)
-            val focusY = pendingFocusY.getAndSet(0f)
-
-            if (dx != 0f || dy != 0f || zoom != 1f) {
-                Workspace.multiTouch(
-                    WGPU_OBJ,
-                    dx,
-                    dy,
-                    zoom, focusX, focusY,
-                    gestureStartPositions.map { it.x }.toFloatArray(),
-                    gestureStartPositions.map { it.y }.toFloatArray()
-                )
-            }
-
-            // Guard again right before the native call
-            if (surface?.isValid != true) {
-                return 0
-            }
-
-            val thisFrameDirty = textMutations.get().any { it.first is WsTextMutation.Replace }
-
-            while (true) {
-
-                val event = textMutations.get().pollFirst() ?: break
-                val mutation = event.first
-                if (event.second != -1) {
-                    if (event.second != frameCount.get()) {
-                        if (lastFrameDirty) {
-
-                            mutation.transformed(lastFrameTransform)
-                            if (textMutations.get().isEmpty()) {
-                                lastFrameTransform = 0
-                            }
-                        }
-                    } else {
-                        lastFrameTransform = mutation.delta()
-                        if (lastFrameTransform != 0) {
-                        }
-                    }
-                }
-                when (mutation) {
-                    is WsTextMutation.Replace -> {
-
-                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
-                    }
-                    is WsTextMutation.InsertAtCursor -> {
-
-                        Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.ClipboardPaste -> {
-                        Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.SendKeyEvent -> {
-
-                        Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
-                    }
-                    is WsTextMutation.SelectAll -> {
-                        Workspace.selectAll(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCut -> {
-                        Workspace.clipboardCut(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCopy -> {
-                        Workspace.clipboardCopy(WGPU_OBJ)
-                    }
-                    is WsTextMutation.NotifySelectionUpdate -> {
-                        containsNotify = true
-                    }
-                    WsTextMutation.WsNotifySelectionUpdate -> {
-//                        containsNotify = !lastFrameDirty
-//                        
-                    }
-                    is WsTextMutation.Clear -> {
-
-                        Workspace.clear(WGPU_OBJ)
-                    }
-                    is WsTextMutation.SetSelection -> {
-                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
-                    }
-                    is WsTextMutation.Append -> {
-                        Workspace.append(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.Insert -> {
-                        Workspace.insert(WGPU_OBJ, mutation.where, mutation.text)
-                    }
-                }
-            }
-
-            val res = Workspace.enterFrame(WGPU_OBJ)
-
-            lastFrameDirty = thisFrameDirty
-            frameCount.getAndUpdate { it + 1 }
-
-            // you get the update here
-            val selection: JTextRange = frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
-
-            pendingSelection.set(JTextRange(selection.none, selection.start, selection.end))
-            pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
-            pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
-
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (containsNotify && textMutations.get().isEmpty()) {
-                        textInputWrapper.wsInputConnection.applySelectionNotification()
-                    }
-                }
-            }
-
-            res
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
+            return 0L
         }
 
-        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
+        val dx = pendingDx.getAndSet(0f)
+        val dy = pendingDy.getAndSet(0f)
+        val zoom = pendingZoom.getAndSet(1f)
+        val focusX = pendingFocusX.getAndSet(0f)
+        val focusY = pendingFocusY.getAndSet(0f)
 
-        withContext(Dispatchers.Main) {
-            if (response.urlOpened.isNotEmpty()) {
-                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-                startActivity(context, browserIntent, null)
-            }
+        if (dx != 0f || dy != 0f || zoom != 1f) {
+            Workspace.multiTouch(
+                WGPU_OBJ,
+                dx,
+                dy,
+                zoom, focusX, focusY,
+                gestureStartPositions.map { it.x }.toFloatArray(),
+                gestureStartPositions.map { it.y }.toFloatArray()
+            )
+        }
 
-            if (!response.docCreated.isNullUUID()) {
-                model._openFile.postValue(response.docCreated to true)
-            }
+        // Guard again right before the native call
+        if (surface?.isValid != true) {
+            return 0L
+        }
 
-            if (response.tabTitleClicked) {
-                model._tabTitleClicked.postValue(Unit)
-                Workspace.unfocusTitle(WGPU_OBJ)
-            }
+        val res = Workspace.enterFrame(WGPU_OBJ)
 
-            if (response.copiedText.isNotEmpty()) {
-                (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                    .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
-            }
+        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(res)
 
-            if (response.tabsChanged) {
-                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
+        if (response.urlOpened.isNotEmpty()) {
+            val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+            startActivity(context, browserIntent, null)
+        }
 
-                if (tab != null) {
-                    model._currentTab.value = model.currentTab.value?.copy(type = tab)
-                }
-            }
+        if (!response.docCreated.isNullUUID()) {
+            model._openFile.postValue(response.docCreated to true)
+        }
 
-            if (!response.selectedFile.isNullUUID()) {
-                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
-            }
+        if (response.tabTitleClicked) {
+            model._tabTitleClicked.postValue(Unit)
+            Workspace.unfocusTitle(WGPU_OBJ)
+        }
 
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+        if (response.copiedText.isNotEmpty()) {
+            (App.applicationContext()
+                .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+        }
 
-                    if (response.textUpdated && contextMenu != null) {
-                        contextMenu?.finish()
-                    }
+        if (response.tabsChanged) {
+            val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
 
-//                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount.get() == 0) {
-
-//                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
-//                    }
-
-                    if (response.hasEditMenu && contextMenu == null) {
-                        val actionModeCallback =
-                            TextEditorContextMenu(textInputWrapper)
-
-                        contextMenu = this@WorkspaceView.startActionMode(
-                            FloatingTextEditorContextMenu(
-                                actionModeCallback,
-                                response.editMenuX,
-                                response.editMenuY
-                            ),
-                            ActionMode.TYPE_FLOATING
-                        )
-                    }
-                }
+            if (tab != null) {
+                model._currentTab.value = model.currentTab.value?.copy(type = tab)
             }
         }
 
-//        return min(response.redrawIn, 500u).toLong()
+        if (!response.selectedFile.isNullUUID()) {
+            model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
+        }
+
+        if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+
+                if (response.textUpdated && contextMenu != null) {
+                    contextMenu?.finish()
+                }
+
+                if (response.selectionUpdated && !ignoreSelectionUpdate) {
+                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
+
+                if (response.hasEditMenu && contextMenu == null) {
+                    val actionModeCallback =
+                        TextEditorContextMenu(textInputWrapper)
+
+                    contextMenu = this@WorkspaceView.startActionMode(
+                        FloatingTextEditorContextMenu(
+                            actionModeCallback,
+                            response.editMenuX,
+                            response.editMenuY
+                        ),
+                        ActionMode.TYPE_FLOATING
+                    )
+                }
+            }
+        }
+        invalidate()
+
+//        if (response.redrawIn < 100u) {
+//        } else {
+//            handler.postDelayed(redrawTask, min(response.redrawIn, 200u).toLong())
+//        }
         return response.redrawIn.toLong()
+
+    }
+
+    private suspend fun drawWorkspace(): Long {
+        return 0
     }
 
     fun drawImmediately() {
-        redrawChannel.trySend(Unit)
+        ignoreSelectionUpdate = true
+        blockDrawWorkspace()
+        ignoreSelectionUpdate = false
     }
 
     fun createDocAt(payload: Pair<Boolean, String>) {
@@ -698,6 +625,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
+        invalidate()
         drawImmediately()
     }
 
