@@ -98,6 +98,7 @@ impl<'ast> Editor {
 
         let required_ranges = self.galley_required_ranges();
         let viewport = ui.clip_rect();
+        let buffer = viewport.height();
 
         let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
             required_ranges.iter().any(|rr| range.intersects(rr, true))
@@ -140,6 +141,12 @@ impl<'ast> Editor {
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left, &children);
+            } else {
+                let in_buffer = top_left.y + child_height > viewport.min.y - buffer
+                    && top_left.y < viewport.max.y + buffer;
+                if in_buffer {
+                    self.warm_images(child);
+                }
             }
             top_left.y += child_height;
 
@@ -154,9 +161,10 @@ impl<'ast> Editor {
             }
             top_left.y += post_spacing;
 
-            // safe to stop: everything remaining is below the viewport and
+            // safe to stop: everything remaining is below the buffer zone and
             // past all ranges that need galleys
-            if block_below_viewport && past_all_required(child_range.start()) {
+            let past_buffer = top_left.y > viewport.max.y + buffer;
+            if past_buffer && past_all_required(child_range.start()) {
                 break;
             }
         }

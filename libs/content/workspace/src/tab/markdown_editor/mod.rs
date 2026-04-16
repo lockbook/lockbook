@@ -7,6 +7,7 @@ use web_time::Instant;
 
 use crate::file_cache::FileCache;
 use crate::resolvers::LinkResolver;
+use crate::widgets::image_cache::ImageCache;
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -34,7 +35,6 @@ use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
-use widget::inline::image::cache::ImageCache;
 use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
@@ -117,6 +117,9 @@ pub struct Editor {
     pub text_areas: Vec<TextBufferArea>,
 
     pub images: ImageCache,
+    /// Last-observed `images.last_modified()` generation. Used to detect
+    /// new image data frame-over-frame and invalidate layout accordingly.
+    images_last_seen: u64,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
@@ -155,12 +158,6 @@ pub struct Editor {
     next_resp: Response,
 }
 
-impl Drop for Editor {
-    fn drop(&mut self) {
-        self.images.free(&self.ctx);
-    }
-}
-
 static PRINT: bool = false;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -181,6 +178,7 @@ pub struct MdResources {
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
     pub link_resolver: Box<dyn LinkResolver>,
+    pub images: ImageCache,
 }
 
 pub struct MdConfig {
@@ -256,7 +254,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files, link_resolver } = res;
+        let MdResources { ctx, core, persistence, files, link_resolver, images } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -264,9 +262,11 @@ impl Editor {
         let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
+        let client: HttpClient = Default::default();
+
         Self {
             core,
-            client: Default::default(),
+            client,
             ctx,
             persistence,
             files,
@@ -295,7 +295,8 @@ impl Editor {
             event: Default::default(),
             galleys: Default::default(),
 
-            images: Default::default(),
+            images,
+            images_last_seen: 0,
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
@@ -324,26 +325,31 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
+        let ctx = Context::default();
+        let core = Lb::init(lb_rs::model::core_config::Config {
+            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+            background_work: false,
+        })
+        .unwrap();
+        let images =
+            ImageCache::new(ctx.clone(), HttpClient::default(), core.clone(), Arc::clone(&files));
         Self::new(
             md,
             Uuid::new_v4(),
             None,
             MdResources {
-                ctx: Context::default(),
-                core: Lb::init(lb_rs::model::core_config::Config {
-                    writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                    logs: false,
-                    stdout_logs: false,
-                    colored_logs: false,
-                    background_work: false,
-                })
-                .unwrap(),
+                ctx,
+                core,
                 persistence: WsPersistentStore::new(
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
                 link_resolver: Box::new(()),
                 files,
+                images,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )
@@ -461,10 +467,10 @@ impl Editor {
         // process events
         let prior_selection = self.buffer.current.selection;
         let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
+            let current = self.images.last_modified();
+            let changed = current != self.images_last_seen;
+            self.images_last_seen = current;
+            changed
         };
 
         self.emoji_completions
@@ -513,16 +519,6 @@ impl Editor {
             != self
                 .in_progress_selection
                 .unwrap_or(self.buffer.current.selection);
-
-        self.images = widget::inline::image::cache::calc(
-            root,
-            &self.images,
-            &self.client,
-            &self.core,
-            self.file_id,
-            &self.files,
-            ui,
-        );
 
         ui.painter()
             .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
@@ -730,10 +726,6 @@ impl Editor {
         if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
-        if self.images.any_loading() {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-        }
-
         // persistence: write
         let mut persistence_updated = false;
         if resp.selection_updated {
