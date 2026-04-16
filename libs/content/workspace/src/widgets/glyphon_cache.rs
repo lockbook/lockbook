@@ -26,6 +26,7 @@ pub enum GlyphonFontFamily {
 }
 
 impl GlyphonCacheKey {
+    #[allow(clippy::too_many_arguments)]
     pub fn single(
         text: impl Into<String>, family: GlyphonFontFamily, bold: bool, italic: bool,
         color: Option<[u8; 4]>, font_size_bits: u32, line_height_bits: u32, width_bits: u32,
