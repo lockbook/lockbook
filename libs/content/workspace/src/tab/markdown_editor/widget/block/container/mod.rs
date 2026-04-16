@@ -145,6 +145,8 @@ impl<'ast> Editor {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
                 if in_buffer {
+                    // walks all descendants, not just those within the buffer —
+                    // a tall container may warm images beyond the zone
                     self.warm_images(child);
                 }
             }
