@@ -165,11 +165,7 @@ impl Tab {
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.find_widget_height = md_resp.find_widget_height;
                     }
-                    TabContent::Image(img) => {
-                        if let Err(err) = img.show(ui) {
-                            self.content = ContentState::Failed(err.into());
-                        }
-                    }
+                    TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
                     TabContent::Svg(svg) => {
                         let res = svg.show(ui);
