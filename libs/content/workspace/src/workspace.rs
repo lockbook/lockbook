@@ -569,7 +569,8 @@ impl Workspace {
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id, self.images.clone(),
+                                id,
+                                self.images.clone(),
                             )));
                         }
                         DocType::PDF => {

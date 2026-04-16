@@ -83,12 +83,10 @@ impl ImageViewer {
 
                 let rect = Rect::from_center_size(available.center() + self.pan, display_size);
 
-                painter.add(
-                    RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
-                        texture_id,
-                        Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
-                    ),
-                );
+                painter.add(RectShape::filled(rect, 0.0, Color32::WHITE).with_texture(
+                    texture_id,
+                    Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
+                ));
             }
             ImageState::Failed(ref msg) => {
                 ui.centered_and_justified(|ui| {
