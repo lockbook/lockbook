@@ -31,13 +31,7 @@ impl GlyphonCacheKey {
         color: Option<[u8; 4]>, font_size_bits: u32, line_height_bits: u32, width_bits: u32,
     ) -> Self {
         Self {
-            spans: vec![GlyphonCacheSpan {
-                text: text.into(),
-                family,
-                bold,
-                italic,
-                color,
-            }],
+            spans: vec![GlyphonCacheSpan { text: text.into(), family, bold, italic, color }],
             font_size_bits,
             line_height_bits,
             width_bits,
@@ -59,11 +53,7 @@ impl Default for GlyphonCache {
 
 impl GlyphonCache {
     pub fn new() -> Self {
-        Self {
-            current: HashMap::new(),
-            previous: HashMap::new(),
-            began_this_frame: false,
-        }
+        Self { current: HashMap::new(), previous: HashMap::new(), began_this_frame: false }
     }
 
     pub fn begin_frame(&mut self) {

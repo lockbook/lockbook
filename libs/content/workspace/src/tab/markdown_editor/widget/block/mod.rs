@@ -712,16 +712,8 @@ impl Editor {
                     FontFamily::Mono => glyphon::Family::Monospace,
                     FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
                 })
-                .weight(if format.bold {
-                    glyphon::Weight::BOLD
-                } else {
-                    glyphon::Weight::NORMAL
-                })
-                .style(if format.italic {
-                    glyphon::Style::Italic
-                } else {
-                    glyphon::Style::Normal
-                });
+                .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
+                .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
             let metrics = glyphon::Metrics::new(font_size, line_height);
             let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
             b.set_size(&mut fs.lock().unwrap(), Some(width), None);

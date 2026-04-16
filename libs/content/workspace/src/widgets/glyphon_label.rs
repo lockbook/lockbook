@@ -287,11 +287,7 @@ impl<'a> GlyphonLabel<'a> {
         drop(buf);
 
         let c = color;
-        ShapedBuffer {
-            buffer,
-            size,
-            color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
-        }
+        ShapedBuffer { buffer, size, color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()) }
     }
 }
 
