@@ -6,6 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
+use crate::resolvers::FileCacheLinkResolver;
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -91,6 +92,7 @@ pub struct Editor {
     pub ctx: Context,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
+    pub link_resolver: FileCacheLinkResolver,
     pub layout: MdLayout,
 
     // theme
@@ -261,12 +263,15 @@ impl Editor {
         let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
+        let link_resolver = FileCacheLinkResolver::new(files.clone(), file_id);
+
         Self {
             core,
             client: Default::default(),
             ctx,
             persistence,
             files,
+            link_resolver,
 
             dark_mode,
 

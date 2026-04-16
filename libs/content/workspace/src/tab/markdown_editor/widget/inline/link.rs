@@ -22,12 +22,8 @@ enum DestinationTitle {
     Absent,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LinkState {
-    Normal,
-    Warning, // access gap — some collaborators can't follow this link
-    Broken,  // target not found
-}
+use crate::resolvers::LinkResolver as _;
+pub use crate::resolvers::LinkState;
 
 impl<'ast> Editor {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
@@ -35,8 +31,8 @@ impl<'ast> Editor {
         let theme = self.ctx.get_lb_theme();
         let color = match state {
             LinkState::Normal => theme.fg().blue,
-            LinkState::Warning => theme.fg().yellow,
-            LinkState::Broken => theme.fg().red,
+            LinkState::Warning { .. } => theme.fg().yellow,
+            LinkState::Broken { .. } => theme.fg().red,
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -179,14 +175,16 @@ impl<'ast> Editor {
 
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if self.link_state_for_url(&node_link.url) == LinkState::Warning {
+            if let LinkState::Warning { message } | LinkState::Broken { message } =
+                self.link_state_for_url(&node_link.url)
+            {
                 if let Some(pos) = ui.ctx().pointer_hover_pos() {
                     egui::Area::new(ui.id().with("link_warning"))
                         .order(egui::Order::Tooltip)
                         .fixed_pos(pos + egui::vec2(8.0, 16.0))
                         .show(ui.ctx(), |ui| {
                             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.label("Some collaborators cannot access this link target");
+                                ui.label(&message);
                             });
                         });
                 }
@@ -212,44 +210,15 @@ impl<'ast> Editor {
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
+        self.link_resolver.resolve_link(url)
     }
 
     pub fn link_state_for_url(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_link(url, from_id) {
-            None => LinkState::Broken,
-            Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.link_state(url)
     }
 
     pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_wikilink(url, from_id) {
-            None => LinkState::Broken,
-            Some(target_id) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.wikilink_state(url)
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
