@@ -1,9 +1,7 @@
 use std::mem;
 
-use crate::file_cache::FilesExt as _;
-use crate::file_cache::relative_path;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::{self, ClipContent, ExtendedInput as _, ExtendedOutput as _, markdown_editor};
+use crate::tab::{ExtendedInput as _, ExtendedOutput as _, markdown_editor};
 use crate::theme::icons::Icon;
 use crate::widgets::IconButton;
 use comrak::nodes::AstNode;
@@ -37,54 +35,24 @@ impl<'ast> Editor {
     }
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
-        let mut result = Vec::new();
         if self.readonly {
-            return result;
+            return Vec::new();
         }
 
-        for event in ctx.pop_events() {
-            match event {
-                crate::Event::Markdown(modification) => result.push(modification),
-                crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
-                    for clip in content {
-                        match clip {
-                            ClipContent::Image(data) => {
-                                let file = tab::import_image(&self.core, self.file_id, &data);
-
-                                let rel_path = {
-                                    let guard = self.renderer.files.read().unwrap();
-                                    let parent = guard.get_by_id(self.file_id).unwrap().parent;
-                                    let mut augmented = guard.files.clone();
-                                    if augmented.get_by_id(file.parent).is_none() {
-                                        if let Ok(folder) = self.core.get_file_by_id(file.parent) {
-                                            augmented.push(folder);
-                                        }
-                                    }
-                                    augmented.push(file.clone());
-                                    relative_path(&augmented.path(parent), &augmented.path(file.id))
-                                };
-                                let markdown_image_link = format!("![{}]({})", file.name, rel_path);
-
-                                result.push(Event::Replace {
-                                    region: Region::Selection, // todo: more thoughtful location
-                                    text: markdown_image_link,
-                                    advance_cursor: true,
-                                });
-                            }
-                            ClipContent::Files(..) => {
-                                // todo: support file drop & paste
-                                println!("unimplemented: editor file drop & paste");
-                            }
-                        }
-                    }
-                }
-                crate::Event::Undo => result.push(Event::Undo),
-                crate::Event::Redo => result.push(Event::Redo),
-                crate::Event::PredictedTouch { .. } => {}
-                crate::Event::MultiTouchGesture { .. } => {}
-            }
-        }
-        result
+        // Only claim events the editor actually handles. Drop/Paste are left
+        // for the workspace's image-import pass; PredictedTouch /
+        // MultiTouchGesture are left for other tabs / consumers.
+        ctx.pop_events_where(&mut |e| {
+            matches!(e, crate::Event::Markdown(_) | crate::Event::Undo | crate::Event::Redo)
+        })
+        .into_iter()
+        .filter_map(|e| match e {
+            crate::Event::Markdown(modification) => Some(modification),
+            crate::Event::Undo => Some(Event::Undo),
+            crate::Event::Redo => Some(Event::Redo),
+            _ => None,
+        })
+        .collect()
     }
 
     fn get_key_events(&self, ctx: &Context, root: &'ast AstNode<'ast>) -> Vec<Event> {

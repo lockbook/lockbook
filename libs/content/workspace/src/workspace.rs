@@ -32,7 +32,10 @@ use crate::tab::markdown_editor::{
 };
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
-use crate::tab::{ContentState, Destination, Tab, TabContent, TabFailure, TabSaveContent, TabSlot};
+use crate::tab::{
+    ContentState, Destination, ExtendedInput as _, Tab, TabContent, TabFailure, TabSaveContent,
+    TabSlot,
+};
 use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
@@ -492,6 +495,74 @@ impl Workspace {
             for id in tabs_to_delete {
                 if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
                     self.close_tab(idx);
+                }
+            }
+        }
+    }
+
+    /// Handle clipboard-like events (`Drop`/`Paste`). For image clips the
+    /// workspace imports the image as a lockbook file and pushes a
+    /// `Markdown::Replace` event with a relative-path `![…](…)` markdown
+    /// link; the editor then processes it in its own `process_events` later
+    /// this frame.
+    ///
+    /// Only runs when the current tab is a non-readonly markdown editor —
+    /// other tab types (SVG, image viewer, PDF) handle clipboard events
+    /// themselves. Non-clip events are left in the queue.
+    #[instrument(level = "trace", skip_all)]
+    pub fn process_clip_events(&mut self) {
+        let Some(file_id) = self.current_tab().and_then(|tab| {
+            let md = tab.markdown()?;
+            if md.readonly { None } else { Some(md.file_id) }
+        }) else {
+            return;
+        };
+
+        let events = self.ctx.pop_events_where(&mut |e| {
+            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
+        });
+        if events.is_empty() {
+            return;
+        }
+
+        for event in events {
+            let content = match event {
+                crate::tab::Event::Drop { content, .. }
+                | crate::tab::Event::Paste { content, .. } => content,
+                _ => continue,
+            };
+            for clip in content {
+                match clip {
+                    crate::tab::ClipContent::Image(data) => {
+                        let file = crate::tab::import_image(&self.core, file_id, &data);
+
+                        let rel_path = {
+                            let guard = self.files.read().unwrap();
+                            let parent = guard.get_by_id(file_id).unwrap().parent;
+                            let mut augmented = guard.files.clone();
+                            if augmented.get_by_id(file.parent).is_none() {
+                                if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                    augmented.push(folder);
+                                }
+                            }
+                            augmented.push(file.clone());
+                            crate::file_cache::relative_path(
+                                &augmented.path(parent),
+                                &augmented.path(file.id),
+                            )
+                        };
+                        let link = format!("![{}]({})", file.name, rel_path);
+
+                        self.ctx
+                            .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
+                                region: crate::tab::markdown_editor::input::Region::Selection,
+                                text: link,
+                                advance_cursor: true,
+                            });
+                    }
+                    crate::tab::ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                    }
                 }
             }
         }
