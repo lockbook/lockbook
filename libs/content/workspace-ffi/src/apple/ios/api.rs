@@ -961,8 +961,10 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(tab) = obj.workspace.current_tab_mut() {
-        tab.rename = None;
+    if let Some(dest) = obj.workspace.current_tab.clone() {
+        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
+            slot.rename = None;
+        }
     }
 }
 
