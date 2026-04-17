@@ -505,6 +505,7 @@ pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
+    fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event>;
     fn read_events(&self) -> Vec<Event>;
     fn drain(&self);
 }
@@ -534,6 +535,26 @@ impl ExtendedInput for egui::Context {
             m.data
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
             events
+        })
+    }
+
+    fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let all: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            let mut matching = Vec::new();
+            let mut rest = Vec::new();
+            for event in all {
+                if predicate(&event) {
+                    matching.push(event);
+                } else {
+                    rest.push(event);
+                }
+            }
+            m.data.insert_temp(Id::new("custom_events"), rest);
+            matching
         })
     }
 
