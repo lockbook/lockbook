@@ -1,43 +1,22 @@
 use std::f32;
-use std::ops::Deref as _;
 
 use comrak::nodes::{AstNode, NodeLink};
-use egui::{
-    self, Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, Ui,
-    UiBuilder, Vec2,
-};
-use epaint::RectShape;
+use egui::{self, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
 use crate::tab::markdown_editor::Editor;
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
-use crate::theme::icons::Icon;
-use crate::theme::palette_v2::ThemeExt as _;
-
-use crate::widgets::image_cache::ImageState;
 
 impl Editor {
-    /// Keep textures alive and pre-populate dims for all images under `node`.
-    /// Called for off-screen blocks in the buffer zone so images are warm
-    /// when they scroll into view.
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
         for descendant in node.descendants() {
             let url = match &descendant.data.borrow().value {
                 comrak::nodes::NodeValue::Image(link) => link.url.clone(),
                 _ => continue,
             };
-            let state = self.images.get_or_load(&url, self.file_id);
-            let guard = state.lock().unwrap();
-            if let ImageState::Loaded(texture_id) = *guard {
-                let [w, h] = self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
-                let dims = Vec2::new(w as f32, h as f32);
-                let mut cache = self.layout_cache.image_dims.borrow_mut();
-                if cache.get(url.as_str()) != Some(&dims) {
-                    cache.insert(url, dims);
-                }
-            }
+            self.embeds.warm(&url);
         }
     }
 }
@@ -58,14 +37,7 @@ impl<'ast> Editor {
 
     pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str) -> f32 {
         let width = self.width(node);
-
-        let dims = self
-            .layout_cache
-            .image_dims
-            .borrow()
-            .get(url)
-            .copied()
-            .unwrap_or(Vec2::splat(200.));
+        let dims = self.embeds.size(url);
         self.image_size(dims, width).y
     }
 
@@ -73,114 +45,13 @@ impl<'ast> Editor {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, url: &str,
     ) {
         let width = self.width(node);
-        {
-            let state = self.images.get_or_load(url, self.file_id);
-            let image_state = state.lock().unwrap().deref().clone();
-            match image_state {
-                ImageState::Loading => {
-                    let icon = Icon::IMAGE;
-                    let caption = "Loading image...";
+        let dims = self.embeds.size(url);
+        let size = self.image_size(dims, width);
+        let padding = (width - size.x) / 2.0;
+        let image_top_left = top_left + Vec2::new(padding, 0.);
+        let rect = Rect::from_min_size(image_top_left, size);
 
-                    let size = self.image_size(Vec2::splat(200.), width);
-                    let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
-
-                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                        let rect = ui.max_rect();
-                        ui.painter().text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            icon.icon,
-                            FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.ctx.get_lb_theme().neutral_fg_secondary(),
-                        );
-                        ui.painter().text(
-                            rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
-                            Align2::CENTER_BOTTOM,
-                            caption,
-                            FontId::default(),
-                            self.ctx.get_lb_theme().neutral_fg_secondary(),
-                        );
-                        ui.painter().rect_stroke(
-                            rect,
-                            2.,
-                            Stroke {
-                                width: 1.,
-                                color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
-                            },
-                            egui::epaint::StrokeKind::Inside,
-                        );
-                    });
-                }
-                ImageState::Loaded(texture_id) => {
-                    let [image_width, image_height] =
-                        self.ctx.tex_manager().read().meta(texture_id).unwrap().size;
-                    let dims = Vec2::new(image_width as f32, image_height as f32);
-                    {
-                        let mut cache = self.layout_cache.image_dims.borrow_mut();
-                        if cache.get(url) != Some(&dims) {
-                            cache.insert(url.to_string(), dims);
-                        }
-                    }
-
-                    let size = self.image_size(dims, width);
-                    let padding = (width - size.x) / 2.0;
-                    let image_top_left = top_left + Vec2::new(padding, 0.);
-                    let rect = Rect::from_min_size(image_top_left, size);
-
-                    let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
-                    if resp.hovered() {
-                        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-                    }
-                    if resp.clicked() {
-                        ui.ctx()
-                            .open_url(OpenUrl { url: url.into(), new_tab: true });
-                    }
-
-                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                        ui.painter().add(
-                            RectShape::filled(rect, 2.0_f32, Color32::WHITE).with_texture(
-                                texture_id,
-                                Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
-                            ),
-                        );
-                    });
-                }
-                ImageState::Failed(message) => {
-                    let icon = Icon::NO_IMAGE;
-                    let caption = message.clone();
-
-                    let size = self.image_size(Vec2::splat(200.), width);
-                    let rect = Rect::from_min_size(top_left, Vec2::new(width, size.y));
-
-                    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                        let rect = ui.max_rect();
-                        ui.painter().text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            icon.icon,
-                            FontId { size: 48.0, family: egui::FontFamily::Monospace },
-                            self.ctx.get_lb_theme().neutral_fg_secondary(),
-                        );
-                        ui.painter().text(
-                            rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
-                            Align2::CENTER_BOTTOM,
-                            caption,
-                            FontId::default(),
-                            self.ctx.get_lb_theme().neutral_fg_secondary(),
-                        );
-                        ui.painter().rect_stroke(
-                            rect,
-                            2.,
-                            Stroke {
-                                width: 1.,
-                                color: self.ctx.get_lb_theme().neutral_bg_tertiary(),
-                            },
-                            egui::epaint::StrokeKind::Inside,
-                        );
-                    });
-                }
-            }
-        }
+        self.embeds.show(ui, url, rect);
     }
 
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {

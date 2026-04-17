@@ -89,6 +89,10 @@ impl ImageCache {
         self.last_modified.load(Ordering::Relaxed)
     }
 
+    pub fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     pub fn begin_frame(&self) {
         let mut inner = self.inner.lock().unwrap();
         if !inner.began_this_frame {
