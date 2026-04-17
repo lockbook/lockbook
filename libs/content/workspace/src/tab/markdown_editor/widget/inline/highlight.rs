@@ -2,12 +2,12 @@ use comrak::nodes::AstNode;
 use egui::{Color32, Pos2, Ui};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn background_color_highlight(&self) -> Color32 {
         self.ctx.get_lb_theme().bg().yellow.gamma_multiply(0.35)
     }

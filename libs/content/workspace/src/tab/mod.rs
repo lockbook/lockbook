@@ -81,7 +81,7 @@ impl Tab {
 
     pub fn seq(&self) -> usize {
         match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            ContentState::Open(TabContent::Markdown(md)) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -267,7 +267,7 @@ impl TabContent {
 
     pub fn seq(&self) -> usize {
         match self {
-            TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::Markdown(md) => md.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -277,7 +277,7 @@ impl TabContent {
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
             TabContent::Markdown(md) => {
-                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+                Some(TabSaveContent::String(md.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             _ => None,

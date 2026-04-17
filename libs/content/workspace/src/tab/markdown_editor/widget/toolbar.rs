@@ -13,6 +13,7 @@ use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 use serde::{Deserialize, Serialize};
 
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
@@ -148,7 +149,8 @@ impl<'ast> Editor {
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.visuals_mut().widgets.active.bg_fill = self.ctx.get_lb_theme().fg().blue;
+                    ui.visuals_mut().widgets.active.bg_fill =
+                        self.renderer.ctx.get_lb_theme().fg().blue;
 
                     let is_ios = cfg!(target_os = "ios");
                     let is_mobile = is_ios || cfg!(target_os = "android");
@@ -502,10 +504,11 @@ impl<'ast> Editor {
 
         for node in root.descendants() {
             if let NodeValue::Heading(NodeHeading { level, .. }) = &node.data.borrow().value {
-                if self
-                    .node_range(node)
-                    .contains_range(&self.buffer.current.selection, true, true)
-                {
+                if self.renderer.node_range(node).contains_range(
+                    &self.renderer.buffer.current.selection,
+                    true,
+                    true,
+                ) {
                     current_heading_level = *level;
                     applied = true;
                     break;
@@ -538,7 +541,7 @@ impl<'ast> Editor {
         &self, icon: Icon, style: NodeValue, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
         let applied = if style.is_inline() {
-            self.inline_styled(root, self.buffer.current.selection, &style)
+            self.inline_styled(root, self.renderer.buffer.current.selection, &style)
         } else {
             self.unapply_block(root, &style)
         };
@@ -572,11 +575,11 @@ impl<'ast> Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.ctx.get_lb_theme().neutral_bg())
+                        .fill(self.renderer.ctx.get_lb_theme().neutral_bg())
                         .show(ui, |ui| {
                             // setup
                             ui.visuals_mut().widgets.active.bg_fill =
-                                self.ctx.get_lb_theme().fg().blue;
+                                self.renderer.ctx.get_lb_theme().fg().blue;
 
                             let is_ios = cfg!(target_os = "ios");
 
@@ -584,22 +587,24 @@ impl<'ast> Editor {
 
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            let padding = (ui.available_width() - self.width) / 2.;
+                            let padding = (ui.available_width() - self.renderer.width) / 2.;
 
                             let mut top_left =
                                 ui.max_rect().min + (padding + MENU_MARGIN) * Vec2::X;
-                            let md_width = self.width - 2. * MENU_MARGIN;
+                            let md_width = self.renderer.width - 2. * MENU_MARGIN;
 
                             // store values
-                            let source_lines = mem::take(&mut self.bounds.source_lines);
-                            let buffer = mem::take(&mut self.buffer);
-                            let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
+                            let source_lines = mem::take(&mut self.renderer.bounds.source_lines);
+                            let buffer = mem::take(&mut self.renderer.buffer);
+                            let inline_paragraphs =
+                                mem::take(&mut self.renderer.bounds.inline_paragraphs);
 
-                            let galleys = mem::take(&mut self.galleys.galleys);
-                            let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
-                            let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+                            let galleys = mem::take(&mut self.renderer.galleys.galleys);
+                            let wrap_lines = mem::take(&mut self.renderer.bounds.wrap_lines);
+                            let touch_consuming_rects =
+                                mem::take(&mut self.renderer.touch_consuming_rects);
 
-                            self.layout_cache.clear();
+                            self.renderer.layout_cache.clear();
 
                             // page title
                             ui.add_space(MENU_SPACE);
@@ -1007,19 +1012,22 @@ impl<'ast> Editor {
                             } else {
                                 0.
                             };
-                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
+                            let rect = Rect::from_min_size(
+                                top_left,
+                                Vec2::new(self.renderer.width, height),
+                            );
 
                             ui.advance_cursor_after_rect(rect);
 
                             // restore stored values
-                            self.buffer = buffer;
-                            self.bounds.source_lines = source_lines;
-                            self.bounds.inline_paragraphs = inline_paragraphs;
-                            self.calc_words();
+                            self.renderer.buffer = buffer;
+                            self.renderer.bounds.source_lines = source_lines;
+                            self.renderer.bounds.inline_paragraphs = inline_paragraphs;
+                            self.renderer.calc_words();
 
-                            self.galleys.galleys = galleys;
-                            self.bounds.wrap_lines = wrap_lines;
-                            self.touch_consuming_rects = touch_consuming_rects;
+                            self.renderer.galleys.galleys = galleys;
+                            self.renderer.bounds.wrap_lines = wrap_lines;
+                            self.renderer.touch_consuming_rects = touch_consuming_rects;
                         });
                 });
             });
@@ -1054,65 +1062,75 @@ impl<'ast> Editor {
     }
 
     pub fn markdown_label_height(&mut self, md: &str) -> f32 {
-        self.buffer = md.into();
+        self.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.buffer.queue(vec![Operation::Select(
-            self.buffer.current.segs.last_cursor_position().into_range(),
+        self.renderer.buffer.queue(vec![Operation::Select(
+            self.renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range(),
         )]);
-        self.buffer.update();
+        self.renderer.buffer.update();
 
         // parse
         let arena = Arena::new();
-        let options = Self::comrak_options();
-        let text_with_newline = self.buffer.current.text.to_string() + "\n";
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         // pre-render work
-        self.calc_source_lines();
-        self.compute_bounds(root);
-        self.bounds.inline_paragraphs.sort();
-        self.calc_words();
+        self.renderer.calc_source_lines();
+        self.renderer.compute_bounds(root);
+        self.renderer.bounds.inline_paragraphs.sort();
+        self.renderer.calc_words();
 
-        let height = self.height(root, &[root]);
+        let height = self.renderer.height(root, &[root]);
 
-        self.layout_cache.clear();
+        self.renderer.layout_cache.clear();
 
         height
     }
 
     pub fn markdown_label(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str) {
-        self.buffer = md.into();
+        self.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.buffer.queue(vec![Operation::Select(
-            self.buffer.current.segs.last_cursor_position().into_range(),
+        self.renderer.buffer.queue(vec![Operation::Select(
+            self.renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range(),
         )]);
-        self.buffer.update();
+        self.renderer.buffer.update();
 
         // parse
         let arena = Arena::new();
-        let options = Self::comrak_options();
-        let text_with_newline = self.buffer.current.text.to_string() + "\n";
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         // pre-render work
-        self.calc_source_lines();
-        self.compute_bounds(root);
-        self.bounds.inline_paragraphs.sort();
-        self.calc_words();
+        self.renderer.calc_source_lines();
+        self.renderer.compute_bounds(root);
+        self.renderer.bounds.inline_paragraphs.sort();
+        self.renderer.calc_words();
 
-        let height = self.height(root, &[root]);
+        let height = self.renderer.height(root, &[root]);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-        self.show_block(
+        self.renderer.show_block(
             &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(*ui.layout())),
             root,
             top_left,
             &[root],
         );
 
-        self.layout_cache.clear();
+        self.renderer.layout_cache.clear();
     }
 }
 

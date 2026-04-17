@@ -320,8 +320,8 @@ impl Editor {
         if term.is_empty() {
             return Vec::new();
         }
-        let text = &self.buffer.current.text;
-        let segs = &self.buffer.current.segs;
+        let text = &self.renderer.buffer.current.text;
+        let segs = &self.renderer.buffer.current.segs;
 
         if self.find.regex {
             return self.find_all_regex(term);
@@ -352,8 +352,8 @@ impl Editor {
     }
 
     fn find_all_regex(&self, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
-        let text = &self.buffer.current.text;
-        let segs = &self.buffer.current.segs;
+        let text = &self.renderer.buffer.current.text;
+        let segs = &self.renderer.buffer.current.segs;
 
         let pattern =
             if self.find.whole_word { format!(r"\b(?:{})\b", term) } else { term.to_string() };
@@ -396,7 +396,7 @@ impl Editor {
             return false;
         }
 
-        let cursor_pos = self.buffer.current.selection.1;
+        let cursor_pos = self.renderer.buffer.current.selection.1;
         let new_idx = if forward {
             match self.find.current_match {
                 Some(idx) => (idx + 1) % self.find.matches.len(),

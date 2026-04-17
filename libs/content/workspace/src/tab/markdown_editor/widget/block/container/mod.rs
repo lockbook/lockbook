@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -16,7 +16,7 @@ pub(crate) mod table;
 pub(crate) mod table_row;
 pub(crate) mod task_item;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
@@ -96,7 +96,8 @@ impl<'ast> Editor {
     ) {
         let children = self.sorted_children(node);
 
-        let required_ranges = self.galley_required_ranges();
+        let required_ranges =
+            self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
         let buffer = viewport.height();
 

@@ -84,80 +84,87 @@ pub struct Response {
     pub find_widget_height: f32,
 }
 
-pub struct Editor {
-    // dependencies
-    pub core: Lb,
-    pub client: HttpClient,
+pub struct MdRender {
+    // context
     pub ctx: Context,
-    pub persistence: WsPersistentStore,
-    pub files: Arc<RwLock<FileCache>>,
-    pub link_resolver: Box<dyn LinkResolver>,
     pub layout: MdLayout,
+    pub dark_mode: bool,
+    pub ext: String,
+    pub touch_mode: bool,
 
-    // theme
-    dark_mode: bool, // supports change detection
+    // document
+    pub bounds: Bounds,
+    pub buffer: Buffer,
 
-    // input
+    // render output
+    pub galleys: Galleys,
+    pub text_areas: Vec<TextBufferArea>,
+    pub render_events: Vec<input::Event>,
+    pub touch_consuming_rects: Vec<Rect>,
+
+    // render input
+    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
+    pub find_current_match: Option<(DocCharOffset, DocCharOffset)>,
+    pub interactive: bool,
+    pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
+    pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
+
+    // capabilities
+    pub embeds: Box<dyn EmbedResolver>,
+    pub link_resolver: Box<dyn LinkResolver>,
+    pub client: HttpClient,
+    pub files: Arc<RwLock<FileCache>>,
+
+    // caches
+    pub layout_cache: LayoutCache,
+    pub syntax: SyntaxHighlightCache,
+
+    // viewport
+    pub top_left: Pos2,
+    pub width: f32,
+    pub height: f32,
+
+    // debug
+    pub debug: bool,
+    pub frame_times: [Instant; 10],
+    pub frame_times_idx: usize,
+}
+
+pub struct Editor {
+    pub renderer: MdRender,
+
+    // workspace dependencies
+    pub core: Lb,
+    pub persistence: WsPersistentStore,
+
+    // document identity
     pub file_id: Uuid,
     pub id_salt: Id,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
-    pub ext: String,
-    pub touch_mode: bool,
-    pub phone_mode: bool,
     pub readonly: bool,
+    pub phone_mode: bool,
 
-    // internal systems
-    pub bounds: Bounds,
-    pub buffer: Buffer,
+    // input processing
     pub cursor: CursorState,
     pub event: EventState,
-    pub galleys: Galleys,
-    pub text_areas: Vec<TextBufferArea>,
-
-    pub embeds: Box<dyn EmbedResolver>,
     embeds_last_seen: u64,
-    pub layout_cache: LayoutCache,
 
-    // render inputs (populated by show() before rendering)
-    pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
-    pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
-
-    // render outputs (consumed by show() after rendering)
-    pub render_events: Vec<input::Event>,
-
-    pub syntax: SyntaxHighlightCache,
-    pub debug: bool,
-    frame_times: [Instant; 10],
-    frame_times_idx: usize,
-    pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
-    pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
-
-    // widgets
+    // interaction widgets
     pub toolbar: Toolbar,
     pub find: Find,
     pub emoji_completions: EmojiCompletions,
     pub link_completions: LinkCompletions,
 
     // selection state
-    /// During drag operations, stores the selection that would be applied
-    /// without actually updating the buffer selection (which would affect syntax reveal)
     pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
 
     // misc
+    pub scroll_area_velocity: Vec2,
     pub virtual_keyboard_shown: bool,
     scroll_to_cursor: bool,
     scroll_to_find_match: bool,
     pub unprocessed_scroll: Option<Instant>,
-
-    // layout
-    top_left: Pos2,
-    /// width of the viewport, useful for doc render width and image size
-    /// constraints, populated at frame start
-    width: f32,
-    /// height of the viewport, useful for image size constraints, populated at
-    /// frame start
-    height: f32,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -266,6 +273,77 @@ pub type HttpClient = reqwest::Client;
 #[cfg(not(target_arch = "wasm32"))]
 pub type HttpClient = reqwest::blocking::Client;
 
+impl MdRender {
+    #[cfg(test)]
+    pub(crate) fn test(md: &str) -> Self {
+        let ctx = Context::default();
+        Self {
+            ctx,
+            layout: MdLayout::desktop(),
+            dark_mode: false,
+            ext: "md".into(),
+            touch_mode: false,
+            bounds: Default::default(),
+            buffer: md.into(),
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: false,
+            embeds: Box::new(()),
+            link_resolver: Box::new(()),
+            client: Default::default(),
+            files: Arc::new(RwLock::new(FileCache::empty())),
+            layout_cache: Default::default(),
+            syntax: Default::default(),
+            top_left: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+            debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
+        }
+    }
+
+    pub fn plaintext_mode(&self) -> bool {
+        self.ext.to_lowercase() != "md"
+    }
+
+    pub fn comrak_options() -> Options<'static> {
+        let mut options = Options::default();
+        options.parse.smart = true;
+        options.parse.ignore_setext = true;
+        options.extension.alerts = true;
+        options.extension.autolink = true;
+        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
+        options.extension.footnotes = false;
+        options.extension.front_matter_delimiter = Some("---".to_string());
+        options.extension.greentext = false;
+        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.highlight = true;
+        options.extension.math_code = true; // rendered as code for now
+        options.extension.math_dollars = true; // rendered as code for now
+        options.extension.multiline_block_quotes = false; // todo
+        options.extension.shortcodes = true;
+        options.extension.spoiler = true;
+        options.extension.strikethrough = true;
+        options.extension.subscript = true;
+        options.extension.superscript = true;
+        options.extension.table = true;
+        options.extension.tagfilter = false; // intended for HTML renderers
+        options.extension.tasklist = true;
+        options.extension.underline = true;
+        options.extension.wikilinks_title_after_pipe = true; // matches obsidian
+        options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
+        options.render.escaped_char_spans = true;
+        options
+    }
+}
+
 impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
@@ -280,62 +358,74 @@ impl Editor {
 
         let client: HttpClient = Default::default();
 
-        Self {
-            core,
-            client,
+        let renderer = MdRender {
             ctx,
-            persistence,
-            files,
-            link_resolver,
-
+            layout,
             dark_mode,
+            ext,
+            touch_mode,
+
+            bounds: Default::default(),
+            buffer: md.into(),
+
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: false,
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+
+            embeds,
+            link_resolver,
+            client,
+            files,
+
+            layout_cache: Default::default(),
+            syntax: Default::default(),
+
+            top_left: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+
+            debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
+        };
+
+        Self {
+            renderer,
+
+            core,
+            persistence,
+
+            file_id,
+            id_salt: Id::NULL,
+            hmac,
+            initialized: Default::default(),
+            readonly,
+            phone_mode,
+
+            cursor: Default::default(),
+            event: Default::default(),
+            embeds_last_seen: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
             emoji_completions: Default::default(),
             link_completions: Default::default(),
 
-            readonly,
-            file_id,
-            id_salt: Id::NULL,
-            hmac,
-            initialized: Default::default(),
-            ext,
-            touch_mode,
-            phone_mode,
-            layout,
-
-            bounds: Default::default(),
-            buffer: md.into(),
-            cursor: Default::default(),
-            event: Default::default(),
-            galleys: Default::default(),
-
-            embeds,
-            embeds_last_seen: 0,
-            layout_cache: Default::default(),
-            reveal_ranges: Vec::new(),
-            text_highlight_range: None,
-            render_events: Vec::new(),
-            syntax: Default::default(),
-            debug: false,
-            frame_times: [Instant::now(); 10],
-            frame_times_idx: 0,
-            touch_consuming_rects: Default::default(),
-            scroll_area_velocity: Default::default(),
-            text_areas: Default::default(),
-
             in_progress_selection: None,
 
+            scroll_area_velocity: Default::default(),
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
             scroll_to_cursor: Default::default(),
             scroll_to_find_match: Default::default(),
             unprocessed_scroll: Default::default(),
-
-            top_left: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
 
             next_resp: Default::default(),
         }
@@ -407,63 +497,37 @@ impl Editor {
     }
 
     pub fn plaintext_mode(&self) -> bool {
-        self.ext.to_lowercase() != "md"
-    }
-
-    fn comrak_options() -> Options<'static> {
-        let mut options = Options::default();
-        options.parse.smart = true;
-        options.parse.ignore_setext = true;
-        options.extension.alerts = true;
-        options.extension.autolink = true;
-        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = false;
-        options.extension.front_matter_delimiter = Some("---".to_string());
-        options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
-        options.extension.highlight = true;
-        options.extension.math_code = true; // rendered as code for now
-        options.extension.math_dollars = true; // rendered as code for now
-        options.extension.multiline_block_quotes = false; // todo
-        options.extension.shortcodes = true;
-        options.extension.spoiler = true;
-        options.extension.strikethrough = true;
-        options.extension.subscript = true;
-        options.extension.superscript = true;
-        options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
-        options.extension.tasklist = true;
-        options.extension.underline = true;
-        options.extension.wikilinks_title_after_pipe = true; // matches obsidian
-        options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
-        options.render.escaped_char_spans = true;
-        options
+        self.renderer.plaintext_mode()
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y.round();
-        let width = ui.max_rect().width().min(self.layout.max_width).round();
-        let height_updated = self.height != height;
-        let width_updated = self.width != width;
-        self.height = height;
-        self.width = width;
+        let width = ui
+            .max_rect()
+            .width()
+            .min(self.renderer.layout.max_width)
+            .round();
+        let height_updated = self.renderer.height != height;
+        let width_updated = self.renderer.width != width;
+        self.renderer.height = height;
+        self.renderer.width = width;
 
         let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.dark_mode {
-            self.syntax.clear();
-            self.dark_mode = dark_mode;
+        if dark_mode != self.renderer.dark_mode {
+            self.renderer.syntax.clear();
+            self.renderer.dark_mode = dark_mode;
         }
 
-        self.calc_source_lines();
+        self.renderer.calc_source_lines();
 
         let start = web_time::Instant::now();
 
         let arena = Arena::new();
-        let options = Self::comrak_options();
+        let options = MdRender::comrak_options();
 
-        let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+        let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
         let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
@@ -482,20 +546,20 @@ impl Editor {
         let start = web_time::Instant::now();
 
         // process events
-        let prior_selection = self.buffer.current.selection;
+        let prior_selection = self.renderer.buffer.current.selection;
         let embeds_updated = {
-            let current = self.embeds.last_modified();
+            let current = self.renderer.embeds.last_modified();
             let changed = current != self.embeds_last_seen;
             self.embeds_last_seen = current;
             changed
         };
 
         self.emoji_completions
-            .update_active_state(&self.buffer, &self.bounds.inline_paragraphs);
+            .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
         self.link_completions.update_active_state(
-            &self.buffer,
-            &self.bounds.inline_paragraphs,
-            &self.files,
+            &self.renderer.buffer,
+            &self.renderer.bounds.inline_paragraphs,
+            &self.renderer.files,
             self.file_id,
         );
         let buffer_resp = self.process_events(ui.ctx(), root);
@@ -505,17 +569,17 @@ impl Editor {
             resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+            let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-            self.bounds.inline_paragraphs.clear();
-            self.layout_cache.invalidate_text_change();
+            self.renderer.bounds.inline_paragraphs.clear();
+            self.renderer.layout_cache.invalidate_text_change();
 
-            self.calc_source_lines();
-            self.compute_bounds(root);
-            self.bounds.inline_paragraphs.sort();
+            self.renderer.calc_source_lines();
+            self.renderer.compute_bounds(root);
+            self.renderer.bounds.inline_paragraphs.sort();
 
-            self.calc_words();
+            self.renderer.calc_words();
 
             // recompute find matches when text changes
             if let Some(term) = &self.find.term {
@@ -535,31 +599,38 @@ impl Editor {
         resp.selection_updated = prior_selection
             != self
                 .in_progress_selection
-                .unwrap_or(self.buffer.current.selection);
+                .unwrap_or(self.renderer.buffer.current.selection);
 
         // populate render inputs
-        self.reveal_ranges.clear();
+        self.renderer.in_progress_selection = self.in_progress_selection;
+        self.renderer.find_current_match = self
+            .find
+            .current_match
+            .and_then(|idx| self.find.matches.get(idx).copied());
+        self.renderer.reveal_ranges.clear();
         if !self.readonly && self.focused(ui.ctx()) {
-            self.reveal_ranges.push(self.buffer.current.selection);
+            self.renderer
+                .reveal_ranges
+                .push(self.renderer.buffer.current.selection);
         }
         if let Some(idx) = self.find.current_match {
             if let Some(&range) = self.find.matches.get(idx) {
-                self.reveal_ranges.push(range);
+                self.renderer.reveal_ranges.push(range);
             }
         }
-        self.text_highlight_range = self
+        self.renderer.text_highlight_range = self
             .emoji_completions
             .search_term_range
             .or(self.link_completions.search_term_range);
 
         ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
-        self.apply_theme(ui);
+            .rect_filled(ui.max_rect(), 0., self.renderer.ctx.get_lb_theme().neutral_bg());
+        self.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
         let scroll_area_id = ui
             .vertical(|ui| {
-                let scroll_area_id = if self.touch_mode {
+                let scroll_area_id = if self.renderer.touch_mode {
                     self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
@@ -585,9 +656,9 @@ impl Editor {
 
                                 if !self.toolbar.menu_open {
                                     // these are computed during render
-                                    self.galleys.galleys.clear();
-                                    self.bounds.wrap_lines.clear();
-                                    self.touch_consuming_rects.clear();
+                                    self.renderer.galleys.galleys.clear();
+                                    self.renderer.bounds.wrap_lines.clear();
+                                    self.renderer.touch_consuming_rects.clear();
 
                                     // show editor
                                     let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
@@ -639,9 +710,9 @@ impl Editor {
                     self.show_find_centered(ui);
 
                     // these are computed during render
-                    self.galleys.galleys.clear();
-                    self.bounds.wrap_lines.clear();
-                    self.touch_consuming_rects.clear();
+                    self.renderer.galleys.galleys.clear();
+                    self.renderer.bounds.wrap_lines.clear();
+                    self.renderer.touch_consuming_rects.clear();
 
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
@@ -675,20 +746,26 @@ impl Editor {
                     // frame
                     let (start, end) = persisted.selection;
                     let selection = (
-                        start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
-                        end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
+                        start.clamp(
+                            0.into(),
+                            self.renderer.buffer.current.segs.last_cursor_position(),
+                        ),
+                        end.clamp(
+                            0.into(),
+                            self.renderer.buffer.current.segs.last_cursor_position(),
+                        ),
                     );
-                    self.buffer.queue(vec![
+                    self.renderer.buffer.queue(vec![
                         lb_rs::model::text::operation_types::Operation::Select(selection),
                     ]);
-                    self.buffer.update();
+                    self.renderer.buffer.update();
                 }
 
                 scroll_area_id
             })
             .inner;
 
-        let text_areas = std::mem::take(&mut self.text_areas);
+        let text_areas = std::mem::take(&mut self.renderer.text_areas);
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
@@ -699,12 +776,12 @@ impl Editor {
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
 
-        self.syntax.garbage_collect();
+        self.renderer.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
 
-        if self.debug {
-            self.show_debug_fps(ui);
+        if self.renderer.debug {
+            self.renderer.show_debug_fps(ui);
         }
 
         if PRINT {
@@ -713,7 +790,7 @@ impl Editor {
                 "--------------------------------------------------------------------------------"
                     .bright_black()
             );
-            println!("document: {:?}", self.buffer.current.text);
+            println!("document: {:?}", self.renderer.buffer.current.text);
             println!(
                 "{}",
                 "--------------------------------------------------------------------------------"
@@ -731,18 +808,20 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
+        let all_selected = self.renderer.buffer.current.selection
+            == (0.into(), self.renderer.last_cursor_position());
         if embeds_updated || height_updated || width_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
-            self.layout_cache.clear();
+            self.renderer.layout_cache.clear();
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
             let new_selection = self
                 .in_progress_selection
-                .unwrap_or(self.buffer.current.selection);
-            self.layout_cache
+                .unwrap_or(self.renderer.buffer.current.selection);
+            self.renderer
+                .layout_cache
                 .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
@@ -750,7 +829,7 @@ impl Editor {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
-        if self.initialized && self.touch_mode && height_updated {
+        if self.initialized && self.renderer.touch_mode && height_updated {
             self.scroll_to_cursor = true;
             ui.ctx().request_repaint();
         }
@@ -758,7 +837,9 @@ impl Editor {
             self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
-        self.event.internal_events.append(&mut self.render_events);
+        self.event
+            .internal_events
+            .append(&mut self.renderer.render_events);
         if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
@@ -770,10 +851,10 @@ impl Editor {
                 .markdown
                 .file
                 .entry(self.file_id)
-                .and_modify(|f| f.selection = self.buffer.current.selection)
+                .and_modify(|f| f.selection = self.renderer.buffer.current.selection)
                 .or_insert(MdFilePersistence {
                     scroll_offset: Default::default(),
-                    selection: self.buffer.current.selection,
+                    selection: self.renderer.buffer.current.selection,
                     image_dims: Default::default(),
                 });
             persistence_updated = true;
@@ -786,7 +867,7 @@ impl Editor {
                     let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                     let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
 
-                    let image_dims = self.embeds.image_dims();
+                    let image_dims = self.renderer.embeds.image_dims();
                     let mut persistence = self.persistence.data.write().unwrap();
                     persistence
                         .markdown
@@ -829,7 +910,8 @@ impl Editor {
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
-        self.touch_consuming_rects
+        self.renderer
+            .touch_consuming_rects
             .iter()
             .any(|rect| rect.contains(pos))
             || self.scroll_area_velocity.abs().max_elem() > 0.
@@ -845,13 +927,13 @@ impl Editor {
             Margin::symmetric(0, 15)
         };
         ScrollArea::vertical()
-            .scroll_source(if self.touch_mode {
+            .scroll_source(if self.renderer.touch_mode {
                 ScrollSource::ALL
             } else {
                 ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
             })
             .id_salt(self.file_id)
-            .scroll_bar_visibility(if self.touch_mode {
+            .scroll_bar_visibility(if self.renderer.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {
                 ScrollBarVisibility::VisibleWhenNeeded
@@ -865,12 +947,12 @@ impl Editor {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-                            let padding = (ui.available_width() - self.width) / 2.;
+                            let padding = (ui.available_width() - self.renderer.width) / 2.;
 
-                            self.top_left =
-                                ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
+                            self.renderer.top_left = ui.max_rect().min
+                                + (padding + self.renderer.layout.margin) * Vec2::X;
                             let height = {
-                                let document_height = self.height(root, &[root]);
+                                let document_height = self.renderer.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
@@ -881,8 +963,11 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(
-                                self.top_left,
-                                Vec2::new(self.width - 2. * self.layout.margin, height),
+                                self.renderer.top_left,
+                                Vec2::new(
+                                    self.renderer.width - 2. * self.renderer.layout.margin,
+                                    height,
+                                ),
                             );
 
                             ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
@@ -890,7 +975,7 @@ impl Editor {
                             let response = ui.interact(
                                 rect,
                                 self.id(),
-                                if self.touch_mode {
+                                if self.renderer.touch_mode {
                                     Sense::click()
                                 } else {
                                     Sense::click_and_drag()
@@ -910,18 +995,19 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.show_block(ui, root, self.top_left, &[root]);
+                                self.renderer
+                                    .show_block(ui, root, self.renderer.top_left, &[root]);
                             });
                         });
                 });
-                self.galleys.galleys.sort_by_key(|g| g.range);
+                self.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
                 // show selection
                 if ui.ctx().os() != OperatingSystem::IOS {
                     let selection = self
                         .in_progress_selection
-                        .unwrap_or(self.buffer.current.selection);
-                    let theme = self.ctx.get_lb_theme();
+                        .unwrap_or(self.renderer.buffer.current.selection);
+                    let theme = self.renderer.ctx.get_lb_theme();
                     let color = theme.bg().get_color(theme.prefs().primary);
                     self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
                     self.show_offset(ui, selection.1, color);
@@ -941,7 +1027,7 @@ impl Editor {
 
                 // show find match highlights
                 if !self.find.matches.is_empty() {
-                    let theme = self.ctx.get_lb_theme();
+                    let theme = self.renderer.ctx.get_lb_theme();
                     let highlight_color = theme.neutral_bg_tertiary();
                     let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                     for (i, &match_range) in self.find.matches.iter().enumerate() {
@@ -968,15 +1054,18 @@ impl Editor {
 
     fn show_find_centered(&mut self, ui: &mut Ui) {
         let available = ui.available_width();
-        let content_width =
-            if self.touch_mode { self.width } else { self.toolbar_width().min(self.width) };
+        let content_width = if self.renderer.touch_mode {
+            self.renderer.width
+        } else {
+            self.toolbar_width().min(self.renderer.width)
+        };
         let content_left = ui.max_rect().left() + (available - content_width) / 2.;
         let top = ui.cursor().min.y;
         let find_rect =
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
             self.find
-                .show(&self.buffer, self.virtual_keyboard_shown, ui)
+                .show(&self.renderer.buffer, self.virtual_keyboard_shown, ui)
         });
         let find_resp = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
@@ -1020,7 +1109,7 @@ impl Editor {
         if resp.closed {
             self.find.matches.clear();
             self.find.current_match = None;
-            self.layout_cache.clear();
+            self.renderer.layout_cache.clear();
         }
     }
 
@@ -1313,7 +1402,7 @@ mod test {
         /// Workspace.enterFrame() — runs a full headless egui frame through
         /// Editor::show(), processing all pending events.
         fn enter_frame(&mut self) {
-            let ctx = self.editor.ctx.clone();
+            let ctx = self.editor.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
             let _ = ctx.run(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -1328,11 +1417,11 @@ mod test {
         }
 
         fn get_text(&self) -> &str {
-            &self.editor.buffer.current.text
+            &self.editor.renderer.buffer.current.text
         }
 
         fn get_selection(&self) -> (usize, usize) {
-            let sel = self.editor.buffer.current.selection;
+            let sel = self.editor.renderer.buffer.current.selection;
             (sel.0.0, sel.1.0)
         }
     }

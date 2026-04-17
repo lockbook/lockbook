@@ -12,8 +12,10 @@ impl Editor {
     ) -> DocCharOffset {
         let maybe_x_target_value = mem::take(&mut self.cursor.x_target);
         match advance {
-            Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.bounds),
-            Advance::Next(bound) => offset.advance_to_next_bound(bound, backwards, &self.bounds),
+            Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.renderer.bounds),
+            Advance::Next(bound) => {
+                offset.advance_to_next_bound(bound, backwards, &self.renderer.bounds)
+            }
             Advance::By(Increment::Char) => {
                 let mut result = offset;
                 if backwards {
@@ -22,7 +24,7 @@ impl Editor {
                     }
                 } else {
                     result += 1;
-                    result = result.min(self.buffer.current.segs.last_cursor_position());
+                    result = result.min(self.renderer.buffer.current.segs.last_cursor_position());
                 }
                 result
             }
@@ -34,7 +36,9 @@ impl Editor {
                     };
                     let x_target = maybe_x_target_value.unwrap_or(result_x);
                     result = self.advance_by_line(result, x_target, backwards);
-                    if result != 0 && result != self.buffer.current.segs.last_cursor_position() {
+                    if result != 0
+                        && result != self.renderer.buffer.current.segs.last_cursor_position()
+                    {
                         self.cursor.x_target = Some(x_target);
                     }
                 }
@@ -46,17 +50,17 @@ impl Editor {
     fn advance_by_line(
         &self, offset: DocCharOffset, x_target: f32, backwards: bool,
     ) -> DocCharOffset {
-        let Some(cur_galley_idx) = self.galleys.galley_at_offset(offset) else {
+        let Some(cur_galley_idx) = self.renderer.galleys.galley_at_offset(offset) else {
             return offset;
         };
-        let cur_galley = &self.galleys[cur_galley_idx];
+        let cur_galley = &self.renderer.galleys[cur_galley_idx];
         if backwards {
             // jump to the closest galley above that's not above another galley that's above
             let mut closest_offset: Option<DocCharOffset> = None;
             let mut closest_distance = f32::INFINITY;
             let mut row_above_top: Option<f32> = None;
             for new_galley_idx in (0..cur_galley_idx).rev() {
-                let new_galley = &self.galleys[new_galley_idx];
+                let new_galley = &self.renderer.galleys[new_galley_idx];
                 let new_galley_is_above = new_galley.rect.bottom() < cur_galley.rect.top();
                 let new_galley_too_above = if let Some(row_above_top) = row_above_top {
                     new_galley.rect.bottom() < row_above_top
@@ -72,8 +76,8 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = self.galley_offset(new_galley_idx, target_pos);
-                    let new_x = self.galley_x(new_galley, new_offset);
+                    let new_offset = self.renderer.galley_offset(new_galley_idx, target_pos);
+                    let new_x = self.renderer.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target
 
@@ -95,8 +99,8 @@ impl Editor {
             let mut closest_offset: Option<DocCharOffset> = None;
             let mut closest_distance = f32::INFINITY;
             let mut row_below_bottom: Option<f32> = None;
-            for new_galley_idx in cur_galley_idx + 1..self.galleys.len() {
-                let new_galley = &self.galleys[new_galley_idx];
+            for new_galley_idx in cur_galley_idx + 1..self.renderer.galleys.len() {
+                let new_galley = &self.renderer.galleys[new_galley_idx];
                 let new_galley_is_below = new_galley.rect.top() > cur_galley.rect.bottom();
                 let new_galley_too_below = if let Some(row_below_bottom) = row_below_bottom {
                     new_galley.rect.top() > row_below_bottom
@@ -112,8 +116,8 @@ impl Editor {
                     let cur_y = cur_galley.rect.min.y;
                     let target_pos = Pos2::new(x_target, cur_y);
 
-                    let new_offset = self.galley_offset(new_galley_idx, target_pos);
-                    let new_x = self.galley_x(new_galley, new_offset);
+                    let new_offset = self.renderer.galley_offset(new_galley_idx, target_pos);
+                    let new_x = self.renderer.galley_x(new_galley, new_offset);
 
                     let distance = (new_x - x_target).abs(); // closest as in closest to target
 
@@ -132,14 +136,15 @@ impl Editor {
             if let Some(closest_offset) = closest_offset {
                 closest_offset
             } else if !self
+                .renderer
                 .bounds
                 .source_lines
                 .find_containing(offset, true, true)
-                .contains(self.bounds.source_lines.len() - 1, true, false)
+                .contains(self.renderer.bounds.source_lines.len() - 1, true, false)
             {
                 // if we're in the last galley but not the last source line it's
                 // because the lasy galley is hidden (perhaps by a folded node)
-                self.buffer.current.segs.last_cursor_position()
+                self.renderer.buffer.current.segs.last_cursor_position()
             } else {
                 offset
             }
@@ -148,8 +153,8 @@ impl Editor {
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
     fn x(&self, offset: DocCharOffset) -> Option<f32> {
-        let cur_galley_idx = self.galleys.galley_at_offset(offset)?;
-        let cur_galley = &self.galleys[cur_galley_idx];
-        Some(self.galley_x(cur_galley, offset))
+        let cur_galley_idx = self.renderer.galleys.galley_at_offset(offset)?;
+        let cur_galley = &self.renderer.galleys[cur_galley_idx];
+        Some(self.renderer.galley_x(cur_galley, offset))
     }
 }

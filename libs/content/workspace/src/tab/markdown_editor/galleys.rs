@@ -3,7 +3,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 #[derive(Default)]
@@ -52,27 +52,26 @@ impl Galleys {
     }
 }
 
-impl Editor {
+impl MdRender {
     /// Returns the document offset range for which galleys must exist,
     /// covering the selection ± 1 source line so that arrow-key navigation
     /// across the viewport edge has a galley to land on.
-    pub fn galley_required_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
+    pub fn galley_required_ranges(
+        &self, in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
+        find_match: Option<(DocCharOffset, DocCharOffset)>,
+    ) -> Vec<(DocCharOffset, DocCharOffset)> {
         if self.bounds.source_lines.is_empty() {
             return Vec::new();
         }
 
         let mut ranges = Vec::new();
 
-        let selection = self
-            .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
+        let selection = in_progress_selection.unwrap_or(self.buffer.current.selection);
         ranges.push(self.source_line_range(selection));
 
         // also require galleys for the current find match so scroll_to_find_match works
-        if let Some(idx) = self.find.current_match {
-            if let Some(&match_range) = self.find.matches.get(idx) {
-                ranges.push(self.source_line_range(match_range));
-            }
+        if let Some(match_range) = find_match {
+            ranges.push(self.source_line_range(match_range));
         }
 
         ranges

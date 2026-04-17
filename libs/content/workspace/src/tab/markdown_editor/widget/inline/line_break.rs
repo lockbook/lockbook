@@ -1,11 +1,11 @@
 use comrak::nodes::AstNode;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn span_line_break(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {

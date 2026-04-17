@@ -2,11 +2,11 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_strong(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { bold: true, ..parent_text_format }

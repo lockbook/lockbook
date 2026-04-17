@@ -624,7 +624,9 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
+                                md.renderer
+                                    .buffer
+                                    .reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
                         }
@@ -668,7 +670,7 @@ impl Workspace {
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
                                         md.hmac = Some(hmac);
-                                        md.buffer.saved(seq, content);
+                                        md.renderer.buffer.saved(seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
