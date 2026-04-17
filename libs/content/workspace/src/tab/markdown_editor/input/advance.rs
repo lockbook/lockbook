@@ -1,12 +1,12 @@
 use std::mem;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Advance, Increment};
 use egui::Pos2;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-impl Editor {
+impl MdEdit {
     pub fn advance(
         &mut self, offset: DocCharOffset, advance: Advance, backwards: bool,
     ) -> DocCharOffset {

@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
@@ -23,7 +23,7 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
@@ -1082,7 +1082,7 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     fn dehead_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
         if let Some(range) = self.renderer.head_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));

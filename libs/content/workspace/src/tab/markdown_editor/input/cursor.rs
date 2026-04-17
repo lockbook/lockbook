@@ -3,7 +3,7 @@ use std::mem;
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -18,7 +18,7 @@ pub struct CursorState {
     pub x_target: Option<f32>,
 }
 
-impl Editor {
+impl MdEdit {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(
         &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), color: Color32,
