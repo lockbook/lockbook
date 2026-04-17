@@ -9813,7 +9813,6 @@ dependencies = [
  "lazy_static",
  "lb-fonts",
  "lb-rs",
- "lb-tantivy",
  "linkify",
  "lyon",
  "ndk-sys 0.4.1+23.1.7779620",

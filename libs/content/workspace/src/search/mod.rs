@@ -5,7 +5,7 @@ pub struct Search {
     pub search_shown: bool,
     search_type: SearchType,
     query: String,
-    initialized: bool,
+    pub initialized: bool,
     executor: Box<dyn SearchExecutor>,
 }
 
@@ -72,6 +72,7 @@ impl Workspace {
 
             if let Some(id) = activated {
                 self.open_file(id, true, true);
+                self.search.search_shown = false;
             }
         }
     }
@@ -149,8 +150,20 @@ impl Workspace {
             ui.visuals_mut().selection.stroke =
                 egui::Stroke { width: 0.3, color: ui.visuals().weak_text_color() };
 
-            ui.add_space(10.0);
-            // todo stick search icon like we do in full doc search.
+            ui.add_space(14.0);
+
+            // Magnifying glass leading the text edit, vertically centered with the input.
+            ui.allocate_ui_with_layout(
+                egui::vec2(18.0, 28.0),
+                egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| {
+                    Icon::SEARCH
+                        .size(16.0)
+                        .color(theme.neutral_fg_secondary())
+                        .show(ui);
+                },
+            );
+
             // No background color — the text edit sits directly on the modal
             // surface, so tabs/search/results read as one continuous area.
             let resp = TextEdit::singleline(&mut self.search.query)
@@ -158,7 +171,7 @@ impl Workspace {
                 .frame(false)
                 .hint_text("Search")
                 .desired_width(ui.available_size_before_wrap().x - 10.0)
-                .margin(Margin { left: 20, top: 5, bottom: 5, ..Margin::ZERO })
+                .margin(Margin { left: 2, top: 5, bottom: 5, ..Margin::ZERO })
                 .show(ui)
                 .response;
 
@@ -234,18 +247,44 @@ impl Search {
                 self.search_shown = false;
             }
 
-            if w.consume_key_exact(Modifiers::COMMAND | Modifiers::SHIFT, Key::O) {
-                self.search_shown = !self.search_shown;
-                self.search_type = SearchType::Path;
-                if self.search_shown {
+            // Cmd+O: open (or toggle) the path search.
+            if w.consume_key_exact(Modifiers::COMMAND, Key::O) {
+                if self.search_shown && self.search_type == SearchType::Path {
+                    self.search_shown = false;
+                } else {
+                    self.search_shown = true;
+                    self.search_type = SearchType::Path;
                     self.initialized = false;
                 }
             }
 
+            // Cmd+Shift+F: open the content search, or if already open, switch between
+            // Path and Content rather than dismissing.
             if w.consume_key_exact(Modifiers::COMMAND | Modifiers::SHIFT, Key::F) {
-                self.search_shown = !self.search_shown;
-                self.search_type = SearchType::Content;
-                if self.search_shown {
+                if !self.search_shown {
+                    self.search_shown = true;
+                    self.search_type = SearchType::Content;
+                    self.initialized = false;
+                } else {
+                    self.search_type = match self.search_type {
+                        SearchType::Path => SearchType::Content,
+                        SearchType::Content => SearchType::Path,
+                    };
+                    self.initialized = false;
+                }
+            }
+
+            // Tab / Shift+Tab: cycle through search types while the modal is open.
+            if self.search_shown {
+                let next = w.consume_key_exact(Modifiers::NONE, Key::Tab);
+                let prev = w.consume_key_exact(Modifiers::SHIFT, Key::Tab);
+                if next || prev {
+                    self.search_type = match (self.search_type, prev) {
+                        (SearchType::Path, false) => SearchType::Content,
+                        (SearchType::Content, false) => SearchType::Path,
+                        (SearchType::Path, true) => SearchType::Content,
+                        (SearchType::Content, true) => SearchType::Path,
+                    };
                     self.initialized = false;
                 }
             }
@@ -273,6 +312,6 @@ use crate::{
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
     tab::{ContentState, Tab},
-    theme::palette_v2::ThemeExt,
+    theme::{icons::Icon, palette_v2::ThemeExt},
     workspace::Workspace,
 };

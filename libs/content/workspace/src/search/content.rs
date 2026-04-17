@@ -361,6 +361,20 @@ impl SearchExecutor for ContentSearch {
             self.show_metrics_bar(ui, &query_state, &doc_store);
         }
 
+        // Empty states: no query typed, or query with no matches.
+        if flat.is_empty() {
+            self.show_empty_state(
+                ui,
+                query_state.submitted_query.is_empty(),
+                doc_store.end_time.is_none() && !doc_store.uningested_files.is_empty(),
+                doc_store.documents.len(),
+                doc_store.uningested_files.len(),
+            );
+
+            self.last_render_us = render_start.elapsed().as_micros();
+            return super::PickerResponse { activated: None, selected: self.selected_id };
+        }
+
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show_rows(ui, ROW_SLOT_HEIGHT, {
@@ -826,6 +840,57 @@ impl ContentSearch {
                     }
                 });
             });
+    }
+
+    fn show_empty_state(
+        &self, ui: &mut Ui, no_query: bool, indexing: bool, doc_count: usize,
+        pending: usize,
+    ) {
+        let theme = ui.ctx().get_lb_theme();
+        let muted = theme.neutral_fg_secondary();
+        let variant = theme.fg();
+
+        let (title, subtitle, icon_color): (String, String, _) = if no_query {
+            (
+                "Search your notes".to_string(),
+                if indexing {
+                    format!("Indexing {} file{}…", pending, if pending == 1 { "" } else { "s" })
+                } else {
+                    format!(
+                        "{} document{} ready — start typing to find matches",
+                        doc_count,
+                        if doc_count == 1 { "" } else { "s" }
+                    )
+                },
+                variant.get_color(Palette::Blue),
+            )
+        } else {
+            (
+                "No matches".to_string(),
+                "Try a different query or shorter words".to_string(),
+                muted,
+            )
+        };
+
+        // Fill the available region so the pane doesn't collapse to 0 width.
+        let rect = ui.available_rect_before_wrap();
+        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
+            ui.with_layout(
+                egui::Layout::centered_and_justified(egui::Direction::TopDown),
+                |ui| {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(24.0);
+                        Icon::SEARCH.size(42.0).color(icon_color).show(ui);
+                        ui.add_space(14.0);
+                        ui.add(
+                            GlyphonLabel::new(&title, theme.neutral_fg()).font_size(18.0),
+                        );
+                        ui.add_space(6.0);
+                        ui.add(GlyphonLabel::new(&subtitle, muted).font_size(13.0));
+                    });
+                },
+            );
+        });
     }
 
     fn show_focused_header(

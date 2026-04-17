@@ -1,4 +1,3 @@
-mod full_doc_search;
 mod modals;
 mod syncing;
 mod tree;
@@ -11,7 +10,7 @@ use std::{path, process, thread};
 
 use egui::scroll_area::ScrollBarVisibility;
 use egui::style::ScrollStyle;
-use egui::{EventFilter, Frame, Id, Key, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
+use egui::{EventFilter, Frame, Rect, ScrollArea, Stroke, UiBuilder, Vec2};
 use lb::Uuid;
 use lb::blocking::Lb;
 use lb::model::file::File;
@@ -29,7 +28,6 @@ use workspace_rs::workspace::Workspace;
 use crate::account::tree::OpenRequest;
 use crate::settings::Settings;
 
-use self::full_doc_search::FullDocSearch;
 use self::modals::*;
 
 use self::syncing::SyncPanel;
@@ -47,7 +45,6 @@ pub struct AccountScreen {
 
     tree: FileTree,
     is_new_user: bool,
-    full_search_doc: FullDocSearch,
     sync: SyncPanel,
     lb_status: Status,
     pub workspace: Workspace,
@@ -81,7 +78,6 @@ impl AccountScreen {
                 core.get_pending_shares().unwrap(),
                 core.get_pending_share_files().unwrap(),
             ),
-            full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
             workspace: Workspace::new(&core_clone, &ctx.clone(), true),
             modals: Modals::default(),
@@ -121,9 +117,6 @@ impl AccountScreen {
 
         self.show_any_modals(ctx, 0.0);
 
-        // focus management
-        let suggested_docs_id = Id::from("suggested_docs");
-
         let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
 
         let sidebar_min_width: f32 = 300.0;
@@ -153,43 +146,10 @@ impl AccountScreen {
                         });
 
                     ui.vertical(|ui| {
-                        let full_doc_search_resp = self.full_search_doc.show(ui, &self.core);
-                        if let Some(id) = full_doc_search_resp.file_to_open {
-                            if let Some(file) = self.tree.files.get_by_id(id) {
-                                if file.is_folder() {
-                                    self.tree.cursor = Some(file.id);
-                                    self.tree.selected.clear();
-                                    self.tree.selected.insert(file.id);
-                                    self.tree.reveal_selection();
-                                    self.tree.scroll_to_cursor = true;
-                                } else {
-                                    self.workspace.open_file(file.id, true, false);
-                                }
-                            }
-                        }
-                        if full_doc_search_resp.advance_focus {
-                            ctx.memory_mut(|m| m.request_focus(suggested_docs_id));
-                            self.tree.cursor = Some(self.tree.suggested_docs_folder_id);
-                            self.tree.selected = Some(self.tree.suggested_docs_folder_id)
-                                .into_iter()
-                                .collect();
-                        }
-
-                        if let Some(rect) = full_doc_search_resp.search_box_rect {
-                            self.show_icon_shelf(ui, rect);
-                        }
-
-                        let full_doc_search_term_empty = self
-                            .full_search_doc
-                            .query
-                            .lock()
-                            .map(|q| q.is_empty())
-                            .unwrap_or(true);
+                        self.show_icon_shelf(ui);
                         let mut max_rect = ui.max_rect(); // used to size end-of-tree padding
                         max_rect.min.y = ui.min_rect().max.y;
-                        if full_doc_search_term_empty {
-                            self.show_tree(ui, max_rect);
-                        }
+                        self.show_tree(ui, max_rect);
                     });
                 });
             });
@@ -303,13 +263,6 @@ impl AccountScreen {
                     }
                     OpenModal::InitiateShare(target) => self.open_share_modal(target),
                     OpenModal::NewFolder(maybe_parent) => self.open_new_folder_modal(maybe_parent),
-                    OpenModal::Settings => {
-                        self.modals.settings = Some(SettingsModal::new(
-                            &self.core,
-                            &self.settings,
-                            &self.workspace.cfg,
-                        ));
-                    }
                 },
                 AccountUpdate::ShareAccepted(result) => match result {
                     Ok(_) => {
@@ -510,37 +463,41 @@ impl AccountScreen {
         }
     }
 
-    fn show_icon_shelf(&mut self, ui: &mut egui::Ui, anchor_rect: egui::Rect) {
-        let rect = egui::Rect {
-            min: egui::pos2(anchor_rect.right(), anchor_rect.top()),
-            max: egui::pos2(ui.available_rect_before_wrap().right(), anchor_rect.bottom()),
-        };
-        let ui = &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(egui::Layout {
-            main_dir: egui::Direction::RightToLeft,
-            main_wrap: false,
-            main_align: egui::Align::LEFT,
-            main_justify: false,
-            cross_align: egui::Align::Center,
-            cross_justify: true,
-        }));
+    fn show_icon_shelf(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.visuals_mut().override_text_color =
+                Some(ui.visuals().text_color().linear_multiply(0.9));
+            ui.add_space(10.0);
 
-        ui.visuals_mut().override_text_color = Some(ui.visuals().text_color().linear_multiply(0.9));
-        ui.add_space(10.0);
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.add_space(10.0);
 
-        let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+                let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+                if zen_mode_btn.clicked() {
+                    self.update_zen_mode(true);
+                }
+                zen_mode_btn.on_hover_text("Hide side panel");
 
-        if zen_mode_btn.clicked() {
-            self.update_zen_mode(true);
-        }
+                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+                if settings_btn.clicked() {
+                    self.modals.settings = Some(SettingsModal::new(
+                        &self.core,
+                        &self.settings,
+                        &self.workspace.cfg,
+                    ));
+                    ui.ctx().request_repaint();
+                }
+                settings_btn.on_hover_text("Settings");
 
-        zen_mode_btn.on_hover_text("Hide side panel");
-
-        let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-        if settings_btn.clicked() {
-            self.update_tx.send(OpenModal::Settings.into()).unwrap();
-            ui.ctx().request_repaint();
-        };
-        settings_btn.on_hover_text("Settings");
+                let search_btn = Button::default().icon(&Icon::SEARCH).show(ui);
+                if search_btn.clicked() {
+                    self.workspace.search.search_shown = true;
+                    self.workspace.search.initialized = false;
+                    ui.ctx().request_repaint();
+                }
+                search_btn.on_hover_text("Search");
+            });
+        });
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {
@@ -823,7 +780,6 @@ pub enum AccountUpdate {
 pub enum OpenModal {
     NewFolder(Option<File>),
     InitiateShare(File),
-    Settings,
     PickShareParent(File),
     PickDropParent(Vec<egui::DroppedFile>),
     ConfirmDelete(Vec<File>),
