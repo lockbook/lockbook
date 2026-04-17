@@ -827,6 +827,9 @@ impl FileTree {
             if !shift_clicked && ui.input(|i| i.raw.modifiers.command) {
                 cmd_clicked = true;
 
+                if file.is_document() {
+                    resp.open_requests.insert(id, OpenRequest::new_tab());
+                }
                 self.selected.insert(id);
             }
 
