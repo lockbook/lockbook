@@ -381,7 +381,7 @@ pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y:
 pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.tabs.len() as i64
+    obj.workspace.tab_strip.len() as i64
 }
 
 /// # Safety
@@ -789,10 +789,9 @@ pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let ids: Vec<CUuid> = obj
         .workspace
-        .tabs
+        .tab_strip
         .iter()
-        .flat_map(|tab| tab.id())
-        .map(|id| id.into())
+        .map(|s| s.dest.id().into())
         .collect();
 
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
@@ -949,7 +948,7 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.tabs.iter_mut().for_each(|t| {
+    obj.workspace.tabs.values_mut().for_each(|t| {
         if let ContentState::Open(TabContent::Svg(svg)) = &mut t.content {
             svg.settings.pencil_only_drawing = val
         }
@@ -962,8 +961,10 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(tab) = obj.workspace.current_tab_mut() {
-        tab.rename = None;
+    if let Some(dest) = obj.workspace.current_tab.clone() {
+        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
+            slot.rename = None;
+        }
     }
 }
 
@@ -982,8 +983,15 @@ pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
 pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if !obj.workspace.tabs.is_empty() {
-        obj.workspace.close_tab(obj.workspace.current_tab)
+    if !obj.workspace.tab_strip.is_empty() {
+        if let Some(idx) = obj
+            .workspace
+            .current_tab
+            .as_ref()
+            .and_then(|d| obj.workspace.tab_strip.iter().position(|s| s.dest == *d))
+        {
+            obj.workspace.close_tab(idx);
+        }
     }
 }
 
@@ -993,8 +1001,8 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    for i in 0..obj.workspace.tabs.len() {
-        obj.workspace.close_tab(i);
+    while !obj.workspace.tab_strip.is_empty() {
+        obj.workspace.close_tab(0);
     }
 }
 

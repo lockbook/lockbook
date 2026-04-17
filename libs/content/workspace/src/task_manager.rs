@@ -11,7 +11,8 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
 
-use crate::tab::{Tab, TabSaveContent, TabsExt as _};
+use crate::tab::{Destination, TabSaveContent};
+use crate::widgets::tab_cache::TabCache;
 
 #[derive(Default)]
 pub struct Tasks {
@@ -80,14 +81,11 @@ pub struct LoadRequest {
     // what focuses the tab and the tab must be shown every frame to hold focus
     // todo: hold focus for loading tabs and all the rest in one proper place
     pub make_current: bool,
-
-    pub is_preview: bool,
 }
 
 #[derive(Clone, Debug)]
 pub struct SaveRequest {
     pub id: Uuid,
-    pub is_preview: bool,
 }
 
 // Timing
@@ -272,7 +270,7 @@ impl TaskManager {
     /// done - so it's the UI's responsibility to check in on it from time-to-time. This is necessary so that the UI
     /// can interject between tasks that are queued and tasks that they are queued behind i.e. to provide the latest
     /// hmac and file content so that a save succeeds.
-    pub fn check_launch(&self, tabs: &[Tab]) {
+    pub fn check_launch(&self, tabs: &TabCache) {
         let mut tasks = self.tasks.lock().unwrap();
 
         // Prioritize loads over saves because when they are both queued, it's likely because a sync pulled updates to
@@ -356,13 +354,8 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                // match on is_preview so saves read content/hmac from the correct tab
-                // when two tabs have the same file id
-                let Some(tab) = tabs
-                    .iter()
-                    .find(|t| t.id() == Some(request.id) && t.is_preview == request.is_preview)
-                    .or_else(|| tabs.get_by_id(request.id))
-                else {
+                let key = Destination::File(request.id);
+                let Some(tab) = tabs.get_any(&key) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };
