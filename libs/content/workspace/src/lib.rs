@@ -4,6 +4,7 @@ pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod output;
+pub mod search;
 pub mod show;
 pub mod space_inspector;
 pub mod tab;
@@ -11,7 +12,6 @@ pub mod task_manager;
 pub mod theme;
 pub mod widgets;
 pub mod workspace;
-pub mod search;
 
 use std::ops::DerefMut as _;
 use std::sync::atomic::{AtomicUsize, Ordering};

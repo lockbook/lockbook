@@ -377,94 +377,101 @@ impl SearchExecutor for ContentSearch {
 
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-            .show_rows(ui, ROW_SLOT_HEIGHT, {
-                // Header = 2 slots, child/expand = 1 slot.
-                flat.iter()
-                    .map(|e| if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 })
-                    .sum()
-            }, |ui, range| {
-                ui.spacing_mut().item_spacing.y = 0.0;
+            .show_rows(
+                ui,
+                ROW_SLOT_HEIGHT,
+                {
+                    // Header = 2 slots, child/expand = 1 slot.
+                    flat.iter()
+                        .map(|e| if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 })
+                        .sum()
+                },
+                |ui, range| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
 
-                // Map the slot range back to flat-entry indices.
-                let mut slot_cursor = 0usize;
-                let mut first_fi = flat.len();
-                for (fi, e) in flat.iter().enumerate() {
-                    if slot_cursor >= range.start {
-                        first_fi = fi;
-                        break;
-                    }
-                    slot_cursor += if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 };
-                }
-
-                for fi in first_fi..flat.len() {
-                    if slot_cursor >= range.end {
-                        break;
-                    }
-                    let entry = &flat[fi];
-                    slot_cursor +=
-                        if matches!(entry, FlatEntry::Header { .. }) { 2 } else { 1 };
-                    let m = &query_state.matches[entry.match_idx()];
-                    let Some((file, path, content)) =
-                        doc_store.documents.iter().find(|(f, _, _)| f.id == m.id)
-                    else {
-                        continue;
-                    };
-
-                    let is_selected_result = sel_match_idx == Some(entry.match_idx());
-
-                    let resp = match entry {
-                        FlatEntry::Header { .. } => {
-                            self.show_header_row(ui, file, path, m, is_selected_result)
+                    // Map the slot range back to flat-entry indices.
+                    let mut slot_cursor = 0usize;
+                    let mut first_fi = flat.len();
+                    for (fi, e) in flat.iter().enumerate() {
+                        if slot_cursor >= range.start {
+                            first_fi = fi;
+                            break;
                         }
-                        FlatEntry::Child { highlight_idx, .. } => {
-                            let is_active =
-                                is_selected_result && sel_highlight_idx == Some(*highlight_idx);
-                            self.show_child_row(ui, file, content, m, *highlight_idx, is_active)
+                        slot_cursor += if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 };
+                    }
+
+                    for fi in first_fi..flat.len() {
+                        if slot_cursor >= range.end {
+                            break;
                         }
-                        FlatEntry::Expand { remaining, .. } => {
-                            let is_active = self.selected == fi;
-                            let r = self.show_expand_row(ui, file, *remaining, is_active);
-                            if r.clicked() {
-                                expand_clicked = Some(file.id);
+                        let entry = &flat[fi];
+                        slot_cursor +=
+                            if matches!(entry, FlatEntry::Header { .. }) { 2 } else { 1 };
+                        let m = &query_state.matches[entry.match_idx()];
+                        let Some((file, path, content)) =
+                            doc_store.documents.iter().find(|(f, _, _)| f.id == m.id)
+                        else {
+                            continue;
+                        };
+
+                        let is_selected_result = sel_match_idx == Some(entry.match_idx());
+
+                        let resp = match entry {
+                            FlatEntry::Header { .. } => {
+                                self.show_header_row(ui, file, path, m, is_selected_result)
                             }
-                            r
+                            FlatEntry::Child { highlight_idx, .. } => {
+                                let is_active =
+                                    is_selected_result && sel_highlight_idx == Some(*highlight_idx);
+                                self.show_child_row(ui, file, content, m, *highlight_idx, is_active)
+                            }
+                            FlatEntry::Expand { remaining, .. } => {
+                                let is_active = self.selected == fi;
+                                let r = self.show_expand_row(ui, file, *remaining, is_active);
+                                if r.clicked() {
+                                    expand_clicked = Some(file.id);
+                                }
+                                r
+                            }
+                        };
+
+                        if is_selected_result {
+                            selected_group_rect = Some(match selected_group_rect {
+                                Some(r) => r.union(resp.rect),
+                                None => resp.rect,
+                            });
                         }
-                    };
 
-                    if is_selected_result {
-                        selected_group_rect = Some(match selected_group_rect {
-                            Some(r) => r.union(resp.rect),
-                            None => resp.rect,
-                        });
+                        if resp.hovered() {
+                            hovered_flat = Some(fi);
+                        }
+                        if resp.clicked() {
+                            clicked_flat = Some(fi);
+                        }
                     }
 
-                    if resp.hovered() {
-                        hovered_flat = Some(fi);
+                    // Paint the group frame after all rows have been laid out so it
+                    // spans the header + children + expand row.
+                    if let Some(rect) = selected_group_rect {
+                        let theme = ui.ctx().get_lb_theme();
+                        let stroke = egui::Stroke::new(
+                            1.0,
+                            theme.neutral_fg_secondary().linear_multiply(0.3),
+                        );
+                        // Inset the right edge so it doesn't overlap the scrollbar.
+                        let rect = egui::Rect::from_min_max(
+                            rect.min,
+                            egui::pos2(rect.max.x - 20.0, rect.max.y),
+                        );
+                        ui.painter().rect_stroke(
+                            rect,
+                            CornerRadius::same(4),
+                            stroke,
+                            egui::StrokeKind::Middle,
+                        );
                     }
-                    if resp.clicked() {
-                        clicked_flat = Some(fi);
-                    }
-                }
-
-                // Paint the group frame after all rows have been laid out so it
-                // spans the header + children + expand row.
-                if let Some(rect) = selected_group_rect {
-                    let theme = ui.ctx().get_lb_theme();
-                    let stroke =
-                        egui::Stroke::new(1.0, theme.neutral_fg_secondary().linear_multiply(0.3));
-                    // Inset the right edge so it doesn't overlap the scrollbar.
-                    let rect = egui::Rect::from_min_max(
-                        rect.min,
-                        egui::pos2(rect.max.x - 20.0, rect.max.y),
-                    );
-                    ui.painter().rect_stroke(
-                        rect,
-                        CornerRadius::same(4),
-                        stroke,
-                        egui::StrokeKind::Middle,
-                    );
-                }
-            });
+                },
+            );
 
         // Handle focused header click (exit focus mode).
         if focused_header_clicked {
@@ -789,11 +796,8 @@ impl ContentSearch {
                     }
                     if total_exact == 0 && total_partial == 0 {
                         ui.add(
-                            GlyphonLabel::new(
-                                &format!("{} matches", total_highlights),
-                                muted,
-                            )
-                            .font_size(11.0),
+                            GlyphonLabel::new(&format!("{} matches", total_highlights), muted)
+                                .font_size(11.0),
                         );
                     }
 
@@ -810,11 +814,8 @@ impl ContentSearch {
                         ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
                         let render_ms = self.last_render_us as f32 / 1000.0;
                         ui.add(
-                            GlyphonLabel::new(
-                                &format!("render {:.1} ms", render_ms),
-                                muted,
-                            )
-                            .font_size(11.0),
+                            GlyphonLabel::new(&format!("render {:.1} ms", render_ms), muted)
+                                .font_size(11.0),
                         );
                     }
 
@@ -843,8 +844,7 @@ impl ContentSearch {
     }
 
     fn show_empty_state(
-        &self, ui: &mut Ui, no_query: bool, indexing: bool, doc_count: usize,
-        pending: usize,
+        &self, ui: &mut Ui, no_query: bool, indexing: bool, doc_count: usize, pending: usize,
     ) {
         let theme = ui.ctx().get_lb_theme();
         let muted = theme.neutral_fg_secondary();
@@ -865,31 +865,22 @@ impl ContentSearch {
                 variant.get_color(Palette::Blue),
             )
         } else {
-            (
-                "No matches".to_string(),
-                "Try a different query or shorter words".to_string(),
-                muted,
-            )
+            ("No matches".to_string(), "Try a different query or shorter words".to_string(), muted)
         };
 
         // Fill the available region so the pane doesn't collapse to 0 width.
         let rect = ui.available_rect_before_wrap();
         ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
-            ui.with_layout(
-                egui::Layout::centered_and_justified(egui::Direction::TopDown),
-                |ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.add_space(24.0);
-                        Icon::SEARCH.size(42.0).color(icon_color).show(ui);
-                        ui.add_space(14.0);
-                        ui.add(
-                            GlyphonLabel::new(&title, theme.neutral_fg()).font_size(18.0),
-                        );
-                        ui.add_space(6.0);
-                        ui.add(GlyphonLabel::new(&subtitle, muted).font_size(13.0));
-                    });
-                },
-            );
+            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.add_space(24.0);
+                    Icon::SEARCH.size(42.0).color(icon_color).show(ui);
+                    ui.add_space(14.0);
+                    ui.add(GlyphonLabel::new(&title, theme.neutral_fg()).font_size(18.0));
+                    ui.add_space(6.0);
+                    ui.add(GlyphonLabel::new(&subtitle, muted).font_size(13.0));
+                });
+            });
         });
     }
 

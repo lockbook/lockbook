@@ -464,39 +464,37 @@ impl AccountScreen {
     }
 
     fn show_icon_shelf(&mut self, ui: &mut egui::Ui) {
+        // Center the three icons horizontally within the sidebar.
+        let avail = ui.available_width();
+        let bar = 32.0 * 3.0;
+        let pad = ((avail - bar) / 2.0).max(0.0);
+
         ui.horizontal(|ui| {
             ui.visuals_mut().override_text_color =
                 Some(ui.visuals().text_color().linear_multiply(0.9));
-            ui.add_space(10.0);
+            ui.add_space(pad);
 
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.add_space(10.0);
+            let search_btn = Button::default().icon(&Icon::SEARCH).show(ui);
+            if search_btn.clicked() {
+                self.workspace.search.search_shown = true;
+                self.workspace.search.initialized = false;
+                ui.ctx().request_repaint();
+            }
+            search_btn.on_hover_text("Search");
 
-                let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
-                if zen_mode_btn.clicked() {
-                    self.update_zen_mode(true);
-                }
-                zen_mode_btn.on_hover_text("Hide side panel");
+            let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
+            if settings_btn.clicked() {
+                self.modals.settings =
+                    Some(SettingsModal::new(&self.core, &self.settings, &self.workspace.cfg));
+                ui.ctx().request_repaint();
+            }
+            settings_btn.on_hover_text("Settings");
 
-                let settings_btn = Button::default().icon(&Icon::SETTINGS).show(ui);
-                if settings_btn.clicked() {
-                    self.modals.settings = Some(SettingsModal::new(
-                        &self.core,
-                        &self.settings,
-                        &self.workspace.cfg,
-                    ));
-                    ui.ctx().request_repaint();
-                }
-                settings_btn.on_hover_text("Settings");
-
-                let search_btn = Button::default().icon(&Icon::SEARCH).show(ui);
-                if search_btn.clicked() {
-                    self.workspace.search.search_shown = true;
-                    self.workspace.search.initialized = false;
-                    ui.ctx().request_repaint();
-                }
-                search_btn.on_hover_text("Search");
-            });
+            let zen_mode_btn = Button::default().icon(&Icon::TOGGLE_SIDEBAR).show(ui);
+            if zen_mode_btn.clicked() {
+                self.update_zen_mode(true);
+            }
+            zen_mode_btn.on_hover_text("Hide side panel");
         });
     }
 
