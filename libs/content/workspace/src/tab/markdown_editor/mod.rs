@@ -582,9 +582,8 @@ impl Editor {
             self.renderer.calc_words();
 
             // recompute find matches when text changes
-            if let Some(term) = &self.find.term {
-                let term = term.clone();
-                self.find.matches = self.find_all(&term);
+            if let Some(term) = self.find.term.clone() {
+                self.find.matches = self.find.find_all(&self.renderer.buffer, &term);
                 if self.find.matches.is_empty() {
                     self.find.current_match = None;
                 } else if let Some(idx) = self.find.current_match {
@@ -601,22 +600,16 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
 
-        // populate render inputs
+        // populate render inputs (find-related inputs are populated later by
+        // show_find_centered, after Find::show advances state this frame —
+        // otherwise galley_required_ranges/reveal_ranges would lag a frame and
+        // scroll_to_find_match would have no galley to scroll to)
         self.renderer.in_progress_selection = self.in_progress_selection;
-        self.renderer.find_current_match = self
-            .find
-            .current_match
-            .and_then(|idx| self.find.matches.get(idx).copied());
         self.renderer.reveal_ranges.clear();
         if !self.readonly && self.focused(ui.ctx()) {
             self.renderer
                 .reveal_ranges
                 .push(self.renderer.buffer.current.selection);
-        }
-        if let Some(idx) = self.find.current_match {
-            if let Some(&range) = self.find.matches.get(idx) {
-                self.renderer.reveal_ranges.push(range);
-            }
         }
         self.renderer.text_highlight_range = self
             .emoji_completions
@@ -1063,53 +1056,46 @@ impl Editor {
         let top = ui.cursor().min.y;
         let find_rect =
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
+        let prev_match = self.find.current_match_range();
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
             self.find
                 .show(&self.renderer.buffer, self.virtual_keyboard_shown, ui)
         });
-        let find_resp = scope_resp.inner;
+        let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
         ui.advance_cursor_after_rect(rendered_rect);
         self.next_resp.find_widget_height = rendered_rect.height();
-        self.process_find_response(find_resp);
-    }
 
-    fn process_find_response(&mut self, resp: widget::find::Response) {
-        if resp.replace_one {
-            if let Some(idx) = self.find.current_match {
-                if let Some(&match_range) = self.find.matches.get(idx) {
-                    let replacement = self.find.replace_term.clone();
-                    self.event.internal_events.push(Event::Replace {
-                        region: match_range.into(),
-                        text: replacement,
-                        advance_cursor: false,
-                    });
-                }
+        self.event.internal_events.extend(find_output.events);
+        if find_output.scroll_to_match {
+            self.scroll_to_find_match = true;
+        }
+
+        // match-driven reveal-cache invalidation, mirroring the cursor-selection path
+        let new_match = self.find.current_match_range();
+        if prev_match != new_match {
+            if let Some(old) = prev_match {
+                self.renderer
+                    .layout_cache
+                    .invalidate_reveal_change(old, old);
+            }
+            if let Some(new) = new_match {
+                self.renderer
+                    .layout_cache
+                    .invalidate_reveal_change(new, new);
             }
         }
-        if resp.replace_all {
-            let replacement = self.find.replace_term.clone();
-            for &match_range in self.find.matches.iter().rev() {
-                self.event.internal_events.push(Event::Replace {
-                    region: match_range.into(),
-                    text: replacement.clone(),
-                    advance_cursor: false,
-                });
-            }
-        }
-        if resp.term_changed {
-            let term = self.find.term.clone().unwrap_or_default();
-            self.event.internal_events.push(Event::FindSearch { term });
-        }
-        if let Some(forward) = resp.navigate {
-            self.event
-                .internal_events
-                .push(Event::FindNavigate { backwards: !forward });
-        }
-        if resp.closed {
-            self.find.matches.clear();
-            self.find.current_match = None;
+        if find_output.closed {
             self.renderer.layout_cache.clear();
+        }
+
+        // bridge find state → renderer inputs for this frame's editor render.
+        // Must happen after Find::show so galley_required_ranges and
+        // reveal_ranges reflect the new current_match; otherwise the match
+        // galley isn't built and scroll_to_find_match has nothing to scroll to.
+        self.renderer.find_current_match = new_match;
+        if let Some(range) = new_match {
+            self.renderer.reveal_ranges.push(range);
         }
     }
 
