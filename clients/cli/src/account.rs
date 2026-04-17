@@ -1,6 +1,7 @@
 use std::io;
 use std::str::FromStr;
 
+use chrono::{TimeZone, Utc};
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
@@ -149,7 +150,12 @@ pub async fn status() -> Result<(), CliError> {
                 println!("state: {account_state:?}");
             }
         }
-        println!("renews on: {}", info.period_end);
+        let renewal_date = Utc
+            .timestamp_millis_opt(info.period_end as i64)
+            .single()
+            .map(|dt| dt.format("%B %d, %Y").to_string())
+            .unwrap_or_else(|| info.period_end.to_string());
+        println!("renews on: {}", renewal_date);
     } else {
         println!("trial tier");
     }
