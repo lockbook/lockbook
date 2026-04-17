@@ -513,7 +513,7 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
-            if md.readonly { None } else { Some(md.file_id) }
+            if md.edit.readonly { None } else { Some(md.file_id) }
         }) else {
             return;
         };
@@ -695,7 +695,8 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.renderer
+                                md.edit
+                                    .renderer
                                     .buffer
                                     .reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
@@ -741,7 +742,7 @@ impl Workspace {
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
                                         md.hmac = Some(hmac);
-                                        md.renderer.buffer.saved(seq, content);
+                                        md.edit.renderer.buffer.saved(seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {

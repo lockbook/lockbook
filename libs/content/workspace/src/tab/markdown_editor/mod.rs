@@ -136,8 +136,37 @@ pub enum ScrollTarget {
     FindMatch,
 }
 
-pub struct Editor {
+/// Editing primitive — an [`MdRender`] plus the interactive state needed to
+/// mutate it. Self-contained so it can be used standalone (by a chat composer
+/// or a label+input pair) without needing an [`Editor`]'s widgets and
+/// workspace integration.
+pub struct MdEdit {
     pub renderer: MdRender,
+
+    pub cursor: CursorState,
+    pub event: EventState,
+
+    /// Capability flag — whether this editor may mutate the buffer. Preview
+    /// tabs set this to true; every mutation path in `input/canonical.rs`
+    /// early-returns when set.
+    pub readonly: bool,
+
+    /// Transient drag selection — `Some` while a drag is in progress; the
+    /// rendered cursor/selection falls back to the buffer's own selection
+    /// when `None`.
+    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
+
+    /// Frame-scoped single-target scroll intent, consumed at the end of the
+    /// scroll area callback.
+    pub pending_scroll: Option<ScrollTarget>,
+
+    /// Momentum from the last scroll-area frame; used by `will_consume_touch`
+    /// to block touch cursor placement during momentum scroll.
+    pub scroll_area_velocity: Vec2,
+}
+
+pub struct Editor {
+    pub edit: MdEdit,
 
     // workspace dependencies
     pub core: Lb,
@@ -148,12 +177,8 @@ pub struct Editor {
     pub id_salt: Id,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
-    pub readonly: bool,
     pub phone_mode: bool,
 
-    // input processing
-    pub cursor: CursorState,
-    pub event: EventState,
     embeds_last_seen: u64,
 
     // interaction widgets
@@ -162,14 +187,8 @@ pub struct Editor {
     pub emoji_completions: EmojiCompletions,
     pub link_completions: LinkCompletions,
 
-    // selection state
-    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
-
     // misc
-    pub scroll_area_velocity: Vec2,
     pub virtual_keyboard_shown: bool,
-
-    pending_scroll: Option<ScrollTarget>,
     pub unprocessed_scroll: Option<Instant>,
 
     // outputs from drawing a frame need an additional frame to process before reporting
@@ -403,7 +422,15 @@ impl Editor {
         };
 
         Self {
-            renderer,
+            edit: MdEdit {
+                renderer,
+                readonly,
+                cursor: Default::default(),
+                event: Default::default(),
+                in_progress_selection: None,
+                pending_scroll: None,
+                scroll_area_velocity: Default::default(),
+            },
 
             core,
             persistence,
@@ -412,11 +439,8 @@ impl Editor {
             id_salt: Id::NULL,
             hmac,
             initialized: Default::default(),
-            readonly,
             phone_mode,
 
-            cursor: Default::default(),
-            event: Default::default(),
             embeds_last_seen: 0,
 
             toolbar: Default::default(),
@@ -424,12 +448,8 @@ impl Editor {
             emoji_completions: Default::default(),
             link_completions: Default::default(),
 
-            in_progress_selection: None,
-
-            scroll_area_velocity: Default::default(),
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
-            pending_scroll: None,
             unprocessed_scroll: Default::default(),
 
             next_resp: Default::default(),
@@ -502,7 +522,7 @@ impl Editor {
     }
 
     pub fn plaintext_mode(&self) -> bool {
-        self.renderer.plaintext_mode()
+        self.edit.renderer.plaintext_mode()
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -512,27 +532,27 @@ impl Editor {
         let width = ui
             .max_rect()
             .width()
-            .min(self.renderer.layout.max_width)
+            .min(self.edit.renderer.layout.max_width)
             .round();
-        let height_updated = self.renderer.height != height;
-        let width_updated = self.renderer.width != width;
-        self.renderer.height = height;
-        self.renderer.width = width;
+        let height_updated = self.edit.renderer.height != height;
+        let width_updated = self.edit.renderer.width != width;
+        self.edit.renderer.height = height;
+        self.edit.renderer.width = width;
 
         let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.renderer.dark_mode {
-            self.renderer.syntax.clear();
-            self.renderer.dark_mode = dark_mode;
+        if dark_mode != self.edit.renderer.dark_mode {
+            self.edit.renderer.syntax.clear();
+            self.edit.renderer.dark_mode = dark_mode;
         }
 
-        self.renderer.calc_source_lines();
+        self.edit.renderer.calc_source_lines();
 
         let start = web_time::Instant::now();
 
         let arena = Arena::new();
         let options = MdRender::comrak_options();
 
-        let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
         let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         let ast_elapsed = start.elapsed();
@@ -551,20 +571,22 @@ impl Editor {
         let start = web_time::Instant::now();
 
         // process events
-        let prior_selection = self.renderer.buffer.current.selection;
+        let prior_selection = self.edit.renderer.buffer.current.selection;
         let embeds_updated = {
-            let current = self.renderer.embeds.last_modified();
+            let current = self.edit.renderer.embeds.last_modified();
             let changed = current != self.embeds_last_seen;
             self.embeds_last_seen = current;
             changed
         };
 
-        self.emoji_completions
-            .update_active_state(&self.renderer.buffer, &self.renderer.bounds.inline_paragraphs);
+        self.emoji_completions.update_active_state(
+            &self.edit.renderer.buffer,
+            &self.edit.renderer.bounds.inline_paragraphs,
+        );
         self.link_completions.update_active_state(
-            &self.renderer.buffer,
-            &self.renderer.bounds.inline_paragraphs,
-            &self.renderer.files,
+            &self.edit.renderer.buffer,
+            &self.edit.renderer.bounds.inline_paragraphs,
+            &self.edit.renderer.files,
             self.file_id,
         );
 
@@ -573,21 +595,21 @@ impl Editor {
         // handling never sees them while a popup is open. Escape is observed
         // (not consumed) inside handle_input and fires regardless of editor
         // focus, so the popup can always be dismissed.
-        if !self.readonly {
+        if !self.edit.readonly {
             let focused = self.focused(ui.ctx());
             self.emoji_completions.handle_input(
                 ui.ctx(),
-                &self.renderer.buffer,
+                &self.edit.renderer.buffer,
                 focused,
-                &mut self.event.internal_events,
+                &mut self.edit.event.internal_events,
             );
             self.link_completions.handle_input(
                 ui.ctx(),
-                &self.renderer.buffer,
-                &self.renderer.files,
+                &self.edit.renderer.buffer,
+                &self.edit.renderer.files,
                 self.file_id,
                 focused,
-                &mut self.event.internal_events,
+                &mut self.edit.event.internal_events,
             );
         }
 
@@ -598,21 +620,21 @@ impl Editor {
             resp.text_updated = true;
 
             // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
+            let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
             root = comrak::parse_document(&arena, &text_with_newline, &options);
 
-            self.renderer.bounds.inline_paragraphs.clear();
-            self.renderer.layout_cache.invalidate_text_change();
+            self.edit.renderer.bounds.inline_paragraphs.clear();
+            self.edit.renderer.layout_cache.invalidate_text_change();
 
-            self.renderer.calc_source_lines();
-            self.renderer.compute_bounds(root);
-            self.renderer.bounds.inline_paragraphs.sort();
+            self.edit.renderer.calc_source_lines();
+            self.edit.renderer.compute_bounds(root);
+            self.edit.renderer.bounds.inline_paragraphs.sort();
 
-            self.renderer.calc_words();
+            self.edit.renderer.calc_words();
 
             // recompute find matches when text changes
             if let Some(term) = self.find.term.clone() {
-                self.find.matches = self.find.find_all(&self.renderer.buffer, &term);
+                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
                 if self.find.matches.is_empty() {
                     self.find.current_match = None;
                 } else if let Some(idx) = self.find.current_match {
@@ -626,38 +648,43 @@ impl Editor {
         }
         resp.selection_updated = prior_selection
             != self
+                .edit
                 .in_progress_selection
-                .unwrap_or(self.renderer.buffer.current.selection);
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
 
         // populate render inputs (find-related inputs are populated later by
         // show_find_centered, after Find::show advances state this frame —
         // otherwise galley_required_ranges/reveal_ranges would lag a frame and
         // scroll_to_find_match would have no galley to scroll to)
-        self.renderer.in_progress_selection = self.in_progress_selection;
-        self.renderer.reveal_ranges.clear();
-        if !self.readonly && self.focused(ui.ctx()) {
-            self.renderer
+        self.edit.renderer.in_progress_selection = self.edit.in_progress_selection;
+        self.edit.renderer.reveal_ranges.clear();
+        if !self.edit.readonly && self.focused(ui.ctx()) {
+            self.edit
+                .renderer
                 .reveal_ranges
-                .push(self.renderer.buffer.current.selection);
+                .push(self.edit.renderer.buffer.current.selection);
         }
-        self.renderer.text_highlight_range = self
+        self.edit.renderer.text_highlight_range = self
             .emoji_completions
             .search_term_range
             .or(self.link_completions.search_term_range);
 
-        ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.renderer.ctx.get_lb_theme().neutral_bg());
-        self.renderer.apply_theme(ui);
+        ui.painter().rect_filled(
+            ui.max_rect(),
+            0.,
+            self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
+        );
+        self.edit.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
         let scroll_area_id = ui
             .vertical(|ui| {
-                let scroll_area_id = if self.renderer.touch_mode {
+                let scroll_area_id = if self.edit.renderer.touch_mode {
                     self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.readonly
+                    let toolbar_height = if !self.edit.readonly
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
@@ -678,9 +705,9 @@ impl Editor {
 
                                 if !self.toolbar.menu_open {
                                     // these are computed during render
-                                    self.renderer.galleys.galleys.clear();
-                                    self.renderer.bounds.wrap_lines.clear();
-                                    self.renderer.touch_consuming_rects.clear();
+                                    self.edit.renderer.galleys.galleys.clear();
+                                    self.edit.renderer.bounds.wrap_lines.clear();
+                                    self.edit.renderer.touch_consuming_rects.clear();
 
                                     // show editor
                                     let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
@@ -694,7 +721,8 @@ impl Editor {
                                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                                     self.next_resp.scroll_updated =
                                         scroll_area_output.state.offset.y != scroll_area_offset;
-                                    self.scroll_area_velocity = scroll_area_output.state.velocity();
+                                    self.edit.scroll_area_velocity =
+                                        scroll_area_output.state.velocity();
 
                                     Some(scroll_area_id)
                                 } else {
@@ -708,7 +736,9 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.readonly && (self.virtual_keyboard_shown || self.toolbar.menu_open) {
+                    if !self.edit.readonly
+                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                    {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
@@ -726,21 +756,21 @@ impl Editor {
                             .y
                     });
 
-                    if !self.readonly {
+                    if !self.edit.readonly {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
 
                     // these are computed during render
-                    self.renderer.galleys.galleys.clear();
-                    self.renderer.bounds.wrap_lines.clear();
-                    self.renderer.touch_consuming_rects.clear();
+                    self.edit.renderer.galleys.galleys.clear();
+                    self.edit.renderer.bounds.wrap_lines.clear();
+                    self.edit.renderer.touch_consuming_rects.clear();
 
                     // ...then show editor content
                     let scroll_area_output = self.show_scrollable_editor(ui, root);
                     self.next_resp.scroll_updated =
                         scroll_area_output.state.offset.y != scroll_area_offset;
-                    self.scroll_area_velocity = scroll_area_output.state.velocity();
+                    self.edit.scroll_area_velocity = scroll_area_output.state.velocity();
 
                     Some(scroll_area_id)
                 };
@@ -770,24 +800,34 @@ impl Editor {
                     let selection = (
                         start.clamp(
                             0.into(),
-                            self.renderer.buffer.current.segs.last_cursor_position(),
+                            self.edit
+                                .renderer
+                                .buffer
+                                .current
+                                .segs
+                                .last_cursor_position(),
                         ),
                         end.clamp(
                             0.into(),
-                            self.renderer.buffer.current.segs.last_cursor_position(),
+                            self.edit
+                                .renderer
+                                .buffer
+                                .current
+                                .segs
+                                .last_cursor_position(),
                         ),
                     );
-                    self.renderer.buffer.queue(vec![
+                    self.edit.renderer.buffer.queue(vec![
                         lb_rs::model::text::operation_types::Operation::Select(selection),
                     ]);
-                    self.renderer.buffer.update();
+                    self.edit.renderer.buffer.update();
                 }
 
                 scroll_area_id
             })
             .inner;
 
-        let text_areas = std::mem::take(&mut self.renderer.text_areas);
+        let text_areas = std::mem::take(&mut self.edit.renderer.text_areas);
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
@@ -798,12 +838,12 @@ impl Editor {
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
 
-        self.renderer.syntax.garbage_collect();
+        self.edit.renderer.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
 
-        if self.renderer.debug {
-            self.renderer.show_debug_fps(ui);
+        if self.edit.renderer.debug {
+            self.edit.renderer.show_debug_fps(ui);
         }
 
         if PRINT {
@@ -812,7 +852,7 @@ impl Editor {
                 "--------------------------------------------------------------------------------"
                     .bright_black()
             );
-            println!("document: {:?}", self.renderer.buffer.current.text);
+            println!("document: {:?}", self.edit.renderer.buffer.current.text);
             println!(
                 "{}",
                 "--------------------------------------------------------------------------------"
@@ -830,39 +870,42 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        let all_selected = self.renderer.buffer.current.selection
-            == (0.into(), self.renderer.last_cursor_position());
+        let all_selected = self.edit.renderer.buffer.current.selection
+            == (0.into(), self.edit.renderer.last_cursor_position());
         if embeds_updated || height_updated || width_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
-            self.renderer.layout_cache.clear();
+            self.edit.renderer.layout_cache.clear();
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
             let new_selection = self
+                .edit
                 .in_progress_selection
-                .unwrap_or(self.renderer.buffer.current.selection);
-            self.renderer
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+            self.edit
+                .renderer
                 .layout_cache
                 .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
-            self.pending_scroll = Some(ScrollTarget::Cursor);
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
-        if self.initialized && self.renderer.touch_mode && height_updated {
-            self.pending_scroll = Some(ScrollTarget::Cursor);
+        if self.initialized && self.edit.renderer.touch_mode && height_updated {
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
             self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
-        self.event
+        self.edit
+            .event
             .internal_events
-            .append(&mut self.renderer.render_events);
-        if !self.event.internal_events.is_empty() {
+            .append(&mut self.edit.renderer.render_events);
+        if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
         // persistence: write
@@ -873,10 +916,10 @@ impl Editor {
                 .markdown
                 .file
                 .entry(self.file_id)
-                .and_modify(|f| f.selection = self.renderer.buffer.current.selection)
+                .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
                 .or_insert(MdFilePersistence {
                     scroll_offset: Default::default(),
-                    selection: self.renderer.buffer.current.selection,
+                    selection: self.edit.renderer.buffer.current.selection,
                     image_dims: Default::default(),
                 });
             persistence_updated = true;
@@ -889,7 +932,7 @@ impl Editor {
                     let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                     let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
 
-                    let image_dims = self.renderer.embeds.image_dims();
+                    let image_dims = self.edit.renderer.embeds.image_dims();
                     let mut persistence = self.persistence.data.write().unwrap();
                     persistence
                         .markdown
@@ -932,11 +975,12 @@ impl Editor {
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
-        self.renderer
+        self.edit
+            .renderer
             .touch_consuming_rects
             .iter()
             .any(|rect| rect.contains(pos))
-            || self.scroll_area_velocity.abs().max_elem() > 0.
+            || self.edit.scroll_area_velocity.abs().max_elem() > 0.
             || self.toolbar.menu_open
     }
 
@@ -949,13 +993,13 @@ impl Editor {
             Margin::symmetric(0, 15)
         };
         ScrollArea::vertical()
-            .scroll_source(if self.renderer.touch_mode {
+            .scroll_source(if self.edit.renderer.touch_mode {
                 ScrollSource::ALL
             } else {
                 ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
             })
             .id_salt(self.file_id)
-            .scroll_bar_visibility(if self.renderer.touch_mode {
+            .scroll_bar_visibility(if self.edit.renderer.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {
                 ScrollBarVisibility::VisibleWhenNeeded
@@ -969,12 +1013,12 @@ impl Editor {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-                            let padding = (ui.available_width() - self.renderer.width) / 2.;
+                            let padding = (ui.available_width() - self.edit.renderer.width) / 2.;
 
-                            self.renderer.top_left = ui.max_rect().min
-                                + (padding + self.renderer.layout.margin) * Vec2::X;
+                            self.edit.renderer.top_left = ui.max_rect().min
+                                + (padding + self.edit.renderer.layout.margin) * Vec2::X;
                             let height = {
-                                let document_height = self.renderer.height(root, &[root]);
+                                let document_height = self.edit.renderer.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
@@ -985,9 +1029,10 @@ impl Editor {
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
                             let rect = Rect::from_min_size(
-                                self.renderer.top_left,
+                                self.edit.renderer.top_left,
                                 Vec2::new(
-                                    self.renderer.width - 2. * self.renderer.layout.margin,
+                                    self.edit.renderer.width
+                                        - 2. * self.edit.renderer.layout.margin,
                                     height,
                                 ),
                             );
@@ -997,7 +1042,7 @@ impl Editor {
                             let response = ui.interact(
                                 rect,
                                 self.id(),
-                                if self.renderer.touch_mode {
+                                if self.edit.renderer.touch_mode {
                                     Sense::click()
                                 } else {
                                     Sense::click_and_drag()
@@ -1017,25 +1062,34 @@ impl Editor {
                             ui.advance_cursor_after_rect(rect);
 
                             ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.renderer
-                                    .show_block(ui, root, self.renderer.top_left, &[root]);
+                                self.edit.renderer.show_block(
+                                    ui,
+                                    root,
+                                    self.edit.renderer.top_left,
+                                    &[root],
+                                );
                             });
                         });
                 });
-                self.renderer.galleys.galleys.sort_by_key(|g| g.range);
+                self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
                 // show selection
                 if ui.ctx().os() != OperatingSystem::IOS {
                     let selection = self
+                        .edit
                         .in_progress_selection
-                        .unwrap_or(self.renderer.buffer.current.selection);
-                    let theme = self.renderer.ctx.get_lb_theme();
+                        .unwrap_or(self.edit.renderer.buffer.current.selection);
+                    let theme = self.edit.renderer.ctx.get_lb_theme();
                     let color = theme.bg().get_color(theme.prefs().primary);
-                    self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
-                    self.show_offset(ui, selection.1, color);
+                    self.edit.show_range(
+                        ui,
+                        selection,
+                        color.lerp_to_gamma(theme.neutral_bg(), 0.7),
+                    );
+                    self.edit.show_offset(ui, selection.1, color);
 
                     if self.focused(ui.ctx()) {
-                        if let Some([top, bot]) = self.cursor_line(selection.1) {
+                        if let Some([top, bot]) = self.edit.cursor_line(selection.1) {
                             let cursor_rect = egui::Rect::from_min_max(top, bot);
                             ui.output_mut(|o| {
                                 o.ime = Some(egui::output::IMEOutput {
@@ -1049,7 +1103,7 @@ impl Editor {
 
                 // show find match highlights
                 if !self.find.matches.is_empty() {
-                    let theme = self.renderer.ctx.get_lb_theme();
+                    let theme = self.edit.renderer.ctx.get_lb_theme();
                     let highlight_color = theme.neutral_bg_tertiary();
                     let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                     for (i, &match_range) in self.find.matches.iter().enumerate() {
@@ -1058,15 +1112,15 @@ impl Editor {
                         } else {
                             highlight_color
                         };
-                        self.show_range(ui, match_range, color);
+                        self.edit.show_range(ui, match_range, color);
                     }
                 }
 
                 if ui.ctx().os() == OperatingSystem::Android {
-                    self.show_selection_handles(ui);
+                    self.edit.show_selection_handles(ui);
                 }
-                match self.pending_scroll.take() {
-                    Some(ScrollTarget::Cursor) => self.scroll_to_cursor(ui),
+                match self.edit.pending_scroll.take() {
+                    Some(ScrollTarget::Cursor) => self.edit.scroll_to_cursor(ui),
                     Some(ScrollTarget::FindMatch) => self.scroll_to_find_match(ui),
                     None => {}
                 }
@@ -1075,10 +1129,10 @@ impl Editor {
 
     fn show_find_centered(&mut self, ui: &mut Ui) {
         let available = ui.available_width();
-        let content_width = if self.renderer.touch_mode {
-            self.renderer.width
+        let content_width = if self.edit.renderer.touch_mode {
+            self.edit.renderer.width
         } else {
-            self.toolbar_width().min(self.renderer.width)
+            self.toolbar_width().min(self.edit.renderer.width)
         };
         let content_left = ui.max_rect().left() + (available - content_width) / 2.;
         let top = ui.cursor().min.y;
@@ -1087,50 +1141,52 @@ impl Editor {
         let prev_match = self.find.current_match_range();
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
             self.find
-                .show(&self.renderer.buffer, self.virtual_keyboard_shown, ui)
+                .show(&self.edit.renderer.buffer, self.virtual_keyboard_shown, ui)
         });
         let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
         ui.advance_cursor_after_rect(rendered_rect);
         self.next_resp.find_widget_height = rendered_rect.height();
 
-        self.event.internal_events.extend(find_output.events);
+        self.edit.event.internal_events.extend(find_output.events);
         if find_output.scroll_to_match {
-            self.pending_scroll = Some(ScrollTarget::FindMatch);
+            self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
         }
 
         // match-driven reveal-cache invalidation, mirroring the cursor-selection path
         let new_match = self.find.current_match_range();
         if prev_match != new_match {
             if let Some(old) = prev_match {
-                self.renderer
+                self.edit
+                    .renderer
                     .layout_cache
                     .invalidate_reveal_change(old, old);
             }
             if let Some(new) = new_match {
-                self.renderer
+                self.edit
+                    .renderer
                     .layout_cache
                     .invalidate_reveal_change(new, new);
             }
         }
         if find_output.closed {
-            self.renderer.layout_cache.clear();
+            self.edit.renderer.layout_cache.clear();
         }
 
         // bridge find state → renderer inputs for this frame's editor render.
         // Must happen after Find::show so galley_required_ranges and
         // reveal_ranges reflect the new current_match; otherwise the match
         // galley isn't built and scroll_to_find_match has nothing to scroll to.
-        self.renderer.find_current_match = new_match;
+        self.edit.renderer.find_current_match = new_match;
         if let Some(range) = new_match {
-            self.renderer.reveal_ranges.push(range);
+            self.edit.renderer.reveal_ranges.push(range);
         }
     }
 
     fn scroll_to_find_match(&self, ui: &mut Ui) {
         if let Some(idx) = self.find.current_match {
             if let Some(match_range) = self.find.matches.get(idx) {
-                let rects = self.range_rects(*match_range);
+                let rects = self.edit.range_rects(*match_range);
                 if let Some(rect) = rects.first() {
                     ui.scroll_to_rect(rect.expand(rect.height()), Some(egui::Align::Center));
                 }
@@ -1416,7 +1472,7 @@ mod test {
         /// Workspace.enterFrame() — runs a full headless egui frame through
         /// Editor::show(), processing all pending events.
         fn enter_frame(&mut self) {
-            let ctx = self.editor.renderer.ctx.clone();
+            let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
             let _ = ctx.run(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -1431,11 +1487,11 @@ mod test {
         }
 
         fn get_text(&self) -> &str {
-            &self.editor.renderer.buffer.current.text
+            &self.editor.edit.renderer.buffer.current.text
         }
 
         fn get_selection(&self) -> (usize, usize) {
-            let sel = self.editor.renderer.buffer.current.selection;
+            let sel = self.editor.edit.renderer.buffer.current.selection;
             (sel.0.0, sel.1.0)
         }
     }

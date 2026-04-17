@@ -427,7 +427,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
         }
     };
 
-    env.new_string(&markdown.renderer.buffer.current.text)
+    env.new_string(&markdown.edit.renderer.buffer.current.text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -440,7 +440,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
 
     let resp = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
-            let (start, end) = markdown.renderer.buffer.current.selection;
+            let (start, end) = markdown.edit.renderer.buffer.current.selection;
             JTextRange { none: false, start: start.0, end: end.0 }
         }
         None => JTextRange { none: true, start: 0, end: 0 },
@@ -477,6 +477,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
     };
 
     markdown
+        .edit
         .renderer
         .buffer
         .current
@@ -500,7 +501,13 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
         region: Region::BetweenLocations {
             start: Location::DocCharOffset(DocCharOffset(0)),
             end: Location::DocCharOffset(
-                markdown.renderer.buffer.current.segs.last_cursor_position(),
+                markdown
+                    .edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position(),
             ),
         },
         text: "".to_string(),
@@ -565,7 +572,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(markdown.renderer.buffer.current.segs.last_cursor_position());
+    let loc = Location::DocCharOffset(
+        markdown
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position(),
+    );
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -591,7 +606,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
     };
 
     let selection = (DocCharOffset(start as usize), DocCharOffset(end as usize));
-    env.new_string(&markdown.renderer.buffer[selection])
+    env.new_string(&markdown.edit.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -612,9 +627,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
         }
     };
 
-    let selection =
-        (DocCharOffset(0), markdown.renderer.buffer.current.segs.last_cursor_position());
-    env.new_string(&markdown.renderer.buffer[selection])
+    let selection = (
+        DocCharOffset(0),
+        markdown
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position(),
+    );
+    env.new_string(&markdown.edit.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -630,7 +653,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
         None => return,
     };
 
-    let segs = &markdown.renderer.buffer.current.segs;
+    let segs = &markdown.edit.renderer.buffer.current.segs;
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {

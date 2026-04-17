@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::{self, Editor};
+use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
@@ -25,7 +25,7 @@ impl From<Modifiers> for Advance {
 
 const PAGE_LINES: usize = 50;
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     pub fn translate_egui_keyboard_event(
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {

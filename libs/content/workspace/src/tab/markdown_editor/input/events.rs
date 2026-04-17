@@ -17,25 +17,25 @@ impl<'ast> Editor {
     pub fn process_events(&mut self, ctx: &Context, root: &'ast AstNode<'ast>) -> Response {
         let mut ops = Vec::new();
         let mut response = buffer::Response::default();
-        for event in mem::take(&mut self.event.internal_events) {
-            response |= self.calc_operations(ctx, root, event, &mut ops);
+        for event in mem::take(&mut self.edit.event.internal_events) {
+            response |= self.edit.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_workspace_events(ctx) {
-            response |= self.calc_operations(ctx, root, event, &mut ops);
+            response |= self.edit.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_key_events(ctx, root) {
-            response |= self.calc_operations(ctx, root, event, &mut ops);
+            response |= self.edit.calc_operations(ctx, root, event, &mut ops);
         }
         for event in self.get_pointer_events(ctx) {
-            response |= self.calc_operations(ctx, root, event, &mut ops);
+            response |= self.edit.calc_operations(ctx, root, event, &mut ops);
         }
-        self.renderer.buffer.queue(ops);
-        response |= self.renderer.buffer.update();
+        self.edit.renderer.buffer.queue(ops);
+        response |= self.edit.renderer.buffer.update();
         response
     }
 
     fn get_workspace_events(&self, ctx: &Context) -> Vec<Event> {
-        if self.readonly {
+        if self.edit.readonly {
             return Vec::new();
         }
 
@@ -66,7 +66,7 @@ impl<'ast> Editor {
                 })
             })
             .into_iter()
-            .filter_map(|e| self.translate_egui_keyboard_event(e, root))
+            .filter_map(|e| self.edit.translate_egui_keyboard_event(e, root))
             .collect::<Vec<_>>()
         } else {
             Vec::new()
@@ -96,7 +96,7 @@ impl<'ast> Editor {
 
                         if IconButton::new(Icon::CONTENT_CUT)
                             .tooltip("Cut")
-                            .disabled(self.readonly)
+                            .disabled(self.edit.readonly)
                             .show(ui)
                             .clicked()
                         {
@@ -115,7 +115,7 @@ impl<'ast> Editor {
                         ui.add_space(5.);
                         if IconButton::new(Icon::CONTENT_PASTE)
                             .tooltip("Paste")
-                            .disabled(self.readonly)
+                            .disabled(self.edit.readonly)
                             .show(ui)
                             .clicked()
                         {
@@ -144,14 +144,14 @@ impl<'ast> Editor {
                 if cfg!(target_os = "android") {
                     // android native context menu: multi-tapped for selection
                     // position based on text range of word that will be selected
-                    let offset = self.location_to_char_offset(location);
+                    let offset = self.edit.location_to_char_offset(location);
                     let range = offset
-                        .range_bound(Bound::Word, true, true, &self.renderer.bounds)
+                        .range_bound(Bound::Word, true, true, &self.edit.renderer.bounds)
                         .unwrap_or((offset, offset));
                     ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
 
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                } else if self.renderer.buffer.current.selection.is_empty() {
+                } else if self.edit.renderer.buffer.current.selection.is_empty() {
                     // double click behavior
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else {
@@ -163,8 +163,9 @@ impl<'ast> Editor {
             } else if response.clicked() {
                 // android native context menu: tapped selection
                 if cfg!(target_os = "android") {
-                    let offset = self.pos_to_char_offset(pos);
+                    let offset = self.edit.pos_to_char_offset(pos);
                     if self
+                        .edit
                         .renderer
                         .buffer
                         .current
@@ -172,7 +173,7 @@ impl<'ast> Editor {
                         .contains(offset, true, true)
                     {
                         ctx.set_context_menu(
-                            self.context_menu_pos(self.renderer.buffer.current.selection)
+                            self.context_menu_pos(self.edit.renderer.buffer.current.selection)
                                 .unwrap_or(pos),
                         );
                         return Vec::new();
@@ -184,25 +185,28 @@ impl<'ast> Editor {
                 ctx.set_context_menu(pos);
                 return Vec::new();
             } else if response.drag_stopped() {
-                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                if let Some(in_progress_selection) = mem::take(&mut self.edit.in_progress_selection)
+                {
                     Region::from(in_progress_selection)
                 } else {
                     return Vec::new();
                 }
             } else if response.dragged() && modifiers.shift {
-                self.in_progress_selection =
-                    Some(self.region_to_range(Region::ToLocation(location)));
+                self.edit.in_progress_selection =
+                    Some(self.edit.region_to_range(Region::ToLocation(location)));
                 return Vec::new();
             } else if response.dragged() {
                 if response.drag_started() {
                     // convert drag origin on first frame so it doesn't update as we auto-scroll
                     let drag_origin = ctx.input(|i| i.pointer.press_origin()).unwrap_or_default();
-                    self.in_progress_selection =
-                        Some(self.region_to_range(Region::Location(Location::Pos(drag_origin))));
+                    self.edit.in_progress_selection = Some(
+                        self.edit
+                            .region_to_range(Region::Location(Location::Pos(drag_origin))),
+                    );
                 }
 
-                let offset = self.location_to_char_offset(location);
-                if let Some(in_progress_selection) = &mut self.in_progress_selection {
+                let offset = self.edit.location_to_char_offset(location);
+                if let Some(in_progress_selection) = &mut self.edit.in_progress_selection {
                     in_progress_selection.1 = offset;
                 }
 
@@ -228,12 +232,13 @@ impl<'ast> Editor {
     fn context_menu_pos(&self, range: (DocCharOffset, DocCharOffset)) -> Option<Pos2> {
         // find the first line of the selection
         let lines = self
+            .edit
             .renderer
             .bounds
             .wrap_lines
             .find_intersecting(range, false);
         let first_line = lines.iter().next()?;
-        let mut line = self.renderer.bounds.wrap_lines[first_line];
+        let mut line = self.edit.renderer.bounds.wrap_lines[first_line];
         if line.0 < range.start() {
             line.0 = range.start();
         }
@@ -242,8 +247,8 @@ impl<'ast> Editor {
         }
 
         // open the context menu in the center of the top of the rect containing the line
-        let start_line = self.cursor_line(line.0)?;
-        let end_line = self.cursor_line(line.1)?;
+        let start_line = self.edit.cursor_line(line.0)?;
+        let end_line = self.edit.cursor_line(line.1)?;
         Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: start_line[0].y })
     }
 }

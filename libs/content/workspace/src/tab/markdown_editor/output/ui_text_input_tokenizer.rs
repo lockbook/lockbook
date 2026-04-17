@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::Bound;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -27,7 +27,7 @@ pub trait UITextInputTokenizer {
     ) -> Option<(DocCharOffset, DocCharOffset)>;
 }
 
-impl UITextInputTokenizer for Editor {
+impl UITextInputTokenizer for MdEdit {
     fn is_position_at_boundary(
         &self, text_position: DocCharOffset, at_boundary: Bound, in_backward_direction: bool,
     ) -> bool {
