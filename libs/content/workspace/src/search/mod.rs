@@ -2,16 +2,10 @@ pub mod content;
 pub mod path;
 
 pub struct Search {
-    /// Whether the search modal is shown
-    search_shown: bool,
-
-    /// Which type of search are we targetting
+    pub search_shown: bool,
     search_type: SearchType,
-
-    /// What is the current string in the UI
     query: String,
-
-    /// A search strategy that can execute the inputs above
+    initialized: bool,
     executor: Box<dyn SearchExecutor>,
 }
 
@@ -31,19 +25,29 @@ impl SearchType {
     }
 }
 
+#[derive(Default)]
+pub struct PickerResponse {
+    pub activated: Option<lb_rs::Uuid>,
+    pub selected: Option<lb_rs::Uuid>,
+}
+
 pub trait SearchExecutor {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
-    /// Render the result list. Return `Some(id)` when the user activated a
-    /// result (e.g., via a row shortcut) — the caller should dismiss the modal
-    /// and open that file.
-    fn show_result_picker(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid>;
-    fn show_preview(&mut self, ui: &mut Ui);
+    /// Render the result list. `activated` is set when the user opens a result
+    /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
+    /// the preview pane.
+    fn show_result_picker(&mut self, ui: &mut Ui) -> PickerResponse;
+    fn show_preview(&mut self, ui: &mut Ui, tab: Option<&mut Tab>);
 }
 
 impl Workspace {
     pub fn show_search_modal(&mut self) {
+        let was_shown = self.search.search_shown;
         self.search.process_keys(&self.ctx);
+        if was_shown && !self.search.search_shown {
+            self.close_preview_tab();
+        }
         self.manage_executors();
         let size = self.ctx.screen_rect();
         let theme = self.ctx.get_lb_theme();
@@ -72,7 +76,17 @@ impl Workspace {
 
             if let Some(id) = activated {
                 self.search.search_shown = false;
-                self.open_file(id, true, true);
+                if let Some((idx, tab)) = self.preview_tab_mut() {
+                    if tab.id() == Some(id) {
+                        tab.is_preview = false;
+                        self.make_current(idx);
+                    } else {
+                        self.close_preview_tab();
+                        self.open_file(id, true, true);
+                    }
+                } else {
+                    self.open_file(id, true, true);
+                }
             }
         }
     }
@@ -101,19 +115,13 @@ impl Workspace {
         let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
         let stroke = egui::Stroke { width: 1.0, color };
         if horizontal {
-            let (rect, _) = ui.allocate_exact_size(
-                Vec2::new(ui.available_width(), 1.0),
-                egui::Sense::hover(),
-            );
-            ui.painter()
-                .hline(rect.x_range(), rect.center().y, stroke);
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
+            ui.painter().hline(rect.x_range(), rect.center().y, stroke);
         } else {
-            let (rect, _) = ui.allocate_exact_size(
-                Vec2::new(1.0, ui.available_height()),
-                egui::Sense::hover(),
-            );
-            ui.painter()
-                .vline(rect.center().x, rect.y_range(), stroke);
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(1.0, ui.available_height()), egui::Sense::hover());
+            ui.painter().vline(rect.center().x, rect.y_range(), stroke);
         }
     }
 
@@ -137,11 +145,7 @@ impl Workspace {
                 .corner_radius(CornerRadius::ZERO)
                 .frame_when_inactive(true)
                 .min_size(Vec2::new(85., 0.))
-                .fill(if selected {
-                    theme.neutral_bg()
-                } else {
-                    theme.neutral_bg_secondary()
-                })
+                .fill(if selected { theme.neutral_bg() } else { theme.neutral_bg_secondary() })
                 .ui(ui);
 
                 if button_resp.clicked() {
@@ -173,7 +177,10 @@ impl Workspace {
                 .show(ui)
                 .response;
 
-            resp.request_focus();
+            if !self.search.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
+                self.search.initialized = true;
+                resp.request_focus();
+            }
         });
     }
 
@@ -181,11 +188,9 @@ impl Workspace {
         let size = ui.available_size();
         ui.horizontal(|ui| {
             ui.set_min_size(size);
-            // Leave 10px of inset on the outside and 10px between the pane and
-            // the hairline so the result rows have horizontal breathing room.
             ui.add_space(10.0);
             let half = (ui.available_width() - 31.0) / 2.;
-            let activated = ui
+            let picker = ui
                 .allocate_ui_with_layout(
                     Vec2::new(half, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
@@ -193,24 +198,109 @@ impl Workspace {
                 )
                 .inner;
 
+            self.ensure_preview_tab(picker.selected);
+
             Self::hairline(ui, false);
+
+            let preview_tab = self
+                .preview_tab()
+                .map(|(i, _)| i)
+                .map(|i| &mut self.tabs[i]);
 
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width() - 10.0, ui.available_height()),
                 egui::Layout::top_down(egui::Align::LEFT),
-                |ui| self.search.executor.show_preview(ui),
+                |ui| {
+                    // without clip_rect, toolbar glyphs bleed outside the preview pane
+                    ui.set_clip_rect(ui.max_rect());
+                    // without push_id, interactive widgets (e.g. checkboxes) in the preview
+                    // collide with identical widgets in a background tab (if same file)
+                    ui.push_id("search_preview", |ui| {
+                        self.search.executor.show_preview(ui, preview_tab);
+                    });
+                },
             );
 
-            activated
+            picker.activated
         })
         .inner
     }
-    
+
+    /// Preview tab lifecycle:
+    ///
+    /// **Create**: when a search result is selected, a preview tab is created with
+    /// `ContentState::Loading` and a background load is queued. The tab gets its own
+    /// editor instance (with `id_salt` and `initialized = true`) even if the file is
+    /// already open, so the two views don't share egui IDs or steal focus.
+    ///
+    /// **Navigate**: selecting a different result closes the current preview and creates
+    /// a new one. If the outgoing preview is dirty, it's saved before removal.
+    ///
+    /// **Edit**: preview tabs are fully editable. Saves route correctly via `is_preview`
+    /// on `SaveRequest`. On save completion the sibling tab (if any) is reloaded so both
+    /// views stay in sync.
+    ///
+    /// **Promote**: pressing Enter sets `is_preview = false`, turning the preview into a
+    /// regular tab with no reload. Cursor position and unsaved edits are kept.
+    ///
+    /// **Close**: pressing Escape or dismissing search closes the preview. Dirty previews
+    /// queue a save and linger as `is_closing` until the save completes.
+    fn ensure_preview_tab(&mut self, selected_id: Option<lb_rs::Uuid>) {
+        // without the document filter, selecting a folder queues a load that fails
+        let selected_id = selected_id.filter(|id| {
+            self.files
+                .read()
+                .unwrap()
+                .get_by_id(*id)
+                .is_some_and(|f| f.is_document())
+        });
+
+        let current_preview_id = self.preview_tab().and_then(|(_, t)| t.id());
+
+        match (selected_id, current_preview_id) {
+            (Some(new_id), Some(old_id)) if new_id == old_id => {}
+            (Some(new_id), _) => {
+                self.close_preview_tab();
+                self.create_tab(ContentState::Loading(new_id), false);
+                let idx = self.tabs.len() - 1;
+                self.tabs[idx].is_preview = true;
+                self.tasks.queue_load(crate::task_manager::LoadRequest {
+                    id: new_id,
+                    tab_created: true,
+                    make_current: false,
+                    is_preview: true,
+                });
+            }
+            (None, Some(_)) => {
+                self.close_preview_tab();
+            }
+            (None, None) => {}
+        }
+    }
+
+    fn close_preview_tab(&mut self) {
+        let Some((idx, _)) = self.preview_tab() else { return };
+        if self.tabs[idx].is_dirty(&self.tasks) {
+            self.tabs[idx].is_closing = true;
+            if let Some(id) = self.tabs[idx].id() {
+                self.tasks
+                    .queue_save(crate::task_manager::SaveRequest { id, is_preview: true });
+            }
+        } else {
+            self.tabs.remove(idx);
+            if self.current_tab >= self.tabs.len() && self.current_tab > 0 {
+                self.current_tab -= 1;
+            }
+        }
+    }
 
     fn manage_executors(&mut self) {
         let executor_search_type = self.search.executor.search_type();
         if executor_search_type != self.search.search_type {
-            self.search.executor = self.search.search_type.create_executor(&self.core, &self.ctx);
+            self.search.executor = self
+                .search
+                .search_type
+                .create_executor(&self.core, &self.ctx);
         }
 
         self.search.executor.handle_query(&self.search.query);
@@ -223,11 +313,8 @@ impl Search {
             search_shown: false,
             search_type: SearchType::Path,
             query: String::new(),
-            // this may make results go stale, perhaps the executor should be created upon showing
-            // search, maybe not always, sometimes it could be good to keep content search results
-            // and that whole state around. maybe empty query is a good signal whether or not the
-            // state is valuable?
-            executor: SearchType::Path.create_executor(lb, ctx), 
+            initialized: false,
+            executor: SearchType::Path.create_executor(lb, ctx),
         }
     }
 
@@ -238,14 +325,19 @@ impl Search {
             }
 
             if w.consume_key_exact(Modifiers::COMMAND | Modifiers::SHIFT, Key::O) {
-                // there's some more complexity we can add here
                 self.search_shown = !self.search_shown;
                 self.search_type = SearchType::Path;
+                if self.search_shown {
+                    self.initialized = false;
+                }
             }
 
             if w.consume_key_exact(Modifiers::COMMAND | Modifiers::SHIFT, Key::F) {
                 self.search_shown = !self.search_shown;
                 self.search_type = SearchType::Content;
+                if self.search_shown {
+                    self.initialized = false;
+                }
             }
         })
     }
@@ -260,26 +352,17 @@ impl SearchType {
     }
 }
 
-use std::{
-    ops::Deref,
-    sync::{Arc, RwLock},
-    thread::{self, available_parallelism},
-    time::Instant,
-};
-
 use egui::{
-    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui,
-    Vec2, Widget,
+    Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui, Vec2,
+    Widget,
 };
-use lb_rs::{blocking::Lb, model::file::File};
-use nucleo::{
-    Matcher, Nucleo,
-    pattern::{CaseMatching, Normalization},
-};
+use lb_rs::blocking::Lb;
 
 use crate::{
+    file_cache::FilesExt as _,
     search::{content::ContentSearch, path::PathSearch},
-    show::{DocType, InputStateExt},
+    show::InputStateExt,
+    tab::{ContentState, Tab},
     theme::palette_v2::ThemeExt,
     workspace::Workspace,
 };

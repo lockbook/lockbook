@@ -88,6 +88,7 @@ impl Workspace {
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        let search = Search::new(core, ctx);
         let mut ws = Self {
             tabs: Default::default(),
             current_tab: Default::default(),
@@ -114,7 +115,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
-            search: Search::new(core, ctx),
+            search,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();

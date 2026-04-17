@@ -8,6 +8,7 @@ pub struct PathSearch {
     /// True after arrow-key navigation; hover is ignored so the mouse doesn't
     /// fight the keyboard. Cleared as soon as the pointer moves.
     kb_mode: bool,
+    selected_id: Option<Uuid>,
 }
 
 impl SearchExecutor for PathSearch {
@@ -31,7 +32,7 @@ impl SearchExecutor for PathSearch {
         self.nucleo.tick(1);
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> Option<lb_rs::Uuid> {
+    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
         self.process_keys(ui.ctx());
 
         // Phase 1: clamp the (possibly over-incremented) selection, and if a
@@ -44,9 +45,10 @@ impl SearchExecutor for PathSearch {
         }
         if self.activate {
             self.activate = false;
-            return snapshot
+            let activated = snapshot
                 .get_matched_item(self.selected as u32)
                 .map(|it| it.data.file.id);
+            return super::PickerResponse { activated, selected: self.selected_id };
         }
 
         // Phase 2: render only the visible rows via `ScrollArea::show_rows`,
@@ -106,11 +108,23 @@ impl SearchExecutor for PathSearch {
             }
         }
 
-        clicked_id
+        {
+            let snapshot = self.nucleo.snapshot();
+            let new_id = snapshot
+                .get_matched_item(self.selected as u32)
+                .map(|item| item.data.file.id);
+            if new_id != self.selected_id {
+                self.selected_id = new_id;
+            }
+        }
+
+        super::PickerResponse { activated: clicked_id, selected: self.selected_id }
     }
 
-    fn show_preview(&mut self, ui: &mut egui::Ui) {
-        // todo!()
+    fn show_preview(&mut self, ui: &mut egui::Ui, tab: Option<&mut crate::tab::Tab>) {
+        if let Some(tab) = tab {
+            tab.show(ui);
+        }
     }
 }
 
@@ -121,9 +135,9 @@ impl PathSearch {
         let mut id_paths = lb.list_paths_with_ids(None).unwrap();
         id_paths.retain(|(_, path)| path != "/");
 
-        let ctx = ctx.clone();
+        let ctx_clone = ctx.clone();
         let notify = Arc::new(move || {
-            ctx.request_repaint();
+            ctx_clone.request_repaint();
         });
 
         let nucleo = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1);
@@ -148,6 +162,7 @@ impl PathSearch {
             selected: 0,
             activate: false,
             kb_mode: true,
+            selected_id: None,
         }
     }
 
@@ -260,7 +275,7 @@ impl PathSearch {
                         // laid out right-to-left, so the number (rightmost) draws first.
                         let number = (index + 1).to_string();
                         for glyph in [number.as_str(), modifier] {
-                            ui.label(RichText::new(glyph).color(parent_color).size(12.0));
+                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
                         }
                     }
 
@@ -302,25 +317,20 @@ impl PathSearch {
         ui: &mut Ui, text: &str, highlights: &[u32], char_offset: u32, color: egui::Color32,
         size: f32,
     ) {
-        let regular = egui::FontId::new(size, egui::FontFamily::Proportional);
-        let bold = egui::FontId::new(size, egui::FontFamily::Name(Arc::from("Bold")));
-        let mut job = egui::text::LayoutJob::default();
-        job.wrap = egui::text::TextWrapping {
-            max_width: ui.available_width(),
-            max_rows: 1,
-            break_anywhere: true,
-            overflow_character: Some('…'),
-        };
+        let mut spans: Vec<(String, bool)> = Vec::new();
         for (i, c) in text.chars().enumerate() {
-            let hi = highlights.contains(&(char_offset + i as u32));
-            let fmt = egui::TextFormat {
-                font_id: if hi { bold.clone() } else { regular.clone() },
-                color,
-                ..Default::default()
-            };
-            job.append(&c.to_string(), 0.0, fmt);
+            let bold = highlights.contains(&(char_offset + i as u32));
+            match spans.last_mut() {
+                Some((s, b)) if *b == bold => s.push(c),
+                _ => spans.push((c.to_string(), bold)),
+            }
         }
-        ui.label(job);
+        let span_refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+        ui.add(
+            GlyphonLabel::new_rich(span_refs, color)
+                .font_size(size)
+                .max_width(ui.available_width()),
+        );
     }
 }
 
@@ -345,8 +355,8 @@ impl PathResult {
 
 use std::sync::Arc;
 
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, Ui};
-use lb_rs::{blocking::Lb, model::file::File};
+use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
+use lb_rs::{Uuid, blocking::Lb, model::file::File};
 use nucleo::{
     Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
@@ -356,4 +366,5 @@ use crate::{
     search::{SearchExecutor, SearchType},
     show::{DocType, InputStateExt},
     theme::{icons::Icon, palette_v2::ThemeExt},
+    widgets::GlyphonLabel,
 };
