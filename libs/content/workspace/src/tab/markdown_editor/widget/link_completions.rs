@@ -1,4 +1,4 @@
-use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
@@ -34,8 +34,8 @@ pub enum CompletionMode {
 
 #[derive(Default)]
 pub struct LinkCompletions {
-    /// Set before process_events so translate_egui_keyboard_event can swallow
-    /// arrow/enter keys when the popup is open.
+    /// True when a valid link query is being typed and has results.
+    /// Read by the editor to gate rendering; also gates `handle_input`.
     pub active: bool,
     /// Keyboard-highlighted result index.
     pub selected: usize,
@@ -94,6 +94,102 @@ impl LinkCompletions {
         self.mode = mode;
         self.active = true;
         self.search_term_range = Some(qr);
+    }
+
+    /// Consume (or observe) keyboard events targeting the popup and update
+    /// state accordingly. Emitted replacements are pushed onto `events`.
+    ///
+    /// Must run before the editor's `process_events`. Escape is observed
+    /// (not consumed) and fires regardless of editor focus; nav keys are
+    /// consumed and focus-gated. See `EmojiCompletions::handle_input` for the
+    /// rationale.
+    pub fn handle_input(
+        &mut self, ctx: &Context, buffer: &Buffer, files: &Arc<RwLock<FileCache>>, file_id: Uuid,
+        editor_focused: bool, events: &mut Vec<Event>,
+    ) {
+        if !self.active {
+            return;
+        }
+        let Some(((bracket_start, replace_end), mode)) = detect_any(buffer) else { return };
+        let qr = query_range(buffer, (bracket_start, replace_end), mode);
+        let query = buffer[qr].to_string();
+        if self.suppressed.as_deref() == Some(query.as_str()) {
+            return;
+        }
+
+        let cache = files.read().unwrap();
+        let results = search(&cache, file_id, &query, mode);
+        drop(cache);
+        if results.is_empty() {
+            return;
+        }
+        self.selected = self.selected.min(results.len() - 1);
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.suppressed = Some(query);
+            return;
+        }
+
+        if !editor_focused {
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+            self.selected -= 1;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+            && self.selected + 1 < results.len()
+        {
+            self.selected += 1;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+            let idx = self.selected;
+            let r = &results[idx];
+            self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+            return;
+        }
+
+        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            Modifiers::COMMAND
+        } else {
+            Modifiers::CTRL
+        };
+        for (idx, key) in
+            [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
+                .iter()
+                .enumerate()
+                .take(results.len())
+        {
+            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
+                let r = &results[idx];
+                self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+                return;
+            }
+        }
+    }
+
+    /// Push the replacement event for the current query and reset popup state.
+    /// Shared between `handle_input` and the click path in `show_link_completions`.
+    pub fn apply_completion(
+        &mut self, events: &mut Vec<Event>, bracket_start: DocCharOffset,
+        replace_end: DocCharOffset, display: &str, path: &str, mode: CompletionMode,
+    ) {
+        let text = match mode {
+            CompletionMode::WikiLink => format!("[[{}]]", path),
+            CompletionMode::Link => format!("[{}]({})", display, path),
+            CompletionMode::ImageLink => format!("![{}]({})", display, path),
+        };
+        events.push(Event::Replace {
+            region: Region::BetweenLocations {
+                start: Location::DocCharOffset(bracket_start),
+                end: Location::DocCharOffset(replace_end),
+            },
+            text,
+            advance_cursor: true,
+        });
+        self.selected = 0;
+        self.suppressed = None;
     }
 }
 
@@ -583,71 +679,9 @@ impl Editor {
             return;
         }
 
-        self.link_completions.selected = self.link_completions.selected.min(results.len() - 1);
-
         let Some([cursor_top, cursor_bot]) = self.cursor_line(bracket_start) else {
             return;
         };
-
-        // Escape is checked outside the focused guard so it always fires.
-        if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.link_completions.suppressed = Some(query.clone());
-            return;
-        }
-
-        if self.focused(ui.ctx()) {
-            ui.input(|i| {
-                if i.key_pressed(Key::ArrowUp) && self.link_completions.selected > 0 {
-                    self.link_completions.selected -= 1;
-                }
-                if i.key_pressed(Key::ArrowDown)
-                    && self.link_completions.selected + 1 < results.len()
-                {
-                    self.link_completions.selected += 1;
-                }
-            });
-
-            if ui.input(|i| i.key_pressed(Key::Enter)) {
-                let idx = self.link_completions.selected;
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-
-            let mut chosen = None;
-            ui.input(|i| {
-                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                    i.modifiers.command
-                } else {
-                    i.modifiers.ctrl
-                };
-                for (idx, key) in
-                    [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
-                        .iter()
-                        .enumerate()
-                        .take(results.len())
-                {
-                    if i.key_pressed(*key) && modifier {
-                        chosen = Some(idx);
-                    }
-                }
-            });
-            if let Some(idx) = chosen {
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-        }
 
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
@@ -808,34 +842,15 @@ impl Editor {
 
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            self.apply_link_completion(
+            let r = &results[idx];
+            self.link_completions.apply_completion(
+                &mut self.event.internal_events,
                 bracket_start,
                 replace_end,
-                &results[idx].name,
-                &results[idx].insert,
+                &r.name,
+                &r.insert,
                 mode,
             );
         }
-    }
-
-    fn apply_link_completion(
-        &mut self, bracket_start: DocCharOffset, replace_end: DocCharOffset, display: &str,
-        path: &str, mode: CompletionMode,
-    ) {
-        let text = match mode {
-            CompletionMode::WikiLink => format!("[[{}]]", path),
-            CompletionMode::Link => format!("[{}]({})", display, path),
-            CompletionMode::ImageLink => format!("![{}]({})", display, path),
-        };
-        self.event.internal_events.push(Event::Replace {
-            region: Region::BetweenLocations {
-                start: Location::DocCharOffset(bracket_start),
-                end: Location::DocCharOffset(replace_end),
-            },
-            text,
-            advance_cursor: true,
-        });
-        self.link_completions.selected = 0;
-        self.link_completions.suppressed = None;
     }
 }
