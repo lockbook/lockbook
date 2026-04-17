@@ -170,6 +170,8 @@ pub struct MdPersistence {
 pub struct MdFilePersistence {
     scroll_offset: f32,
     selection: (DocCharOffset, DocCharOffset),
+    #[serde(default)]
+    image_dims: HashMap<String, [f32; 2]>,
 }
 
 pub struct MdResources {
@@ -432,6 +434,21 @@ impl Editor {
         let width_updated = self.width != width;
         self.height = height;
         self.width = width;
+
+        if !self.initialized {
+            let persisted_dims = self
+                .persistence
+                .get_markdown()
+                .file
+                .get(&self.file_id)
+                .map(|f| f.image_dims.clone())
+                .unwrap_or_default();
+            let mut cache = self.layout_cache.image_dims.borrow_mut();
+            for (url, [w, h]) in persisted_dims {
+                cache.insert(url, Vec2::new(w, h));
+            }
+            drop(cache);
+        }
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
@@ -701,6 +718,9 @@ impl Editor {
         // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
         if images_updated || height_updated || width_updated {
+            if images_updated {
+                self.unprocessed_scroll = Some(Instant::now());
+            }
             self.layout_cache.clear();
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
@@ -738,6 +758,7 @@ impl Editor {
                 .or_insert(MdFilePersistence {
                     scroll_offset: Default::default(),
                     selection: self.buffer.current.selection,
+                    image_dims: Default::default(),
                 });
             persistence_updated = true;
         }
@@ -749,15 +770,26 @@ impl Editor {
                     let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                     let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
 
+                    let image_dims: HashMap<String, [f32; 2]> = self
+                        .layout_cache
+                        .image_dims
+                        .borrow()
+                        .iter()
+                        .map(|(url, v)| (url.clone(), [v.x, v.y]))
+                        .collect();
                     let mut persistence = self.persistence.data.write().unwrap();
                     persistence
                         .markdown
                         .file
                         .entry(self.file_id)
-                        .and_modify(|f| f.scroll_offset = scroll_offset)
+                        .and_modify(|f| {
+                            f.scroll_offset = scroll_offset;
+                            f.image_dims = image_dims.clone();
+                        })
                         .or_insert(MdFilePersistence {
                             scroll_offset,
                             selection: Default::default(),
+                            image_dims,
                         });
                     persistence_updated = true;
 
