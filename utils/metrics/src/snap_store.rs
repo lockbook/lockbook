@@ -1,32 +1,46 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration as StdDuration, Instant};
+use std::time::{Duration, Instant};
 
 use base64::Engine;
 use chrono::NaiveDate;
 use macaroon::{Format, Macaroon};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::*;
 
 use crate::metrics::INSTALLS;
 
-const MACAROON_REFRESH_INTERVAL: StdDuration = StdDuration::from_secs(3600);
+/// How often to refresh the discharge macaroon with Ubuntu SSO.
+/// The snap store issues discharges with a short (~1-2 day) TTL; we refresh
+/// more aggressively to keep metric collection robust.
+const MACAROON_REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
+
+const SNAPCRAFT_TOKEN_REFRESH_URL: &str = "https://login.ubuntu.com/api/v2/tokens/refresh";
+const SNAP_METRICS_URL: &str = "https://dashboard.snapcraft.io/dev/api/snaps/metrics";
 
 pub struct SnapStoreConfig {
     pub macaroon: String,
 }
 
+/// The `snapcraft export-login` credential format: base64(JSON) where JSON is
+/// `{"v": {"r": <root>, "d": <discharge>, ...}, ...}`. We round-trip unknown
+/// fields via `#[serde(flatten)]` so refresh never drops data.
 #[derive(Serialize, Deserialize)]
 struct SnapcraftCredential {
     v: CredentialValue,
+    #[serde(flatten)]
+    extra: HashMap<String, Value>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct CredentialValue {
     r: String,
     d: String,
+    #[serde(flatten)]
+    extra: HashMap<String, Value>,
 }
 
 #[derive(Serialize)]
@@ -39,49 +53,41 @@ struct RefreshResponse {
     discharge_macaroon: String,
 }
 
-fn parse_authorization_header(macaroon: &str) -> Option<String> {
-    let decoded = match base64::engine::general_purpose::STANDARD.decode(macaroon.trim()) {
-        Ok(d) => d,
-        Err(e) => {
-            error!("failed to base64 decode macaroon: {e}");
-            return None;
-        }
-    };
-    let cred: SnapcraftCredential = match serde_json::from_slice(&decoded) {
-        Ok(c) => c,
-        Err(e) => {
-            error!("failed to parse macaroon JSON: {e}");
-            return None;
-        }
-    };
+fn decode_credential(credential: &str) -> Option<SnapcraftCredential> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(credential.trim())
+        .inspect_err(|e| error!("failed to base64 decode snapcraft credential: {e}"))
+        .ok()?;
+    serde_json::from_slice(&bytes)
+        .inspect_err(|e| error!("failed to parse snapcraft credential JSON: {e}"))
+        .ok()
+}
 
-    // Parse and bind the discharge macaroon to the root
-    let root = match Macaroon::deserialize(&cred.v.r) {
-        Ok(m) => m,
-        Err(e) => {
-            error!("failed to deserialize root macaroon: {e}");
-            return None;
-        }
-    };
-    let mut discharge = match Macaroon::deserialize(&cred.v.d) {
-        Ok(m) => m,
-        Err(e) => {
-            error!("failed to deserialize discharge macaroon: {e}");
-            return None;
-        }
-    };
+fn encode_credential(cred: &SnapcraftCredential) -> Option<String> {
+    let bytes = serde_json::to_vec(cred)
+        .inspect_err(|e| error!("failed to serialize snapcraft credential: {e}"))
+        .ok()?;
+    Some(base64::engine::general_purpose::STANDARD.encode(&bytes))
+}
 
-    // Bind discharge to root
+/// Bind the discharge macaroon to the root and build the `Authorization` header
+/// value expected by the snap store metrics API.
+fn parse_authorization_header(credential: &str) -> Option<String> {
+    let cred = decode_credential(credential)?;
+
+    let root = Macaroon::deserialize(&cred.v.r)
+        .inspect_err(|e| error!("failed to deserialize root macaroon: {e}"))
+        .ok()?;
+    let mut discharge = Macaroon::deserialize(&cred.v.d)
+        .inspect_err(|e| error!("failed to deserialize discharge macaroon: {e}"))
+        .ok()?;
+
     root.bind(&mut discharge);
 
-    // Serialize the bound discharge
-    let bound_discharge = match discharge.serialize(Format::V2) {
-        Ok(s) => s,
-        Err(e) => {
-            error!("failed to serialize bound discharge: {e}");
-            return None;
-        }
-    };
+    let bound_discharge = discharge
+        .serialize(Format::V2)
+        .inspect_err(|e| error!("failed to serialize bound discharge: {e}"))
+        .ok()?;
 
     Some(format!("Macaroon root=\"{}\",discharge=\"{}\"", cred.v.r, bound_discharge))
 }
@@ -152,39 +158,28 @@ impl SnapStoreState {
         }
     }
 
+    /// Exchange the current discharge macaroon for a fresh one via Ubuntu SSO.
+    /// The root macaroon is untouched. Logs and returns on any failure — the
+    /// existing credential remains in place so the next refresh can retry.
     pub async fn refresh_macaroon(&mut self, client: &Client) {
         info!("refreshing snap store discharge macaroon");
 
-        let decoded = match base64::engine::general_purpose::STANDARD.decode(self.credential.trim())
-        {
-            Ok(d) => d,
-            Err(e) => {
-                error!("macaroon refresh: failed to base64 decode credential: {e}");
-                return;
-            }
+        let Some(mut cred) = decode_credential(&self.credential) else {
+            return;
         };
 
-        let mut cred: SnapcraftCredential = match serde_json::from_slice(&decoded) {
-            Ok(c) => c,
-            Err(e) => {
-                error!("macaroon refresh: failed to parse credential JSON: {e}");
-                return;
-            }
-        };
-
-        let req = RefreshRequest { discharge_macaroon: &cred.v.d };
         let resp = match client
-            .post("https://login.ubuntu.com/api/v2/tokens/refresh")
+            .post(SNAPCRAFT_TOKEN_REFRESH_URL)
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .header("User-Agent", "lb-metrics")
-            .json(&req)
+            .json(&RefreshRequest { discharge_macaroon: &cred.v.d })
             .send()
             .await
         {
             Ok(r) => r,
             Err(e) => {
-                error!("macaroon refresh: POST to login.ubuntu.com failed: {e}");
+                error!("macaroon refresh: request to Ubuntu SSO failed: {e}");
                 return;
             }
         };
@@ -196,7 +191,7 @@ impl SnapStoreState {
             return;
         }
 
-        let refresh_resp: RefreshResponse = match resp.json().await {
+        let refreshed: RefreshResponse = match resp.json().await {
             Ok(r) => r,
             Err(e) => {
                 error!("macaroon refresh: failed to parse response: {e}");
@@ -204,17 +199,13 @@ impl SnapStoreState {
             }
         };
 
-        cred.v.d = refresh_resp.discharge_macaroon;
+        cred.v.d = refreshed.discharge_macaroon;
 
-        let new_json = match serde_json::to_vec(&cred) {
-            Ok(j) => j,
-            Err(e) => {
-                error!("macaroon refresh: failed to serialize refreshed credential: {e}");
-                return;
-            }
+        let Some(encoded) = encode_credential(&cred) else {
+            return;
         };
 
-        self.credential = base64::engine::general_purpose::STANDARD.encode(&new_json);
+        self.credential = encoded;
         self.last_macaroon_refresh = Some(Instant::now());
 
         info!("snap store discharge macaroon refreshed");
@@ -272,11 +263,11 @@ impl SnapStoreState {
     }
 
     pub async fn refresh(&mut self, client: &Client) {
-        // Refresh the discharge macaroon every hour to avoid 401s.
+        // Refresh the discharge macaroon on the first call and then once per
+        // `MACAROON_REFRESH_INTERVAL` so we never hit a 401 mid-fetch.
         let macaroon_stale = self
             .last_macaroon_refresh
-            .map(|t| t.elapsed() >= MACAROON_REFRESH_INTERVAL)
-            .unwrap_or(true);
+            .is_none_or(|t| t.elapsed() >= MACAROON_REFRESH_INTERVAL);
         if macaroon_stale {
             self.refresh_macaroon(client).await;
         }
@@ -411,7 +402,7 @@ async fn fetch_daily_report(
         };
 
         let resp = match client
-            .post("https://dashboard.snapcraft.io/dev/api/snaps/metrics")
+            .post(SNAP_METRICS_URL)
             .header("Authorization", &auth_header)
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")

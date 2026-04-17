@@ -16,6 +16,11 @@ struct CrateInfo {
     downloads: i64,
 }
 
+/// Crates to track on crates.io and the client type each rolls into.
+/// `lockbook` is the CLI binary crate; `lb-rs` is the Rust library, its own
+/// client type. crates.io has no OS attribution, so the os label is empty.
+const CRATES: &[(&str, &str)] = &[("lockbook", "cli"), ("lb-rs", "lb-rs")];
+
 async fn fetch_downloads(client: &Client, name: &str) -> Option<i64> {
     let url = format!("https://crates.io/api/v1/crates/{name}");
     let resp = get::<CrateResponse>(client, &url, "").await?;
@@ -25,19 +30,11 @@ async fn fetch_downloads(client: &Client, name: &str) -> Option<i64> {
 pub async fn refresh(client: &Client) {
     info!("refreshing crates.io metrics");
 
-    // `lockbook` crate downloads roll up into the CLI client (the lockbook
-    // binary crate is the CLI). crates.io has no OS attribution, so leave
-    // the os label empty.
-    if let Some(downloads) = fetch_downloads(client, "lockbook").await {
-        INSTALLS
-            .with_label_values(&["crates_io", "cli", "", ""])
-            .set(downloads);
-    }
-
-    // `lb-rs` is the Rust library client — its own client type.
-    if let Some(downloads) = fetch_downloads(client, "lb-rs").await {
-        INSTALLS
-            .with_label_values(&["crates_io", "lb-rs", "", ""])
-            .set(downloads);
+    for (crate_name, client_type) in CRATES {
+        if let Some(downloads) = fetch_downloads(client, crate_name).await {
+            INSTALLS
+                .with_label_values(&["crates_io", client_type, "", ""])
+                .set(downloads);
+        }
     }
 }

@@ -26,6 +26,8 @@ use app_store::AppStoreState;
 use play_store::PlayStoreState;
 use snap_store::SnapStoreState;
 
+const REFRESH_INTERVAL: Duration = Duration::from_secs(300);
+
 async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Option<T> {
     let mut req = client.get(url).header("User-Agent", "lb-metrics");
     if !auth.is_empty() {
@@ -41,6 +43,33 @@ async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Opt
     resp.json().await.ok()
 }
 
+/// Refresh every metric source once. Safe to call from the initial startup
+/// path and from the periodic refresh loop.
+async fn refresh_all(
+    client: &Client,
+    config: &env::Config,
+    earliest_date: Option<chrono::NaiveDate>,
+    app_store: &Mutex<AppStoreState>,
+    play_store: &Mutex<PlayStoreState>,
+    snap_store: &Mutex<SnapStoreState>,
+) {
+    github::refresh(client, &config.github_token, earliest_date).await;
+    flathub::refresh(client).await;
+    crates_io::refresh(client).await;
+
+    let mut app_state = app_store.lock().await;
+    app_state.refresh(client, &config.app_store).await;
+    app_state.update_metrics();
+
+    let mut play_state = play_store.lock().await;
+    play_state.refresh(client, &config.play_store).await;
+    play_state.update_metrics();
+
+    let mut snap_state = snap_store.lock().await;
+    snap_state.refresh(client).await;
+    snap_state.update_metrics();
+}
+
 #[tokio::main]
 async fn main() {
     loggers::init();
@@ -50,17 +79,16 @@ async fn main() {
     let port = config.port;
     let client = Client::new();
 
-    // Initialize App Store state and run backfill
+    // Initialize App Store state and run backfill.
     let mut app_store_state = AppStoreState::new(&config.data_dir);
     app_store_state.backfill(&client, &config.app_store).await;
 
-    // Initialize Play Store and Snap Store state with date range from App Store
+    // Initialize Play Store and Snap Store state with the date range from App
+    // Store. Refresh the snap discharge macaroon up-front so startup surfaces
+    // any auth issues immediately and backfill runs with a fresh token.
     let mut play_store_state = PlayStoreState::new(&config.data_dir);
     let mut snap_store_state =
         SnapStoreState::new(&config.data_dir, config.snap_store.macaroon.clone());
-
-    // Refresh the snap store discharge macaroon up-front so startup surfaces
-    // any auth issues immediately, and so backfill runs with a fresh token.
     snap_store_state.refresh_macaroon(&client).await;
 
     if let Some(earliest) = app_store_state.earliest_date() {
@@ -73,47 +101,38 @@ async fn main() {
         warn!("no App Store data found, Play Store and Snap Store metrics will be skipped");
     }
 
-    // Initial metrics refresh
     let earliest_date = app_store_state.earliest_date();
-    info!("performing initial metrics refresh");
-    github::refresh(&client, &config.github_token, earliest_date).await;
-    flathub::refresh(&client).await;
-    crates_io::refresh(&client).await;
-    app_store_state.update_metrics();
-    play_store_state.update_metrics();
-    snap_store_state.update_metrics();
-
-    info!("backfill complete, starting metrics server");
-
     let app_store_state = Arc::new(Mutex::new(app_store_state));
     let play_store_state = Arc::new(Mutex::new(play_store_state));
     let snap_store_state = Arc::new(Mutex::new(snap_store_state));
 
-    // Spawn refresh loop
-    let refresh_app_store = app_store_state.clone();
-    let refresh_play_store = play_store_state.clone();
-    let refresh_snap_store = snap_store_state.clone();
+    info!("performing initial metrics refresh");
+    refresh_all(
+        &client,
+        &config,
+        earliest_date,
+        &app_store_state,
+        &play_store_state,
+        &snap_store_state,
+    )
+    .await;
+
+    info!("backfill complete, starting metrics server");
+
+    // Spawn refresh loop.
     tokio::spawn(async move {
         loop {
-            sleep(Duration::from_secs(300)).await;
-
+            sleep(REFRESH_INTERVAL).await;
             info!("refreshing metrics");
-            github::refresh(&client, &config.github_token, earliest_date).await;
-            flathub::refresh(&client).await;
-            crates_io::refresh(&client).await;
-
-            let mut app_state = refresh_app_store.lock().await;
-            app_state.refresh(&client, &config.app_store).await;
-            app_state.update_metrics();
-
-            let mut play_state = refresh_play_store.lock().await;
-            play_state.refresh(&client, &config.play_store).await;
-            play_state.update_metrics();
-
-            let mut snap_state = refresh_snap_store.lock().await;
-            snap_state.refresh(&client).await;
-            snap_state.update_metrics();
-
+            refresh_all(
+                &client,
+                &config,
+                earliest_date,
+                &app_store_state,
+                &play_store_state,
+                &snap_store_state,
+            )
+            .await;
             info!("metrics refresh complete");
         }
     });
