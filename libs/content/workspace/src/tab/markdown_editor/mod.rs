@@ -562,6 +562,30 @@ impl Editor {
             &self.renderer.files,
             self.file_id,
         );
+
+        // Completion popups get first dibs on nav keys — they consume
+        // Up/Down/Enter/Cmd+num before process_events so the editor's key
+        // handling never sees them while a popup is open. Escape is observed
+        // (not consumed) inside handle_input and fires regardless of editor
+        // focus, so the popup can always be dismissed.
+        if !self.readonly {
+            let focused = self.focused(ui.ctx());
+            self.emoji_completions.handle_input(
+                ui.ctx(),
+                &self.renderer.buffer,
+                focused,
+                &mut self.event.internal_events,
+            );
+            self.link_completions.handle_input(
+                ui.ctx(),
+                &self.renderer.buffer,
+                &self.renderer.files,
+                self.file_id,
+                focused,
+                &mut self.event.internal_events,
+            );
+        }
+
         let buffer_resp = self.process_events(ui.ctx(), root);
         resp.open_camera = buffer_resp.open_camera;
 
