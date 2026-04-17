@@ -42,7 +42,7 @@ impl<'ast> Editor {
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
-            self.event.internal_events.push(Event::Replace {
+            self.render_events.push(Event::Replace {
                 region: (check_offset, check_offset + 1).into(),
                 text: new_check.into(),
                 advance_cursor: false,
