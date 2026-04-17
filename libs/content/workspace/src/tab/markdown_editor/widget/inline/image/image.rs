@@ -4,12 +4,12 @@ use comrak::nodes::{AstNode, NodeLink};
 use egui::{self, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::DocCharOffset;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
-impl Editor {
+impl MdRender {
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
         for descendant in node.descendants() {
             let url = match &descendant.data.borrow().value {
@@ -21,7 +21,7 @@ impl Editor {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn span_image(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {

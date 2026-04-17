@@ -2,10 +2,10 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Ui, Vec2};
 use web_time::Instant;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl Editor {
+impl MdRender {
     pub fn show_debug_fps(&mut self, ui: &mut Ui) {
         let now = Instant::now();
         self.frame_times[self.frame_times_idx] = now;

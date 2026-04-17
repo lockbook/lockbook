@@ -8,19 +8,19 @@ use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::{Event, MdRender};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
 pub(crate) mod spacing;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
@@ -440,6 +440,46 @@ impl<'ast> Editor {
         None
     }
 
+    #[allow(clippy::collapsible_else_if)]
+    pub fn apply_fold(
+        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
+        unapply: bool,
+    ) {
+        if unapply {
+            if let Some(fold) = self.fold(node) {
+                self.render_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
+        } else {
+            if let Some(foldable) = self.foldable(node) {
+                self.render_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+
+                // when folding a section that intersects the cursor, adjust the selection
+                // this ensures the folded section appears folded / avoids immediate selection reveal
+                let selection = self.buffer.current.selection;
+
+                if contents.intersects(&selection, true)
+                    && !selection.contains_range(&contents, true, true)
+                {
+                    self.render_events.push(Event::Select {
+                        region: (
+                            selection.start().min(contents.start()),
+                            selection.end().min(contents.start()),
+                        )
+                            .into(),
+                    });
+                }
+            }
+        }
+    }
+
     /// Returns the node that this node is folding, if there is one
     pub fn foldee(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
         let mut root = node;
@@ -660,7 +700,7 @@ impl LayoutCache {
     }
 }
 
-impl Editor {
+impl MdRender {
     /// Look up or shape a glyphon buffer for the given text and formatting.
     /// Delegates to the shared GlyphonCache so the same shaped buffer is reused
     /// across frames (and across widgets). The editor-specific concern here is
@@ -743,7 +783,7 @@ impl Editor {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
         self.layout_cache

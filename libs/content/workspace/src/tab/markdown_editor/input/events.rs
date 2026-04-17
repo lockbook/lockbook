@@ -31,8 +31,8 @@ impl<'ast> Editor {
         for event in self.get_pointer_events(ctx) {
             response |= self.calc_operations(ctx, root, event, &mut ops);
         }
-        self.buffer.queue(ops);
-        response |= self.buffer.update();
+        self.renderer.buffer.queue(ops);
+        response |= self.renderer.buffer.update();
         response
     }
 
@@ -52,7 +52,7 @@ impl<'ast> Editor {
                                 let file = tab::import_image(&self.core, self.file_id, &data);
 
                                 let rel_path = {
-                                    let guard = self.files.read().unwrap();
+                                    let guard = self.renderer.files.read().unwrap();
                                     let parent = guard.get_by_id(self.file_id).unwrap().parent;
                                     let mut augmented = guard.files.clone();
                                     if augmented.get_by_id(file.parent).is_none() {
@@ -178,12 +178,12 @@ impl<'ast> Editor {
                     // position based on text range of word that will be selected
                     let offset = self.location_to_char_offset(location);
                     let range = offset
-                        .range_bound(Bound::Word, true, true, &self.bounds)
+                        .range_bound(Bound::Word, true, true, &self.renderer.bounds)
                         .unwrap_or((offset, offset));
                     ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
 
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
-                } else if self.buffer.current.selection.is_empty() {
+                } else if self.renderer.buffer.current.selection.is_empty() {
                     // double click behavior
                     Region::BoundAt { bound: Bound::Word, location, backwards: true }
                 } else {
@@ -196,9 +196,15 @@ impl<'ast> Editor {
                 // android native context menu: tapped selection
                 if cfg!(target_os = "android") {
                     let offset = self.pos_to_char_offset(pos);
-                    if self.buffer.current.selection.contains(offset, true, true) {
+                    if self
+                        .renderer
+                        .buffer
+                        .current
+                        .selection
+                        .contains(offset, true, true)
+                    {
                         ctx.set_context_menu(
-                            self.context_menu_pos(self.buffer.current.selection)
+                            self.context_menu_pos(self.renderer.buffer.current.selection)
                                 .unwrap_or(pos),
                         );
                         return Vec::new();
@@ -253,9 +259,13 @@ impl<'ast> Editor {
 
     fn context_menu_pos(&self, range: (DocCharOffset, DocCharOffset)) -> Option<Pos2> {
         // find the first line of the selection
-        let lines = self.bounds.wrap_lines.find_intersecting(range, false);
+        let lines = self
+            .renderer
+            .bounds
+            .wrap_lines
+            .find_intersecting(range, false);
         let first_line = lines.iter().next()?;
-        let mut line = self.bounds.wrap_lines[first_line];
+        let mut line = self.renderer.bounds.wrap_lines[first_line];
         if line.0 < range.start() {
             line.0 = range.start();
         }

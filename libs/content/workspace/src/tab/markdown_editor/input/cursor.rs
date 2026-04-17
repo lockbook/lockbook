@@ -32,7 +32,7 @@ impl Editor {
         let mut result = Vec::new();
 
         // todo: binary search
-        for galley_info in self.galleys.galleys.iter().rev() {
+        for galley_info in self.renderer.galleys.galleys.iter().rev() {
             let GalleyInfo { range: galley_range, mut rect, padded, .. } = galley_info;
             if galley_range.end() < range.start() {
                 break;
@@ -41,14 +41,14 @@ impl Editor {
             }
 
             if galley_range.contains_inclusive(range.start()) {
-                rect.min.x = self.galley_x(galley_info, range.start());
+                rect.min.x = self.renderer.galley_x(galley_info, range.start());
             }
             if galley_range.contains_inclusive(range.end()) {
-                rect.max.x = self.galley_x(galley_info, range.end());
+                rect.max.x = self.renderer.galley_x(galley_info, range.end());
             }
 
             if rect.area() > 0.001 && *padded {
-                rect = rect.expand2(self.layout.inline_padding * Vec2::X);
+                rect = rect.expand2(self.renderer.layout.inline_padding * Vec2::X);
             }
 
             result.push(rect);
@@ -71,11 +71,11 @@ impl Editor {
     }
 
     pub fn show_selection_handles(&mut self, ui: &mut Ui) {
-        let theme = self.ctx.get_lb_theme();
+        let theme = self.renderer.ctx.get_lb_theme();
         let color = theme.fg().get_color(theme.prefs().primary);
         let selection = self
             .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
+            .unwrap_or(self.renderer.buffer.current.selection);
         let selection_start_line = self.cursor_line(selection.0);
         let selection_end_line = self.cursor_line(selection.1);
 
@@ -84,7 +84,7 @@ impl Editor {
         // draw selection handles
         // handles invisible but still draggable when selection is empty
         // we must allocate handles to check if they were dragged last frame
-        if !self.buffer.current.selection.is_empty() {
+        if !self.renderer.buffer.current.selection.is_empty() {
             if let Some(selection_start_line) = selection_start_line {
                 let selection_start_center = Pos2 {
                     x: selection_start_line[1].x - radius,
@@ -154,7 +154,7 @@ impl Editor {
                     start: Location::Pos(
                         ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
                     ),
-                    end: Location::DocCharOffset(self.buffer.current.selection.1),
+                    end: Location::DocCharOffset(self.renderer.buffer.current.selection.1),
                 };
                 self.in_progress_selection = Some(self.region_to_range(region));
             }
@@ -178,7 +178,7 @@ impl Editor {
                 }
             } else if end_response.dragged() {
                 let region = Region::BetweenLocations {
-                    start: Location::DocCharOffset(self.buffer.current.selection.0),
+                    start: Location::DocCharOffset(self.renderer.buffer.current.selection.0),
                     end: Location::Pos(
                         ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
                     ),
@@ -191,7 +191,7 @@ impl Editor {
     pub fn scroll_to_cursor(&self, ui: &mut Ui) {
         let selection = self
             .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
+            .unwrap_or(self.renderer.buffer.current.selection);
 
         if let Some([top, bot]) = self.cursor_line(selection.1) {
             let rect = Rect::from_min_max(top, bot);
@@ -200,10 +200,13 @@ impl Editor {
     }
 
     pub fn cursor_line(&self, offset: DocCharOffset) -> Option<[Pos2; 2]> {
-        let galley_idx = self.galleys.galley_at_offset(offset)?;
-        let galley = &self.galleys[galley_idx];
-        let x = self.galley_x(galley, offset);
-        let y_range = galley.rect.y_range().expand(self.layout.row_spacing / 2.);
+        let galley_idx = self.renderer.galleys.galley_at_offset(offset)?;
+        let galley = &self.renderer.galleys[galley_idx];
+        let x = self.renderer.galley_x(galley, offset);
+        let y_range = galley
+            .rect
+            .y_range()
+            .expand(self.renderer.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }

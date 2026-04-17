@@ -5,11 +5,11 @@ use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _, RangeIt
 use syntect::easy::HighlightLines;
 
 use crate::show::syntax_ext_for;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_document(&self) -> Format {
         Format {
             family: FontFamily::Sans,

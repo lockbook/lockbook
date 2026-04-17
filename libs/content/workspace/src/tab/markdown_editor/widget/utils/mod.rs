@@ -1,12 +1,12 @@
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod wrap_layout;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
     pub fn offset_to_byte(&self, i: DocCharOffset) -> DocByteOffset {
         self.buffer.current.segs.offset_to_byte(i)
@@ -330,27 +330,19 @@ impl<'ast> NodeValueExt for AstNode<'ast> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
-
     #[test]
     fn range_lines_char_no_newline() {
         let text = "*";
-        let md = Editor::test(text);
-
+        let md = crate::tab::markdown_editor::MdRender::test(text);
         let lines = md.range_split_newlines((0.into(), text.len().into()));
-
-        // Should produce 1 range for the entire text since there's no newline
         assert_eq!(lines, vec![(0.into(), 1.into())]);
     }
 
     #[test]
     fn range_lines_char_newline() {
         let text = "*\n";
-        let md = Editor::test(text);
-
+        let md = crate::tab::markdown_editor::MdRender::test(text);
         let lines = md.range_split_newlines((0.into(), text.len().into()));
-
-        // Should produce 2 ranges - one for "*" and one for empty line after "\n"
         assert_eq!(lines, vec![(0.into(), 1.into()), (2.into(), 2.into())]);
     }
 }

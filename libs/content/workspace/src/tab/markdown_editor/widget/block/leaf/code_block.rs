@@ -8,12 +8,12 @@ use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as 
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { family: FontFamily::Mono, ..parent_text_format }

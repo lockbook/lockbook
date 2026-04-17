@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 pub(crate) mod code;
@@ -40,7 +40,7 @@ impl std::ops::BitOrAssign for Response {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn span(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
     ) -> f32 {

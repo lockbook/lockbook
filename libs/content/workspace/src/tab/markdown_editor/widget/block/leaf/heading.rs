@@ -4,14 +4,14 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn heading_row_height(&self, level: u8) -> f32 {
         self.layout.row_height
             * match level {

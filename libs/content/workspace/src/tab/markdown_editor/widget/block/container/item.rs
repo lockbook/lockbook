@@ -5,13 +5,13 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
 // https://github.github.com/gfm/#list-items
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         let any_children = node.children().next().is_some();
         if any_children {
