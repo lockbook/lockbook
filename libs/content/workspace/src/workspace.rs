@@ -31,7 +31,9 @@ use crate::tab::markdown_editor::{
 };
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
-use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
+use crate::tab::{
+    ContentState, Destination, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _,
+};
 use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
@@ -143,9 +145,10 @@ impl Workspace {
         ws
     }
 
-    pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
+    pub fn create_tab(&mut self, dest: Destination, content: ContentState, make_current: bool) {
         let now = Instant::now();
         let new_tab = Tab {
+            destination: dest,
             content,
             back: Vec::new(),
             forward: Vec::new(),
@@ -241,7 +244,7 @@ impl Workspace {
         }
 
         self.close_preview();
-        self.create_tab(ContentState::Loading(id), false);
+        self.create_tab(Destination::File(id), ContentState::Loading(id), false);
         let idx = self.tabs.len() - 1;
         self.tabs[idx].is_preview = true;
         self.tasks.queue_load(LoadRequest {
@@ -346,6 +349,7 @@ impl Workspace {
     }
 
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
+        let dest = Destination::File(id);
         let mut create_tab = || {
             if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
                 if make_current {
@@ -364,6 +368,7 @@ impl Workspace {
                 current_tab.forward.clear();
             }
             current_tab.content = ContentState::Loading(id);
+            current_tab.destination = dest.clone();
             false
         };
         let create_tab = create_tab();
@@ -371,7 +376,7 @@ impl Workspace {
         if self.is_image(id) {
             let content = self.image_content(id);
             if create_tab {
-                self.create_tab(content, make_current);
+                self.create_tab(dest, content, make_current);
             } else if let Some(tab) = self.current_tab_mut() {
                 tab.content = content;
             }
@@ -379,7 +384,7 @@ impl Workspace {
         }
 
         if create_tab {
-            self.create_tab(ContentState::Loading(id), make_current);
+            self.create_tab(dest, ContentState::Loading(id), make_current);
         }
 
         self.tasks.queue_load(LoadRequest {
@@ -396,6 +401,8 @@ impl Workspace {
         let Some(current_id) = current_tab.id() else { return };
         current_tab.forward.push(current_id);
 
+        let tab = self.current_tab_mut().unwrap();
+        tab.destination = Destination::File(back_id);
         if self.is_image(back_id) {
             self.current_tab_mut().unwrap().content = self.image_content(back_id);
         } else {
@@ -415,6 +422,8 @@ impl Workspace {
         let Some(current_id) = current_tab.id() else { return };
         current_tab.back.push(current_id);
 
+        let tab = self.current_tab_mut().unwrap();
+        tab.destination = Destination::File(forward_id);
         if self.is_image(forward_id) {
             self.current_tab_mut().unwrap().content = self.image_content(forward_id);
         } else {
@@ -880,7 +889,12 @@ impl Workspace {
         if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
             self.make_current(i);
         } else {
-            self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
+            let root_id = core.get_root().map(|r| r.id).unwrap_or_default();
+            self.create_tab(
+                Destination::MindMap(root_id),
+                ContentState::Open(TabContent::MindMap(MindMap::new(&core))),
+                true,
+            );
         };
     }
     #[cfg(target_family = "wasm")]
@@ -893,7 +907,12 @@ impl Workspace {
         if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
             self.close_tab(i);
         }
+        let root_id = folder
+            .as_ref()
+            .map(|f| f.id)
+            .unwrap_or_else(|| core.get_root().map(|r| r.id).unwrap_or_default());
         self.create_tab(
+            Destination::SpaceInspector(root_id),
             ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
                 &core,
                 folder,

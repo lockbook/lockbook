@@ -19,6 +19,7 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
+use serde::{Deserialize, Serialize};
 use std::ops::IndexMut;
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
@@ -28,7 +29,23 @@ pub mod markdown_editor;
 pub mod pdf_viewer;
 pub mod svg_editor;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Destination {
+    File(Uuid),
+    MindMap(Uuid),
+    SpaceInspector(Uuid),
+}
+
+impl Destination {
+    pub fn id(&self) -> Uuid {
+        match self {
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
+        }
+    }
+}
+
 pub struct Tab {
+    pub destination: Destination,
     pub content: ContentState,
     pub back: Vec<Uuid>,
     pub forward: Vec<Uuid>,
@@ -44,11 +61,7 @@ pub struct Tab {
 
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
-        match &self.content {
-            ContentState::Loading(id) => Some(*id),
-            ContentState::Open(content) => content.id(),
-            _ => None,
-        }
+        Some(self.destination.id())
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
