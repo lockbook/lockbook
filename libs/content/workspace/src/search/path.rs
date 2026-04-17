@@ -122,9 +122,7 @@ impl SearchExecutor for PathSearch {
     }
 
     fn show_preview(&mut self, ui: &mut egui::Ui, tab: Option<&mut crate::tab::Tab>) {
-        if let Some(tab) = tab {
-            tab.show(ui);
-        }
+        ui.spinner();
     }
 }
 

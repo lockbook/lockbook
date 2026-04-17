@@ -47,7 +47,6 @@ impl Workspace {
         // search modal renders after tabs so it draws on top: its cursor icon and
         // interaction responses take priority over the background editor's
         self.show_search_modal();
-        self.process_unhandled_events();
 
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tabs, self.current_tab);

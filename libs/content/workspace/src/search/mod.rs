@@ -43,11 +43,7 @@ pub trait SearchExecutor {
 
 impl Workspace {
     pub fn show_search_modal(&mut self) {
-        let was_shown = self.search.search_shown;
         self.search.process_keys(&self.ctx);
-        if was_shown && !self.search.search_shown {
-            self.close_preview_tab();
-        }
         self.manage_executors();
         let size = self.ctx.screen_rect();
         let theme = self.ctx.get_lb_theme();
@@ -75,18 +71,7 @@ impl Workspace {
                 .flatten();
 
             if let Some(id) = activated {
-                self.search.search_shown = false;
-                if let Some((idx, tab)) = self.preview_tab_mut() {
-                    if tab.id() == Some(id) {
-                        tab.is_preview = false;
-                        self.make_current(idx);
-                    } else {
-                        self.close_preview_tab();
-                        self.open_file(id, true, true);
-                    }
-                } else {
-                    self.open_file(id, true, true);
-                }
+                self.open_file(id, true, true);
             }
         }
     }
@@ -198,14 +183,7 @@ impl Workspace {
                 )
                 .inner;
 
-            self.ensure_preview_tab(picker.selected);
-
             Self::hairline(ui, false);
-
-            let preview_tab = self
-                .preview_tab()
-                .map(|(i, _)| i)
-                .map(|i| &mut self.tabs[i]);
 
             ui.allocate_ui_with_layout(
                 Vec2::new(ui.available_width() - 10.0, ui.available_height()),
@@ -216,7 +194,7 @@ impl Workspace {
                     // without push_id, interactive widgets (e.g. checkboxes) in the preview
                     // collide with identical widgets in a background tab (if same file)
                     ui.push_id("search_preview", |ui| {
-                        self.search.executor.show_preview(ui, preview_tab);
+                        self.search.executor.show_preview(ui, None);
                     });
                 },
             );
@@ -224,74 +202,6 @@ impl Workspace {
             picker.activated
         })
         .inner
-    }
-
-    /// Preview tab lifecycle:
-    ///
-    /// **Create**: when a search result is selected, a preview tab is created with
-    /// `ContentState::Loading` and a background load is queued. The tab gets its own
-    /// editor instance (with `id_salt` and `initialized = true`) even if the file is
-    /// already open, so the two views don't share egui IDs or steal focus.
-    ///
-    /// **Navigate**: selecting a different result closes the current preview and creates
-    /// a new one. If the outgoing preview is dirty, it's saved before removal.
-    ///
-    /// **Edit**: preview tabs are fully editable. Saves route correctly via `is_preview`
-    /// on `SaveRequest`. On save completion the sibling tab (if any) is reloaded so both
-    /// views stay in sync.
-    ///
-    /// **Promote**: pressing Enter sets `is_preview = false`, turning the preview into a
-    /// regular tab with no reload. Cursor position and unsaved edits are kept.
-    ///
-    /// **Close**: pressing Escape or dismissing search closes the preview. Dirty previews
-    /// queue a save and linger as `is_closing` until the save completes.
-    fn ensure_preview_tab(&mut self, selected_id: Option<lb_rs::Uuid>) {
-        // without the document filter, selecting a folder queues a load that fails
-        let selected_id = selected_id.filter(|id| {
-            self.files
-                .read()
-                .unwrap()
-                .get_by_id(*id)
-                .is_some_and(|f| f.is_document())
-        });
-
-        let current_preview_id = self.preview_tab().and_then(|(_, t)| t.id());
-
-        match (selected_id, current_preview_id) {
-            (Some(new_id), Some(old_id)) if new_id == old_id => {}
-            (Some(new_id), _) => {
-                self.close_preview_tab();
-                self.create_tab(ContentState::Loading(new_id), false);
-                let idx = self.tabs.len() - 1;
-                self.tabs[idx].is_preview = true;
-                self.tasks.queue_load(crate::task_manager::LoadRequest {
-                    id: new_id,
-                    tab_created: true,
-                    make_current: false,
-                    is_preview: true,
-                });
-            }
-            (None, Some(_)) => {
-                self.close_preview_tab();
-            }
-            (None, None) => {}
-        }
-    }
-
-    fn close_preview_tab(&mut self) {
-        let Some((idx, _)) = self.preview_tab() else { return };
-        if self.tabs[idx].is_dirty(&self.tasks) {
-            self.tabs[idx].is_closing = true;
-            if let Some(id) = self.tabs[idx].id() {
-                self.tasks
-                    .queue_save(crate::task_manager::SaveRequest { id, is_preview: true });
-            }
-        } else {
-            self.tabs.remove(idx);
-            if self.current_tab >= self.tabs.len() && self.current_tab > 0 {
-                self.current_tab -= 1;
-            }
-        }
     }
 
     fn manage_executors(&mut self) {
