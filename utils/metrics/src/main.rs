@@ -1,4 +1,5 @@
 mod app_store;
+mod crates_io;
 mod env;
 mod flathub;
 mod github;
@@ -55,13 +56,19 @@ async fn main() {
 
     // Initialize Play Store and Snap Store state with date range from App Store
     let mut play_store_state = PlayStoreState::new(&config.data_dir);
-    let mut snap_store_state = SnapStoreState::new(&config.data_dir);
+    let mut snap_store_state =
+        SnapStoreState::new(&config.data_dir, config.snap_store.macaroon.clone());
+
+    // Refresh the snap store discharge macaroon up-front so startup surfaces
+    // any auth issues immediately, and so backfill runs with a fresh token.
+    snap_store_state.refresh_macaroon(&client).await;
+
     if let Some(earliest) = app_store_state.earliest_date() {
         info!("using App Store earliest date: {earliest}");
         play_store_state.set_earliest_date(earliest);
         play_store_state.backfill(&client, &config.play_store).await;
         snap_store_state.set_earliest_date(earliest);
-        snap_store_state.backfill(&client, &config.snap_store).await;
+        snap_store_state.backfill(&client).await;
     } else {
         warn!("no App Store data found, Play Store and Snap Store metrics will be skipped");
     }
@@ -71,6 +78,7 @@ async fn main() {
     info!("performing initial metrics refresh");
     github::refresh(&client, &config.github_token, earliest_date).await;
     flathub::refresh(&client).await;
+    crates_io::refresh(&client).await;
     app_store_state.update_metrics();
     play_store_state.update_metrics();
     snap_store_state.update_metrics();
@@ -92,6 +100,7 @@ async fn main() {
             info!("refreshing metrics");
             github::refresh(&client, &config.github_token, earliest_date).await;
             flathub::refresh(&client).await;
+            crates_io::refresh(&client).await;
 
             let mut app_state = refresh_app_store.lock().await;
             app_state.refresh(&client, &config.app_store).await;
@@ -102,7 +111,7 @@ async fn main() {
             play_state.update_metrics();
 
             let mut snap_state = refresh_snap_store.lock().await;
-            snap_state.refresh(&client, &config.snap_store).await;
+            snap_state.refresh(&client).await;
             snap_state.update_metrics();
 
             info!("metrics refresh complete");

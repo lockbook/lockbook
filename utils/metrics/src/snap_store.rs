@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration as StdDuration, Instant};
 
 use base64::Engine;
 use chrono::NaiveDate;
@@ -11,19 +12,31 @@ use tracing::*;
 
 use crate::metrics::INSTALLS;
 
+const MACAROON_REFRESH_INTERVAL: StdDuration = StdDuration::from_secs(3600);
+
 pub struct SnapStoreConfig {
     pub macaroon: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct SnapcraftCredential {
     v: CredentialValue,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct CredentialValue {
     r: String,
     d: String,
+}
+
+#[derive(Serialize)]
+struct RefreshRequest<'a> {
+    discharge_macaroon: &'a str,
+}
+
+#[derive(Deserialize)]
+struct RefreshResponse {
+    discharge_macaroon: String,
 }
 
 fn parse_authorization_header(macaroon: &str) -> Option<String> {
@@ -121,10 +134,12 @@ pub struct SnapStoreState {
     data_dir: PathBuf,
     cumulative_new: HashMap<String, i64>, // snap_name -> total new installs
     earliest_date: Option<NaiveDate>,
+    credential: String,
+    last_macaroon_refresh: Option<Instant>,
 }
 
 impl SnapStoreState {
-    pub fn new(data_dir: &Path) -> Self {
+    pub fn new(data_dir: &Path, macaroon: String) -> Self {
         let data_dir = data_dir.join("snap_store");
         fs::create_dir_all(&data_dir).expect("failed to create snap store data directory");
 
@@ -132,7 +147,77 @@ impl SnapStoreState {
             data_dir,
             cumulative_new: HashMap::new(),
             earliest_date: None,
+            credential: macaroon,
+            last_macaroon_refresh: None,
         }
+    }
+
+    pub async fn refresh_macaroon(&mut self, client: &Client) {
+        info!("refreshing snap store discharge macaroon");
+
+        let decoded = match base64::engine::general_purpose::STANDARD.decode(self.credential.trim())
+        {
+            Ok(d) => d,
+            Err(e) => {
+                error!("macaroon refresh: failed to base64 decode credential: {e}");
+                return;
+            }
+        };
+
+        let mut cred: SnapcraftCredential = match serde_json::from_slice(&decoded) {
+            Ok(c) => c,
+            Err(e) => {
+                error!("macaroon refresh: failed to parse credential JSON: {e}");
+                return;
+            }
+        };
+
+        let req = RefreshRequest { discharge_macaroon: &cred.v.d };
+        let resp = match client
+            .post("https://login.ubuntu.com/api/v2/tokens/refresh")
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("User-Agent", "lb-metrics")
+            .json(&req)
+            .send()
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                error!("macaroon refresh: POST to login.ubuntu.com failed: {e}");
+                return;
+            }
+        };
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            error!("macaroon refresh API returned {status}: {body}");
+            return;
+        }
+
+        let refresh_resp: RefreshResponse = match resp.json().await {
+            Ok(r) => r,
+            Err(e) => {
+                error!("macaroon refresh: failed to parse response: {e}");
+                return;
+            }
+        };
+
+        cred.v.d = refresh_resp.discharge_macaroon;
+
+        let new_json = match serde_json::to_vec(&cred) {
+            Ok(j) => j,
+            Err(e) => {
+                error!("macaroon refresh: failed to serialize refreshed credential: {e}");
+                return;
+            }
+        };
+
+        self.credential = base64::engine::general_purpose::STANDARD.encode(&new_json);
+        self.last_macaroon_refresh = Some(Instant::now());
+
+        info!("snap store discharge macaroon refreshed");
     }
 
     pub fn set_earliest_date(&mut self, date: NaiveDate) {
@@ -186,7 +271,16 @@ impl SnapStoreState {
         }
     }
 
-    pub async fn refresh(&mut self, client: &Client, config: &SnapStoreConfig) {
+    pub async fn refresh(&mut self, client: &Client) {
+        // Refresh the discharge macaroon every hour to avoid 401s.
+        let macaroon_stale = self
+            .last_macaroon_refresh
+            .map(|t| t.elapsed() >= MACAROON_REFRESH_INTERVAL)
+            .unwrap_or(true);
+        if macaroon_stale {
+            self.refresh_macaroon(client).await;
+        }
+
         if self.earliest_date.is_none() {
             warn!("snap store refresh skipped: no earliest date set");
             return;
@@ -202,7 +296,7 @@ impl SnapStoreState {
 
         info!("refreshing snap store metrics for {yesterday}");
 
-        if let Some(report) = fetch_daily_report(client, config, &yesterday).await {
+        if let Some(report) = fetch_daily_report(client, &self.credential, &yesterday).await {
             for snap in &report.snaps {
                 *self.cumulative_new.entry(snap.snap_name.clone()).or_default() += snap.new;
             }
@@ -210,7 +304,7 @@ impl SnapStoreState {
         }
     }
 
-    pub async fn backfill(&mut self, client: &Client, config: &SnapStoreConfig) {
+    pub async fn backfill(&mut self, client: &Client) {
         if self.earliest_date.is_none() {
             warn!("snap store backfill skipped: no earliest date set");
             return;
@@ -237,7 +331,7 @@ impl SnapStoreState {
 
             info!("fetching snap store data for {date_str}");
 
-            match fetch_daily_report(client, config, &date_str).await {
+            match fetch_daily_report(client, &self.credential, &date_str).await {
                 Some(report) => {
                     self.save_report(&report);
                     consecutive_failures = 0;
@@ -287,10 +381,10 @@ async fn get_snap_id(client: &Client, snap_name: &str) -> Option<String> {
 
 async fn fetch_daily_report(
     client: &Client,
-    config: &SnapStoreConfig,
+    credential: &str,
     date: &str,
 ) -> Option<DailyReport> {
-    let auth_header = match parse_authorization_header(&config.macaroon) {
+    let auth_header = match parse_authorization_header(credential) {
         Some(h) => h,
         None => {
             error!("failed to parse snapcraft credentials");
