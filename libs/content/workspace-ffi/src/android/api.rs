@@ -303,14 +303,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
 
     if let Some(tab_id) = obj
         .workspace
-        .tabs
+        .tab_strip
         .iter()
-        .position(|tab| tab.id() == Some(id))
+        .position(|s| s.dest.id() == id)
     {
         obj.workspace.close_tab(tab_id);
     } else {
-        for i in 0..obj.workspace.tabs.len() {
-            obj.workspace.close_tab(i);
+        while !obj.workspace.tab_strip.is_empty() {
+            obj.workspace.close_tab(0);
         }
     }
 }
@@ -321,8 +321,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    for i in 0..obj.workspace.tabs.len() {
-        obj.workspace.close_tab(i);
+    while !obj.workspace.tab_strip.is_empty() {
+        obj.workspace.close_tab(0);
     }
 }
 
@@ -341,7 +341,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 ) -> jobjectArray {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let ids = obj.workspace.tabs.iter().filter_map(|t| t.id());
+    let ids = obj.workspace.tab_strip.iter().map(|s| s.dest.id());
 
     let string_class = env.find_class("java/lang/String").unwrap();
 

@@ -20,7 +20,6 @@ use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
 use serde::{Deserialize, Serialize};
-use std::ops::IndexMut;
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
@@ -44,19 +43,27 @@ impl Destination {
     }
 }
 
+#[derive(Clone)]
+pub struct TabSlot {
+    pub dest: Destination,
+    pub back: Vec<Uuid>,
+    pub forward: Vec<Uuid>,
+    pub rename: Option<String>,
+}
+
+impl TabSlot {
+    pub fn new(dest: Destination) -> Self {
+        Self { dest, back: Vec::new(), forward: Vec::new(), rename: None }
+    }
+}
+
 pub struct Tab {
     pub destination: Destination,
     pub content: ContentState,
-    pub back: Vec<Uuid>,
-    pub forward: Vec<Uuid>,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
-
-    pub rename: Option<String>,
-    pub is_closing: bool,
     pub read_only: bool,
-    pub is_preview: bool,
 }
 
 impl Tab {
@@ -147,9 +154,6 @@ impl Tab {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        if self.is_preview {
-            return ui.push_id("preview", |ui| self.show_inner(ui)).inner;
-        }
         self.show_inner(ui)
     }
 
@@ -205,28 +209,6 @@ impl Tab {
         } else {
             self.last_changed > self.last_saved
         }
-    }
-}
-
-pub trait TabsExt: IndexMut<usize, Output = Tab> {
-    fn position_by_id(&self, id: Uuid) -> Option<usize>;
-    fn get_by_id(&self, id: Uuid) -> Option<&Tab> {
-        self.position_by_id(id).map(|pos| &self[pos])
-    }
-    fn get_mut_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
-        self.position_by_id(id).map(move |pos| &mut self[pos])
-    }
-}
-
-impl TabsExt for [Tab] {
-    fn position_by_id(&self, id: Uuid) -> Option<usize> {
-        self.iter().position(|tab| tab.id() == Some(id))
-    }
-}
-
-impl TabsExt for Vec<Tab> {
-    fn position_by_id(&self, id: Uuid) -> Option<usize> {
-        self.iter().position(|tab| tab.id() == Some(id))
     }
 }
 
@@ -425,7 +407,8 @@ impl TabStatus {
 
 impl Workspace {
     pub fn tab_status(&self, i: usize) -> TabStatus {
-        if let Some(tab) = self.tabs.get(i) {
+        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.dest));
+        if let Some(tab) = tab {
             if let Some(id) = tab.id() {
                 if self.tasks.load_in_progress(id) {
                     return TabStatus::LoadInProgress;
