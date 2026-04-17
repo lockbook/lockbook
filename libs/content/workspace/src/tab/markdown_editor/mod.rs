@@ -6,8 +6,7 @@ use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
-use crate::resolvers::LinkResolver;
-use crate::widgets::image_cache::ImageCache;
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
@@ -116,10 +115,8 @@ pub struct Editor {
     pub galleys: Galleys,
     pub text_areas: Vec<TextBufferArea>,
 
-    pub images: ImageCache,
-    /// Last-observed `images.last_modified()` generation. Used to detect
-    /// new image data frame-over-frame and invalidate layout accordingly.
-    images_last_seen: u64,
+    pub embeds: Box<dyn EmbedResolver>,
+    embeds_last_seen: u64,
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
@@ -166,6 +163,15 @@ pub struct MdPersistence {
     file: HashMap<Uuid, MdFilePersistence>,
 }
 
+impl MdPersistence {
+    pub fn image_dims(&self, file_id: &Uuid) -> HashMap<String, [f32; 2]> {
+        self.file
+            .get(file_id)
+            .map(|f| f.image_dims.clone())
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
     scroll_offset: f32,
@@ -180,7 +186,7 @@ pub struct MdResources {
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
     pub link_resolver: Box<dyn LinkResolver>,
-    pub images: ImageCache,
+    pub embeds: Box<dyn EmbedResolver>,
 }
 
 pub struct MdConfig {
@@ -256,7 +262,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files, link_resolver, images } = res;
+        let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
 
         let dark_mode = ctx.style().visuals.dark_mode;
@@ -297,8 +303,8 @@ impl Editor {
             event: Default::default(),
             galleys: Default::default(),
 
-            images,
-            images_last_seen: 0,
+            embeds,
+            embeds_last_seen: 0,
             layout_cache: Default::default(),
             syntax: Default::default(),
             debug: false,
@@ -336,8 +342,6 @@ impl Editor {
             background_work: false,
         })
         .unwrap();
-        let images =
-            ImageCache::new(ctx.clone(), HttpClient::default(), core.clone(), Arc::clone(&files));
         Self::new(
             md,
             Uuid::new_v4(),
@@ -350,8 +354,8 @@ impl Editor {
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
                 link_resolver: Box::new(()),
+                embeds: Box::new(()),
                 files,
-                images,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )
@@ -435,21 +439,6 @@ impl Editor {
         self.height = height;
         self.width = width;
 
-        if !self.initialized {
-            let persisted_dims = self
-                .persistence
-                .get_markdown()
-                .file
-                .get(&self.file_id)
-                .map(|f| f.image_dims.clone())
-                .unwrap_or_default();
-            let mut cache = self.layout_cache.image_dims.borrow_mut();
-            for (url, [w, h]) in persisted_dims {
-                cache.insert(url, Vec2::new(w, h));
-            }
-            drop(cache);
-        }
-
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.dark_mode {
             self.syntax.clear();
@@ -483,10 +472,10 @@ impl Editor {
 
         // process events
         let prior_selection = self.buffer.current.selection;
-        let images_updated = {
-            let current = self.images.last_modified();
-            let changed = current != self.images_last_seen;
-            self.images_last_seen = current;
+        let embeds_updated = {
+            let current = self.embeds.last_modified();
+            let changed = current != self.embeds_last_seen;
+            self.embeds_last_seen = current;
             changed
         };
 
@@ -717,8 +706,8 @@ impl Editor {
 
         // post-frame bookkeeping
         let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if images_updated || height_updated || width_updated {
-            if images_updated {
+        if embeds_updated || height_updated || width_updated {
+            if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
             self.layout_cache.clear();
@@ -770,13 +759,7 @@ impl Editor {
                     let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
                     let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
 
-                    let image_dims: HashMap<String, [f32; 2]> = self
-                        .layout_cache
-                        .image_dims
-                        .borrow()
-                        .iter()
-                        .map(|(url, v)| (url.clone(), [v.x, v.y]))
-                        .collect();
+                    let image_dims = self.embeds.image_dims();
                     let mut persistence = self.persistence.data.write().unwrap();
                     persistence
                         .markdown

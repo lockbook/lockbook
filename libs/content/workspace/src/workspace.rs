@@ -23,6 +23,7 @@ use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
+use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::image_viewer::ImageViewer;
@@ -168,6 +169,8 @@ impl Workspace {
             Destination::MindMap(_) => {
                 ContentState::Open(TabContent::MindMap(MindMap::new(&self.core)))
             }
+            #[cfg(target_family = "wasm")]
+            Destination::MindMap(_) => return,
             Destination::SpaceInspector(root_id) => {
                 let file = self.files.read().unwrap().get_by_id(*root_id).cloned();
                 ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
@@ -607,7 +610,11 @@ impl Workspace {
                                                 id,
                                             )),
                                             files: Arc::clone(&self.files),
-                                            images: self.images.clone(),
+                                            embeds: Box::new(ImageEmbedResolver::new(
+                                                self.images.clone(),
+                                                id,
+                                                self.cfg.get_markdown().image_dims(&id),
+                                            )),
                                         },
                                         MdConfig {
                                             readonly: tab.read_only,
