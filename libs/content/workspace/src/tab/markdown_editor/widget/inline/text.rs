@@ -38,12 +38,7 @@ impl<'ast> Editor {
             return Default::default();
         }
 
-        // While a completion popup is active, draw the search text in accent color.
-        let search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-        if let Some(search_range) = search_range {
+        if let Some(search_range) = self.text_highlight_range {
             let start = search_range.0.max(node_range.0);
             let end = search_range.1.min(node_range.1);
             if start < end {

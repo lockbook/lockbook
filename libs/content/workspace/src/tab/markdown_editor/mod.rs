@@ -118,6 +118,14 @@ pub struct Editor {
     pub embeds: Box<dyn EmbedResolver>,
     embeds_last_seen: u64,
     pub layout_cache: LayoutCache,
+
+    // render inputs (populated by show() before rendering)
+    pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
+    pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
+
+    // render outputs (consumed by show() after rendering)
+    pub render_events: Vec<input::Event>,
+
     pub syntax: SyntaxHighlightCache,
     pub debug: bool,
     frame_times: [Instant; 10],
@@ -306,6 +314,9 @@ impl Editor {
             embeds,
             embeds_last_seen: 0,
             layout_cache: Default::default(),
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            render_events: Vec::new(),
             syntax: Default::default(),
             debug: false,
             frame_times: [Instant::now(); 10],
@@ -526,6 +537,21 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.buffer.current.selection);
 
+        // populate render inputs
+        self.reveal_ranges.clear();
+        if !self.readonly && self.focused(ui.ctx()) {
+            self.reveal_ranges.push(self.buffer.current.selection);
+        }
+        if let Some(idx) = self.find.current_match {
+            if let Some(&range) = self.find.matches.get(idx) {
+                self.reveal_ranges.push(range);
+            }
+        }
+        self.text_highlight_range = self
+            .emoji_completions
+            .search_term_range
+            .or(self.link_completions.search_term_range);
+
         ui.painter()
             .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
         self.apply_theme(ui);
@@ -732,6 +758,7 @@ impl Editor {
             self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
+        self.event.internal_events.append(&mut self.render_events);
         if !self.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }

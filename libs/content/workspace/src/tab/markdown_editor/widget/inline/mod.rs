@@ -430,15 +430,8 @@ impl<'ast> Editor {
         self.range_revealed(self.node_range(node), false)
     }
 
-    /// Returns the ranges that force nodes to reveal their syntax. Currently
-    /// this is the selection and the current find match (if any).
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (DocCharOffset, DocCharOffset)> + '_ {
-        let selection = Some(self.buffer.current.selection);
-        let find_match = self
-            .find
-            .current_match
-            .and_then(|idx| self.find.matches.get(idx).copied());
-        selection.into_iter().chain(find_match)
+        self.reveal_ranges.iter().copied()
     }
 
     /// Returns true if `range` intersects any reveal range.
