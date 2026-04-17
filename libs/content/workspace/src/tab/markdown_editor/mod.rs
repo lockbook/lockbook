@@ -130,6 +130,12 @@ pub struct MdRender {
     pub frame_times_idx: usize,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScrollTarget {
+    Cursor,
+    FindMatch,
+}
+
 pub struct Editor {
     pub renderer: MdRender,
 
@@ -162,8 +168,8 @@ pub struct Editor {
     // misc
     pub scroll_area_velocity: Vec2,
     pub virtual_keyboard_shown: bool,
-    scroll_to_cursor: bool,
-    scroll_to_find_match: bool,
+
+    pending_scroll: Option<ScrollTarget>,
     pub unprocessed_scroll: Option<Instant>,
 
     // outputs from drawing a frame need an additional frame to process before reporting
@@ -423,8 +429,7 @@ impl Editor {
             scroll_area_velocity: Default::default(),
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
-            scroll_to_cursor: Default::default(),
-            scroll_to_find_match: Default::default(),
+            pending_scroll: None,
             unprocessed_scroll: Default::default(),
 
             next_resp: Default::default(),
@@ -843,11 +848,11 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
-            self.scroll_to_cursor = true;
+            self.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.initialized && self.renderer.touch_mode && height_updated {
-            self.scroll_to_cursor = true;
+            self.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
@@ -1060,11 +1065,10 @@ impl Editor {
                 if ui.ctx().os() == OperatingSystem::Android {
                     self.show_selection_handles(ui);
                 }
-                if mem::take(&mut self.scroll_to_cursor) {
-                    self.scroll_to_cursor(ui);
-                }
-                if mem::take(&mut self.scroll_to_find_match) {
-                    self.scroll_to_find_match(ui);
+                match self.pending_scroll.take() {
+                    Some(ScrollTarget::Cursor) => self.scroll_to_cursor(ui),
+                    Some(ScrollTarget::FindMatch) => self.scroll_to_find_match(ui),
+                    None => {}
                 }
             })
     }
@@ -1092,7 +1096,7 @@ impl Editor {
 
         self.event.internal_events.extend(find_output.events);
         if find_output.scroll_to_match {
-            self.scroll_to_find_match = true;
+            self.pending_scroll = Some(ScrollTarget::FindMatch);
         }
 
         // match-driven reveal-cache invalidation, mirroring the cursor-selection path
