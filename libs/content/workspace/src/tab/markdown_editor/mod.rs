@@ -61,12 +61,14 @@ pub fn syntax_theme() -> &'static Theme {
 pub mod bounds;
 mod galleys;
 pub mod input;
+pub mod md_label;
 pub mod output;
 pub mod show;
 mod theme;
 mod widget;
 
 pub use input::Event;
+pub use md_label::MdLabel;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
