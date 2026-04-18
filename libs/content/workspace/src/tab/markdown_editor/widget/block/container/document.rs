@@ -35,6 +35,7 @@ impl<'ast> MdRender {
         } else {
             let highlighter_syntax =
                 syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
+            let last = self.node_last_line_idx(node).saturating_sub(1);
             let mut result = 0.;
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
@@ -64,7 +65,9 @@ impl<'ast> MdRender {
                     wrap.offset += self.span_section(&wrap, line, self.text_format_syntax());
                 }
                 result += wrap.height();
-                result += self.layout.row_spacing;
+                if line_idx != last {
+                    result += self.layout.row_spacing;
+                }
             }
             result
         }
@@ -80,6 +83,7 @@ impl<'ast> MdRender {
             let has_syntax = syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&self.ext))
                 .is_some();
+            let last = self.node_last_line_idx(node).saturating_sub(1);
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let mut wrap = self.new_wrap(width);
@@ -134,7 +138,9 @@ impl<'ast> MdRender {
                 }
 
                 top_left.y += wrap.height();
-                top_left.y += self.layout.row_spacing;
+                if line_idx != last {
+                    top_left.y += self.layout.row_spacing;
+                }
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
