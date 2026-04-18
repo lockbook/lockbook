@@ -1,0 +1,196 @@
+use crate::Lb;
+use crate::model::file::File;
+use super::{ContentMatch, SearchResult};
+use super::path::split_path;
+use std::ops::Range;
+use uuid::Uuid;
+
+struct Document {
+    file: File,
+    filename: String,
+    parent_path: String,
+    content: String, // lowercased
+}
+
+pub struct ContentSearcher {
+    documents: Vec<Document>,
+    results: Vec<SearchResult>,
+    submitted_query: String,
+}
+
+impl ContentSearcher {
+    pub async fn new(lb: &Lb) -> Self {
+        let metas = lb.list_metadatas().await.unwrap_or_default();
+        let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
+
+        let md_files: Vec<File> = metas
+            .into_iter()
+            .filter(|m| m.is_document() && m.name.ends_with(".md"))
+            .collect();
+
+        let mut documents = Vec::with_capacity(md_files.len());
+
+        for meta in md_files {
+            let id = meta.id;
+            if let Ok(bytes) = lb.read_document(meta.id, false).await {
+                if let Ok(content) = String::from_utf8(bytes) {
+                    let path = paths
+                        .iter()
+                        .find(|(i, _)| *i == id)
+                        .map(|(_, p)| p.clone())
+                        .unwrap_or_default();
+
+                    let (parent, name) = split_path(&path);
+                    let filename = name.to_string();
+                    let parent_path = parent.to_string();
+
+                    documents.push(Document {
+                        file: meta,
+                        filename,
+                        parent_path,
+                        content: content.to_lowercase(),
+                    });
+                }
+            }
+        }
+
+        Self {
+            documents,
+            results: Vec::new(),
+            submitted_query: String::new(),
+        }
+    }
+
+    /// Update the search query. Results available via `results()`.
+    pub fn query(&mut self, input: &str) {
+        let query = input.to_ascii_lowercase();
+
+        if self.submitted_query == query {
+            return;
+        }
+        self.submitted_query = query.clone();
+        self.results.clear();
+
+        if query.is_empty() {
+            return;
+        }
+
+        for doc in &self.documents {
+            let mut content_matches = Vec::new();
+
+            // Find exact matches
+            for (idx, _) in doc.content.match_indices(&query) {
+                content_matches.push(ContentMatch {
+                    range: idx..idx + query.len(),
+                    exact: true,
+                });
+            }
+
+            // Find word matches
+            let mut all_words_matched = true;
+            for word in query.split_whitespace() {
+                let mut word_matched = false;
+                for (idx, _) in doc.content.match_indices(word) {
+                    word_matched = true;
+                    if content_matches.iter().any(|h| h.range.contains(&idx)) {
+                        continue;
+                    }
+                    content_matches.push(ContentMatch {
+                        range: idx..idx + word.len(),
+                        exact: false,
+                    });
+                }
+                if !word_matched {
+                    all_words_matched = false;
+                }
+            }
+
+            if all_words_matched && !content_matches.is_empty() {
+                self.results.push(SearchResult {
+                    id: doc.file.id,
+                    filename: doc.filename.clone(),
+                    parent_path: doc.parent_path.clone(),
+                    path_indices: Vec::new(),
+                    content_matches,
+                });
+            }
+        }
+
+        self.results.sort_unstable_by(|a, b| {
+            let a_exact = a.content_matches.iter().filter(|m| m.exact).count();
+            let b_exact = b.content_matches.iter().filter(|m| m.exact).count();
+            if a_exact > 0 || b_exact > 0 {
+                b_exact.cmp(&a_exact)
+            } else {
+                b.content_matches.len().cmp(&a.content_matches.len())
+            }
+        });
+    }
+
+    /// Get search results.
+    pub fn results(&self) -> &[SearchResult] {
+        &self.results
+    }
+
+    /// Get document content by ID.
+    pub fn content(&self, id: Uuid) -> Option<&str> {
+        self.documents
+            .iter()
+            .find(|d| d.file.id == id)
+            .map(|d| d.content.as_str())
+    }
+
+    /// Extract snippet with context. Returns (prefix, matched, suffix).
+    pub fn snippet(&self, id: Uuid, range: &Range<usize>, context_chars: usize) -> Option<(&str, &str, &str)> {
+        let content = self.content(id)?;
+        let char_indices: Vec<(usize, char)> = content.char_indices().collect();
+
+        let match_start_ci = char_indices
+            .iter()
+            .position(|(byte, _)| *byte >= range.start)
+            .unwrap_or(char_indices.len());
+        let match_end_ci = char_indices
+            .iter()
+            .position(|(byte, _)| *byte >= range.end)
+            .unwrap_or(char_indices.len());
+
+        let start_ci = match_start_ci.saturating_sub(context_chars);
+        let end_ci = (match_end_ci + context_chars).min(char_indices.len());
+
+        // Snap to whitespace
+        let mut start = start_ci;
+        if start > 0 {
+            for i in start..match_start_ci {
+                if char_indices[i].1.is_whitespace() {
+                    start = i + 1;
+                    break;
+                }
+            }
+        }
+
+        let mut end = end_ci;
+        if end < char_indices.len() {
+            for i in (match_end_ci..end).rev() {
+                if char_indices[i].1.is_whitespace() {
+                    end = i;
+                    break;
+                }
+            }
+        }
+
+        let get_byte = |ci: usize| {
+            char_indices.get(ci).map(|(b, _)| *b).unwrap_or(content.len())
+        };
+
+        let start_byte = get_byte(start);
+        let match_start_byte = get_byte(match_start_ci);
+        let match_end_byte = get_byte(match_end_ci);
+        let end_byte = get_byte(end);
+
+        Some((
+            &content[start_byte..match_start_byte],
+            &content[match_start_byte..match_end_byte],
+            &content[match_end_byte..end_byte],
+        ))
+    }
+}

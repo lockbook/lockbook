@@ -1,7 +1,24 @@
-#[derive(Clone)]
+use std::ops::Range;
+use std::time::Instant;
+
+use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
+use lb_rs::Uuid;
+use lb_rs::blocking::Lb;
+use lb_rs::search::{ContentSearcher, SearchResult};
+
+use crate::{
+    search::{SearchExecutor, SearchType},
+    show::{DocType, InputStateExt},
+    theme::{
+        icons::Icon,
+        palette_v2::{Palette, ThemeExt},
+    },
+    widgets::GlyphonLabel,
+};
+
 pub struct ContentSearch {
-    doc_store: Arc<RwLock<DocStore>>,
-    query_state: Arc<RwLock<QueryState>>,
+    searcher: ContentSearcher,
+    submitted_query: String,
     /// Flat index across all visible rows (headers + child highlights).
     selected: usize,
     kb_mode: bool,
@@ -14,129 +31,18 @@ pub struct ContentSearch {
 }
 
 impl ContentSearch {
-    pub fn new(lb: &Lb, ctx: &Context) -> Self {
-        let content_search = ContentSearch {
-            doc_store: Default::default(),
-            query_state: Default::default(),
+    pub fn new(lb: &Lb, _ctx: &Context) -> Self {
+        ContentSearch {
+            searcher: lb.content_searcher(),
+            submitted_query: String::new(),
             selected: 0,
             kb_mode: true,
             selected_id: None,
             activate: false,
             focused_file: None,
             last_render_us: 0,
-        };
-
-        let lb = lb.clone();
-        let ctx = ctx.clone();
-        let bg_cs = content_search.clone();
-        thread::spawn(move || {
-            bg_cs.build_doc_store(lb, ctx);
-        });
-
-        content_search
-    }
-}
-
-#[derive(Default)]
-pub struct DocStore {
-    documents: Vec<(File, String, String)>,
-
-    uningested_files: Vec<File>,
-    ignored_ids: usize,
-    ingest_failures: usize,
-
-    start_time: Option<Instant>,
-    end_time: Option<Instant>,
-}
-
-impl ContentSearch {
-    fn build_doc_store(&self, lb: Lb, ctx: Context) {
-        let start = Instant::now();
-
-        let metas = lb.list_metadatas().unwrap();
-        let paths = Arc::new(lb.list_paths_with_ids(None).unwrap());
-
-        self.doc_store.write().unwrap().start_time = Some(start);
-
-        for meta in metas {
-            let mut ignore = false;
-            if !meta.is_document() {
-                continue;
-            }
-
-            if !meta.name.ends_with(".md") {
-                ignore = true;
-            }
-
-            if ignore {
-                self.doc_store.write().unwrap().ignored_ids += 1;
-            } else {
-                self.doc_store.write().unwrap().uningested_files.push(meta);
-            }
-        }
-
-        for _ in 0..available_parallelism()
-            .map(|number| number.get())
-            .unwrap_or(4)
-        {
-            let bg_ds = self.doc_store.clone();
-            let bg_lb = lb.clone();
-            let ctx = ctx.clone();
-            let bg_paths = paths.clone();
-            thread::spawn(move || {
-                loop {
-                    let Some(meta) = bg_ds.write().unwrap().uningested_files.pop() else {
-                        return;
-                    };
-
-                    let id = meta.id;
-                    let doc = bg_lb
-                        .read_document(meta.id, false)
-                        .ok()
-                        .and_then(|bytes| String::from_utf8(bytes).ok());
-
-                    let mut doc_store = bg_ds.write().unwrap();
-                    if let Some(doc) = doc {
-                        // todo: see lowercasing notes
-                        let doc = doc.to_lowercase();
-                        doc_store.documents.push((
-                            meta,
-                            bg_paths.iter().find(|(i, _)| *i == id).unwrap().1.clone(),
-                            doc,
-                        ));
-                    } else {
-                        doc_store.ingest_failures += 1;
-                    }
-
-                    if doc_store.uningested_files.is_empty() {
-                        doc_store.end_time = Some(Instant::now());
-                    }
-                    ctx.request_repaint();
-                }
-            });
         }
     }
-}
-
-#[derive(Default)]
-pub struct QueryState {
-    submitted_query: String,
-    ellapsed_ms: u128,
-    matches: Vec<Matches>,
-}
-
-#[derive(Default)]
-pub struct Matches {
-    id: Uuid,
-    highlights: Vec<Highlight>,
-
-    exact_matches: u32,
-    substring_matches: u32,
-}
-
-pub struct Highlight {
-    range: Range<usize>,
-    exact: bool,
 }
 
 const CHILD_ROW_HEIGHT: f32 = 20.0;
@@ -177,27 +83,27 @@ impl FlatEntry {
 }
 
 /// Build the flat index. If `focused` is Some, only include entries for that file (no cap, no expand).
-fn build_flat_index(matches: &[Matches], focused: Option<Uuid>) -> Vec<FlatEntry> {
+fn build_flat_index(results: &[SearchResult], focused: Option<Uuid>) -> Vec<FlatEntry> {
     let mut entries = Vec::new();
-    for (mi, m) in matches.iter().enumerate() {
+    for (mi, r) in results.iter().enumerate() {
         if let Some(fid) = focused {
-            if m.id != fid {
+            if r.id != fid {
                 continue;
             }
             // In focused mode, no header, no cap, no expand.
-            for hi in 0..m.highlights.len() {
+            for hi in 0..r.content_matches.len() {
                 entries.push(FlatEntry::Child { match_idx: mi, highlight_idx: hi });
             }
         } else {
             entries.push(FlatEntry::Header { match_idx: mi });
-            let shown = m.highlights.len().min(MAX_CHILDREN);
+            let shown = r.content_matches.len().min(MAX_CHILDREN);
             for hi in 0..shown {
                 entries.push(FlatEntry::Child { match_idx: mi, highlight_idx: hi });
             }
-            if m.highlights.len() > MAX_CHILDREN {
+            if r.content_matches.len() > MAX_CHILDREN {
                 entries.push(FlatEntry::Expand {
                     match_idx: mi,
-                    remaining: m.highlights.len() - MAX_CHILDREN,
+                    remaining: r.content_matches.len() - MAX_CHILDREN,
                 });
             }
         }
@@ -211,75 +117,11 @@ impl SearchExecutor for ContentSearch {
     }
 
     fn handle_query(&mut self, query: &str) {
-        // todo: expose lowercase controls. Right now lowercasing is done through a path of least
-        // resistance. We lowercase the documents during ingestion (in place) which has a minimal
-        // impact on performance. Doing it within this function makes the query take 2x as long.
-        // the optimal solution would use a FSM and have controls for managing cases.
-        //
-        // also there seem to be some fancy algorithms in the space and it could be worth exploring
-        // them as well
-        let query = query.to_ascii_lowercase();
-        let start = Instant::now();
-
-        let docs = self.doc_store.read().unwrap();
-        let mut results = self.query_state.write().unwrap();
-        if results.submitted_query == query {
+        if self.submitted_query == query {
             return;
         }
-
-        results.submitted_query = query.to_string();
-
-        // todo: incrementalism
-        results.matches.clear();
-
-        if query.is_empty() {
-            return;
-        }
-
-        for (meta, _, content) in &docs.documents {
-            let mut m = Matches { id: meta.id, ..Default::default() };
-
-            for (idx, _) in content.match_indices(&query) {
-                m.highlights
-                    .push(Highlight { range: idx..idx + query.len(), exact: true });
-                m.exact_matches += 1;
-            }
-
-            let mut all_words_matched = true;
-            for sub_query in query.split_whitespace() {
-                let mut sub_query_matched = false;
-                for (idx, _) in content.match_indices(sub_query) {
-                    sub_query_matched = true;
-                    if m.highlights.iter().any(|h| h.range.contains(&idx)) {
-                        continue;
-                    }
-                    m.highlights
-                        .push(Highlight { range: idx..idx + sub_query.len(), exact: false });
-                    m.substring_matches += 1;
-                }
-                if !sub_query_matched {
-                    all_words_matched = false;
-                }
-            }
-
-            if all_words_matched {
-                results.matches.push(m);
-            }
-        }
-
-        results.matches.sort_unstable_by(|a, b| {
-            if a.exact_matches > 0 || b.exact_matches > 0 {
-                b.exact_matches.cmp(&a.exact_matches)
-            } else {
-                b.substring_matches.cmp(&a.substring_matches)
-            }
-        });
-
-        results.ellapsed_ms = start.elapsed().as_millis();
-
-        // Reset selection and focus when query changes.
-        drop(results);
-        drop(docs);
+        self.submitted_query = query.to_string();
+        self.searcher.query(query);
         self.selected = 0;
         self.kb_mode = true;
         self.focused_file = None;
@@ -289,17 +131,16 @@ impl SearchExecutor for ContentSearch {
         let render_start = Instant::now();
         self.process_keys(ui.ctx());
 
-        let doc_store = self.doc_store.read().unwrap();
-        let query_state = self.query_state.read().unwrap();
+        let results = self.searcher.results();
 
         // If focused_file no longer exists in matches, clear focus.
         if let Some(fid) = self.focused_file {
-            if !query_state.matches.iter().any(|m| m.id == fid) {
+            if !results.iter().any(|r| r.id == fid) {
                 self.focused_file = None;
             }
         }
 
-        let flat = build_flat_index(&query_state.matches, self.focused_file);
+        let flat = build_flat_index(results, self.focused_file);
         let total = flat.len();
         if total > 0 && self.selected >= total {
             self.selected = total - 1;
@@ -309,8 +150,8 @@ impl SearchExecutor for ContentSearch {
             self.activate = false;
             // If the selected row is an Expand row, enter focus mode rather than opening.
             if let Some(FlatEntry::Expand { match_idx, .. }) = flat.get(self.selected) {
-                if let Some(m) = query_state.matches.get(*match_idx) {
-                    self.focused_file = Some(m.id);
+                if let Some(r) = results.get(*match_idx) {
+                    self.focused_file = Some(r.id);
                     self.selected = 0;
                     self.kb_mode = true;
                     self.last_render_us = render_start.elapsed().as_micros();
@@ -319,8 +160,8 @@ impl SearchExecutor for ContentSearch {
             }
             let activated = flat
                 .get(self.selected)
-                .and_then(|e| query_state.matches.get(e.match_idx()))
-                .map(|m| m.id);
+                .and_then(|e| results.get(e.match_idx()))
+                .map(|r| r.id);
             self.last_render_us = render_start.elapsed().as_micros();
             return super::PickerResponse { activated, selected: self.selected_id };
         }
@@ -344,33 +185,22 @@ impl SearchExecutor for ContentSearch {
 
         // Render focused header outside the scroll area.
         if let Some(fid) = self.focused_file {
-            if let Some(m) = query_state.matches.iter().find(|m| m.id == fid) {
-                if let Some((file, path, _)) =
-                    doc_store.documents.iter().find(|(f, _, _)| f.id == fid)
-                {
-                    let resp = self.show_focused_header(ui, file, path, m);
-                    if resp.clicked() {
-                        focused_header_clicked = true;
-                    }
+            if let Some(r) = results.iter().find(|r| r.id == fid) {
+                let resp = self.show_focused_header(ui, r);
+                if resp.clicked() {
+                    focused_header_clicked = true;
                 }
             }
         }
 
         // Subtle metrics bar above results (skip when focused to avoid clutter).
-        if self.focused_file.is_none() && !query_state.submitted_query.is_empty() {
-            self.show_metrics_bar(ui, &query_state, &doc_store);
+        if self.focused_file.is_none() && !results.is_empty() {
+            self.show_metrics_bar(ui, results);
         }
 
         // Empty states: no query typed, or query with no matches.
         if flat.is_empty() {
-            self.show_empty_state(
-                ui,
-                query_state.submitted_query.is_empty(),
-                doc_store.end_time.is_none() && !doc_store.uningested_files.is_empty(),
-                doc_store.documents.len(),
-                doc_store.uningested_files.len(),
-            );
-
+            self.show_empty_state(ui, results.is_empty());
             self.last_render_us = render_start.elapsed().as_micros();
             return super::PickerResponse { activated: None, selected: self.selected_id };
         }
@@ -407,10 +237,7 @@ impl SearchExecutor for ContentSearch {
                         let entry = &flat[fi];
                         slot_cursor +=
                             if matches!(entry, FlatEntry::Header { .. }) { 2 } else { 1 };
-                        let m = &query_state.matches[entry.match_idx()];
-                        let Some((file, path, content)) =
-                            doc_store.documents.iter().find(|(f, _, _)| f.id == m.id)
-                        else {
+                        let Some(r) = results.get(entry.match_idx()) else {
                             continue;
                         };
 
@@ -418,26 +245,26 @@ impl SearchExecutor for ContentSearch {
 
                         let resp = match entry {
                             FlatEntry::Header { .. } => {
-                                self.show_header_row(ui, file, path, m, is_selected_result)
+                                self.show_header_row(ui, r, is_selected_result)
                             }
                             FlatEntry::Child { highlight_idx, .. } => {
                                 let is_active =
                                     is_selected_result && sel_highlight_idx == Some(*highlight_idx);
-                                self.show_child_row(ui, file, content, m, *highlight_idx, is_active)
+                                self.show_child_row(ui, r, *highlight_idx, is_active)
                             }
                             FlatEntry::Expand { remaining, .. } => {
                                 let is_active = self.selected == fi;
-                                let r = self.show_expand_row(ui, file, *remaining, is_active);
-                                if r.clicked() {
-                                    expand_clicked = Some(file.id);
+                                let resp = self.show_expand_row(ui, r, *remaining, is_active);
+                                if resp.clicked() {
+                                    expand_clicked = Some(r.id);
                                 }
-                                r
+                                resp
                             }
                         };
 
                         if is_selected_result {
                             selected_group_rect = Some(match selected_group_rect {
-                                Some(r) => r.union(resp.rect),
+                                Some(rect) => rect.union(resp.rect),
                                 None => resp.rect,
                             });
                         }
@@ -498,8 +325,8 @@ impl SearchExecutor for ContentSearch {
         // Derive selected_id from the current flat selection.
         let new_id = flat
             .get(self.selected)
-            .and_then(|e| query_state.matches.get(e.match_idx()))
-            .map(|m| m.id);
+            .and_then(|e| results.get(e.match_idx()))
+            .map(|r| r.id);
         self.selected_id = new_id;
 
         self.last_render_us = render_start.elapsed().as_micros();
@@ -540,14 +367,15 @@ impl ContentSearch {
     }
 
     fn show_header_row(
-        &self, ui: &mut Ui, file: &File, path: &str, matches: &Matches, _selected: bool,
+        &self, ui: &mut Ui, result: &SearchResult, _selected: bool,
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
         let name_color = theme.neutral_fg();
         let parent_color = theme.neutral_fg_secondary();
         let variant = theme.fg();
 
-        let parent_path = path.strip_suffix(&file.name).unwrap_or(path);
+        let exact_matches = result.content_matches.iter().filter(|m| m.exact).count();
+        let substring_matches = result.content_matches.len() - exact_matches;
 
         let frame = Frame::new()
             .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
@@ -560,7 +388,7 @@ impl ContentSearch {
                 ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
 
                 let icon_size = 19.;
-                DocType::from_name(&file.name)
+                DocType::from_name(&result.filename)
                     .to_icon()
                     .size(icon_size)
                     .color(theme.neutral_fg_secondary())
@@ -571,7 +399,7 @@ impl ContentSearch {
 
                     let badge_size = egui::vec2(22.0, 16.0);
 
-                    if matches.substring_matches > 0 {
+                    if substring_matches > 0 {
                         let bg = variant.get_color(Palette::Magenta).linear_multiply(0.15);
                         let fg = variant.get_color(Palette::Magenta);
                         ui.allocate_ui(badge_size, |ui| {
@@ -582,7 +410,7 @@ impl ContentSearch {
                                 .show(ui, |ui| {
                                     ui.add(
                                         GlyphonLabel::new(
-                                            &format!("{}", matches.substring_matches),
+                                            &format!("{}", substring_matches),
                                             fg,
                                         )
                                         .font_size(11.0),
@@ -591,7 +419,7 @@ impl ContentSearch {
                         });
                     }
 
-                    if matches.exact_matches > 0 {
+                    if exact_matches > 0 {
                         let bg = variant.get_color(Palette::Blue).linear_multiply(0.15);
                         let fg = variant.get_color(Palette::Blue);
                         ui.allocate_ui(badge_size, |ui| {
@@ -602,7 +430,7 @@ impl ContentSearch {
                                 .show(ui, |ui| {
                                     ui.add(
                                         GlyphonLabel::new(
-                                            &format!("{}", matches.exact_matches),
+                                            &format!("{}", exact_matches),
                                             fg,
                                         )
                                         .font_size(11.0),
@@ -614,12 +442,12 @@ impl ContentSearch {
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;
                         ui.add(
-                            GlyphonLabel::new(&file.name, name_color)
+                            GlyphonLabel::new(&result.filename, name_color)
                                 .font_size(16.0)
                                 .max_width(ui.available_width()),
                         );
                         ui.add(
-                            GlyphonLabel::new(parent_path, parent_color)
+                            GlyphonLabel::new(&result.parent_path, parent_color)
                                 .font_size(13.0)
                                 .max_width(ui.available_width()),
                         );
@@ -630,21 +458,20 @@ impl ContentSearch {
 
         ui.interact(
             inner.response.rect,
-            ui.id().with(("content_header", file.id)),
+            ui.id().with(("content_header", result.id)),
             egui::Sense::click(),
         )
     }
 
     fn show_child_row(
-        &self, ui: &mut Ui, file: &File, content: &str, matches: &Matches, hi: usize,
-        is_active: bool,
+        &self, ui: &mut Ui, result: &SearchResult, hi: usize, is_active: bool,
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
         let parent_color = theme.neutral_fg_secondary();
         let variant = theme.fg();
 
-        let highlight = &matches.highlights[hi];
-        let snippet = extract_context(content, &highlight.range);
+        let highlight = &result.content_matches[hi];
+        let snippet = self.extract_snippet(result.id, &highlight.range);
 
         let (badge_bg, badge_fg) = if highlight.exact {
             (
@@ -684,7 +511,6 @@ impl ContentSearch {
                 ui.add(
                     GlyphonLabel::new_rich(
                         snippet
-                            .spans
                             .iter()
                             .map(|(t, b)| (t.as_str(), *b))
                             .collect(),
@@ -698,13 +524,13 @@ impl ContentSearch {
 
         ui.interact(
             cf.response.rect,
-            ui.id().with(("content_child", file.id, hi)),
+            ui.id().with(("content_child", result.id, hi)),
             egui::Sense::click(),
         )
     }
 
     fn show_expand_row(
-        &self, ui: &mut Ui, file: &File, remaining: usize, is_active: bool,
+        &self, ui: &mut Ui, result: &SearchResult, remaining: usize, is_active: bool,
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
         let variant = theme.fg();
@@ -737,22 +563,24 @@ impl ContentSearch {
 
         ui.interact(
             cf.response.rect,
-            ui.id().with(("content_expand", file.id)),
+            ui.id().with(("content_expand", result.id)),
             egui::Sense::click(),
         )
     }
 
-    fn show_metrics_bar(&self, ui: &mut Ui, qs: &QueryState, ds: &DocStore) {
+    fn show_metrics_bar(&self, ui: &mut Ui, results: &[SearchResult]) {
         let theme = ui.ctx().get_lb_theme();
         let muted = theme.neutral_fg_secondary();
         let variant = theme.fg();
 
-        let file_count = qs.matches.len();
-        let total_highlights: usize = qs.matches.iter().map(|m| m.highlights.len()).sum();
-        let total_exact: u32 = qs.matches.iter().map(|m| m.exact_matches).sum();
-        let total_partial: u32 = qs.matches.iter().map(|m| m.substring_matches).sum();
-
-        let indexing = ds.end_time.is_none() && !ds.uningested_files.is_empty();
+        let file_count = results.len();
+        let total_highlights: usize = results.iter().map(|r| r.content_matches.len()).sum();
+        let total_exact: usize = results
+            .iter()
+            .flat_map(|r| &r.content_matches)
+            .filter(|m| m.exact)
+            .count();
+        let total_partial = total_highlights - total_exact;
 
         Frame::new()
             .inner_margin(Margin { left: 10, right: 24, top: 2, bottom: 4 })
@@ -801,14 +629,6 @@ impl ContentSearch {
                         );
                     }
 
-                    ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
-
-                    // Query time.
-                    ui.add(
-                        GlyphonLabel::new(&format!("query {} ms", qs.ellapsed_ms), muted)
-                            .font_size(11.0),
-                    );
-
                     // Render time of previous frame.
                     if self.last_render_us > 0 {
                         ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
@@ -818,54 +638,23 @@ impl ContentSearch {
                                 .font_size(11.0),
                         );
                     }
-
-                    // Indexing indicator.
-                    if indexing {
-                        ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
-                        ui.add(
-                            GlyphonLabel::new(
-                                &format!("indexing {}…", ds.uningested_files.len()),
-                                variant.get_color(Palette::Yellow),
-                            )
-                            .font_size(11.0),
-                        );
-                    } else {
-                        ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
-                        ui.add(
-                            GlyphonLabel::new(
-                                &format!("{} docs indexed", ds.documents.len()),
-                                muted,
-                            )
-                            .font_size(11.0),
-                        );
-                    }
                 });
             });
     }
 
-    fn show_empty_state(
-        &self, ui: &mut Ui, no_query: bool, indexing: bool, doc_count: usize, pending: usize,
-    ) {
+    fn show_empty_state(&self, ui: &mut Ui, no_results: bool) {
         let theme = ui.ctx().get_lb_theme();
         let muted = theme.neutral_fg_secondary();
         let variant = theme.fg();
 
-        let (title, subtitle, icon_color): (String, String, _) = if no_query {
+        let (title, subtitle, icon_color): (&str, &str, _) = if no_results {
             (
-                "Search your notes".to_string(),
-                if indexing {
-                    format!("Indexing {} file{}…", pending, if pending == 1 { "" } else { "s" })
-                } else {
-                    format!(
-                        "{} document{} ready — start typing to find matches",
-                        doc_count,
-                        if doc_count == 1 { "" } else { "s" }
-                    )
-                },
+                "Search your notes",
+                "Start typing to find matches",
                 variant.get_color(Palette::Blue),
             )
         } else {
-            ("No matches".to_string(), "Try a different query or shorter words".to_string(), muted)
+            ("No matches", "Try a different query or shorter words", muted)
         };
 
         // Fill the available region so the pane doesn't collapse to 0 width.
@@ -876,23 +665,20 @@ impl ContentSearch {
                     ui.add_space(24.0);
                     Icon::SEARCH.size(42.0).color(icon_color).show(ui);
                     ui.add_space(14.0);
-                    ui.add(GlyphonLabel::new(&title, theme.neutral_fg()).font_size(18.0));
+                    ui.add(GlyphonLabel::new(title, theme.neutral_fg()).font_size(18.0));
                     ui.add_space(6.0);
-                    ui.add(GlyphonLabel::new(&subtitle, muted).font_size(13.0));
+                    ui.add(GlyphonLabel::new(subtitle, muted).font_size(13.0));
                 });
             });
         });
     }
 
-    fn show_focused_header(
-        &self, ui: &mut Ui, file: &File, path: &str, matches: &Matches,
-    ) -> egui::Response {
+    fn show_focused_header(&self, ui: &mut Ui, result: &SearchResult) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
         let name_color = theme.neutral_fg();
         let parent_color = theme.neutral_fg_secondary();
 
-        let parent_path = path.strip_suffix(&file.name).unwrap_or(path);
-        let total = matches.highlights.len();
+        let total = result.content_matches.len();
 
         let frame = Frame::new()
             .inner_margin(Margin { left: 8, right: 8, top: 6, bottom: 6 })
@@ -913,7 +699,7 @@ impl ContentSearch {
                         GlyphonLabel::new(
                             &format!(
                                 "{} — {} match{}",
-                                file.name,
+                                result.filename,
                                 total,
                                 if total == 1 { "" } else { "es" }
                             ),
@@ -924,7 +710,7 @@ impl ContentSearch {
                     );
                     ui.add(
                         GlyphonLabel::new(
-                            &format!("Back to all results · {}", parent_path),
+                            &format!("Back to all results · {}", result.parent_path),
                             parent_color,
                         )
                         .font_size(11.0)
@@ -936,115 +722,41 @@ impl ContentSearch {
 
         ui.interact(
             inner.response.rect,
-            ui.id().with(("focused_header", file.id)),
+            ui.id().with(("focused_header", result.id)),
             egui::Sense::click(),
         )
     }
-}
 
-/// A snippet with bold spans for the matched region.
-struct Snippet {
-    /// (text, is_bold) pairs.
-    spans: Vec<(String, bool)>,
-}
+    fn extract_snippet(&self, id: Uuid, range: &Range<usize>) -> Vec<(String, bool)> {
+        let Some((prefix, matched, suffix)) = self.searcher.snippet(id, range, 30) else {
+            return vec![("...".to_string(), false)];
+        };
 
-fn extract_context(content: &str, range: &Range<usize>) -> Snippet {
-    // Work in char indices to avoid slicing inside multi-byte characters.
-    let char_indices: Vec<(usize, char)> = content.char_indices().collect();
+        let clean = |s: &str| -> String {
+            s.chars()
+                .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+                .collect()
+        };
 
-    let match_start_ci = char_indices
-        .iter()
-        .position(|(byte, _)| *byte >= range.start)
-        .unwrap_or(char_indices.len());
-    let match_end_ci = char_indices
-        .iter()
-        .position(|(byte, _)| *byte >= range.end)
-        .unwrap_or(char_indices.len());
+        let mut spans = Vec::new();
 
-    let context = 30;
-    let start_ci = match_start_ci.saturating_sub(context);
-    let end_ci = (match_end_ci + context).min(char_indices.len());
-
-    // Snap start forward to whitespace boundary.
-    let mut start = start_ci;
-    if start > 0 {
-        for i in start..match_start_ci {
-            if char_indices[i].1.is_whitespace() {
-                start = i + 1;
-                break;
-            }
+        let pre = clean(prefix);
+        if !pre.is_empty() {
+            spans.push((pre, false));
         }
-    }
-
-    // Snap end back to whitespace boundary.
-    let mut end = end_ci;
-    if end < char_indices.len() {
-        for i in (match_end_ci..end).rev() {
-            if char_indices[i].1.is_whitespace() {
-                end = i;
-                break;
-            }
+        let mat = clean(matched);
+        if !mat.is_empty() {
+            spans.push((mat, true));
         }
+        let suf = clean(suffix);
+        if !suf.is_empty() {
+            spans.push((suf, false));
+        }
+
+        if spans.is_empty() {
+            spans.push(("...".to_string(), false));
+        }
+
+        spans
     }
-
-    let get_byte = |ci: usize| {
-        char_indices
-            .get(ci)
-            .map(|(b, _)| *b)
-            .unwrap_or(content.len())
-    };
-    let start_byte = get_byte(start);
-    let match_start_byte = get_byte(match_start_ci);
-    let match_end_byte = get_byte(match_end_ci);
-    let end_byte = get_byte(end);
-
-    let prefix_ellipsis = if start > 0 { "..." } else { "" };
-    let suffix_ellipsis = if end < char_indices.len() { "..." } else { "" };
-
-    let clean = |s: &str| -> String {
-        s.chars()
-            .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
-            .collect()
-    };
-
-    let before = clean(&content[start_byte..match_start_byte]);
-    let matched = clean(&content[match_start_byte..match_end_byte]);
-    let after = clean(&content[match_end_byte..end_byte]);
-
-    let mut spans = Vec::new();
-
-    let pre = format!("{}{}", prefix_ellipsis, before.trim_start());
-    if !pre.is_empty() {
-        spans.push((pre, false));
-    }
-    if !matched.is_empty() {
-        spans.push((matched, true));
-    }
-    let suf = format!("{}{}", after.trim_end(), suffix_ellipsis);
-    if !suf.is_empty() {
-        spans.push((suf, false));
-    }
-
-    Snippet { spans }
 }
-
-use std::{
-    cmp::min,
-    ops::Range,
-    sync::{Arc, RwLock},
-    thread::{self, available_parallelism},
-    time::Instant,
-};
-
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
-use lb_rs::{Uuid, blocking::Lb, model::file::File};
-
-use crate::{
-    search::{SearchExecutor, SearchType},
-    show::{DocType, InputStateExt},
-    theme::{
-        icons::Icon,
-        palette_v2::{Palette, ThemeExt},
-    },
-    widgets::GlyphonLabel,
-};

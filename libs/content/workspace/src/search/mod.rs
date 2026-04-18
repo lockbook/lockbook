@@ -308,10 +308,9 @@ use egui::{
 use lb_rs::blocking::Lb;
 
 use crate::{
-    file_cache::FilesExt as _,
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
-    tab::{ContentState, Tab},
+    tab::Tab,
     theme::{icons::Icon, palette_v2::ThemeExt},
     workspace::Workspace,
 };

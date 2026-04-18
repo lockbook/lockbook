@@ -53,6 +53,7 @@ tracing-appender = "0.2"
 tracing-subscriber = "0.3.9"
 tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
+nucleo = "0.5"
 usvg = "0.41.0"
 uuid = { version = "1.2.2", features = ["v4", "serde", "js"] }
 web-time = "1.1.0"

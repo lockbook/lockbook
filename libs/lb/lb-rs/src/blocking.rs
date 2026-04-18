@@ -257,6 +257,14 @@ impl Lb {
         self.block_on(self.lb.search(input, cfg))
     }
 
+    pub fn path_searcher(&self) -> crate::search::PathSearcher {
+        self.block_on(self.lb.path_searcher())
+    }
+
+    pub fn content_searcher(&self) -> crate::search::ContentSearcher {
+        self.block_on(self.lb.content_searcher())
+    }
+
     pub fn validate(&self) -> LbResult<Vec<Warning>> {
         self.block_on(self.lb.test_repo_integrity(true))
     }

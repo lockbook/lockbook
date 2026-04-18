@@ -4251,6 +4251,7 @@ dependencies = [
  "itertools 0.10.5",
  "lb-tantivy",
  "libsecp256k1",
+ "nucleo",
  "num_cpus",
  "qrcode-generator",
  "rand 0.8.5",
@@ -4570,6 +4571,7 @@ dependencies = [
 name = "lockbook"
 version = "26.4.14"
 dependencies = [
+ "chrono",
  "cli-rs 0.2.0",
  "colored 3.0.0",
  "fs_extra",

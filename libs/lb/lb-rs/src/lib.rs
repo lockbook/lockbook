@@ -22,6 +22,7 @@ pub mod blocking;
 pub mod io;
 pub mod macros;
 pub mod model;
+pub mod search;
 pub mod service;
 pub mod subscribers;
 
