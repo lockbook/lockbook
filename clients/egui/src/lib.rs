@@ -98,9 +98,8 @@ impl Lockbook {
             // Account screen.
             Self::Onboard(screen) => {
                 if let Some(handoff) = screen.update(ctx) {
-                    let OnboardHandOff { settings, core, acct_data } = handoff;
+                    let OnboardHandOff { settings, core, acct_data, is_new_user } = handoff;
 
-                    let is_new_user = true;
                     let acct_scr = AccountScreen::new(settings, &core, acct_data, ctx, is_new_user);
                     *self = Self::Account(acct_scr);
 
