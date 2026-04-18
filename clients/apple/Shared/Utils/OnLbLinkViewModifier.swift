@@ -2,6 +2,9 @@ import SwiftUI
 import SwiftWorkspace
 
 struct OnLbLinkViewModifier: ViewModifier {
+    let trustedHost = "app.lockbook.net"
+    let trustedRouted = "open"
+    
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
     @EnvironmentObject var workspaceInput: WorkspaceInputState
@@ -44,17 +47,23 @@ struct OnLbLinkViewModifier: ViewModifier {
     }
     
     private func openExternalUrl(url: URL) {
-        guard url.pathComponents.count >= 3,
-              url.pathComponents[1] == "open",
-              let id = UUID(uuidString: url.pathComponents[2]) else {
-            AppState.shared.error = .custom(
-                title: "Could not open link",
-                msg: "Invalid URL"
-            )
+        
+        // If this is a valid app link -> open it in app
+        if let host = url.host,
+           host == trustedHost,
+           url.pathComponents.count > 2,
+           url.pathComponents[1] == "open",
+           let id = UUID(uuidString: url.pathComponents[2]) {
+            
+            self.openFile(id: id)
             return
         }
 
-        self.openFile(id: id)
+        #if os(iOS)
+            UIApplication.shared.open(url)
+        #else
+            NSWorkspace.shared.open(url)
+        #endif
     }
 
     private func importInternalLink(url: URL) {
