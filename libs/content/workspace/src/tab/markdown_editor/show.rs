@@ -61,7 +61,7 @@ impl MdEdit {
             &files,
             file_id,
         );
-        if !self.readonly {
+        if !self.renderer.readonly && !self.renderer.plaintext {
             self.emoji_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
@@ -114,7 +114,7 @@ impl MdEdit {
         // after this returns and before `show` — those append-only additions
         // survive into render. `show` itself doesn't touch reveal_ranges.
         self.renderer.reveal_ranges.clear();
-        if !self.readonly && ctx.memory(|m| m.has_focus(id)) {
+        if !self.renderer.readonly && ctx.memory(|m| m.has_focus(id)) {
             self.renderer
                 .reveal_ranges
                 .push(self.renderer.buffer.current.selection);
@@ -172,7 +172,7 @@ impl MdEdit {
         ui.ctx()
             .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
-            let readonly = self.readonly;
+            let readonly = self.renderer.readonly;
             let mut menu_events: Vec<Event> = Vec::new();
             response.context_menu(|ui| {
                 ui.horizontal(|ui| {
@@ -328,7 +328,7 @@ impl MdEdit {
         self.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
         // cursor / selection — iOS draws natively
-        if ui.ctx().os() != OperatingSystem::IOS && !self.readonly {
+        if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
             let selection = self
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
@@ -409,6 +409,9 @@ impl MdEdit {
     /// clip — so popup text lands on a later glyphon layer and can extend
     /// past the editor's viewport (e.g. over a toolbar above the cursor).
     pub fn show_completions(&mut self, ui: &mut Ui) {
+        if self.renderer.plaintext {
+            return;
+        }
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
     }

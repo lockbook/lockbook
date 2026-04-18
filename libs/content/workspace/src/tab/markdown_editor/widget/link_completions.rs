@@ -658,7 +658,7 @@ fn abbreviate_segments(
 
 impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
-        if self.readonly || !self.link_completions.active {
+        if self.renderer.readonly || !self.link_completions.active {
             return;
         }
 

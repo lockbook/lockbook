@@ -66,7 +66,7 @@ impl<'ast> MdEdit {
                 })
             }
             egui::Event::Paste(text) => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
 
@@ -118,7 +118,7 @@ impl<'ast> MdEdit {
                 }
             }
             egui::Event::Text(text) => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Replace {
@@ -130,7 +130,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::Backspace | Key::Delete) =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Delete {
@@ -150,13 +150,13 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Newline { shift: modifiers.shift })
             }
             egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.shift && cfg!(target_os = "ios") {
@@ -174,7 +174,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Cut)
@@ -188,19 +188,19 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Z, pressed: true, modifiers, .. }
                 if modifiers.command && !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.shift { Some(Event::Undo) } else { Some(Event::Redo) }
             }
             egui::Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Strong })
             }
             egui::Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Emph })
@@ -208,7 +208,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.alt {
@@ -228,7 +228,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -239,13 +239,13 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::H, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Highlight })
             }
             egui::Event::Key { key: Key::U, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Underline })
@@ -253,7 +253,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::P, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -264,7 +264,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::S, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Subscript })
@@ -272,7 +272,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::E, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -281,7 +281,7 @@ impl<'ast> MdEdit {
                 })
             }
             egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -292,7 +292,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -308,7 +308,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -324,7 +324,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -341,7 +341,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -354,7 +354,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -367,7 +367,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -380,7 +380,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -393,7 +393,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -406,7 +406,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -419,7 +419,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::Q, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -432,7 +432,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::R, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -445,7 +445,7 @@ impl<'ast> MdEdit {
             egui::Event::Key { key: Key::D, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleFold)

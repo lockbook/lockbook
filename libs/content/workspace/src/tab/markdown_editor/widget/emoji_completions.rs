@@ -350,7 +350,7 @@ fn matching_shortcode<'a>(emoji: &'a emojis::Emoji, query: &str) -> &'a str {
 
 impl MdEdit {
     pub fn show_emoji_completions(&mut self, ui: &mut Ui) {
-        if self.readonly || !self.emoji_completions.active {
+        if self.renderer.readonly || !self.emoji_completions.active {
             return;
         }
 

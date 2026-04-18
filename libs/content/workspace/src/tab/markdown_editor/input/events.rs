@@ -8,7 +8,7 @@ impl Editor {
     /// and Paste are left for the workspace's image-import pass;
     /// `PredictedTouch` / `MultiTouchGesture` are left for other tabs.
     pub(crate) fn drain_workspace_events(&self, ctx: &Context) -> Vec<Event> {
-        if self.edit.readonly {
+        if self.edit.renderer.readonly {
             return Vec::new();
         }
         ctx.pop_events_where(&mut |e| {

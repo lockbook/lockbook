@@ -30,7 +30,7 @@ impl<'ast> MdRender {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode() {
+        if any_children && !self.plaintext {
             self.block_children_height(node)
         } else {
             let highlighter_syntax =
@@ -77,7 +77,7 @@ impl<'ast> MdRender {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode() {
+        if any_children && !self.plaintext {
             self.show_block_children(ui, node, top_left);
         } else {
             let has_syntax = syntax_set()
