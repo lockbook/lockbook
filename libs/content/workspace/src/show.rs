@@ -488,7 +488,7 @@ impl Workspace {
         // tab navigation
         let completions_active = self
             .current_tab_markdown()
-            .is_some_and(|md| md.emoji_completions.active || md.link_completions.active);
+            .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
         let current_idx = self
             .current_tab
             .as_ref()

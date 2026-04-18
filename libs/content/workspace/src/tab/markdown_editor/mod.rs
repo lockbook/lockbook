@@ -137,8 +137,8 @@ pub enum ScrollTarget {
 }
 
 /// Editing primitive — an [`MdRender`] plus the interactive state needed to
-/// mutate it. Self-contained so it can be used standalone (by a chat composer
-/// or a label+input pair) without needing an [`Editor`]'s widgets and
+/// mutate it. Self-contained so it can be used standalone (by a composer or a
+/// label+input pair) without needing an [`Editor`]'s surrounding widgets and
 /// workspace integration.
 pub struct MdEdit {
     pub renderer: MdRender,
@@ -150,6 +150,10 @@ pub struct MdEdit {
     /// tabs set this to true; every mutation path in `input/canonical.rs`
     /// early-returns when set.
     pub readonly: bool,
+
+    /// No physical keyboard (phone or iPad compact mode). Used by completion
+    /// popups to hide Cmd/Ctrl+N shortcut hints.
+    pub phone_mode: bool,
 
     /// Transient drag selection — `Some` while a drag is in progress; the
     /// rendered cursor/selection falls back to the buffer's own selection
@@ -163,6 +167,16 @@ pub struct MdEdit {
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
+
+    /// Document identity — link completions resolve relative paths against
+    /// the current file's parent.
+    pub file_id: Uuid,
+
+    /// Emoji shortcode completion popup (e.g. `:smile:`).
+    pub emoji_completions: EmojiCompletions,
+
+    /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
+    pub link_completions: LinkCompletions,
 }
 
 pub struct Editor {
@@ -173,19 +187,16 @@ pub struct Editor {
     pub persistence: WsPersistentStore,
 
     // document identity
-    pub file_id: Uuid,
     pub id_salt: Id,
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
-    pub phone_mode: bool,
 
     embeds_last_seen: u64,
 
-    // interaction widgets
+    // interaction widgets (toolbar + find are Editor-owned; completion
+    // widgets moved onto MdEdit so a standalone composer inherits them)
     pub toolbar: Toolbar,
     pub find: Find,
-    pub emoji_completions: EmojiCompletions,
-    pub link_completions: LinkCompletions,
 
     // misc
     pub virtual_keyboard_shown: bool,
@@ -425,28 +436,28 @@ impl Editor {
             edit: MdEdit {
                 renderer,
                 readonly,
+                phone_mode,
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
                 pending_scroll: None,
                 scroll_area_velocity: Default::default(),
+                file_id,
+                emoji_completions: Default::default(),
+                link_completions: Default::default(),
             },
 
             core,
             persistence,
 
-            file_id,
             id_salt: Id::NULL,
             hmac,
             initialized: Default::default(),
-            phone_mode,
 
             embeds_last_seen: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
-            emoji_completions: Default::default(),
-            link_completions: Default::default(),
 
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
@@ -488,7 +499,7 @@ impl Editor {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.file_id).with(self.id_salt)
+        Id::new(self.edit.file_id).with(self.id_salt)
     }
 
     pub fn focus(&self, ctx: &Context) {
@@ -579,16 +590,20 @@ impl Editor {
             changed
         };
 
-        self.emoji_completions.update_active_state(
+        self.edit.emoji_completions.update_active_state(
             &self.edit.renderer.buffer,
             &self.edit.renderer.bounds.inline_paragraphs,
         );
-        self.link_completions.update_active_state(
-            &self.edit.renderer.buffer,
-            &self.edit.renderer.bounds.inline_paragraphs,
-            &self.edit.renderer.files,
-            self.file_id,
-        );
+        {
+            let files = self.edit.renderer.files.clone();
+            let file_id = self.edit.file_id;
+            self.edit.link_completions.update_active_state(
+                &self.edit.renderer.buffer,
+                &self.edit.renderer.bounds.inline_paragraphs,
+                &files,
+                file_id,
+            );
+        }
 
         // Completion popups get first dibs on nav keys — they consume
         // Up/Down/Enter/Cmd+num before process_events so the editor's key
@@ -597,17 +612,19 @@ impl Editor {
         // focus, so the popup can always be dismissed.
         if !self.edit.readonly {
             let focused = self.focused(ui.ctx());
-            self.emoji_completions.handle_input(
+            self.edit.emoji_completions.handle_input(
                 ui.ctx(),
                 &self.edit.renderer.buffer,
                 focused,
                 &mut self.edit.event.internal_events,
             );
-            self.link_completions.handle_input(
+            let files = self.edit.renderer.files.clone();
+            let file_id = self.edit.file_id;
+            self.edit.link_completions.handle_input(
                 ui.ctx(),
                 &self.edit.renderer.buffer,
-                &self.edit.renderer.files,
-                self.file_id,
+                &files,
+                file_id,
                 focused,
                 &mut self.edit.event.internal_events,
             );
@@ -665,9 +682,10 @@ impl Editor {
                 .push(self.edit.renderer.buffer.current.selection);
         }
         self.edit.renderer.text_highlight_range = self
+            .edit
             .emoji_completions
             .search_term_range
-            .or(self.link_completions.search_term_range);
+            .or(self.edit.link_completions.search_term_range);
 
         ui.painter().rect_filled(
             ui.max_rect(),
@@ -710,7 +728,8 @@ impl Editor {
                                     self.edit.renderer.touch_consuming_rects.clear();
 
                                     // show editor
-                                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                                    let scroll_area_id =
+                                        ui.id().with(egui::Id::new(self.edit.file_id));
                                     let scroll_area_offset = ui.data_mut(|d| {
                                         d.get_persisted(scroll_area_id)
                                             .map(|s: scroll_area::State| s.offset)
@@ -748,7 +767,7 @@ impl Editor {
 
                     scroll_area_id
                 } else {
-                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
+                    let scroll_area_id = ui.id().with(egui::Id::new(self.edit.file_id));
                     let scroll_area_offset = ui.data_mut(|d| {
                         d.get_persisted(scroll_area_id)
                             .map(|s: scroll_area::State| s.offset)
@@ -781,7 +800,7 @@ impl Editor {
                         .persistence
                         .get_markdown()
                         .file
-                        .get(&self.file_id)
+                        .get(&self.edit.file_id)
                         .cloned()
                         .unwrap_or_default();
                     if let Some(scroll_area_id) = scroll_area_id {
@@ -835,8 +854,8 @@ impl Editor {
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }
-        self.show_emoji_completions(ui);
-        self.show_link_completions(ui);
+        self.edit.show_emoji_completions(ui);
+        self.edit.show_link_completions(ui);
 
         self.edit.renderer.syntax.garbage_collect();
 
@@ -915,7 +934,7 @@ impl Editor {
             persistence
                 .markdown
                 .file
-                .entry(self.file_id)
+                .entry(self.edit.file_id)
                 .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
                 .or_insert(MdFilePersistence {
                     scroll_offset: Default::default(),
@@ -937,7 +956,7 @@ impl Editor {
                     persistence
                         .markdown
                         .file
-                        .entry(self.file_id)
+                        .entry(self.edit.file_id)
                         .and_modify(|f| {
                             f.scroll_offset = scroll_offset;
                             f.image_dims = image_dims.clone();
@@ -998,7 +1017,7 @@ impl Editor {
             } else {
                 ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
             })
-            .id_salt(self.file_id)
+            .id_salt(self.edit.file_id)
             .scroll_bar_visibility(if self.edit.renderer.touch_mode {
                 ScrollBarVisibility::AlwaysVisible
             } else {

@@ -513,7 +513,7 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
-            if md.edit.readonly { None } else { Some(md.file_id) }
+            if md.edit.readonly { None } else { Some(md.edit.file_id) }
         }) else {
             return;
         };
