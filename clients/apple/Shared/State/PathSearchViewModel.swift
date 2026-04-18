@@ -6,11 +6,14 @@ class PathSearchViewModel: ObservableObject {
     @Published var isShown: Bool = false
     @Published var isSearchInProgress: Bool = false
 
-    @Published var results: [PathSearchResult] = []
+    @Published var results: [PathSearcherResult] = []
     @Published var selected = 0
 
     let filesModel: FilesViewModel
     let workspaceInput: WorkspaceInputState
+
+    private var searcher: PathSearching?
+    private let searchQueue = DispatchQueue(label: "app.lockbook.path-search")
 
     init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState) {
         self.filesModel = filesModel
@@ -41,26 +44,16 @@ class PathSearchViewModel: ObservableObject {
 
     func search() {
         selected = 0
+        let input = input
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let res = AppState.lb.search(input: self.input, searchPaths: true, searchDocs: false)
+        searchQueue.async { [weak self] in
+            guard let searcher = self?.searcher else { return }
+            let results = Array(searcher.query(input).prefix(20))
 
             DispatchQueue.main.async {
-                switch res {
-                case let .success(results):
-                    self.results = results.map {
-                        switch $0 {
-                        case .document:
-                            nil
-                        case let .path(pathSearchResult):
-                            pathSearchResult
-                        }
-                    }.compactMap { $0 }.prefix(20).sorted()
-
-                    self.selected = min(self.selected, results.count - 1)
-                case let .failure(err):
-                    print("got error: \(err.msg)")
-                }
+                guard let self else { return }
+                self.results = results
+                self.selected = min(self.selected, results.count - 1)
             }
         }
     }
@@ -79,12 +72,15 @@ class PathSearchViewModel: ObservableObject {
         if isShown {
             endSearch()
         } else {
+            searcher = AppState.lb.pathSearcher()
             isShown = true
         }
     }
 
     func endSearch() {
         isShown = false
+        searcher = nil
+        results = []
         workspaceInput.focus.send(())
     }
 }

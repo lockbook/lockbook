@@ -4571,7 +4571,6 @@ dependencies = [
 name = "lockbook"
 version = "26.4.14"
 dependencies = [
- "chrono",
  "cli-rs 0.2.0",
  "colored 3.0.0",
  "fs_extra",

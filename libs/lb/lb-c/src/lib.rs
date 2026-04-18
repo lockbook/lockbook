@@ -20,6 +20,7 @@ use model::api::{
     StripeAccountTier, UnixTimeMillis,
 };
 use service::import_export::ImportStatus;
+use search::PathSearcher;
 use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::Arc;
@@ -793,6 +794,63 @@ pub extern "C" fn lb_search(
             LbSearchRes { err: null_mut(), results, results_len }
         }
         Err(err) => LbSearchRes { err: lb_err(err), results: null_mut(), results_len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbPathSearcherResult {
+    id: LbUuid,
+    filename: *mut c_char,
+    parent_path: *mut c_char,
+    matched_indices: *mut u32,
+    matched_indices_len: usize,
+}
+
+#[repr(C)]
+pub struct LbPathSearcherResults {
+    results: *mut LbPathSearcherResult,
+    results_len: usize,
+}
+
+/// Build a `PathSearcher` over the current file tree. The returned handle is owned by the
+/// caller and must be released with `lb_free_path_searcher`. Repeated calls rebuild the index.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_new(lb: *mut Lb) -> *mut PathSearcher {
+    let lb = rlb(lb);
+    Box::into_raw(Box::new(lb.path_searcher()))
+}
+
+/// Update the query and return the current top results. The returned buffer must be released
+/// with `lb_free_path_search_results`. The searcher handle remains owned by the caller.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_query(
+    searcher: *mut PathSearcher, input: *const c_char,
+) -> LbPathSearcherResults {
+    let searcher = unsafe { searcher.as_mut().unwrap() };
+    let input = rstr(input);
+
+    searcher.query(input);
+
+    let results: Vec<LbPathSearcherResult> = searcher
+        .results()
+        .iter()
+        .map(|r| {
+            let (matched_indices, matched_indices_len) = carray(r.path_indices.clone());
+            LbPathSearcherResult {
+                id: r.id.into(),
+                filename: cstring(r.filename.as_str()),
+                parent_path: cstring(r.parent_path.as_str()),
+                matched_indices,
+                matched_indices_len,
+            }
+        })
+        .collect();
+
+    if results.is_empty() {
+        LbPathSearcherResults { results: null_mut(), results_len: 0 }
+    } else {
+        let (results, results_len) = carray(results);
+        LbPathSearcherResults { results, results_len }
     }
 }
 

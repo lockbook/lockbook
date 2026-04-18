@@ -1,8 +1,11 @@
-use crate::Lb;
-use crate::model::file::File;
-use super::{ContentMatch, SearchResult};
 use super::path::split_path;
+use super::{ContentMatch, SearchResult};
+use crate::blocking::Lb;
+use crate::model::file::File;
 use std::ops::Range;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 struct Document {
@@ -16,10 +19,12 @@ pub struct ContentSearcher {
     documents: Vec<Document>,
     results: Vec<SearchResult>,
     submitted_query: String,
+    build_time: Duration,
 }
 
 impl ContentSearcher {
     pub async fn new(lb: &Lb) -> Self {
+        let start = Instant::now();
         let metas = lb.list_metadatas().await.unwrap_or_default();
         let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
 
@@ -28,36 +33,43 @@ impl ContentSearcher {
             .filter(|m| m.is_document() && m.name.ends_with(".md"))
             .collect();
 
-        let mut documents = Vec::with_capacity(md_files.len());
-
-        for meta in md_files {
+        let futures = md_files.into_iter().map(|meta| async {
             let id = meta.id;
-            if let Ok(bytes) = lb.read_document(meta.id, false).await {
-                if let Ok(content) = String::from_utf8(bytes) {
-                    let path = paths
-                        .iter()
-                        .find(|(i, _)| *i == id)
-                        .map(|(_, p)| p.clone())
-                        .unwrap_or_default();
+            let doc = lb
+                .read_document(id, false)
+                .await
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok());
+            (meta, doc)
+        });
 
-                    let (parent, name) = split_path(&path);
-                    let filename = name.to_string();
-                    let parent_path = parent.to_string();
+        let mut documents = Vec::new();
+        let mut stream = stream::iter(futures).buffer_unordered(4);
 
-                    documents.push(Document {
-                        file: meta,
-                        filename,
-                        parent_path,
-                        content: content.to_lowercase(),
-                    });
-                }
-            }
+        while let Some((meta, doc)) = stream.next().await {
+            let Some(content) = doc else { continue };
+
+            let path = paths
+                .iter()
+                .find(|(i, _)| *i == meta.id)
+                .map(|(_, p)| p.clone())
+                .unwrap_or_default();
+
+            let (parent, name) = split_path(&path);
+
+            documents.push(Document {
+                file: meta,
+                filename: name.to_string(),
+                parent_path: parent.to_string(),
+                content: content.to_lowercase(),
+            });
         }
 
         Self {
             documents,
             results: Vec::new(),
             submitted_query: String::new(),
+            build_time: start.elapsed(),
         }
     }
 
@@ -80,10 +92,7 @@ impl ContentSearcher {
 
             // Find exact matches
             for (idx, _) in doc.content.match_indices(&query) {
-                content_matches.push(ContentMatch {
-                    range: idx..idx + query.len(),
-                    exact: true,
-                });
+                content_matches.push(ContentMatch { range: idx..idx + query.len(), exact: true });
             }
 
             // Find word matches
@@ -95,10 +104,8 @@ impl ContentSearcher {
                     if content_matches.iter().any(|h| h.range.contains(&idx)) {
                         continue;
                     }
-                    content_matches.push(ContentMatch {
-                        range: idx..idx + word.len(),
-                        exact: false,
-                    });
+                    content_matches
+                        .push(ContentMatch { range: idx..idx + word.len(), exact: false });
                 }
                 if !word_matched {
                     all_words_matched = false;
@@ -132,6 +139,11 @@ impl ContentSearcher {
         &self.results
     }
 
+    /// How long it took to build the search index.
+    pub fn build_time(&self) -> Duration {
+        self.build_time
+    }
+
     /// Get document content by ID.
     pub fn content(&self, id: Uuid) -> Option<&str> {
         self.documents
@@ -141,7 +153,9 @@ impl ContentSearcher {
     }
 
     /// Extract snippet with context. Returns (prefix, matched, suffix).
-    pub fn snippet(&self, id: Uuid, range: &Range<usize>, context_chars: usize) -> Option<(&str, &str, &str)> {
+    pub fn snippet(
+        &self, id: Uuid, range: &Range<usize>, context_chars: usize,
+    ) -> Option<(&str, &str, &str)> {
         let content = self.content(id)?;
         let char_indices: Vec<(usize, char)> = content.char_indices().collect();
 
@@ -179,7 +193,10 @@ impl ContentSearcher {
         }
 
         let get_byte = |ci: usize| {
-            char_indices.get(ci).map(|(b, _)| *b).unwrap_or(content.len())
+            char_indices
+                .get(ci)
+                .map(|(b, _)| *b)
+                .unwrap_or(content.len())
         };
 
         let start_byte = get_byte(start);

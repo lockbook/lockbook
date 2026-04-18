@@ -1,5 +1,4 @@
 use std::ops::Range;
-use std::time::Instant;
 
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
@@ -26,8 +25,6 @@ pub struct ContentSearch {
     activate: bool,
     /// When Some, the picker drills into a single file's highlights.
     focused_file: Option<Uuid>,
-    /// Render time of the previous frame, in microseconds.
-    last_render_us: u128,
 }
 
 impl ContentSearch {
@@ -40,7 +37,6 @@ impl ContentSearch {
             selected_id: None,
             activate: false,
             focused_file: None,
-            last_render_us: 0,
         }
     }
 }
@@ -128,7 +124,6 @@ impl SearchExecutor for ContentSearch {
     }
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
-        let render_start = Instant::now();
         self.process_keys(ui.ctx());
 
         let results = self.searcher.results();
@@ -154,7 +149,6 @@ impl SearchExecutor for ContentSearch {
                     self.focused_file = Some(r.id);
                     self.selected = 0;
                     self.kb_mode = true;
-                    self.last_render_us = render_start.elapsed().as_micros();
                     return super::PickerResponse { activated: None, selected: self.selected_id };
                 }
             }
@@ -162,7 +156,6 @@ impl SearchExecutor for ContentSearch {
                 .get(self.selected)
                 .and_then(|e| results.get(e.match_idx()))
                 .map(|r| r.id);
-            self.last_render_us = render_start.elapsed().as_micros();
             return super::PickerResponse { activated, selected: self.selected_id };
         }
 
@@ -201,7 +194,6 @@ impl SearchExecutor for ContentSearch {
         // Empty states: no query typed, or query with no matches.
         if flat.is_empty() {
             self.show_empty_state(ui, results.is_empty());
-            self.last_render_us = render_start.elapsed().as_micros();
             return super::PickerResponse { activated: None, selected: self.selected_id };
         }
 
@@ -329,7 +321,6 @@ impl SearchExecutor for ContentSearch {
             .map(|r| r.id);
         self.selected_id = new_id;
 
-        self.last_render_us = render_start.elapsed().as_micros();
         super::PickerResponse { activated: None, selected: self.selected_id }
     }
 
@@ -629,13 +620,16 @@ impl ContentSearch {
                         );
                     }
 
-                    // Render time of previous frame.
-                    if self.last_render_us > 0 {
+                    // Index build time.
+                    let build_ms = self.searcher.build_time().as_millis();
+                    if build_ms > 0 {
                         ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
-                        let render_ms = self.last_render_us as f32 / 1000.0;
                         ui.add(
-                            GlyphonLabel::new(&format!("render {:.1} ms", render_ms), muted)
-                                .font_size(11.0),
+                            GlyphonLabel::new(
+                                &format!("indexed in {} ms", build_ms),
+                                muted,
+                            )
+                            .font_size(11.0),
                         );
                     }
                 });

@@ -51,6 +51,7 @@ public protocol LbAPI {
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
     func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError>
+    func pathSearcher() -> PathSearching
     func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError>
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError>
     func cancelSubscription() -> Result<Void, LbError>
@@ -580,6 +581,10 @@ public class Lb: LbAPI {
         return .success(Array(UnsafeBufferPointer(start: res.results, count: Int(res.results_len))).toSearchResults())
     }
 
+    public func pathSearcher() -> PathSearching {
+        LbPathSearcher(lb: lb)
+    }
+
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_stripe(lb, isOldCard, number, expYear, expMonth, cvc)
 
@@ -752,6 +757,7 @@ public class MockLb: LbAPI {
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> { .success(()) }
     public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> { .success([]) }
+    public func pathSearcher() -> PathSearching { MockPathSearcher() }
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> { .success(()) }
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> { .success(()) }
     public func cancelSubscription() -> Result<Void, LbError> { .success(()) }

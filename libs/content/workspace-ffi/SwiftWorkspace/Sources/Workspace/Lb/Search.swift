@@ -155,3 +155,60 @@ public struct ContentMatch: Hashable {
         matchedIndicies = Array(UnsafeBufferPointer(start: match.matched_indicies, count: Int(match.matched_indicies_len)))
     }
 }
+
+public protocol PathSearching: AnyObject {
+    func query(_ input: String) -> [PathSearcherResult]
+}
+
+public struct PathSearcherResult: Hashable, Identifiable {
+    public let id: UUID
+    public let filename: String
+    public let parentPath: String
+    public let matchedIndices: [UInt]
+
+    public init(id: UUID, filename: String, parentPath: String, matchedIndices: [UInt]) {
+        self.id = id
+        self.filename = filename
+        self.parentPath = parentPath
+        self.matchedIndices = matchedIndices
+    }
+
+    init(_ res: LbPathSearcherResult) {
+        id = res.id.toUUID()
+        filename = String(cString: res.filename)
+
+        // Strip leading `/` so filename highlight offsets line up with full-path indices.
+        let rawParent = String(cString: res.parent_path)
+        parentPath = rawParent == "/" ? "/" : String(rawParent.dropFirst())
+
+        matchedIndices = Array(
+            UnsafeBufferPointer(start: res.matched_indices, count: Int(res.matched_indices_len))
+        ).map { UInt($0) }
+    }
+}
+
+public final class LbPathSearcher: PathSearching {
+    private let handle: OpaquePointer
+
+    init(lb: OpaquePointer?) {
+        handle = lb_path_searcher_new(lb)!
+    }
+
+    deinit {
+        lb_free_path_searcher(handle)
+    }
+
+    public func query(_ input: String) -> [PathSearcherResult] {
+        let res = lb_path_searcher_query(handle, input)
+        defer { lb_free_path_search_results(res) }
+
+        guard let ptr = res.results else { return [] }
+        return Array(UnsafeBufferPointer(start: ptr, count: Int(res.results_len)))
+            .map(PathSearcherResult.init)
+    }
+}
+
+public final class MockPathSearcher: PathSearching {
+    public init() {}
+    public func query(_: String) -> [PathSearcherResult] { [] }
+}
