@@ -43,7 +43,7 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect) {
-        let state = self.images.get_or_load(url, self.file_id);
+        let state = self.images.get_or_load(url, self.file_id, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
             ImageState::Loading => {
@@ -84,7 +84,7 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 
     fn warm(&self, url: &str) {
-        let state = self.images.get_or_load(url, self.file_id);
+        let state = self.images.get_or_load(url, self.file_id, false);
         let guard = state.lock().unwrap();
         if let ImageState::Loaded(texture_id) = *guard {
             let [w, h] = self

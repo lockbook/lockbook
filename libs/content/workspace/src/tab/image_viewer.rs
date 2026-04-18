@@ -25,7 +25,7 @@ impl ImageViewer {
         painter.rect_filled(painter.clip_rect(), 0., ui.visuals().extreme_bg_color);
 
         let url = format!("lb://{}", self.id);
-        let state = self.images.get_or_load(&url, self.id);
+        let state = self.images.get_or_load(&url, self.id, true);
         let image_state = state.lock().unwrap().deref().clone();
 
         match image_state {

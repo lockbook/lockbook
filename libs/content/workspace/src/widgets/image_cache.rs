@@ -115,10 +115,13 @@ impl ImageCache {
 
     /// Look up or spawn a load for the given URL. `from_file_id` is used to
     /// resolve relative paths and `lb://` URIs against the lockbook file tree.
+    /// `user_activity` indicates whether this read should count toward suggested docs.
     ///
     /// Call between `begin_frame` and `end_frame`. URLs not looked up during
     /// a frame are evicted at `end_frame` time.
-    pub fn get_or_load(&self, url: &str, from_file_id: Uuid) -> Arc<Mutex<ImageState>> {
+    pub fn get_or_load(
+        &self, url: &str, from_file_id: Uuid, user_activity: bool,
+    ) -> Arc<Mutex<ImageState>> {
         let mut inner = self.inner.lock().unwrap();
         if let Some(state) = inner.current.get(url) {
             return state.clone();
@@ -129,13 +132,19 @@ impl ImageCache {
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(url, from_file_id, state.clone(), self.last_modified.clone());
+        self.spawn_load(
+            url,
+            from_file_id,
+            user_activity,
+            state.clone(),
+            self.last_modified.clone(),
+        );
         inner.current.insert(url.to_string(), state.clone());
         state
     }
 
     fn spawn_load(
-        &self, url: &str, from_file_id: Uuid, state: Arc<Mutex<ImageState>>,
+        &self, url: &str, from_file_id: Uuid, user_activity: bool, state: Arc<Mutex<ImageState>>,
         last_modified: Arc<AtomicU64>,
     ) {
         let url = url.to_string();
@@ -163,7 +172,8 @@ impl ImageCache {
 
             let texture_closure = async_on_wasm!({
                 let image_bytes = if let Some(id) = maybe_lb_id {
-                    core.read_document(id, false).map_err(|e| e.to_string())?
+                    core.read_document(id, user_activity)
+                        .map_err(|e| e.to_string())?
                 } else {
                     if !url.starts_with("http://") && !url.starts_with("https://") {
                         return Err(format!("image not found: {url}"));
