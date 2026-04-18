@@ -2,8 +2,9 @@ import SwiftUI
 import SwiftWorkspace
 
 struct OnLbLinkViewModifier: ViewModifier {
-    let trustedHost = "app.lockbook.net"
-    let trustedRouted = "open"
+    static let SHARED_FILES_HOST = "sharedFiles"
+    static let TRUSTED_HOST = "app.lockbook.net"
+    static let TRUSTED_OPEN_ROUTE = "open"
     
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var filesModel: FilesViewModel
@@ -13,9 +14,11 @@ struct OnLbLinkViewModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onOpenURL(perform: { url in
+                print("opening URL 1: \(url)")
                 openUrl(url: url)
             })
             .onReceive(workspaceOutput.$urlsOpened, perform: { urls in
+                print("opening URL 2: \(urls)")
                 for url in urls {
                     openUrl(url: url)
                 }
@@ -25,7 +28,7 @@ struct OnLbLinkViewModifier: ViewModifier {
     func openUrl(url: URL) {
         switch url.scheme {
         case "lb":
-            if url.host == "sharedFiles" {
+            if url.host == OnLbLinkViewModifier.SHARED_FILES_HOST {
                 importInternalLink(url: url)
             } else {
                 openLbUrl(url: url)
@@ -50,9 +53,9 @@ struct OnLbLinkViewModifier: ViewModifier {
         
         // If this is a valid app link -> open it in app
         if let host = url.host,
-           host == trustedHost,
+           host == OnLbLinkViewModifier.TRUSTED_HOST,
            url.pathComponents.count > 2,
-           url.pathComponents[1] == "open",
+           url.pathComponents[1] == OnLbLinkViewModifier.TRUSTED_OPEN_ROUTE,
            let id = UUID(uuidString: url.pathComponents[2]) {
             
             self.openFile(id: id)
@@ -104,6 +107,8 @@ struct OnLbLinkViewModifier: ViewModifier {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "File not found")
                 return
             }
+            
+            print("opening the file...", id)
 
             DispatchQueue.main.async {
                 workspaceInput.openFile(id: file.id)

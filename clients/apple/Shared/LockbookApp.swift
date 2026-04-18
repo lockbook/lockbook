@@ -81,6 +81,7 @@ struct HomeContextWrapper: View {
             .environmentObject(filesModel)
             .environmentObject(workspaceInput)
             .environmentObject(workspaceOutput)
+            .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
     }
 }
 
