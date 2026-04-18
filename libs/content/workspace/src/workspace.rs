@@ -22,17 +22,27 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::resolvers::FileCacheLinkResolver;
+use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
-use crate::tab::markdown_editor::{Editor as Markdown, MdConfig, MdPersistence, MdResources};
+use crate::tab::markdown_editor::{
+    Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
+};
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
-use crate::tab::{ContentState, Tab, TabContent, TabFailure, TabSaveContent, TabsExt as _};
+use crate::tab::{
+    ContentState, Destination, ExtendedInput as _, Tab, TabContent, TabFailure, TabSaveContent,
+    TabSlot,
+};
 use crate::task_manager;
 use crate::task_manager::{
     CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
 };
+use crate::widgets::image_cache::ImageCache;
+use crate::widgets::tab_cache::TabCache;
 
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
@@ -41,14 +51,16 @@ use tokio::sync::broadcast::error::TryRecvError;
 
 pub struct Workspace {
     // User activity
-    pub tabs: Vec<Tab>,
-    pub current_tab: usize,
+    pub tabs: TabCache,
+    pub tab_strip: Vec<TabSlot>,
+    pub current_tab: Option<Destination>,
     pub landing_page: LandingPage,
     pub account: Account,
 
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
+    pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
 
@@ -82,17 +94,21 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files =
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
+        let images =
+            ImageCache::new(ctx.clone(), HttpClient::default(), core.clone(), Arc::clone(&files));
 
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         ctx.set_zoom_factor(cfg.get_zoom_factor());
         let mut ws = Self {
-            tabs: Default::default(),
-            current_tab: Default::default(),
+            tabs: TabCache::new(),
+            tab_strip: Vec::new(),
+            current_tab: None,
             landing_page: cfg.get_landing_page(),
             account: core.get_account().cloned().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
+            images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
 
@@ -135,51 +151,91 @@ impl Workspace {
         ws
     }
 
-    pub fn create_tab(&mut self, content: ContentState, make_current: bool) {
-        let now = Instant::now();
-        let new_tab = Tab {
-            content,
-            back: Vec::new(),
-            forward: Vec::new(),
-            last_changed: now,
-            last_saved: now,
-            rename: None,
-            is_closing: false,
-            read_only: false,
+    /// Ensure a tab exists for `dest`. Creates it if absent, determining
+    /// content from the destination variant. Does not add to tab_strip or
+    /// make current — callers decide visibility.
+    pub fn open_dest(&mut self, dest: &Destination) {
+        if self.tabs.contains_key(dest) {
+            return;
+        }
+        let id = dest.id();
+        let mut needs_load = false;
+        let content = match dest {
+            Destination::File(id) => {
+                if self.is_image(*id) {
+                    self.image_content(*id)
+                } else {
+                    needs_load = true;
+                    ContentState::Loading(*id)
+                }
+            }
+            #[cfg(not(target_family = "wasm"))]
+            Destination::MindMap(_) => {
+                ContentState::Open(TabContent::MindMap(MindMap::new(&self.core)))
+            }
+            #[cfg(target_family = "wasm")]
+            Destination::MindMap(_) => return,
+            Destination::SpaceInspector(root_id) => {
+                let file = self.files.read().unwrap().get_by_id(*root_id).cloned();
+                ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
+                    &self.core,
+                    file,
+                    self.ctx.clone(),
+                )))
+            }
         };
-        self.tabs.push(new_tab);
+        let now = Instant::now();
+        self.tabs.insert(
+            dest.clone(),
+            Tab {
+                destination: dest.clone(),
+                content,
+                last_changed: now,
+                last_saved: now,
+                read_only: false,
+            },
+        );
+        if needs_load {
+            self.tasks
+                .queue_load(LoadRequest { id, tab_created: true, make_current: false });
+        }
+    }
+
+    pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
+        self.open_dest(&dest);
+        if !self.tab_strip.iter().any(|s| s.dest == dest) {
+            self.tab_strip.push(TabSlot::new(dest.clone()));
+        }
         if make_current {
-            self.current_tab = self.tabs.len() - 1;
+            self.current_tab = Some(dest);
             self.current_tab_changed = true;
         }
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
-        self.tabs.get_mut_by_id(id)
+        let dest = self
+            .tab_strip
+            .iter()
+            .find(|s| s.dest.id() == id)?
+            .dest
+            .clone();
+        self.tabs.get_mut(&dest)
     }
 
     pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
-        for (idx, tab) in self.tabs.iter().enumerate() {
-            if let Some(tab_id) = tab.id() {
-                if tab_id == id {
-                    return Some(idx);
-                }
-            }
-        }
-
-        None
+        self.tab_strip.iter().position(|s| s.dest.id() == id)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.tabs.is_empty()
+        self.tab_strip.is_empty()
     }
 
     pub fn current_tab(&self) -> Option<&Tab> {
-        self.tabs.get(self.current_tab)
+        self.current_tab.as_ref().and_then(|d| self.tabs.get(d))
     }
 
     pub fn current_tab_id(&self) -> Option<Uuid> {
-        self.tabs.get(self.current_tab).and_then(|tab| tab.id())
+        self.current_tab().and_then(|tab| tab.id())
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
@@ -187,7 +243,10 @@ impl Workspace {
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
-        self.tabs.get_mut(self.current_tab)
+        self.current_tab
+            .as_ref()
+            .cloned()
+            .and_then(|d| self.tabs.get_mut(&d))
     }
 
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
@@ -201,31 +260,31 @@ impl Workspace {
         self.current_tab_mut()?.svg_mut()
     }
 
-    /// Makes the tab the current tab, if it exists. Returns true if the tab exists.
     pub fn make_current(&mut self, i: usize) -> bool {
-        if i < self.tabs.len() {
-            self.current_tab = i;
-            self.current_tab_changed = true;
-            self.tabs[i].is_closing = false;
-            self.out.selected_file = self.tabs[i].id();
-            self.ctx
-                .send_viewport_cmd(ViewportCommand::Title(self.tab_title(&self.tabs[i])));
+        let Some(slot) = self.tab_strip.get(i) else { return false };
+        let dest = slot.dest.clone();
+        if self.tabs.get(&dest).is_none() {
+            return false;
+        };
+        self.current_tab = Some(dest.clone());
+        self.current_tab_changed = true;
+        let tab = self.tabs.get(&dest).unwrap();
+        self.out.selected_file = tab.id();
+        self.ctx
+            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
 
-            if let Some(md) = self.current_tab_markdown() {
-                md.focus(&self.ctx);
-            }
-
-            self.ctx.request_repaint();
-
-            true
-        } else {
-            false
+        if let Some(md) = self.current_tab_markdown() {
+            md.focus(&self.ctx);
         }
+
+        self.ctx.request_repaint();
+
+        true
     }
 
     /// Makes the tab with the given id the current tab, if it exists. Returns true if the tab exists.
     pub fn make_current_by_id(&mut self, id: Uuid) -> bool {
-        if let Some(i) = self.tabs.iter().position(|t| t.id() == Some(id)) {
+        if let Some(i) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
             self.make_current(i)
         } else {
             false
@@ -233,14 +292,24 @@ impl Workspace {
     }
 
     pub fn save_all_tabs(&mut self) {
-        for i in 0..self.tabs.len() {
-            self.save_tab(i);
+        let slots: Vec<_> = self.tab_strip.clone();
+        for slot in &slots {
+            let dest = &slot.dest;
+            if let Some(tab) = self.tabs.get(dest) {
+                if let Some(id) = tab.id() {
+                    if tab.is_dirty(&self.tasks) {
+                        self.tasks.queue_save(SaveRequest { id });
+                    }
+                }
+            }
         }
         self.last_save_all = Some(Instant::now());
     }
 
     pub fn save_tab(&mut self, i: usize) {
-        if let Some(tab) = self.tabs.get_mut(i) {
+        let Some(slot) = self.tab_strip.get(i) else { return };
+        let dest = slot.dest.clone();
+        if let Some(tab) = self.tabs.get(&dest) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
                     self.tasks.queue_save(SaveRequest { id });
@@ -249,91 +318,123 @@ impl Workspace {
         }
     }
 
-    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
-        let mut create_tab = || {
-            if let Some(pos) = self.tabs.iter().position(|t| t.id() == Some(id)) {
-                if make_current {
-                    self.make_current(pos);
-                }
-                return false;
-            }
-            if in_new_tab {
-                return true;
-            }
-            let Some(current_tab) = self.current_tab_mut() else {
-                return true;
-            };
-            if let Some(id) = current_tab.id() {
-                current_tab.back.push(id);
-                current_tab.forward.clear();
-            }
-            current_tab.content = ContentState::Loading(id);
-            false
-        };
-        let create_tab = create_tab();
+    fn image_content(&self, id: Uuid) -> ContentState {
+        ContentState::Open(TabContent::Image(ImageViewer::new(id, self.images.clone())))
+    }
 
-        if create_tab {
-            self.create_tab(ContentState::Loading(id), make_current);
+    fn is_image(&self, id: Uuid) -> bool {
+        self.files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .map(|f| DocType::from_name(&f.name) == DocType::Image)
+            .unwrap_or(false)
+    }
+
+    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
+        let dest = Destination::File(id);
+
+        // already in strip — just focus it
+        if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+            if make_current {
+                self.make_current(pos);
+            }
+            return;
         }
 
-        self.tasks
-            .queue_load(LoadRequest { id, tab_created: create_tab, make_current });
+        if in_new_tab {
+            self.create_tab(dest, make_current);
+            return;
+        }
+
+        // navigate within current tab
+        let Some(old_dest) = self.current_tab.clone() else {
+            self.create_tab(dest, make_current);
+            return;
+        };
+
+        // Find the slot index for the current tab
+        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == old_dest) else {
+            self.create_tab(dest, make_current);
+            return;
+        };
+
+        // Push old dest id to slot's back, clear forward
+        self.tab_strip[slot_idx].back.push(old_dest.id());
+        self.tab_strip[slot_idx].forward.clear();
+        // Update the slot's dest to the new destination
+        self.tab_strip[slot_idx].dest = dest.clone();
+
+        // Ensure the tab exists in cache for the new destination
+        self.open_dest(&dest);
+
+        self.current_tab = Some(dest);
+        self.current_tab_changed = true;
     }
 
     pub fn back(&mut self) {
-        if let Some(current_tab) = self.current_tab_mut() {
-            if let Some(back_id) = current_tab.back.pop() {
-                if let Some(current_id) = current_tab.id() {
-                    current_tab.forward.push(current_id);
+        let Some(current_dest) = self.current_tab.clone() else { return };
+        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
+            return;
+        };
+        let Some(back_id) = self.tab_strip[slot_idx].back.pop() else { return };
+        self.tab_strip[slot_idx].forward.push(current_dest.id());
 
-                    current_tab.content = ContentState::Loading(back_id);
-                    self.tasks.queue_load(LoadRequest {
-                        id: back_id,
-                        tab_created: true,
-                        make_current: false,
-                    });
-                }
-            }
-        }
+        let new_dest = Destination::File(back_id);
+        self.tab_strip[slot_idx].dest = new_dest.clone();
+
+        self.open_dest(&new_dest);
+        self.current_tab = Some(new_dest);
+        self.current_tab_changed = true;
     }
 
     pub fn forward(&mut self) {
-        if let Some(current_tab) = self.current_tab_mut() {
-            if let Some(forward_id) = current_tab.forward.pop() {
-                if let Some(current_id) = current_tab.id() {
-                    current_tab.back.push(current_id);
+        let Some(current_dest) = self.current_tab.clone() else { return };
+        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
+            return;
+        };
+        let Some(forward_id) = self.tab_strip[slot_idx].forward.pop() else { return };
+        self.tab_strip[slot_idx].back.push(current_dest.id());
 
-                    current_tab.content = ContentState::Loading(forward_id);
-                    self.tasks.queue_load(LoadRequest {
-                        id: forward_id,
-                        tab_created: true,
-                        make_current: false,
-                    });
-                }
-            }
-        }
+        let new_dest = Destination::File(forward_id);
+        self.tab_strip[slot_idx].dest = new_dest.clone();
+
+        self.open_dest(&new_dest);
+        self.current_tab = Some(new_dest);
+        self.current_tab_changed = true;
     }
 
     pub fn close_tab(&mut self, i: usize) {
+        let Some(slot) = self.tab_strip.get(i) else { return };
+        let dest = slot.dest.clone();
         #[cfg(not(target_family = "wasm"))]
-        if let ContentState::Open(TabContent::MindMap(mm)) = &mut self.tabs[i].content {
-            mm.stop();
+        if let Some(tab) = self.tabs.get_mut(&dest) {
+            if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
+                mm.stop();
+            }
         }
 
         self.save_tab(i);
-        self.tabs[i].is_closing = true;
-    }
 
-    pub fn remove_tab(&mut self, i: usize) {
-        if let Some(md) = self.tabs[i].markdown_mut() {
-            md.surrender_focus(&self.ctx);
+        if let Some(tab) = self.tabs.get_mut(&dest) {
+            if let Some(md) = tab.markdown_mut() {
+                md.surrender_focus(&self.ctx);
+            }
         }
 
-        self.tabs.remove(i);
+        // Remove from tab_strip
+        self.tab_strip.remove(i);
         self.out.tabs_changed = true;
 
-        if !self.tabs.is_empty() && (self.current_tab >= self.tabs.len() || i < self.current_tab) {
-            self.current_tab -= 1;
+        // Update current_tab
+        if self.current_tab.as_ref() == Some(&dest) {
+            // Pick a neighbor
+            if self.tab_strip.is_empty() {
+                self.current_tab = None;
+            } else {
+                let new_idx = i.min(self.tab_strip.len() - 1);
+                self.current_tab = Some(self.tab_strip[new_idx].dest.clone());
+            }
         }
         self.current_tab_changed = true;
     }
@@ -354,10 +455,12 @@ impl Workspace {
 
                         if actor == Actor::Sync {
                             self.core.app_foregrounded();
-                            for i in 0..self.tabs.len() {
-                                if self.tabs[i].id() == Some(id) && !self.tabs[i].is_closing {
-                                    self.open_file(id, false, false);
-                                }
+                            let has_open_tab = self
+                                .tab_strip
+                                .iter()
+                                .any(|s| s.dest.id() == id && self.tabs.contains_key(&s.dest));
+                            if has_open_tab {
+                                self.open_file(id, false, false);
                             }
                         }
                     }
@@ -383,17 +486,84 @@ impl Workspace {
             let files_guard = files_arc.read().unwrap();
             let files = &*files_guard;
             let mut tabs_to_delete = vec![];
-            for tab in &self.tabs {
-                if let Some(id) = tab.id() {
-                    if files.get_by_id(id).is_none() {
-                        tabs_to_delete.push(id);
-                    }
+            for slot in &self.tab_strip {
+                let id = slot.dest.id();
+                if files.get_by_id(id).is_none() {
+                    tabs_to_delete.push(id);
                 }
             }
 
             for id in tabs_to_delete {
-                if let Some(idx) = self.get_idx_by_id(id) {
-                    self.remove_tab(idx);
+                if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
+                    self.close_tab(idx);
+                }
+            }
+        }
+    }
+
+    /// Handle clipboard-like events (`Drop`/`Paste`). For image clips the
+    /// workspace imports the image as a lockbook file and pushes a
+    /// `Markdown::Replace` event with a relative-path `![…](…)` markdown
+    /// link; the editor then processes it in its own `process_events` later
+    /// this frame.
+    ///
+    /// Only runs when the current tab is a non-readonly markdown editor —
+    /// other tab types (SVG, image viewer, PDF) handle clipboard events
+    /// themselves. Non-clip events are left in the queue.
+    #[instrument(level = "trace", skip_all)]
+    pub fn process_clip_events(&mut self) {
+        let Some(file_id) = self.current_tab().and_then(|tab| {
+            let md = tab.markdown()?;
+            if md.edit.renderer.readonly { None } else { Some(md.edit.file_id) }
+        }) else {
+            return;
+        };
+
+        let events = self.ctx.pop_events_where(&mut |e| {
+            matches!(e, crate::tab::Event::Drop { .. } | crate::tab::Event::Paste { .. })
+        });
+        if events.is_empty() {
+            return;
+        }
+
+        for event in events {
+            let content = match event {
+                crate::tab::Event::Drop { content, .. }
+                | crate::tab::Event::Paste { content, .. } => content,
+                _ => continue,
+            };
+            for clip in content {
+                match clip {
+                    crate::tab::ClipContent::Image(data) => {
+                        let file = crate::tab::import_image(&self.core, file_id, &data);
+
+                        let rel_path = {
+                            let guard = self.files.read().unwrap();
+                            let parent = guard.get_by_id(file_id).unwrap().parent;
+                            let mut augmented = guard.files.clone();
+                            if augmented.get_by_id(file.parent).is_none() {
+                                if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                    augmented.push(folder);
+                                }
+                            }
+                            augmented.push(file.clone());
+                            crate::file_cache::relative_path(
+                                &augmented.path(parent),
+                                &augmented.path(file.id),
+                            )
+                        };
+                        let link = format!("![{}]({})", file.name, rel_path);
+
+                        self.ctx
+                            .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
+                                region: crate::tab::markdown_editor::input::Region::Selection,
+                                text: link,
+                                advance_cursor: true,
+                            });
+                    }
+                    crate::tab::ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                    }
                 }
             }
         }
@@ -417,7 +587,8 @@ impl Workspace {
                 let core = self.core.clone();
                 let show_tabs = self.show_tabs;
 
-                if let Some(tab) = self.tabs.get_mut_by_id(id) {
+                let key = Destination::File(id);
+                if let Some(tab) = self.tabs.get_mut(&key) {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
@@ -449,7 +620,8 @@ impl Workspace {
                     match doc_type {
                         DocType::Image => {
                             tab.content = ContentState::Open(TabContent::Image(ImageViewer::new(
-                                id, &ext, bytes,
+                                id,
+                                self.images.clone(),
                             )));
                         }
                         DocType::PDF => {
@@ -487,6 +659,23 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         }
+                        DocType::Chat => {
+                            let reload = tab.chat().is_some() && !tab_created;
+                            if !reload {
+                                let username = self.account.username.clone();
+                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
+                                    &bytes,
+                                    id,
+                                    maybe_hmac,
+                                    username,
+                                    self.ctx.clone(),
+                                    Arc::clone(&self.files),
+                                )));
+                            } else {
+                                let chat = tab.chat_mut().unwrap();
+                                chat.reload(&bytes, maybe_hmac);
+                            }
+                        }
                         DocType::PlainText
                         | DocType::Markdown
                         | DocType::Code
@@ -505,7 +694,16 @@ impl Workspace {
                                             ctx: self.ctx.clone(),
                                             core: core.clone(),
                                             persistence: self.cfg.clone(),
+                                            link_resolver: Box::new(FileCacheLinkResolver::new(
+                                                Arc::clone(&self.files),
+                                                id,
+                                            )),
                                             files: Arc::clone(&self.files),
+                                            embeds: Box::new(ImageEmbedResolver::new(
+                                                self.images.clone(),
+                                                id,
+                                                self.cfg.get_markdown().image_dims(&id),
+                                            )),
                                         },
                                         MdConfig {
                                             readonly: tab.read_only,
@@ -515,7 +713,10 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.buffer.reload(String::from_utf8_lossy(&bytes).into());
+                                md.edit
+                                    .renderer
+                                    .buffer
+                                    .reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
                             }
                         }
@@ -551,14 +752,15 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    if let Some(tab) = self.get_mut_tab_by_id(id) {
+                    let key = Destination::File(id);
+                    if let Some(tab) = self.tabs.get_any_mut(&key) {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
                                         md.hmac = Some(hmac);
-                                        md.buffer.saved(seq, content);
+                                        md.edit.renderer.buffer.saved(seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
@@ -610,34 +812,6 @@ impl Workspace {
         let start = Instant::now();
         self.tasks.check_launch(&self.tabs);
         start.warn_after("processing task launch", Duration::from_millis(100));
-
-        // background work: cleanup
-        let mut removed_tabs = 0;
-        for i in 0..self.tabs.len() {
-            let i = i - removed_tabs;
-            let tab = &self.tabs[i];
-            if tab.is_closing
-                && !tab
-                    .id()
-                    .map(|id| self.tasks.load_or_save_queued(id))
-                    .unwrap_or_default()
-                && !tab
-                    .id()
-                    .map(|id| self.tasks.load_or_save_in_progress(id))
-                    .unwrap_or_default()
-            {
-                self.remove_tab(i);
-                removed_tabs += 1;
-
-                let title = match self.current_tab() {
-                    Some(tab) => self.tab_title(tab),
-                    None => "Lockbook".to_owned(),
-                };
-                self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
-
-                self.out.selected_file = self.current_tab().and_then(|tab| tab.id());
-            }
-        }
     }
 
     pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
@@ -720,11 +894,16 @@ impl Workspace {
 
     /// Opens or focuses the tab for the mind map
     #[cfg(not(target_family = "wasm"))]
-    pub fn upsert_mind_map(&mut self, core: Lb) {
-        if let Some(i) = self.tabs.iter().position(|t| t.mind_map().is_some()) {
+    pub fn upsert_mind_map(&mut self, _core: Lb) {
+        if let Some(i) = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::MindMap(_)))
+        {
             self.make_current(i);
         } else {
-            self.create_tab(ContentState::Open(TabContent::MindMap(MindMap::new(&core))), true);
+            let root_id = self.core.get_root().map(|r| r.id).unwrap_or_default();
+            self.create_tab(Destination::MindMap(root_id), true);
         };
     }
     #[cfg(target_family = "wasm")]
@@ -732,19 +911,18 @@ impl Workspace {
         warn!("Mind map is not supported on wasm targets");
     }
 
-    /// Opens the tab for space inspector, closing any existing space inspectors (?)
-    pub fn start_space_inspector(&mut self, core: Lb, folder: Option<File>) {
-        if let Some(i) = self.tabs.iter().position(|t| t.space_inspector().is_some()) {
+    pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {
+        if let Some(i) = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::SpaceInspector(_)))
+        {
             self.close_tab(i);
         }
-        self.create_tab(
-            ContentState::Open(TabContent::SpaceInspector(SpaceInspector::new(
-                &core,
-                folder,
-                self.ctx.clone(),
-            ))),
-            true,
-        );
+        let root_id = folder
+            .map(|f| f.id)
+            .unwrap_or_else(|| self.core.get_root().map(|r| r.id).unwrap_or_default());
+        self.create_tab(Destination::SpaceInspector(root_id), true);
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
@@ -766,7 +944,12 @@ impl Workspace {
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
         let mut different_file_type = false;
-        if let Some(tab) = self.tabs.get_by_id(id) {
+        let dest = self
+            .tab_strip
+            .iter()
+            .find(|s| s.dest.id() == id)
+            .map(|s| s.dest.clone());
+        if let Some(tab) = dest.as_ref().and_then(|d| self.tabs.get(d)) {
             different_file_type = !NameComponents::from(&new_name)
                 .extension
                 .eq(&NameComponents::from(&self.tab_title(tab)).extension);
@@ -870,16 +1053,14 @@ impl WsPersistentStore {
     }
 
     // todo: store non-file (mind map) tabs?
-    pub fn set_tabs(&mut self, tabs: &[Tab], current_tab_index: usize) {
+    pub fn set_tabs(&mut self, tab_strip: &[TabSlot], current_tab: &Option<Destination>) {
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tabs.iter().flat_map(|t| t.id()).collect();
-        if !tabs.is_empty() {
-            if let Some(tab) = tabs.get(current_tab_index) {
-                data_lock.current_tab = tab.id();
-            } else {
-                data_lock.current_tab = tabs[0].id();
-            }
-        }
+        data_lock.open_tabs = tab_strip
+            .iter()
+            .filter(|s| matches!(s.dest, Destination::File(_)))
+            .map(|s| s.dest.id())
+            .collect();
+        data_lock.current_tab = current_tab.as_ref().map(|d| d.id());
         self.write_to_file();
     }
 

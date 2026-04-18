@@ -137,7 +137,8 @@ fn candidate_locations_from_content(contents: &str) -> Vec<String> {
         paths.push(path);
     }
 
-    paths
+    // normalize to lowercase for case-insensitive matching
+    paths.into_iter().map(|p| p.to_lowercase()).collect()
 }
 
 #[cfg(test)]
@@ -194,5 +195,14 @@ http://url.com/#install
         let content = "#meeting#notes";
 
         assert_eq!(candidate_locations_from_content(content), vec!["meeting"]);
+    }
+
+    #[test]
+    fn tags_are_lowercased() {
+        let content = "#Meeting #NOTES #Work/Project";
+        assert_eq!(
+            candidate_locations_from_content(content),
+            vec!["meeting", "notes", "work/project"]
+        );
     }
 }

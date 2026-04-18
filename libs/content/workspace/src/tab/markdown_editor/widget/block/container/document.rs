@@ -5,11 +5,11 @@ use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _, RangeIt
 use syntect::easy::HighlightLines;
 
 use crate::show::syntax_ext_for;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_document(&self) -> Format {
         Format {
             family: FontFamily::Sans,
@@ -30,11 +30,12 @@ impl<'ast> Editor {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode() {
+        if any_children && !self.plaintext {
             self.block_children_height(node)
         } else {
             let highlighter_syntax =
                 syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
+            let last = self.node_last_line_idx(node).saturating_sub(1);
             let mut result = 0.;
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
@@ -64,7 +65,9 @@ impl<'ast> Editor {
                     wrap.offset += self.span_section(&wrap, line, self.text_format_syntax());
                 }
                 result += wrap.height();
-                result += self.layout.row_spacing;
+                if line_idx != last {
+                    result += self.layout.row_spacing;
+                }
             }
             result
         }
@@ -74,12 +77,13 @@ impl<'ast> Editor {
         let width = self.width(node);
 
         let any_children = node.children().next().is_some();
-        if any_children && !self.plaintext_mode() {
+        if any_children && !self.plaintext {
             self.show_block_children(ui, node, top_left);
         } else {
             let has_syntax = syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&self.ext))
                 .is_some();
+            let last = self.node_last_line_idx(node).saturating_sub(1);
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let mut wrap = self.new_wrap(width);
@@ -134,7 +138,9 @@ impl<'ast> Editor {
                 }
 
                 top_left.y += wrap.height();
-                top_left.y += self.layout.row_spacing;
+                if line_idx != last {
+                    top_left.y += self.layout.row_spacing;
+                }
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }

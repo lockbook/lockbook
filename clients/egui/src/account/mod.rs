@@ -140,10 +140,15 @@ impl AccountScreen {
             }
         }
 
+        let sidebar_min_width: f32 = 300.0;
+        // max width is 2/3 of screen, but at least sidebar_min_width to avoid looking weird on small screens
+        let sidebar_max_width = sidebar_min_width.max(ctx.screen_rect().width() / 3.0 * 2.0);
+
         egui::SidePanel::left("sidebar_panel")
             // get rid of the space, keep the colors normal
             .frame(egui::Frame::new().fill(ctx.style().visuals.panel_fill))
-            .min_width(300.0)
+            .min_width(sidebar_min_width)
+            .max_width(sidebar_max_width)
             .show_animated(ctx, sidebar_expanded, |ui| {
                 if self.is_any_modal_open() {
                     ui.disable();

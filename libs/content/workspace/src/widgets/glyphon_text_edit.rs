@@ -1,10 +1,11 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use web_time::Duration;
 
 use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Rect, Response, Sense, Ui};
 use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
 
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 const EVENT_FILTER: EventFilter =
     EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
@@ -319,30 +320,48 @@ impl<'a> GlyphonTextEdit<'a> {
             }
         }
 
-        // Shape the full text on a single unbounded line; singleline_offset scrolls the view
-        let buffer = {
-            let mut fs = font_system.lock().unwrap();
-            let mut buf = glyphon::Buffer::new(
-                &mut fs,
-                Metrics::new(self.font_size * ppi, line_height * ppi),
-            );
-            buf.set_size(&mut fs, Some(f32::MAX), None);
-            buf.set_text(
-                &mut fs,
-                self.text,
-                &Attrs::new().family(Family::SansSerif),
-                Shaping::Advanced,
-            );
-            buf.shape_until_scroll(&mut fs, false);
-            buf
-        };
+        let glyphon_cache = ui
+            .ctx()
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+            .expect("glyphon cache used before registered");
 
-        let total_text_width = buffer
+        // Shape the full text on a single unbounded line; singleline_offset scrolls the view
+        let buffer = glyphon_cache.lock().unwrap().get_or_shape(
+            GlyphonCacheKey::single(
+                self.text.as_str(),
+                GlyphonFontFamily::SansSerif,
+                false,
+                false,
+                None,
+                (self.font_size * ppi).to_bits(),
+                (line_height * ppi).to_bits(),
+                f32::MAX.to_bits(),
+            ),
+            || {
+                let mut fs = font_system.lock().unwrap();
+                let mut buf = glyphon::Buffer::new(
+                    &mut fs,
+                    Metrics::new(self.font_size * ppi, line_height * ppi),
+                );
+                buf.set_size(&mut fs, Some(f32::MAX), None);
+                buf.set_text(
+                    &mut fs,
+                    self.text,
+                    &Attrs::new().family(Family::SansSerif),
+                    Shaping::Advanced,
+                );
+                buf.shape_until_scroll(&mut fs, false);
+                buf
+            },
+        );
+
+        let buf_read = buffer.read().unwrap();
+        let total_text_width = buf_read
             .layout_runs()
             .map(|r| r.line_w)
             .fold(0.0f32, f32::max)
             / ppi;
-        let cursor_x = cursor_x_from_buffer(&buffer, state.cursor, ppi);
+        let cursor_x = cursor_x_from_buffer(&buf_read, state.cursor, ppi);
 
         let visible_width = ui.available_width();
         let (rect, _) =
@@ -357,7 +376,7 @@ impl<'a> GlyphonTextEdit<'a> {
             if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
                 let buf_x = (pos.x - rect.min.x + state.singleline_offset) * ppi;
                 let buf_y = line_height * ppi * 0.5;
-                let byte = hit_test_buffer(&buffer, buf_x, buf_y);
+                let byte = hit_test_buffer(&buf_read, buf_x, buf_y);
                 if response.drag_started() || response.clicked() {
                     state.move_cursor(byte, false);
                 } else {
@@ -404,9 +423,9 @@ impl<'a> GlyphonTextEdit<'a> {
 
             if state.has_selection() {
                 let (lo, hi) = state.selection();
-                let x0 = (cursor_x_from_buffer(&buffer, lo, ppi) - state.singleline_offset)
+                let x0 = (cursor_x_from_buffer(&buf_read, lo, ppi) - state.singleline_offset)
                     .clamp(0.0, visible_width);
-                let x1 = (cursor_x_from_buffer(&buffer, hi, ppi) - state.singleline_offset)
+                let x1 = (cursor_x_from_buffer(&buf_read, hi, ppi) - state.singleline_offset)
                     .clamp(0.0, visible_width);
                 let theme = ui.ctx().get_lb_theme();
                 let sel_color = theme
@@ -435,25 +454,37 @@ impl<'a> GlyphonTextEdit<'a> {
             // Show hint text when the text buffer is empty
             if self.text.is_empty() {
                 if let Some(ref hint) = self.hint_text {
-                    let hint_buf = {
-                        let mut fs = font_system.lock().unwrap();
-                        let mut buf = glyphon::Buffer::new(
-                            &mut fs,
-                            Metrics::new(self.font_size * ppi, line_height * ppi),
-                        );
-                        buf.set_size(&mut fs, Some(visible_width * ppi), None);
-                        buf.set_text(
-                            &mut fs,
-                            hint,
-                            &Attrs::new().family(Family::SansSerif),
-                            Shaping::Advanced,
-                        );
-                        buf.shape_until_scroll(&mut fs, false);
-                        buf
-                    };
+                    let hint_buf = glyphon_cache.lock().unwrap().get_or_shape(
+                        GlyphonCacheKey::single(
+                            hint.as_str(),
+                            GlyphonFontFamily::SansSerif,
+                            false,
+                            false,
+                            None,
+                            (self.font_size * ppi).to_bits(),
+                            (line_height * ppi).to_bits(),
+                            (visible_width * ppi).to_bits(),
+                        ),
+                        || {
+                            let mut fs = font_system.lock().unwrap();
+                            let mut buf = glyphon::Buffer::new(
+                                &mut fs,
+                                Metrics::new(self.font_size * ppi, line_height * ppi),
+                            );
+                            buf.set_size(&mut fs, Some(visible_width * ppi), None);
+                            buf.set_text(
+                                &mut fs,
+                                hint,
+                                &Attrs::new().family(Family::SansSerif),
+                                Shaping::Advanced,
+                            );
+                            buf.shape_until_scroll(&mut fs, false);
+                            buf
+                        },
+                    );
                     let c = ui.visuals().weak_text_color();
                     areas.push(crate::TextBufferArea::new(
-                        Arc::new(RwLock::new(hint_buf)),
+                        hint_buf,
                         Rect::from_min_size(rect.min, egui::vec2(visible_width, line_height)),
                         glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
                         ui.ctx(),
@@ -462,9 +493,10 @@ impl<'a> GlyphonTextEdit<'a> {
                 }
             }
 
+            drop(buf_read);
             let c = visuals.text_color();
             areas.push(crate::TextBufferArea::new(
-                Arc::new(RwLock::new(buffer)),
+                buffer,
                 draw_rect,
                 glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
                 ui.ctx(),

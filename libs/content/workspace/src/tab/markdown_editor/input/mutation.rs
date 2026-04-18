@@ -1,8 +1,7 @@
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
@@ -24,14 +23,14 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
         &mut self, ctx: &egui::Context, root: &'ast AstNode<'ast>, event: Event,
         operations: &mut Vec<Operation>,
     ) -> buffer::Response {
-        let current_selection = self.buffer.current.selection;
+        let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
@@ -54,17 +53,23 @@ impl<'ast> Editor {
                 // insert/extend/terminate container blocks
                 let mut handled = || {
                     // selection must be empty
-                    let Some(offset) = self.selection_offset() else {
+                    let Some(offset) = self.renderer.selection_offset() else {
                         return false;
                     };
 
-                    let container = self.deepest_container_block_at_offset(root, offset);
-                    let line = self.line_at_offset(offset);
-                    let line_content = self.line_content(container, line);
-                    let own_prefix = self.line_own_prefix(container, line);
+                    let container = self
+                        .renderer
+                        .deepest_container_block_at_offset(root, offset);
+                    let line = self.renderer.line_at_offset(offset);
+                    let line_content = self.renderer.line_content(container, line);
+                    let own_prefix = self.renderer.line_own_prefix(container, line);
 
                     let in_code_block = matches!(
-                        self.leaf_block_at_offset(root, offset).data.borrow().value,
+                        self.renderer
+                            .leaf_block_at_offset(root, offset)
+                            .data
+                            .borrow()
+                            .value,
                         NodeValue::CodeBlock(_)
                     );
 
@@ -74,7 +79,7 @@ impl<'ast> Editor {
                             range: current_selection,
                             text: "\n".into(),
                         }));
-                        if let Some(extension_prefix) = self.extension_prefix(container) {
+                        if let Some(extension_prefix) = self.renderer.extension_prefix(container) {
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: extension_prefix,
@@ -98,7 +103,7 @@ impl<'ast> Editor {
                             range: current_selection,
                             text: "\n".into(),
                         }));
-                        if let Some(insertion_prefix) = self.insertion_prefix(container) {
+                        if let Some(insertion_prefix) = self.renderer.insertion_prefix(container) {
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: insertion_prefix,
@@ -108,18 +113,18 @@ impl<'ast> Editor {
 
                     // code block auto-indentation
                     if in_code_block {
-                        let line_content_start = self.offset_to_byte(line_content.start());
+                        let line_content_start = self.renderer.offset_to_byte(line_content.start());
                         let indentation_len = RelByteOffset(
-                            self.buffer[line_content].len()
-                                - self.buffer[line_content].trim_start().len(),
+                            self.renderer.buffer[line_content].len()
+                                - self.renderer.buffer[line_content].trim_start().len(),
                         );
                         let indentation =
                             (line_content_start, line_content_start + indentation_len);
-                        let indentation = self.range_to_char(indentation);
+                        let indentation = self.renderer.range_to_char(indentation);
 
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
-                            text: self.buffer[indentation].to_string(),
+                            text: self.renderer.buffer[indentation].to_string(),
                         }));
                     }
 
@@ -151,14 +156,16 @@ impl<'ast> Editor {
                     }
 
                     // selection must be empty
-                    let Some(offset) = self.selection_offset() else {
+                    let Some(offset) = self.renderer.selection_offset() else {
                         return false;
                     };
 
-                    let container = self.deepest_container_block_at_offset(root, offset);
-                    let line = self.line_at_offset(offset);
-                    let own_prefix = self.line_own_prefix(container, line);
-                    let content = self.line_content(container, line);
+                    let container = self
+                        .renderer
+                        .deepest_container_block_at_offset(root, offset);
+                    let line = self.renderer.line_at_offset(offset);
+                    let own_prefix = self.renderer.line_own_prefix(container, line);
+                    let content = self.renderer.line_content(container, line);
 
                     // selection must be at content start
                     if offset != content.start() {
@@ -187,11 +194,13 @@ impl<'ast> Editor {
             }
             Event::Indent { deindent } => {
                 let selected_lines = self
+                    .renderer
                     .bounds
                     .source_lines
                     .find_intersecting(current_selection, true);
                 let first_selected_line_idx = selected_lines.0;
-                let first_selected_line = self.bounds.source_lines[first_selected_line_idx];
+                let first_selected_line =
+                    self.renderer.bounds.source_lines[first_selected_line_idx];
 
                 if !deindent {
                     // indent into extension of block on prior line
@@ -202,9 +211,10 @@ impl<'ast> Editor {
                         }
 
                         let prior_line_idx = first_selected_line_idx - 1;
-                        let prior_line = self.bounds.source_lines[prior_line_idx];
-                        let prior_line_deepest_container =
-                            self.deepest_container_block_at_offset(root, prior_line.end());
+                        let prior_line = self.renderer.bounds.source_lines[prior_line_idx];
+                        let prior_line_deepest_container = self
+                            .renderer
+                            .deepest_container_block_at_offset(root, prior_line.end());
 
                         // among blocks on prior line, find the least deep that
                         // has a prefix on the prior line but not on the first
@@ -216,22 +226,24 @@ impl<'ast> Editor {
                         let mut prior_line_container_extension_prefix = None;
                         for prior_line_container in prior_line_deepest_container.ancestors() {
                             let has_prefix_on_prior_line = !self
+                                .renderer
                                 .line_own_prefix(prior_line_container, prior_line)
                                 .is_empty();
-                            let has_prefix_on_first_selected_line = if self
-                                .node_last_line_idx(prior_line_container)
-                                < first_selected_line_idx
-                            {
-                                false
-                            } else {
-                                !self
-                                    .line_own_prefix(prior_line_container, first_selected_line)
-                                    .is_empty()
-                            };
+                            let has_prefix_on_first_selected_line =
+                                if self.renderer.node_last_line_idx(prior_line_container)
+                                    < first_selected_line_idx
+                                {
+                                    false
+                                } else {
+                                    !self
+                                        .renderer
+                                        .line_own_prefix(prior_line_container, first_selected_line)
+                                        .is_empty()
+                                };
 
                             if has_prefix_on_prior_line && !has_prefix_on_first_selected_line {
                                 if let Some(extension_prefix) =
-                                    self.extension_own_prefix(prior_line_container)
+                                    self.renderer.extension_own_prefix(prior_line_container)
                                 {
                                     prior_line_container_extension_prefix = Some(extension_prefix);
                                 }
@@ -250,14 +262,16 @@ impl<'ast> Editor {
                         // non-lazy-continuation lines
                         // todo: more attention to multi-line indentation
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            let container = self
+                                .renderer
+                                .deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix =
+                                self.renderer.line_own_prefix(container, line);
 
                             let insertion_offset =
-                                if Some(self.buffer[container_own_prefix].to_string())
-                                    == self.extension_own_prefix(container)
+                                if Some(self.renderer.buffer[container_own_prefix].to_string())
+                                    == self.renderer.extension_own_prefix(container)
                                 {
                                     // on what could be a subsequent line of a
                                     // container block, tab to indent the line
@@ -290,17 +304,19 @@ impl<'ast> Editor {
                     let mut handled = || {
                         // all lines must have container ancestor prefix
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            let container = self
+                                .renderer
+                                .deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix =
+                                self.renderer.line_own_prefix(container, line);
 
                             // on what can only be the first line of a container
                             // block, shift-tab to de-indent the block rather
                             // than its contents
                             let skip_container =
-                                Some(self.buffer[container_own_prefix].to_string())
-                                    != self.extension_own_prefix(container);
+                                Some(self.renderer.buffer[container_own_prefix].to_string())
+                                    != self.renderer.extension_own_prefix(container);
 
                             let mut found_container_ancestor = false;
                             for ancestor in container.ancestors() {
@@ -308,7 +324,8 @@ impl<'ast> Editor {
                                     continue;
                                 }
 
-                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
+                                let ancestor_own_prefix =
+                                    self.renderer.line_own_prefix(ancestor, line);
                                 if !ancestor_own_prefix.is_empty() {
                                     found_container_ancestor = true;
                                 }
@@ -320,24 +337,27 @@ impl<'ast> Editor {
 
                         // remove container ancestor prefix from each line
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            let container = self
+                                .renderer
+                                .deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix =
+                                self.renderer.line_own_prefix(container, line);
 
                             // on what can only be the first line of a container
                             // block, shift-tab to de-indent the block rather
                             // than its contents
                             let skip_container =
-                                Some(self.buffer[container_own_prefix].to_string())
-                                    != self.extension_own_prefix(container);
+                                Some(self.renderer.buffer[container_own_prefix].to_string())
+                                    != self.renderer.extension_own_prefix(container);
 
                             for ancestor in container.ancestors() {
                                 if container.same_node(ancestor) && skip_container {
                                     continue;
                                 }
 
-                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
+                                let ancestor_own_prefix =
+                                    self.renderer.line_own_prefix(ancestor, line);
                                 if !ancestor_own_prefix.is_empty() {
                                     operations.push(Operation::Replace(Replace {
                                         range: ancestor_own_prefix,
@@ -358,75 +378,11 @@ impl<'ast> Editor {
                 // advance cursor
                 operations.push(Operation::Select(current_selection));
             }
-            Event::FindSearch { term } => {
-                let old_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-
-                // remember position of current match to find nearest after recompute;
-                // use selection start so a match containing the cursor is found
-                let anchor = old_match
-                    .map(|m| m.0)
-                    .unwrap_or(self.buffer.current.selection.start());
-
-                self.find.term = Some(term.clone());
-                self.find.matches = self.find_all(&term);
-                if !self.find.matches.is_empty() {
-                    // pick the nearest match at or after the anchor position
-                    let idx = self
-                        .find
-                        .matches
-                        .iter()
-                        .position(|m| m.0 >= anchor)
-                        .unwrap_or(0);
-                    self.find.current_match = Some(idx);
-                    self.scroll_to_find_match = true;
-                } else {
-                    self.find.current_match = None;
-                }
-
-                let new_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-                if old_match != new_match {
-                    if let Some(old) = old_match {
-                        self.layout_cache.invalidate_reveal_change(old, old);
-                    }
-                    if let Some(new) = new_match {
-                        self.layout_cache.invalidate_reveal_change(new, new);
-                    }
-                }
-            }
-            Event::FindNavigate { backwards } => {
-                let old_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-
-                if self.find_navigate(!backwards) {
-                    self.scroll_to_find_match = true;
-                }
-
-                let new_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-                if old_match != new_match {
-                    if let Some(old) = old_match {
-                        self.layout_cache.invalidate_reveal_change(old, old);
-                    }
-                    if let Some(new) = new_match {
-                        self.layout_cache.invalidate_reveal_change(new, new);
-                    }
-                }
-            }
             Event::Undo => {
-                response |= self.buffer.undo();
+                response |= self.renderer.buffer.undo();
             }
             Event::Redo => {
-                response |= self.buffer.redo();
+                response |= self.renderer.buffer.redo();
             }
             Event::Cut => {
                 let range = if !current_selection.is_empty() {
@@ -435,7 +391,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.copy_text(self.buffer[range].into());
+                ctx.copy_text(self.renderer.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
@@ -445,10 +401,10 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.copy_text(self.buffer[range].into());
+                ctx.copy_text(self.renderer.buffer[range].into());
             }
             Event::ToggleDebug => {
-                self.debug = !self.debug;
+                self.renderer.debug = !self.renderer.debug;
             }
             Event::IncrementBaseFontSize => {
                 // self.appearance.base_font_size =
@@ -464,17 +420,25 @@ impl<'ast> Editor {
                 let unapply = self.unapply_fold(root);
                 for node in root.descendants() {
                     if matches!(node.data().value, NodeValue::Heading(_))
-                        && self.selected_block(node)
+                        && self.renderer.selected_block(node)
                     {
-                        let siblings = self.sorted_siblings(node);
-                        self.apply_fold(node, self.heading_contents(node, &siblings), unapply);
+                        let siblings = self.renderer.sorted_siblings(node);
+                        self.renderer.apply_fold(
+                            node,
+                            self.renderer.heading_contents(node, &siblings),
+                            unapply,
+                        );
                     }
 
                     if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                        && self.selected_fold_item(node)
+                        && self.renderer.selected_fold_item(node)
                     {
-                        let siblings = self.sorted_siblings(node);
-                        self.apply_fold(node, self.item_contents(node, &siblings), unapply);
+                        let siblings = self.renderer.sorted_siblings(node);
+                        self.renderer.apply_fold(
+                            node,
+                            self.renderer.item_contents(node, &siblings),
+                            unapply,
+                        );
                     }
                 }
             }
@@ -494,7 +458,7 @@ impl<'ast> Editor {
             _ if style.is_inline() => {
                 let unapply = self.unapply_inline(root, range, &style);
 
-                for inline_paragraph in &self.bounds.inline_paragraphs {
+                for inline_paragraph in &self.renderer.bounds.inline_paragraphs {
                     if inline_paragraph.intersects(&range, true) {
                         let paragraph_range = (
                             range.start().max(inline_paragraph.start()),
@@ -518,7 +482,7 @@ impl<'ast> Editor {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.selected_block(node) {
+                    if self.renderer.selected_block(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -529,9 +493,9 @@ impl<'ast> Editor {
                                 ..
                             }) = node.data.borrow().value
                             {
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
-                                    let node_line = self.node_line(node, line);
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
+                                    let node_line = self.renderer.node_line(node, line);
 
                                     if level > node_level {
                                         let add_levels = level - node_level;
@@ -545,9 +509,10 @@ impl<'ast> Editor {
                                             node_line.start(),
                                             node_line.start() + RelCharOffset(node_level as _),
                                         );
-                                        if self.buffer.current.segs.last_cursor_position()
+                                        if self.renderer.buffer.current.segs.last_cursor_position()
                                             > range.end()
-                                            && &self.buffer[(range.end(), range.end() + 1)] == " "
+                                            && &self.renderer.buffer[(range.end(), range.end() + 1)]
+                                                == " "
                                         {
                                             range.1 += 1;
                                         }
@@ -569,13 +534,16 @@ impl<'ast> Editor {
                                     }
                                 }
                             } else if NodeValue::Paragraph == node.data.borrow().value {
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
-                                    let node_line = self.node_line(node, line);
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
+                                    let node_line = self.renderer.node_line(node, line);
 
                                     // count paragraph soft breaks as node breaks
                                     if node.data.borrow().value == NodeValue::Paragraph
-                                        && !line.intersects(&self.buffer.current.selection, true)
+                                        && !line.intersects(
+                                            &self.renderer.buffer.current.selection,
+                                            true,
+                                        )
                                     {
                                         continue;
                                     }
@@ -594,10 +562,10 @@ impl<'ast> Editor {
                             } else {
                                 node.parent().unwrap()
                             };
-                            for line_idx in self.node_lines(node).iter() {
-                                let line = self.bounds.source_lines[line_idx];
+                            for line_idx in self.renderer.node_lines(node).iter() {
+                                let line = self.renderer.bounds.source_lines[line_idx];
 
-                                let prefix = self.line_own_prefix(target_node, line);
+                                let prefix = self.renderer.line_own_prefix(target_node, line);
 
                                 operations.push(Operation::Replace(Replace {
                                     range: prefix,
@@ -607,18 +575,24 @@ impl<'ast> Editor {
 
                             if !unapply {
                                 let mut first_line = true;
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
 
                                     // count paragraph soft breaks as node breaks
                                     if node.data.borrow().value == NodeValue::Paragraph
-                                        && !line.intersects(&self.buffer.current.selection, true)
+                                        && !line.intersects(
+                                            &self.renderer.buffer.current.selection,
+                                            true,
+                                        )
                                     {
                                         continue;
                                     }
 
-                                    let range =
-                                        self.line_ancestors_prefix(node, line).end().into_range();
+                                    let range = self
+                                        .renderer
+                                        .line_ancestors_prefix(node, line)
+                                        .end()
+                                        .into_range();
                                     let text = match style {
                                         NodeValue::Heading(_) => unreachable!(),
                                         NodeValue::BlockQuote => "> ",
@@ -708,17 +682,18 @@ impl<'ast> Editor {
                         operations.push(Operation::Replace(Replace { range, text }));
                         operations.push(Operation::Select(current_selection));
                     } else {
-                        let target_node = self.deepest_container_block_at_offset(
+                        let target_node = self.renderer.deepest_container_block_at_offset(
                             root,
-                            self.buffer.current.selection.start(),
+                            self.renderer.buffer.current.selection.start(),
                         );
                         if style == target_node.node_type() {
                             let line_idx = self
+                                .renderer
                                 .range_lines(current_selection.start().into_range())
                                 .start();
-                            let line = self.bounds.source_lines[line_idx];
+                            let line = self.renderer.bounds.source_lines[line_idx];
 
-                            let prefix = self.line_own_prefix(target_node, line);
+                            let prefix = self.renderer.line_own_prefix(target_node, line);
 
                             operations.push(Operation::Replace(Replace {
                                 range: prefix,
@@ -738,7 +713,10 @@ impl<'ast> Editor {
     ) -> bool {
         for node in root.descendants() {
             if &node.node_type() == style
-                && self.node_range(node).contains_range(&range, true, true)
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains_range(&range, true, true)
             {
                 return true;
             }
@@ -752,7 +730,7 @@ impl<'ast> Editor {
         &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
     ) -> bool {
         let mut unapply = false;
-        for inline_paragraph in &self.bounds.inline_paragraphs {
+        for inline_paragraph in &self.renderer.bounds.inline_paragraphs {
             if inline_paragraph.intersects(&range, true) {
                 let paragraph_range = (
                     range.start().max(inline_paragraph.start()),
@@ -770,7 +748,7 @@ impl<'ast> Editor {
         let mut unapply = false;
         let mut any_selected_blocks = false;
         for node in root.descendants() {
-            if self.selected_block(node) {
+            if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
                 let target_node =
@@ -783,7 +761,11 @@ impl<'ast> Editor {
             // selecting sequence of contiguous empty/whitespace-only lines:
             // check for matching container block
             return &self
-                .deepest_container_block_at_offset(root, self.buffer.current.selection.start())
+                .renderer
+                .deepest_container_block_at_offset(
+                    root,
+                    self.renderer.buffer.current.selection.start(),
+                )
                 .node_type()
                 == style;
         }
@@ -796,15 +778,15 @@ impl<'ast> Editor {
         let mut unapply = false;
         for node in root.descendants() {
             if matches!(node.data().value, NodeValue::Heading(_))
-                && self.selected_block(node)
-                && self.fold(node).is_some()
+                && self.renderer.selected_block(node)
+                && self.renderer.fold(node).is_some()
             {
                 unapply = true;
             }
 
             if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                && self.selected_fold_item(node)
-                && self.fold(node).is_some()
+                && self.renderer.selected_fold_item(node)
+                && self.renderer.fold(node).is_some()
             {
                 unapply = true;
             }
@@ -818,41 +800,7 @@ impl<'ast> Editor {
         &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
         unapply: bool,
     ) {
-        if unapply {
-            println!("UNapply fold to selected heading");
-            if let Some(fold) = self.fold(node) {
-                self.event.internal_events.push(Event::Replace {
-                    region: self.node_range(fold).into(),
-                    text: "".into(),
-                    advance_cursor: false,
-                });
-            }
-        } else {
-            println!("apply fold to selected heading");
-            if let Some(foldable) = self.foldable(node) {
-                self.event.internal_events.push(Event::Replace {
-                    region: self.node_range(foldable).end().into_range().into(),
-                    text: FOLD_TAG.into(),
-                    advance_cursor: false,
-                });
-
-                // when folding a section that intersects the cursor, adjust the selection
-                // this ensures the folded section appears folded / avoids immediate selection reveal
-                let selection = self.buffer.current.selection;
-
-                if contents.intersects(&selection, true)
-                    && !selection.contains_range(&contents, true, true)
-                {
-                    self.event.internal_events.push(Event::Select {
-                        region: (
-                            selection.start().min(contents.start()),
-                            selection.end().min(contents.start()),
-                        )
-                            .into(),
-                    });
-                }
-            }
-        }
+        self.renderer.apply_fold(node, contents, unapply);
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
@@ -860,8 +808,8 @@ impl<'ast> Editor {
         &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: NodeValue,
         unapply: bool, operations: &mut Vec<Operation>,
     ) {
-        let selection = self.buffer.current.selection;
-        if self.buffer.current.text.is_empty() {
+        let selection = self.renderer.buffer.current.selection;
+        if self.renderer.buffer.current.text.is_empty() {
             self.insert_head(range.start(), style.clone(), operations);
             operations.push(Operation::Select(selection));
             self.insert_tail(range.start(), style, operations);
@@ -872,14 +820,21 @@ impl<'ast> Editor {
         let mut start_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
             if node.node_type() == style
-                && self.node_range(node).contains(range.start(), true, true)
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains(range.start(), true, true)
             {
                 start_node = Some(node);
             }
         }
         let mut end_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
-            if node.node_type() == style && self.node_range(node).contains(range.end(), true, true)
+            if node.node_type() == style
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains(range.end(), true, true)
             {
                 end_node = Some(node);
             }
@@ -903,7 +858,7 @@ impl<'ast> Editor {
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
-                if self.head_range(start_node).unwrap().end() < range.start() {
+                if self.renderer.head_range(start_node).unwrap().end() < range.start() {
                     let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
@@ -916,7 +871,7 @@ impl<'ast> Editor {
 
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
-                if self.tail_range(end_node).unwrap().start() > range.end() {
+                if self.renderer.tail_range(end_node).unwrap().start() > range.end() {
                     let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
@@ -958,7 +913,7 @@ impl<'ast> Editor {
             }
 
             let style_matches = node.node_type() == style;
-            if style_matches && self.node_range(node).intersects(&range, true) {
+            if style_matches && self.renderer.node_range(node).intersects(&range, true) {
                 self.dehead_ast_node(node, operations);
                 self.detail_ast_node(node, operations);
             }
@@ -967,7 +922,7 @@ impl<'ast> Editor {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
-        let mut current_selection = self.buffer.current.selection;
+        let mut current_selection = self.renderer.buffer.current.selection;
         match region {
             Region::Location(location) => self.location_to_range(location),
             Region::ToLocation(location) => {
@@ -1005,13 +960,13 @@ impl<'ast> Editor {
             Region::Bound { bound, backwards } => {
                 let offset = current_selection.1;
                 offset
-                    .range_bound(bound, backwards, false, &self.bounds)
+                    .range_bound(bound, backwards, false, &self.renderer.bounds)
                     .unwrap_or((offset, offset))
             }
             Region::BoundAt { bound, location, backwards } => {
                 let offset = self.location_to_char_offset(location);
                 offset
-                    .range_bound(bound, backwards, true, &self.bounds)
+                    .range_bound(bound, backwards, true, &self.renderer.bounds)
                     .unwrap_or((offset, offset))
             }
         }
@@ -1019,7 +974,7 @@ impl<'ast> Editor {
 
     pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
         match location {
-            Location::CurrentCursor => self.buffer.current.selection,
+            Location::CurrentCursor => self.renderer.buffer.current.selection,
             Location::DocCharOffset(o) => o.into_range(),
             Location::Pos(pos) => self.pos_to_range(pos),
         }
@@ -1030,21 +985,22 @@ impl<'ast> Editor {
     }
 
     fn clipboard_current_line(&self) -> (DocCharOffset, DocCharOffset) {
-        let current_selection = self.buffer.current.selection;
+        let current_selection = self.renderer.buffer.current.selection;
         let paragraph_idx = self
+            .renderer
             .bounds
             .source_lines
             .find_containing(current_selection.1, true, true)
             .0;
 
-        let mut result = self.bounds.source_lines[paragraph_idx];
+        let mut result = self.renderer.bounds.source_lines[paragraph_idx];
 
         // capture leading newline, if any
         if paragraph_idx != 0 {
-            let line = self.bounds.source_lines[paragraph_idx];
-            let prev_line = self.bounds.source_lines[paragraph_idx - 1];
+            let line = self.renderer.bounds.source_lines[paragraph_idx];
+            let prev_line = self.renderer.bounds.source_lines[paragraph_idx - 1];
             let range_between_lines = (prev_line.1, line.0);
-            let rbl_text = &self.buffer[range_between_lines];
+            let rbl_text = &self.renderer.buffer[range_between_lines];
             if rbl_text.ends_with("\r\n") {
                 result.0 -= 2;
             } else if rbl_text.ends_with('\n') || rbl_text.ends_with('\r') {
@@ -1057,7 +1013,7 @@ impl<'ast> Editor {
 
     // todo: find a better home
     pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
-        let galleys = &self.galleys;
+        let galleys = &self.renderer.galleys;
         let galley_idx = pos_to_galley(pos, galleys);
         let galley = &galleys[galley_idx];
 
@@ -1068,14 +1024,19 @@ impl<'ast> Editor {
             result.into_range()
         } else if galley_idx == galleys.len() - 1 && pos.y > galley.rect.max.y {
             // every position lower than the final galley's bottom maps to the last cursor position
-            self.buffer.current.segs.last_cursor_position().into_range()
+            self.renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range()
         } else {
             #[allow(clippy::collapsible_else_if)]
             if galley.is_override {
                 // click an override galley to select the whole thing
                 galley.range
             } else {
-                self.galley_offset(galley_idx, pos).into_range()
+                self.renderer.galley_offset(galley_idx, pos).into_range()
             }
         }
     }
@@ -1121,15 +1082,15 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     fn dehead_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(range) = self.head_range(node) {
+        if let Some(range) = self.renderer.head_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
 
     fn detail_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(range) = self.tail_range(node) {
+        if let Some(range) = self.renderer.tail_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
@@ -1140,12 +1101,12 @@ impl<'ast> Editor {
                 if offset == 0 {
                     break;
                 }
-                &(&self.buffer)[(offset - 1, offset)]
+                &(&self.renderer.buffer)[(offset - 1, offset)]
             } else {
-                if offset == self.buffer.current.segs.last_cursor_position() {
+                if offset == self.renderer.buffer.current.segs.last_cursor_position() {
                     break;
                 }
-                &(&self.buffer)[(offset, offset + 1)]
+                &(&self.renderer.buffer)[(offset, offset + 1)]
             };
             if c == " " {
                 if tail { offset -= 1 } else { offset += 1 }

@@ -78,7 +78,6 @@ pub(crate) fn throw_err<'local>(env: &mut JNIEnv<'local>, err: LbErr) -> JObject
         LbErrKind::CurrentUsageIsMoreThanNewTier => "CurrentUsageIsMoreThanNewTier",
         LbErrKind::DiskPathInvalid => "DiskPathInvalid",
         LbErrKind::DiskPathTaken => "DiskPathTaken",
-        LbErrKind::DrawingInvalid => "DrawingInvalid",
         LbErrKind::ExistingRequestPending => "ExistingRequestPending",
         LbErrKind::FileNameContainsSlash => "FileNameContainsSlash",
         LbErrKind::FileNameTooLong => "FileNameTooLong",

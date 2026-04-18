@@ -78,7 +78,7 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.buffer.is_empty()
+    !markdown.edit.renderer.buffer.is_empty()
 }
 
 /// # Safety
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 
     let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
     if let Some(range) = range {
-        CString::new(&markdown.buffer[range])
+        CString::new(&markdown.edit.renderer.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
@@ -155,8 +155,14 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 
     CTextRange {
         none: false,
-        start: CTextPosition { pos: markdown.buffer.current.selection.start().0, none: false },
-        end: CTextPosition { pos: markdown.buffer.current.selection.end().0, none: false },
+        start: CTextPosition {
+            pos: markdown.edit.renderer.buffer.current.selection.start().0,
+            none: false,
+        },
+        end: CTextPosition {
+            pos: markdown.edit.renderer.buffer.current.selection.end().0,
+            none: false,
+        },
     }
 }
 
@@ -248,7 +254,14 @@ pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
         None => return CTextPosition::default(),
     };
 
-    markdown.buffer.current.segs.last_cursor_position().into()
+    markdown
+        .edit
+        .renderer
+        .buffer
+        .current
+        .segs
+        .last_cursor_position()
+        .into()
 }
 
 /// # Safety
@@ -381,7 +394,7 @@ pub unsafe extern "C" fn touches_predicted(obj: *mut c_void, id: u64, x: f32, y:
 pub unsafe extern "C" fn tab_count(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.tabs.len() as i64
+    obj.workspace.tab_strip.len() as i64
 }
 
 /// # Safety
@@ -465,7 +478,13 @@ pub unsafe extern "C" fn position_offset(
 
     let start: Option<DocCharOffset> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown.buffer.current.segs.last_cursor_position();
+        let last_cursor_position = markdown
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             DocCharOffset::default()
@@ -506,7 +525,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut result: DocCharOffset = start.pos.into();
     for _ in 0..offset {
-        result = markdown.advance(result, advance, backwards);
+        result = markdown.edit.advance(result, advance, backwards);
     }
 
     CTextPosition { none: start.none, pos: result.0 }
@@ -533,7 +552,9 @@ pub unsafe extern "C" fn is_position_at_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown.is_position_at_boundary(text_position, at_boundary, backwards)
+    markdown
+        .edit
+        .is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -557,7 +578,9 @@ pub unsafe extern "C" fn is_position_within_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown.is_position_within_text_unit(text_position, at_boundary, backwards)
+    markdown
+        .edit
+        .is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -581,7 +604,7 @@ pub unsafe extern "C" fn bound_from_position(
         Advance::Next(granularity.into())
     };
 
-    Some(markdown.advance(text_position, advance, backwards)).into()
+    Some(markdown.edit.advance(text_position, advance, backwards)).into()
 }
 
 /// # Safety
@@ -605,7 +628,9 @@ pub unsafe extern "C" fn bound_at_position(
     let text_position = pos.pos.into();
     let with_granularity = granularity.into();
 
-    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
+    let result = markdown
+        .edit
+        .range_enclosing_position(text_position, with_granularity, backwards);
 
     result.into()
 }
@@ -633,16 +658,21 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         };
         let mut selection_start = range.start();
         let selection_end = range.end();
-        selection_start = markdown.advance(selection_start, Advance::To(Bound::Line), false);
+        selection_start = markdown
+            .edit
+            .advance(selection_start, Advance::To(Bound::Line), false);
         let end_of_selection_start_line = selection_start;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect)
     };
 
-    let Some(start_line) = markdown.cursor_line(selection_representing_rect.start()) else {
+    let Some(start_line) = markdown
+        .edit
+        .cursor_line(selection_representing_rect.start())
+    else {
         return CRect::default();
     };
-    let Some(end_line) = markdown.cursor_line(selection_representing_rect.end()) else {
+    let Some(end_line) = markdown.edit.cursor_line(selection_representing_rect.end()) else {
         return CRect::default();
     };
 
@@ -680,8 +710,9 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
         None => return CTextPosition::default(),
     };
 
-    let offset =
-        markdown.pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
+    let offset = markdown
+        .edit
+        .pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -695,7 +726,7 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
         None => return null(),
     };
 
-    let value = markdown.buffer.current.text.as_str();
+    let value = markdown.edit.renderer.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -712,7 +743,7 @@ pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPos
         None => return CRect::default(),
     };
 
-    let Some(line) = markdown.cursor_line(pos.pos.into()) else { return CRect::default() };
+    let Some(line) = markdown.edit.cursor_line(pos.pos.into()) else { return CRect::default() };
 
     CRect {
         min_x: line[0].x as f64,
@@ -757,7 +788,7 @@ pub unsafe extern "C" fn selection_rects(
     };
 
     let mut selection_rects = Vec::new();
-    for rect in markdown.range_rects(range) {
+    for rect in markdown.edit.range_rects(range) {
         selection_rects.push(CRect {
             min_x: rect.min.x as f64,
             min_y: rect.min.y as f64,
@@ -789,10 +820,9 @@ pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let ids: Vec<CUuid> = obj
         .workspace
-        .tabs
+        .tab_strip
         .iter()
-        .flat_map(|tab| tab.id())
-        .map(|id| id.into())
+        .map(|s| s.dest.id().into())
         .collect();
 
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
@@ -837,7 +867,7 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.readonly && markdown.buffer.can_undo()
+    !markdown.edit.renderer.readonly && markdown.edit.renderer.buffer.can_undo()
 }
 
 /// # Safety
@@ -850,7 +880,7 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
         None => return false,
     };
 
-    !markdown.readonly && markdown.buffer.can_redo()
+    !markdown.edit.renderer.readonly && markdown.edit.renderer.buffer.can_redo()
 }
 
 /// # Safety
@@ -886,6 +916,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
+                TabContent::Chat(_) => 9,
             },
             _ => 1,
         },
@@ -949,7 +980,7 @@ pub unsafe extern "C" fn toggle_drawing_tool_between_eraser(obj: *mut c_void) {
 pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    obj.workspace.tabs.iter_mut().for_each(|t| {
+    obj.workspace.tabs.values_mut().for_each(|t| {
         if let ContentState::Open(TabContent::Svg(svg)) = &mut t.content {
             svg.settings.pencil_only_drawing = val
         }
@@ -962,8 +993,10 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(tab) = obj.workspace.current_tab_mut() {
-        tab.rename = None;
+    if let Some(dest) = obj.workspace.current_tab.clone() {
+        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
+            slot.rename = None;
+        }
     }
 }
 
@@ -982,8 +1015,15 @@ pub unsafe extern "C" fn show_hide_tabs(obj: *mut c_void, show: bool) {
 pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if !obj.workspace.tabs.is_empty() {
-        obj.workspace.close_tab(obj.workspace.current_tab)
+    if !obj.workspace.tab_strip.is_empty() {
+        if let Some(idx) = obj
+            .workspace
+            .current_tab
+            .as_ref()
+            .and_then(|d| obj.workspace.tab_strip.iter().position(|s| s.dest == *d))
+        {
+            obj.workspace.close_tab(idx);
+        }
     }
 }
 
@@ -993,8 +1033,8 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    for i in 0..obj.workspace.tabs.len() {
-        obj.workspace.close_tab(i);
+    while !obj.workspace.tab_strip.is_empty() {
+        obj.workspace.close_tab(0);
     }
 }
 

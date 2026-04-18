@@ -17,26 +17,22 @@
 //!   rendering to capture Enter for navigation, then re-request focus so the
 //!   input stays active.
 //!
-//! - **Frame-consistent state**: Cmd+F must be checked before rendering (so the
-//!   widget doesn't disappear for a frame on close), but re-focusing must not
-//!   skip rendering (so the widget doesn't flicker). The `refocus_term_changed`
-//!   flag defers the term_changed signal to the render frame. This is the only
-//!   aspect with material technical/cognitive debt.
-//!
 //! - **Layout cache invalidation**: The current find match affects node reveal
-//!   state and thus cached heights. When the match changes, we invalidate the
-//!   layout cache at both the old and new match positions.
+//!   state and thus cached heights. The caller snapshots
+//!   [`Find::current_match_range`] before and after `show` and invalidates the
+//!   layout cache when it changes — mirroring how the cursor selection is
+//!   handled.
 
 use egui::{EventFilter, Frame, Id, Key, Label, Margin, Ui, Widget as _};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset};
+use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
 
 use crate::tab::ExtendedOutput as _;
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonTextEdit, IconButton};
 
-use super::super::Editor;
+use super::super::input::{Event, Region};
 
 pub struct Find {
     pub id: egui::Id,
@@ -47,7 +43,6 @@ pub struct Find {
     pub whole_word: bool,
     pub regex: bool,
     select_all_on_focus: bool,
-    refocus_term_changed: bool,
     pub open_requested: bool,
     was_focused: bool,
     /// All match ranges in the document for the current search term.
@@ -67,7 +62,6 @@ impl Default for Find {
             whole_word: false,
             regex: false,
             select_all_on_focus: false,
-            refocus_term_changed: false,
             open_requested: false,
             was_focused: false,
             matches: Vec::new(),
@@ -76,22 +70,40 @@ impl Default for Find {
     }
 }
 
+/// Effects the caller must apply after a [`Find::show`] pass.
+///
+/// Match-driven layout-cache invalidation is *not* represented here — the
+/// caller snapshots [`Find::current_match_range`] before and after `show` and
+/// diffs it itself, the same way cursor-selection reveal invalidation is
+/// handled elsewhere.
 #[derive(Default)]
-pub struct Response {
-    /// Signals that the user wants to navigate: Some(true) = next, Some(false) = previous.
-    pub navigate: Option<bool>,
-    /// The search term changed (including on first open).
-    pub term_changed: bool,
-    /// The find widget was closed this frame.
+pub struct FindOutput {
+    /// Buffer events the caller should push onto the editor's event queue
+    /// (always `Event::Replace` for find-driven replacement).
+    pub events: Vec<Event>,
+    /// Caller should scroll to the current match on the next frame. Set when
+    /// the user initiated navigation (term entry, Enter, chevrons).
+    pub scroll_to_match: bool,
+    /// Find was closed this frame.
     pub closed: bool,
-    /// Replace the current match with the replacement text.
-    pub replace_one: bool,
-    /// Replace all matches with the replacement text.
-    pub replace_all: bool,
 }
 
 impl Find {
-    pub fn show(&mut self, buffer: &Buffer, virtual_keyboard_shown: bool, ui: &mut Ui) -> Response {
+    /// Range of the currently focused match, if any. Caller snapshots this
+    /// before and after [`Find::show`] to detect reveal-state changes.
+    pub fn current_match_range(&self) -> Option<(DocCharOffset, DocCharOffset)> {
+        self.current_match
+            .and_then(|idx| self.matches.get(idx).copied())
+    }
+
+    /// Render the find widget and advance its state. All term/match/navigation
+    /// transitions happen inside this call; [`FindOutput`] carries only the
+    /// effects the caller must apply (buffer events, scroll hint, close).
+    pub fn show(
+        &mut self, buffer: &Buffer, virtual_keyboard_shown: bool, ui: &mut Ui,
+    ) -> FindOutput {
+        let mut output = FindOutput::default();
+
         let open = std::mem::take(&mut self.open_requested)
             || ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift);
         if open {
@@ -101,35 +113,39 @@ impl Find {
                 self.select_all_on_focus = true;
                 ui.memory_mut(|m| m.request_focus(self.id));
                 ui.ctx().set_virtual_keyboard_shown(true);
-                return Response { term_changed: true, ..Default::default() };
-            } else {
-                let find_focused = ui.memory(|m| m.has_focus(self.id));
-                let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
-                if find_focused || replace_focused {
-                    self.term = None;
-                    self.matches.clear();
-                    self.current_match = None;
-                    return Response { closed: true, ..Default::default() };
-                } else {
-                    let selected = String::from(&buffer[buffer.current.selection]);
-                    if !selected.is_empty() {
-                        *self.term.as_mut().unwrap() = selected;
-                        self.refocus_term_changed = true;
-                    }
-                    self.select_all_on_focus = true;
-                    ui.memory_mut(|m| m.request_focus(self.id));
-                }
+                self.refresh_matches(buffer, buffer.current.selection.start());
+                output.scroll_to_match = !self.matches.is_empty();
+                return output;
             }
+
+            let find_focused = ui.memory(|m| m.has_focus(self.id));
+            let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
+            if find_focused || replace_focused {
+                self.close_state();
+                output.closed = true;
+                return output;
+            }
+
+            let selected = String::from(&buffer[buffer.current.selection]);
+            if !selected.is_empty() {
+                *self.term.as_mut().unwrap() = selected;
+                let anchor = self
+                    .current_match_range()
+                    .map(|m| m.start())
+                    .unwrap_or(buffer.current.selection.start());
+                self.refresh_matches(buffer, anchor);
+                output.scroll_to_match = !self.matches.is_empty();
+            }
+            self.select_all_on_focus = true;
+            ui.memory_mut(|m| m.request_focus(self.id));
         }
 
-        let resp = if self.term.is_some() {
+        if self.term.is_some() {
             Frame::NONE
                 .inner_margin(Margin::symmetric(10, 10))
-                .show(ui, |ui| self.show_inner(ui))
-                .inner
-        } else {
-            Response::default()
-        };
+                .show(ui, |ui| self.show_inner(buffer, ui, &mut output));
+        }
+
         let focus_filter =
             EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: true };
         let find_focused = ui.memory(|m| m.has_focus(self.id));
@@ -153,22 +169,18 @@ impl Find {
             }
         }
 
-        resp
+        output
     }
 
-    pub fn show_inner(&mut self, ui: &mut Ui) -> Response {
+    fn show_inner(&mut self, buffer: &Buffer, ui: &mut Ui, output: &mut FindOutput) {
         ui.vertical(|ui| {
-            let mut result = Response::default();
-            if std::mem::take(&mut self.refocus_term_changed) {
-                result.term_changed = true;
-            }
             let Some(term) = &mut self.term else {
-                return result;
+                return;
             };
 
             // don't render if there's not enough space
             if ui.available_width() < 100. {
-                return result;
+                return;
             }
 
             let input_bg = ui.ctx().get_lb_theme().neutral_bg_secondary();
@@ -191,15 +203,18 @@ impl Find {
             let replace_submitted =
                 GlyphonTextEdit::process_events(ui, self.replace_id, &mut self.replace_term);
 
-            if *term != before_term {
-                result.term_changed = true;
-            }
+            let mut term_changed = *term != before_term;
+            let mut navigate: Option<bool> = None;
+            let mut replace_one = false;
+            let mut replace_all = false;
+            let mut closed = false;
+
             if find_submitted {
-                result.navigate = Some(!find_shift);
+                navigate = Some(!find_shift);
                 ui.memory_mut(|m| m.request_focus(self.id));
             }
             if replace_submitted {
-                result.replace_one = true;
+                replace_one = true;
                 ui.memory_mut(|m| m.request_focus(self.replace_id));
             }
 
@@ -210,7 +225,7 @@ impl Find {
                     ui.spacing_mut().item_spacing.x = 4.;
 
                     if action(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
-                        result.closed = true;
+                        closed = true;
                     }
                     for (ic, tip, flag) in [
                         (Icon::REGEX, "Regex", &mut self.regex),
@@ -219,7 +234,7 @@ impl Find {
                     ] {
                         if toggle(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
                             *flag = !*flag;
-                            result.term_changed = true;
+                            term_changed = true;
                         }
                     }
 
@@ -270,28 +285,28 @@ impl Find {
                     });
 
                     if toggle(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
-                        result.replace_one = true;
+                        replace_one = true;
                     }
                     if toggle(Icon::REPLACE_ALL)
                         .tooltip("Replace All")
                         .show(ui)
                         .clicked()
                     {
-                        result.replace_all = true;
+                        replace_all = true;
                     }
                     if action(Icon::CHEVRON_UP)
                         .tooltip("Previous")
                         .show(ui)
                         .clicked()
                     {
-                        result.navigate = Some(false);
+                        navigate = Some(false);
                     }
                     if action(Icon::CHEVRON_DOWN)
                         .tooltip("Next")
                         .show(ui)
                         .clicked()
                     {
-                        result.navigate = Some(true);
+                        navigate = Some(true);
                     }
 
                     ui.memory(|m| m.has_focus(self.replace_id))
@@ -299,35 +314,83 @@ impl Find {
                 .inner;
 
             if ui.input(|i| i.key_pressed(Key::Escape)) && (find_has_focus || replace_has_focus) {
-                result.closed = true;
+                closed = true;
             }
-            if result.closed {
-                self.term = None;
-                self.matches.clear();
-                self.current_match = None;
+
+            // apply state transitions
+            if term_changed {
+                let anchor = self
+                    .current_match_range()
+                    .map(|m| m.start())
+                    .unwrap_or(buffer.current.selection.start());
+                self.refresh_matches(buffer, anchor);
+                if !self.matches.is_empty() {
+                    output.scroll_to_match = true;
+                }
+            }
+            if let Some(forward) = navigate {
+                if self.navigate(forward, buffer.current.selection.1) {
+                    output.scroll_to_match = true;
+                }
+            }
+            if replace_one {
+                if let Some(range) = self.current_match_range() {
+                    output.events.push(Event::Replace {
+                        region: Region::from(range),
+                        text: self.replace_term.clone(),
+                        advance_cursor: false,
+                    });
+                }
+            }
+            if replace_all {
+                for &range in self.matches.iter().rev() {
+                    output.events.push(Event::Replace {
+                        region: Region::from(range),
+                        text: self.replace_term.clone(),
+                        advance_cursor: false,
+                    });
+                }
+            }
+            if closed {
+                self.close_state();
+                output.closed = true;
                 ui.ctx().request_repaint();
             }
-
-            result
-        })
-        .inner
+        });
     }
-}
 
-impl Editor {
+    /// Recompute `matches` for the current term, positioning `current_match`
+    /// at the first match at or after `anchor`.
+    fn refresh_matches(&mut self, buffer: &Buffer, anchor: DocCharOffset) {
+        let term = self.term.clone().unwrap_or_default();
+        self.matches = self.find_all(buffer, &term);
+        if self.matches.is_empty() {
+            self.current_match = None;
+        } else {
+            let idx = self.matches.iter().position(|m| m.0 >= anchor).unwrap_or(0);
+            self.current_match = Some(idx);
+        }
+    }
+
+    fn close_state(&mut self) {
+        self.term = None;
+        self.matches.clear();
+        self.current_match = None;
+    }
+
     /// Compute all match ranges in the document for the given search term.
-    pub fn find_all(&self, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
+    pub fn find_all(&self, buffer: &Buffer, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
         if term.is_empty() {
             return Vec::new();
         }
-        let text = &self.buffer.current.text;
-        let segs = &self.buffer.current.segs;
+        let text = &buffer.current.text;
+        let segs = &buffer.current.segs;
 
-        if self.find.regex {
-            return self.find_all_regex(term);
+        if self.regex {
+            return self.find_all_regex(buffer, term);
         }
 
-        let (search_text, search_term) = if self.find.case_sensitive {
+        let (search_text, search_term) = if self.case_sensitive {
             (text.to_string(), term.to_string())
         } else {
             (text.to_lowercase(), term.to_lowercase())
@@ -339,7 +402,7 @@ impl Editor {
             let abs_pos = byte_start + pos;
             let abs_end = abs_pos + search_term.len();
 
-            if !self.find.whole_word || self.is_whole_word(text, abs_pos, abs_end) {
+            if !self.whole_word || is_whole_word(text, abs_pos, abs_end) {
                 matches.push((
                     segs.offset_to_char(DocByteOffset(abs_pos)),
                     segs.offset_to_char(DocByteOffset(abs_end)),
@@ -351,15 +414,14 @@ impl Editor {
         matches
     }
 
-    fn find_all_regex(&self, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
-        let text = &self.buffer.current.text;
-        let segs = &self.buffer.current.segs;
+    fn find_all_regex(&self, buffer: &Buffer, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
+        let text = &buffer.current.text;
+        let segs = &buffer.current.segs;
 
-        let pattern =
-            if self.find.whole_word { format!(r"\b(?:{})\b", term) } else { term.to_string() };
+        let pattern = if self.whole_word { format!(r"\b(?:{})\b", term) } else { term.to_string() };
 
         let re = regex::RegexBuilder::new(&pattern)
-            .case_insensitive(!self.find.case_sensitive)
+            .case_insensitive(!self.case_sensitive)
             .build();
 
         let Ok(re) = re else {
@@ -376,60 +438,49 @@ impl Editor {
             .collect()
     }
 
-    fn is_whole_word(&self, text: &str, byte_start: usize, byte_end: usize) -> bool {
-        let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
-        let before_ok = byte_start == 0
-            || !text[..byte_start]
-                .chars()
-                .next_back()
-                .is_some_and(is_word_char);
-        let after_ok =
-            byte_end >= text.len() || !text[byte_end..].chars().next().is_some_and(is_word_char);
-        before_ok && after_ok
-    }
-
-    /// Navigate to the next or previous match relative to the current cursor position.
-    /// Sets `find.current_match` and returns true if a match was found.
-    pub fn find_navigate(&mut self, forward: bool) -> bool {
-        if self.find.matches.is_empty() {
-            self.find.current_match = None;
+    /// Navigate to the next or previous match relative to the cursor. Sets
+    /// `current_match` and returns true if a match is present.
+    fn navigate(&mut self, forward: bool, cursor: DocCharOffset) -> bool {
+        if self.matches.is_empty() {
+            self.current_match = None;
             return false;
         }
 
-        let cursor_pos = self.buffer.current.selection.1;
         let new_idx = if forward {
-            match self.find.current_match {
-                Some(idx) => (idx + 1) % self.find.matches.len(),
-                None => {
-                    // Find the first match at or after cursor
-                    self.find
-                        .matches
-                        .iter()
-                        .position(|m| m.0 >= cursor_pos)
-                        .unwrap_or(0)
-                }
+            match self.current_match {
+                Some(idx) => (idx + 1) % self.matches.len(),
+                None => self.matches.iter().position(|m| m.0 >= cursor).unwrap_or(0),
             }
         } else {
-            match self.find.current_match {
+            match self.current_match {
                 Some(idx) => {
                     if idx == 0 {
-                        self.find.matches.len() - 1
+                        self.matches.len() - 1
                     } else {
                         idx - 1
                     }
                 }
-                None => {
-                    // Find the last match before cursor
-                    self.find
-                        .matches
-                        .iter()
-                        .rposition(|m| m.0 < cursor_pos)
-                        .unwrap_or(self.find.matches.len() - 1)
-                }
+                None => self
+                    .matches
+                    .iter()
+                    .rposition(|m| m.0 < cursor)
+                    .unwrap_or(self.matches.len() - 1),
             }
         };
 
-        self.find.current_match = Some(new_idx);
+        self.current_match = Some(new_idx);
         true
     }
+}
+
+fn is_whole_word(text: &str, byte_start: usize, byte_end: usize) -> bool {
+    let is_word_char = |c: char| c.is_alphanumeric() || c == '_';
+    let before_ok = byte_start == 0
+        || !text[..byte_start]
+            .chars()
+            .next_back()
+            .is_some_and(is_word_char);
+    let after_ok =
+        byte_end >= text.len() || !text[byte_end..].chars().next().is_some_and(is_word_char);
+    before_ok && after_ok
 }

@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundCase, BoundExt as _};
 use crate::tab::markdown_editor::input::Bound;
 use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
@@ -27,17 +27,17 @@ pub trait UITextInputTokenizer {
     ) -> Option<(DocCharOffset, DocCharOffset)>;
 }
 
-impl UITextInputTokenizer for Editor {
+impl UITextInputTokenizer for MdEdit {
     fn is_position_at_boundary(
         &self, text_position: DocCharOffset, at_boundary: Bound, in_backward_direction: bool,
     ) -> bool {
         let ranges = match at_boundary {
-            Bound::Word => &self.bounds.words,
-            Bound::Line => &self.bounds.wrap_lines,
-            Bound::Paragraph => &self.bounds.source_lines,
+            Bound::Word => &self.renderer.bounds.words,
+            Bound::Line => &self.renderer.bounds.wrap_lines,
+            Bound::Paragraph => &self.renderer.bounds.source_lines,
             Bound::Doc => {
                 return text_position == DocCharOffset(0)
-                    || text_position == self.buffer.current.segs.last_cursor_position();
+                    || text_position == self.renderer.buffer.current.segs.last_cursor_position();
             }
         };
         match text_position.bound_case(ranges) {
@@ -75,9 +75,9 @@ impl UITextInputTokenizer for Editor {
         &self, text_position: DocCharOffset, within_text_unit: Bound, in_backward_direction: bool,
     ) -> bool {
         let ranges = match within_text_unit {
-            Bound::Word => &self.bounds.words,
-            Bound::Line => &self.bounds.wrap_lines,
-            Bound::Paragraph => &self.bounds.source_lines,
+            Bound::Word => &self.renderer.bounds.words,
+            Bound::Line => &self.renderer.bounds.wrap_lines,
+            Bound::Paragraph => &self.renderer.bounds.source_lines,
             Bound::Doc => {
                 return true;
             }
@@ -110,14 +110,18 @@ impl UITextInputTokenizer for Editor {
     fn position_from(
         &self, text_position: DocCharOffset, to_boundary: Bound, in_backward_direction: bool,
     ) -> Option<DocCharOffset> {
-        Some(text_position.advance_to_next_bound(to_boundary, in_backward_direction, &self.bounds))
+        Some(text_position.advance_to_next_bound(
+            to_boundary,
+            in_backward_direction,
+            &self.renderer.bounds,
+        ))
     }
 
     fn range_enclosing_position(
         &self, text_position: DocCharOffset, with_granularity: Bound, in_backward_direction: bool,
     ) -> Option<(DocCharOffset, DocCharOffset)> {
         let ranges = match with_granularity {
-            Bound::Word => &self.bounds.words,
+            Bound::Word => &self.renderer.bounds.words,
             Bound::Line => {
                 // note: lines handled as words
                 //
@@ -129,9 +133,9 @@ impl UITextInputTokenizer for Editor {
                 // the returned ranges until it receives a nil value, which is more consistent with a text granularity
                 // that is non-contiguous the way words are and lines are not. This seems to be what it takes to get
                 // the correct undeline behavior after autocorrecting a word.
-                &self.bounds.words
+                &self.renderer.bounds.words
             }
-            Bound::Paragraph => &self.bounds.source_lines,
+            Bound::Paragraph => &self.renderer.bounds.source_lines,
             Bound::Doc => {
                 unimplemented!()
             }

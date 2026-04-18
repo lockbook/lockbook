@@ -4,7 +4,7 @@ use lb_rs::model::text::offset_types::{
     DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -16,7 +16,7 @@ pub(crate) mod table;
 pub(crate) mod table_row;
 pub(crate) mod task_item;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
@@ -96,8 +96,10 @@ impl<'ast> Editor {
     ) {
         let children = self.sorted_children(node);
 
-        let required_ranges = self.galley_required_ranges();
+        let required_ranges =
+            self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
+        let buffer = viewport.height();
 
         let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
             required_ranges.iter().any(|rr| range.intersects(rr, true))
@@ -140,6 +142,14 @@ impl<'ast> Editor {
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left, &children);
+            } else {
+                let in_buffer = top_left.y + child_height > viewport.min.y - buffer
+                    && top_left.y < viewport.max.y + buffer;
+                if in_buffer {
+                    // walks all descendants, not just those within the buffer —
+                    // a tall container may warm images beyond the zone
+                    self.warm_images(child);
+                }
             }
             top_left.y += child_height;
 
@@ -154,9 +164,10 @@ impl<'ast> Editor {
             }
             top_left.y += post_spacing;
 
-            // safe to stop: everything remaining is below the viewport and
+            // safe to stop: everything remaining is below the buffer zone and
             // past all ranges that need galleys
-            if block_below_viewport && past_all_required(child_range.start()) {
+            let past_buffer = top_left.y > viewport.max.y + buffer;
+            if past_buffer && past_all_required(child_range.start()) {
                 break;
             }
         }

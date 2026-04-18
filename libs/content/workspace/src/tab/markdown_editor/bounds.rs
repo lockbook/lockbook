@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use comrak::nodes::{LineColumn, Sourcepos};
 use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
 use std::cmp::Ordering;
@@ -49,7 +49,7 @@ pub struct Bounds {
     pub inline_paragraphs: Paragraphs,
 }
 
-impl Editor {
+impl MdRender {
     pub fn calc_source_lines(&mut self) {
         self.bounds.source_lines.clear();
 
@@ -596,7 +596,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
     }
 }
 
-impl Editor {
+impl MdRender {
     pub fn print_bounds(&self) {
         self.print_words_bounds();
         self.print_wrap_lines_bounds();
@@ -638,7 +638,7 @@ mod test {
     use lb_rs::model::text::offset_types::DocCharOffset;
 
     use super::Bounds;
-    use crate::tab::markdown_editor::Editor;
+    use crate::tab::markdown_editor::MdRender;
     use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
     use crate::tab::markdown_editor::input::Bound;
 
@@ -1604,7 +1604,7 @@ mod test {
     #[test]
     fn sourcepos_to_range_fenced_code_block() {
         let text = "```\nfn main() {}\n```";
-        let mut md = Editor::test(text);
+        let mut md = MdRender::test(text);
         md.calc_source_lines();
 
         let sourcepos = Sourcepos {
@@ -1620,7 +1620,7 @@ mod test {
     #[test]
     fn sourcepos_to_range_unclosed_fenced_code_block() {
         let text = "```\n";
-        let mut md = Editor::test(text);
+        let mut md = MdRender::test(text);
         md.calc_source_lines();
 
         let sourcepos = Sourcepos {

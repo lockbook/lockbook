@@ -311,3 +311,20 @@ impl Theme {
         base
     }
 }
+
+/// Deterministic palette for a username — FNV-like rolling hash picks one of
+/// six hues so a user has a stable color across sessions without persistence.
+pub fn username_color(name: &str) -> Palette {
+    const COLORS: [Palette; 6] = [
+        Palette::Red,
+        Palette::Green,
+        Palette::Yellow,
+        Palette::Blue,
+        Palette::Magenta,
+        Palette::Cyan,
+    ];
+    let hash = name
+        .bytes()
+        .fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
+    COLORS[hash as usize % COLORS.len()]
+}

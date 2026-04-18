@@ -5,7 +5,7 @@ use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterEx
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
-use super::Editor;
+use super::MdRender;
 use super::bounds::RangesExt as _;
 
 pub(crate) mod block;
@@ -17,7 +17,7 @@ pub(crate) mod link_completions;
 pub(crate) mod toolbar;
 pub(crate) mod utils;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     /// Returns the range for the node.
     pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
         // Check cache first

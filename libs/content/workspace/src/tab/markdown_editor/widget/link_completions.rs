@@ -1,4 +1,4 @@
-use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path};
 use crate::tab::image_viewer::is_supported_image_fmt;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -34,8 +34,8 @@ pub enum CompletionMode {
 
 #[derive(Default)]
 pub struct LinkCompletions {
-    /// Set before process_events so translate_egui_keyboard_event can swallow
-    /// arrow/enter keys when the popup is open.
+    /// True when a valid link query is being typed and has results.
+    /// Read by the editor to gate rendering; also gates `handle_input`.
     pub active: bool,
     /// Keyboard-highlighted result index.
     pub selected: usize,
@@ -94,6 +94,102 @@ impl LinkCompletions {
         self.mode = mode;
         self.active = true;
         self.search_term_range = Some(qr);
+    }
+
+    /// Consume (or observe) keyboard events targeting the popup and update
+    /// state accordingly. Emitted replacements are pushed onto `events`.
+    ///
+    /// Must run before the editor's `process_events`. Escape is observed
+    /// (not consumed) and fires regardless of editor focus; nav keys are
+    /// consumed and focus-gated. See `EmojiCompletions::handle_input` for the
+    /// rationale.
+    pub fn handle_input(
+        &mut self, ctx: &Context, buffer: &Buffer, files: &Arc<RwLock<FileCache>>, file_id: Uuid,
+        editor_focused: bool, events: &mut Vec<Event>,
+    ) {
+        if !self.active {
+            return;
+        }
+        let Some(((bracket_start, replace_end), mode)) = detect_any(buffer) else { return };
+        let qr = query_range(buffer, (bracket_start, replace_end), mode);
+        let query = buffer[qr].to_string();
+        if self.suppressed.as_deref() == Some(query.as_str()) {
+            return;
+        }
+
+        let cache = files.read().unwrap();
+        let results = search(&cache, file_id, &query, mode);
+        drop(cache);
+        if results.is_empty() {
+            return;
+        }
+        self.selected = self.selected.min(results.len() - 1);
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.suppressed = Some(query);
+            return;
+        }
+
+        if !editor_focused {
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+            self.selected -= 1;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+            && self.selected + 1 < results.len()
+        {
+            self.selected += 1;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+            let idx = self.selected;
+            let r = &results[idx];
+            self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+            return;
+        }
+
+        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            Modifiers::COMMAND
+        } else {
+            Modifiers::CTRL
+        };
+        for (idx, key) in
+            [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
+                .iter()
+                .enumerate()
+                .take(results.len())
+        {
+            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
+                let r = &results[idx];
+                self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+                return;
+            }
+        }
+    }
+
+    /// Push the replacement event for the current query and reset popup state.
+    /// Shared between `handle_input` and the click path in `show_link_completions`.
+    pub fn apply_completion(
+        &mut self, events: &mut Vec<Event>, bracket_start: DocCharOffset,
+        replace_end: DocCharOffset, display: &str, path: &str, mode: CompletionMode,
+    ) {
+        let text = match mode {
+            CompletionMode::WikiLink => format!("[[{}]]", path),
+            CompletionMode::Link => format!("[{}]({})", display, path),
+            CompletionMode::ImageLink => format!("![{}]({})", display, path),
+        };
+        events.push(Event::Replace {
+            region: Region::BetweenLocations {
+                start: Location::DocCharOffset(bracket_start),
+                end: Location::DocCharOffset(replace_end),
+            },
+            text,
+            advance_cursor: true,
+        });
+        self.selected = 0;
+        self.suppressed = None;
     }
 }
 
@@ -560,94 +656,32 @@ fn abbreviate_segments(
     }
 }
 
-impl Editor {
+impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
-        if self.readonly || !self.link_completions.active {
+        if self.renderer.readonly || !self.link_completions.active {
             return;
         }
 
-        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.buffer) else {
+        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.renderer.buffer) else {
             return;
         };
-        let qr = query_range(&self.buffer, (bracket_start, replace_end), mode);
-        let query = self.buffer[qr].to_string();
+        let qr = query_range(&self.renderer.buffer, (bracket_start, replace_end), mode);
+        let query = self.renderer.buffer[qr].to_string();
 
         if self.link_completions.suppressed.as_deref() == Some(query.as_str()) {
             return;
         }
 
-        let cache = self.files.read().unwrap();
+        let cache = self.renderer.files.read().unwrap();
         let mut results = search(&cache, self.file_id, &query, mode);
         drop(cache);
         if results.is_empty() {
             return;
         }
 
-        self.link_completions.selected = self.link_completions.selected.min(results.len() - 1);
-
         let Some([cursor_top, cursor_bot]) = self.cursor_line(bracket_start) else {
             return;
         };
-
-        // Escape is checked outside the focused guard so it always fires.
-        if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.link_completions.suppressed = Some(query.clone());
-            return;
-        }
-
-        if self.focused(ui.ctx()) {
-            ui.input(|i| {
-                if i.key_pressed(Key::ArrowUp) && self.link_completions.selected > 0 {
-                    self.link_completions.selected -= 1;
-                }
-                if i.key_pressed(Key::ArrowDown)
-                    && self.link_completions.selected + 1 < results.len()
-                {
-                    self.link_completions.selected += 1;
-                }
-            });
-
-            if ui.input(|i| i.key_pressed(Key::Enter)) {
-                let idx = self.link_completions.selected;
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-
-            let mut chosen = None;
-            ui.input(|i| {
-                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                    i.modifiers.command
-                } else {
-                    i.modifiers.ctrl
-                };
-                for (idx, key) in
-                    [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
-                        .iter()
-                        .enumerate()
-                        .take(results.len())
-                {
-                    if i.key_pressed(*key) && modifier {
-                        chosen = Some(idx);
-                    }
-                }
-            });
-            if let Some(idx) = chosen {
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-        }
 
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
@@ -672,8 +706,8 @@ impl Editor {
             .enumerate()
             .map(|(i, r)| {
                 let mut label = GlyphonLabel::new(&r.name, text_color)
-                    .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height);
+                    .font_size(self.renderer.layout.completion_font_size)
+                    .line_height(self.renderer.layout.completion_line_height);
                 if let Some(shortcut) = shortcuts.get(i) {
                     label = label.hint(shortcut, hint_color);
                 }
@@ -683,8 +717,8 @@ impl Editor {
 
         let measure_path = |text: &str| -> f32 {
             GlyphonLabel::new(text, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .measure(ui)
                 .x
         };
@@ -708,7 +742,7 @@ impl Editor {
             })
             .fold(0.0_f32, f32::max);
 
-        let popup_height = results.len() as f32 * self.layout.completion_row_height;
+        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
             cursor_top.y - popup_height
@@ -719,16 +753,16 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
-        self.touch_consuming_rects.push(popup_rect);
+        self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
                     Pos2::new(
                         popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.layout.completion_row_height,
+                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
                     ),
-                    Vec2::new(popup_width, self.layout.completion_row_height),
+                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
                 )
             })
             .collect();
@@ -744,7 +778,7 @@ impl Editor {
         }
 
         // -- Draw backgrounds ------------------------------------------------------
-        self.draw_completion_popup(
+        self.renderer.draw_completion_popup(
             ui,
             popup_rect,
             &row_rects,
@@ -761,7 +795,7 @@ impl Editor {
             let text_top = rect.min.y + 4.0;
             let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.layout.completion_line_height),
+                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
             );
 
             // Name (bold on matched chars) + shortcut hint (e.g. ⌘1).
@@ -770,8 +804,8 @@ impl Editor {
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height);
+                .font_size(self.renderer.layout.completion_font_size)
+                .line_height(self.renderer.layout.completion_line_height);
             if let Some(shortcut) = shortcuts.get(idx) {
                 label = label.hint(shortcut, hint_color);
             }
@@ -789,12 +823,12 @@ impl Editor {
                 })
                 .collect();
             let shaped = GlyphonLabel::new_colored(colored_spans, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .build(ui.ctx());
             let path_rect = Rect::from_min_size(
                 Pos2::new(content_rect.max.x - shortcut_width - 8.0 - shaped.size.x, text_top),
-                Vec2::new(shaped.size.x, self.layout.completion_line_height),
+                Vec2::new(shaped.size.x, self.renderer.layout.completion_line_height),
             );
             text_areas.push(shaped.text_area(path_rect, ui.ctx(), clip_rect));
         }
@@ -808,34 +842,15 @@ impl Editor {
 
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            self.apply_link_completion(
+            let r = &results[idx];
+            self.link_completions.apply_completion(
+                &mut self.event.internal_events,
                 bracket_start,
                 replace_end,
-                &results[idx].name,
-                &results[idx].insert,
+                &r.name,
+                &r.insert,
                 mode,
             );
         }
-    }
-
-    fn apply_link_completion(
-        &mut self, bracket_start: DocCharOffset, replace_end: DocCharOffset, display: &str,
-        path: &str, mode: CompletionMode,
-    ) {
-        let text = match mode {
-            CompletionMode::WikiLink => format!("[[{}]]", path),
-            CompletionMode::Link => format!("[{}]({})", display, path),
-            CompletionMode::ImageLink => format!("![{}]({})", display, path),
-        };
-        self.event.internal_events.push(Event::Replace {
-            region: Region::BetweenLocations {
-                start: Location::DocCharOffset(bracket_start),
-                end: Location::DocCharOffset(replace_end),
-            },
-            text,
-            advance_cursor: true,
-        });
-        self.link_completions.selected = 0;
-        self.link_completions.suppressed = None;
     }
 }
