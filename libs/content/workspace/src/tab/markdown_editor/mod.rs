@@ -16,7 +16,7 @@ use egui::os::OperatingSystem;
 use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility, ScrollSource};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, scroll_area,
+    Pos2, Rect, ScrollArea, Stroke, Ui, UiBuilder, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -62,6 +62,7 @@ pub mod bounds;
 mod galleys;
 pub mod input;
 pub mod output;
+pub mod show;
 mod theme;
 mod widget;
 
@@ -310,6 +311,45 @@ pub type HttpClient = reqwest::Client;
 pub type HttpClient = reqwest::blocking::Client;
 
 impl MdRender {
+    /// Minimal renderer with no resolvers, empty file cache, and `md`
+    /// extension. Used by [`MdLabel`] and tests. Touch-mode and layout are
+    /// derived from `ctx`.
+    pub fn empty(ctx: Context) -> Self {
+        let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        let dark_mode = ctx.style().visuals.dark_mode;
+        Self {
+            ctx,
+            layout,
+            dark_mode,
+            ext: "md".into(),
+            touch_mode,
+            bounds: Default::default(),
+            buffer: "".into(),
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: false,
+            embeds: Box::new(()),
+            link_resolver: Box::new(()),
+            client: Default::default(),
+            files: Arc::new(RwLock::new(FileCache::empty())),
+            layout_cache: Default::default(),
+            syntax: Default::default(),
+            top_left: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+            debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let ctx = Context::default();
@@ -347,6 +387,24 @@ impl MdRender {
 
     pub fn plaintext_mode(&self) -> bool {
         self.ext.to_lowercase() != "md"
+    }
+
+    /// Re-parse the buffer into a fresh AST and rebuild all text-derived
+    /// bounds (source lines, words, inline paragraphs). The caller owns the
+    /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
+    /// also invoke [`MdRender::height`] on the returned root.
+    pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
+        let options = Self::comrak_options();
+        let text_with_newline = format!("{}\n", self.buffer.current.text);
+        let root = comrak::parse_document(arena, &text_with_newline, &options);
+
+        self.bounds.inline_paragraphs.clear();
+        self.calc_source_lines();
+        self.compute_bounds(root);
+        self.bounds.inline_paragraphs.sort();
+        self.calc_words();
+
+        root
     }
 
     pub fn comrak_options() -> Options<'static> {
@@ -556,33 +614,7 @@ impl Editor {
             self.edit.renderer.dark_mode = dark_mode;
         }
 
-        self.edit.renderer.calc_source_lines();
-
         let start = web_time::Instant::now();
-
-        let arena = Arena::new();
-        let options = MdRender::comrak_options();
-
-        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-        let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-        let ast_elapsed = start.elapsed();
-        let start = web_time::Instant::now();
-
-        if PRINT {
-            println!(
-                "{}",
-                "================================================================================"
-                    .bright_black()
-            );
-            print_ast(root);
-        }
-
-        let print_elapsed = start.elapsed();
-        let start = web_time::Instant::now();
-
-        // process events
-        let prior_selection = self.edit.renderer.buffer.current.selection;
         let embeds_updated = {
             let current = self.edit.renderer.embeds.last_modified();
             let changed = current != self.embeds_last_seen;
@@ -590,65 +622,19 @@ impl Editor {
             changed
         };
 
-        self.edit.emoji_completions.update_active_state(
-            &self.edit.renderer.buffer,
-            &self.edit.renderer.bounds.inline_paragraphs,
-        );
-        {
-            let files = self.edit.renderer.files.clone();
-            let file_id = self.edit.file_id;
-            self.edit.link_completions.update_active_state(
-                &self.edit.renderer.buffer,
-                &self.edit.renderer.bounds.inline_paragraphs,
-                &files,
-                file_id,
-            );
-        }
+        // --- input phase ------------------------------------------------------
+        // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
+        // MdEdit's internal event queue, then let MdEdit::handle_input drain
+        // everything (workspace + keyboard + completions).
+        let workspace_events = self.drain_workspace_events(ui.ctx());
+        self.edit.event.internal_events.extend(workspace_events);
 
-        // Completion popups get first dibs on nav keys — they consume
-        // Up/Down/Enter/Cmd+num before process_events so the editor's key
-        // handling never sees them while a popup is open. Escape is observed
-        // (not consumed) inside handle_input and fires regardless of editor
-        // focus, so the popup can always be dismissed.
-        if !self.edit.readonly {
-            let focused = self.focused(ui.ctx());
-            self.edit.emoji_completions.handle_input(
-                ui.ctx(),
-                &self.edit.renderer.buffer,
-                focused,
-                &mut self.edit.event.internal_events,
-            );
-            let files = self.edit.renderer.files.clone();
-            let file_id = self.edit.file_id;
-            self.edit.link_completions.handle_input(
-                ui.ctx(),
-                &self.edit.renderer.buffer,
-                &files,
-                file_id,
-                focused,
-                &mut self.edit.event.internal_events,
-            );
-        }
+        let prior_selection = self.edit.renderer.buffer.current.selection;
+        let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
+        resp.open_camera = buf_resp.open_camera;
 
-        let buffer_resp = self.process_events(ui.ctx(), root);
-        resp.open_camera = buffer_resp.open_camera;
-
-        if !self.initialized || buffer_resp.text_updated {
+        if !self.initialized || buf_resp.text_updated {
             resp.text_updated = true;
-
-            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-            root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-            self.edit.renderer.bounds.inline_paragraphs.clear();
-            self.edit.renderer.layout_cache.invalidate_text_change();
-
-            self.edit.renderer.calc_source_lines();
-            self.edit.renderer.compute_bounds(root);
-            self.edit.renderer.bounds.inline_paragraphs.sort();
-
-            self.edit.renderer.calc_words();
-
             // recompute find matches when text changes
             if let Some(term) = self.find.term.clone() {
                 self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
@@ -660,7 +646,6 @@ impl Editor {
                     }
                 }
             }
-
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection
@@ -669,23 +654,26 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
 
-        // populate render inputs (find-related inputs are populated later by
-        // show_find_centered, after Find::show advances state this frame —
-        // otherwise galley_required_ranges/reveal_ranges would lag a frame and
-        // scroll_to_find_match would have no galley to scroll to)
-        self.edit.renderer.in_progress_selection = self.edit.in_progress_selection;
-        self.edit.renderer.reveal_ranges.clear();
-        if !self.edit.readonly && self.focused(ui.ctx()) {
-            self.edit
-                .renderer
-                .reveal_ranges
-                .push(self.edit.renderer.buffer.current.selection);
+        let ast_elapsed = start.elapsed();
+        let print_elapsed = std::time::Duration::ZERO;
+        let start = web_time::Instant::now();
+
+        // --- draw phase (back to front) ---------------------------------------
+        // Re-parse for render. handle_input parsed its own; that arena has
+        // been dropped. The parse is assumed cheap (~1 ms).
+        let arena = Arena::new();
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
+        let root = comrak::parse_document(&arena, &text_with_newline, &options);
+
+        if PRINT {
+            println!(
+                "{}",
+                "================================================================================"
+                    .bright_black()
+            );
+            print_ast(root);
         }
-        self.edit.renderer.text_highlight_range = self
-            .edit
-            .emoji_completions
-            .search_term_range
-            .or(self.edit.link_completions.search_term_range);
 
         ui.painter().rect_filled(
             ui.max_rect(),
@@ -722,9 +710,10 @@ impl Editor {
                                 });
 
                                 if !self.toolbar.menu_open {
-                                    // these are computed during render
-                                    self.edit.renderer.galleys.galleys.clear();
-                                    self.edit.renderer.bounds.wrap_lines.clear();
+                                    // galleys / wrap_lines are cleared and
+                                    // repopulated inside MdEdit::show — don't
+                                    // clear here or input handling (which
+                                    // reads last-frame galleys) sees nothing.
                                     self.edit.renderer.touch_consuming_rects.clear();
 
                                     // show editor
@@ -780,9 +769,9 @@ impl Editor {
                     }
                     self.show_find_centered(ui);
 
-                    // these are computed during render
-                    self.edit.renderer.galleys.galleys.clear();
-                    self.edit.renderer.bounds.wrap_lines.clear();
+                    // galleys / wrap_lines are cleared and repopulated inside
+                    // MdEdit::show — don't clear here or input handling (which
+                    // reads last-frame galleys) sees nothing.
                     self.edit.renderer.touch_consuming_rects.clear();
 
                     // ...then show editor content
@@ -846,16 +835,11 @@ impl Editor {
             })
             .inner;
 
-        let text_areas = std::mem::take(&mut self.edit.renderer.text_areas);
-        if !text_areas.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
-        }
-        self.edit.show_emoji_completions(ui);
-        self.edit.show_link_completions(ui);
+        // Completion popups render last, outside the scroll area's clip, so
+        // they composite over the toolbar / find widget when the cursor is
+        // near the top of the document. `edit.show` already submitted the
+        // editor's text callback; popups land on a later glyphon layer.
+        self.edit.show_completions(ui);
 
         self.edit.renderer.syntax.garbage_collect();
 
@@ -1024,6 +1008,8 @@ impl Editor {
                 ScrollBarVisibility::VisibleWhenNeeded
             })
             .show(ui, |ui| {
+                let prev_seq = self.edit.renderer.buffer.current.seq;
+
                 ui.vertical_centered_justified(|ui| {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
@@ -1056,71 +1042,31 @@ impl Editor {
                                 ),
                             );
 
-                            ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-                            let focused = self.focused(ui.ctx());
-                            let response = ui.interact(
-                                rect,
-                                self.id(),
-                                if self.edit.renderer.touch_mode {
-                                    Sense::click()
-                                } else {
-                                    Sense::click_and_drag()
-                                },
-                            );
-                            if focused && !self.focused(ui.ctx()) {
-                                // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
-                                self.focus(ui.ctx());
-                            }
-                            let response_properly_clicked =
-                                response.clicked_by(egui::PointerButton::Primary);
-                            if response.hovered() || response_properly_clicked {
-                                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-                                // overridable by widgets
-                            }
+                            // delegate to MdEdit::show for parse, event processing,
+                            // render, cursor/selection drawing, touch handles,
+                            // IME, and pending_scroll::Cursor consumption.
+                            self.edit.show(ui, rect, self.id());
 
                             ui.advance_cursor_after_rect(rect);
-
-                            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.edit.renderer.show_block(
-                                    ui,
-                                    root,
-                                    self.edit.renderer.top_left,
-                                    &[root],
-                                );
-                            });
                         });
                 });
-                self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
-                // show selection
-                if ui.ctx().os() != OperatingSystem::IOS {
-                    let selection = self
-                        .edit
-                        .in_progress_selection
-                        .unwrap_or(self.edit.renderer.buffer.current.selection);
-                    let theme = self.edit.renderer.ctx.get_lb_theme();
-                    let color = theme.bg().get_color(theme.prefs().primary);
-                    self.edit.show_range(
-                        ui,
-                        selection,
-                        color.lerp_to_gamma(theme.neutral_bg(), 0.7),
-                    );
-                    self.edit.show_offset(ui, selection.1, color);
-
-                    if self.focused(ui.ctx()) {
-                        if let Some([top, bot]) = self.edit.cursor_line(selection.1) {
-                            let cursor_rect = egui::Rect::from_min_max(top, bot);
-                            ui.output_mut(|o| {
-                                o.ime = Some(egui::output::IMEOutput {
-                                    rect: ui.max_rect(),
-                                    cursor_rect,
-                                });
-                            });
+                // if text changed during MdEdit::show, recompute find matches
+                // before painting match highlights (which index by offset).
+                if self.edit.renderer.buffer.current.seq != prev_seq {
+                    if let Some(term) = self.find.term.clone() {
+                        self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
+                        if self.find.matches.is_empty() {
+                            self.find.current_match = None;
+                        } else if let Some(idx) = self.find.current_match {
+                            if idx >= self.find.matches.len() {
+                                self.find.current_match = Some(self.find.matches.len() - 1);
+                            }
                         }
                     }
                 }
 
-                // show find match highlights
+                // paint find match highlights on top of the rendered content
                 if !self.find.matches.is_empty() {
                     let theme = self.edit.renderer.ctx.get_lb_theme();
                     let highlight_color = theme.neutral_bg_tertiary();
@@ -1135,13 +1081,11 @@ impl Editor {
                     }
                 }
 
-                if ui.ctx().os() == OperatingSystem::Android {
-                    self.edit.show_selection_handles(ui);
-                }
-                match self.edit.pending_scroll.take() {
-                    Some(ScrollTarget::Cursor) => self.edit.scroll_to_cursor(ui),
-                    Some(ScrollTarget::FindMatch) => self.scroll_to_find_match(ui),
-                    None => {}
+                // MdEdit::show consumed ScrollTarget::Cursor; FindMatch is
+                // editor-owned because Find lives on Editor.
+                if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
+                    self.edit.pending_scroll = None;
+                    self.scroll_to_find_match(ui);
                 }
             })
     }
