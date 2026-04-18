@@ -992,6 +992,7 @@ pub enum DocType {
     ImageUnsupported,
     Code,
     PDF,
+    Chat,
     Unknown,
 }
 
@@ -1005,6 +1006,7 @@ impl Display for DocType {
             DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
             DocType::Code => write!(f, "Code"),
             DocType::PDF => write!(f, "PDF"),
+            DocType::Chat => write!(f, "Chat"),
             DocType::Unknown => write!(f, "Unknown"),
         }
     }
@@ -1030,6 +1032,7 @@ impl DocType {
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
+            "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
             _ if crate::tab::markdown_editor::syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&ext))
@@ -1062,6 +1065,7 @@ impl DocType {
             DocType::ImageUnsupported => false,
             DocType::Code => false,
             DocType::PDF => true,
+            DocType::Chat => true,
             DocType::Unknown => false,
         }
     }

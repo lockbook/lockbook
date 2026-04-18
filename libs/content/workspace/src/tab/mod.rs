@@ -2,6 +2,7 @@ use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -23,6 +24,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
+pub mod chat;
 pub mod image_viewer;
 pub mod markdown_editor;
 pub mod pdf_viewer;
@@ -75,6 +77,7 @@ impl Tab {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
     }
@@ -82,7 +85,22 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
+            ContentState::Open(TabContent::Chat(chat)) => chat.seq,
             _ => 0,
+        }
+    }
+
+    pub fn chat(&self) -> Option<&Chat> {
+        match &self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
+        }
+    }
+
+    pub fn chat_mut(&mut self) -> Option<&mut Chat> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
         }
     }
 
@@ -170,6 +188,11 @@ impl Tab {
             ContentState::Open(content) => {
                 let mut resp = Response::default();
                 match content {
+                    TabContent::Chat(chat) => {
+                        if chat.show(ui) {
+                            self.last_changed = Instant::now();
+                        }
+                    }
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
                         let md_resp = md.show(ui);
@@ -221,6 +244,7 @@ pub enum ContentState {
 
 #[allow(clippy::large_enum_variant)]
 pub enum TabContent {
+    Chat(Chat),
     Image(ImageViewer),
     Markdown(Markdown),
     Pdf(PdfViewer),
@@ -233,6 +257,7 @@ pub enum TabContent {
 impl std::fmt::Debug for TabContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            TabContent::Chat(_) => write!(f, "TabContent::Chat"),
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
@@ -247,6 +272,7 @@ impl std::fmt::Debug for TabContent {
 impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
+            TabContent::Chat(chat) => Some(chat.id),
             TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
@@ -259,6 +285,7 @@ impl TabContent {
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
+            TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac,
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
@@ -267,6 +294,7 @@ impl TabContent {
 
     pub fn seq(&self) -> usize {
         match self {
+            TabContent::Chat(chat) => chat.seq,
             TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
             _ => 0,
         }
@@ -276,6 +304,7 @@ impl TabContent {
     /// content type is not editable.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
+            TabContent::Chat(chat) => Some(TabSaveContent::Bytes(chat.to_bytes())),
             TabContent::Markdown(md) => {
                 Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
             }

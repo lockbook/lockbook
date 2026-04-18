@@ -186,6 +186,30 @@ pub struct MdEdit {
     pub link_completions: LinkCompletions,
 }
 
+impl MdEdit {
+    /// Minimal editor for standalone composer-like use. Wraps
+    /// `MdRender::empty` (no-op resolvers, empty `FileCache`) and sets
+    /// `readonly = false` on the renderer so the composer can mutate.
+    /// Callers wire `file_id`, `renderer.files`, `renderer.link_resolver`,
+    /// and `renderer.embeds` as needed.
+    pub fn empty(ctx: Context) -> Self {
+        let mut renderer = MdRender::empty(ctx);
+        renderer.readonly = false;
+        Self {
+            renderer,
+            cursor: Default::default(),
+            event: Default::default(),
+            phone_mode: false,
+            in_progress_selection: None,
+            pending_scroll: None,
+            scroll_area_velocity: Default::default(),
+            file_id: Uuid::nil(),
+            emoji_completions: Default::default(),
+            link_completions: Default::default(),
+        }
+    }
+}
+
 pub struct Editor {
     pub edit: MdEdit,
 

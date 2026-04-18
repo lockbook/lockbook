@@ -26,6 +26,7 @@ use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
     Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
@@ -656,6 +657,23 @@ impl Workspace {
                                 );
 
                                 svg.open_file_hmac = maybe_hmac;
+                            }
+                        }
+                        DocType::Chat => {
+                            let reload = tab.chat().is_some() && !tab_created;
+                            if !reload {
+                                let username = self.account.username.clone();
+                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
+                                    &bytes,
+                                    id,
+                                    maybe_hmac,
+                                    username,
+                                    self.ctx.clone(),
+                                    Arc::clone(&self.files),
+                                )));
+                            } else {
+                                let chat = tab.chat_mut().unwrap();
+                                chat.reload(&bytes, maybe_hmac);
                             }
                         }
                         DocType::PlainText
