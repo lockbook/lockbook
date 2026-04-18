@@ -6,9 +6,9 @@ use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
 use crate::{
-    LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
-    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathsRes, LbSearchRes,
-    LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbAccountRes, LbCopyFileLinkUrlRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes,
+    LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64,
+    LbPathRes, LbPathsRes, LbSearchRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -91,6 +91,17 @@ pub extern "C" fn lb_free_path_res(path: LbPathRes) {
 
     if !path.path.is_null() {
         unsafe { drop(CString::from_raw(path.path)) };
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_get_file_link_res(res: LbCopyFileLinkUrlRes) {
+    if !res.err.is_null() {
+        lb_free_err(res.err);
+    }
+
+    if !res.link_url.is_null() {
+        unsafe { drop(CString::from_raw(res.link_url)) };
     }
 }
 
