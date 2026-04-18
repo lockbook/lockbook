@@ -68,7 +68,6 @@ impl Display for LbErrKind {
             }
             LbErrKind::DiskPathInvalid => write!(f, "That disk path is invalid"),
             LbErrKind::DiskPathTaken => write!(f, "That disk path is not available"),
-            LbErrKind::DrawingInvalid => write!(f, "That drawing is invalid"),
             LbErrKind::ExistingRequestPending => {
                 write!(f, "Existing billing request in progress, please wait and try again")
             }
@@ -288,7 +287,6 @@ pub enum LbErrKind {
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
-    DrawingInvalid,
     ExistingRequestPending,
     // todo: Group
     FileNameContainsSlash,
