@@ -247,7 +247,7 @@ impl std::fmt::Debug for TabContent {
 impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
-            TabContent::Markdown(md) => Some(md.file_id),
+            TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
