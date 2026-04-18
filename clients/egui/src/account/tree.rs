@@ -1045,10 +1045,10 @@ impl FileTree {
         let primary = theme.bg().get_color(theme.prefs().primary);
         let bg = theme.neutral_bg();
         if self.selected.contains(&file.id) {
-            default_fill = bg.lerp_to_gamma(primary, 0.1);
-            ui.visuals_mut().widgets.hovered.bg_fill = bg.lerp_to_gamma(primary, 0.2);
+            default_fill = primary.lerp_to_gamma(bg, 0.1);
+            ui.visuals_mut().widgets.hovered.bg_fill = primary.lerp_to_gamma(bg, 0.2);
         } else {
-            ui.visuals_mut().widgets.hovered.bg_fill = bg.lerp_to_gamma(primary, 0.1);
+            ui.visuals_mut().widgets.hovered.bg_fill = bg.lerp_to_gamma(primary, 0.5);
         }
 
         if self.cursor == Some(file.id) && focused {
