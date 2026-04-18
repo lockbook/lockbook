@@ -142,7 +142,6 @@ struct DetailView: View {
                 workspaceOutput,
                 AppState.lb.lbUnsafeRawPtr
             )
-            .modifier(OnLbLinkViewModifier())
         }
     }
 }

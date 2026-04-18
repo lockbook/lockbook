@@ -14,11 +14,9 @@ struct OnLbLinkViewModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onOpenURL(perform: { url in
-                print("opening URL 1: \(url)")
                 openUrl(url: url)
             })
             .onReceive(workspaceOutput.$urlsOpened, perform: { urls in
-                print("opening URL 2: \(urls)")
                 for url in urls {
                     openUrl(url: url)
                 }
@@ -33,10 +31,8 @@ struct OnLbLinkViewModifier: ViewModifier {
             } else {
                 openLbUrl(url: url)
             }
-        case "http", "https":
-            openExternalUrl(url: url)
         default:
-            break
+            openExternalUrl(url: url)
         }
     }
     

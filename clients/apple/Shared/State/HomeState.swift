@@ -57,14 +57,16 @@ class HomeState: ObservableObject {
         self.workspaceOutput = workspaceOutput
         self.filesModel = filesModel
         
+        #if os(iOS)
         // TODO: Compute whether tabs are empty on first load via workspace
         DispatchQueue
-            .global(qos: .userInitiated)
+            .main
             .asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 if workspaceOutput.tabCount == 0 {
                     self?.sidebarState = .open
                 }
             }
+        #endif
         
         workspaceOutput.$renameOpenDoc.sink { [weak self] _ in
             guard let openDoc = workspaceOutput.openDoc else {

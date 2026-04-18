@@ -15,6 +15,7 @@ import SwiftWorkspace
         var macOS: some Scene {
             WindowGroup {
                 ContentView()
+                    .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             }
             .commands {
                 SidebarCommands()
@@ -76,12 +77,14 @@ struct HomeContextWrapper: View {
     @StateObject var workspaceOutput = WorkspaceOutputState()
 
     var body: some View {
-        HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
+        Group {
+            HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
+                .modifier(OnLbLinkViewModifier())
+        }
             .environmentObject(AppState.billingState)
             .environmentObject(filesModel)
             .environmentObject(workspaceInput)
             .environmentObject(workspaceOutput)
-            .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
     }
 }
 
@@ -98,3 +101,29 @@ struct HomeContextWrapper: View {
     return ContentView()
         .withCommonPreviewEnvironment()
 }
+
+#if os(macOS)
+import Cocoa
+import SwiftUI
+
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func application(
+        _ application: NSApplication,
+        continue userActivity: NSUserActivity,
+        restorationHandler: @escaping ([NSUserActivityRestoring]?) -> Void
+    ) -> Bool {
+
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+              let url = userActivity.webpageURL else {
+            return false
+        }
+
+        NotificationCenter.default.post(
+            name: .didReceiveUniversalLink,
+            object: url
+        )
+
+        return true
+    }
+}
+#endif
