@@ -35,10 +35,11 @@ impl<'ast> MdRender {
         let extra_height = self.layout.row_spacing / 2.;
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
+        let sense = if self.readonly { Sense::hover() } else { Sense::click() };
         let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
-            ui.interact(clickable_space, ui.id().with(self.node_range(node)), Sense::click());
+            ui.interact(clickable_space, ui.id().with(self.node_range(node)), sense);
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
@@ -48,7 +49,7 @@ impl<'ast> MdRender {
                 advance_cursor: false,
             });
         }
-        if checkbox_response.hovered() {
+        if checkbox_response.hovered() && !self.readonly {
             ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
         }
         self.touch_consuming_rects.push(clickable_space);
@@ -111,12 +112,13 @@ impl<'ast> MdRender {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || annotation_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_fold_item(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || annotation_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_fold_item(node));
         if !show_fold_button {
             return;
         }

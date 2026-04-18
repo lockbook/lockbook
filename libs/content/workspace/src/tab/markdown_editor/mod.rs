@@ -106,7 +106,16 @@ pub struct MdRender {
     // render input
     pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
     pub find_current_match: Option<(DocCharOffset, DocCharOffset)>,
+    /// Gates fold UI. Stays true in readonly — fold is the one mutation
+    /// allowed there (saves are gated separately).
     pub interactive: bool,
+    /// Gates click on interactive render elements that mutate the doc
+    /// (task checkbox). Fold clicks ignore it (changes aren't saved)
+    pub readonly: bool,
+    /// When true, render via the per-line source text — no markdown block
+    /// parsing, no fold UI, no completion popups. Set at construction from
+    /// the non-`md` ext check; callers may also flip it directly.
+    pub plaintext: bool,
     pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
     pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
 
@@ -146,11 +155,6 @@ pub struct MdEdit {
 
     pub cursor: CursorState,
     pub event: EventState,
-
-    /// Capability flag — whether this editor may mutate the buffer. Preview
-    /// tabs set this to true; every mutation path in `input/canonical.rs`
-    /// early-returns when set.
-    pub readonly: bool,
 
     /// No physical keyboard (phone or iPad compact mode). Used by completion
     /// popups to hide Cmd/Ctrl+N shortcut hints.
@@ -335,6 +339,8 @@ impl MdRender {
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
+            readonly: true,
+            plaintext: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -370,6 +376,8 @@ impl MdRender {
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
+            readonly: true,
+            plaintext: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -383,10 +391,6 @@ impl MdRender {
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
         }
-    }
-
-    pub fn plaintext_mode(&self) -> bool {
-        self.ext.to_lowercase() != "md"
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -444,6 +448,7 @@ impl Editor {
     ) -> Self {
         let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
+        let plaintext = ext.to_lowercase() != "md";
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
@@ -469,7 +474,9 @@ impl Editor {
 
             in_progress_selection: None,
             find_current_match: None,
-            interactive: false,
+            interactive: true,
+            readonly,
+            plaintext,
             reveal_ranges: Vec::new(),
             text_highlight_range: None,
 
@@ -493,7 +500,6 @@ impl Editor {
         Self {
             edit: MdEdit {
                 renderer,
-                readonly,
                 phone_mode,
                 cursor: Default::default(),
                 event: Default::default(),
@@ -591,7 +597,7 @@ impl Editor {
     }
 
     pub fn plaintext_mode(&self) -> bool {
-        self.edit.renderer.plaintext_mode()
+        self.edit.renderer.plaintext
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
@@ -690,7 +696,7 @@ impl Editor {
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.edit.readonly
+                    let toolbar_height = if !self.edit.renderer.readonly
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
@@ -744,7 +750,7 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.edit.readonly
+                    if !self.edit.renderer.readonly
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         let (_, rect) =
@@ -764,7 +770,7 @@ impl Editor {
                             .y
                     });
 
-                    if !self.edit.readonly {
+                    if !self.edit.renderer.readonly {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
