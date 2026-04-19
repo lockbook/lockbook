@@ -86,9 +86,7 @@ pub fn handle_version_header<Req: Request>(
 }
 
 pub fn verify_auth<TRequest>(
-    config: &config::Config,
-    request: &RequestWrapper<TRequest>,
-    request_time: clock::Timestamp,
+    config: &config::Config, request: &RequestWrapper<TRequest>, request_time: clock::Timestamp,
 ) -> LbResult<()>
 where
     TRequest: Request + Serialize,

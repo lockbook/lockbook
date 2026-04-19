@@ -83,19 +83,21 @@ macro_rules! core_req {
                             .with_label_values(&[<$Req>::ROUTE])
                             .start_timer();
 
-                        let request: RequestWrapper<$Req> =
-                            match deserialize_and_check(&state.config, request, version, request_time) {
-                                Ok(req) => req,
-                                Err(err) => {
-                                    warn!("request failed to parse: {:?}", err);
-                                    return warp::reply::with_status(
-                                        warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(
-                                            err,
-                                        )),
-                                        warp::http::StatusCode::BAD_REQUEST,
-                                    );
-                                }
-                            };
+                        let request: RequestWrapper<$Req> = match deserialize_and_check(
+                            &state.config,
+                            request,
+                            version,
+                            request_time,
+                        ) {
+                            Ok(req) => req,
+                            Err(err) => {
+                                warn!("request failed to parse: {:?}", err);
+                                return warp::reply::with_status(
+                                    warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err)),
+                                    warp::http::StatusCode::BAD_REQUEST,
+                                );
+                            }
+                        };
 
                         let req_pk = request.signed_request.public_key;
                         let username = {
@@ -475,9 +477,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    config: &Config,
-    request: Bytes,
-    version: Option<String>,
+    config: &Config, request: Bytes, version: Option<String>,
     request_time: lb_rs::model::clock::Timestamp,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where

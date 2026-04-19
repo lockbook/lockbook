@@ -29,8 +29,7 @@ pub fn sign<T: Serialize>(
 }
 
 pub fn verify<T: Serialize>(
-    pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
-    current_time: i64,
+    pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64, current_time: i64,
 ) -> LbResult<()> {
     if &signed.public_key != pk {
         Err(LbErrKind::Sign(SignError::WrongPublicKey))?;
