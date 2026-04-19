@@ -6,9 +6,9 @@ use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
 use crate::{
-    LbAccountRes, LbCopyFileLinkUrlRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes,
-    LbFileListRes, LbFileRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64,
-    LbPathRes, LbPathsRes, LbSearchRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
+    LbGetFileLinkUrlRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes,
+    LbPathsRes, LbSearchRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -95,7 +95,7 @@ pub extern "C" fn lb_free_path_res(path: LbPathRes) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_free_get_file_link_res(res: LbCopyFileLinkUrlRes) {
+pub extern "C" fn lb_free_get_file_link_url_res(res: LbGetFileLinkUrlRes) {
     if !res.err.is_null() {
         lb_free_err(res.err);
     }

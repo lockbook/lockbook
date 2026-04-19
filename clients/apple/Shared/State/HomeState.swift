@@ -16,10 +16,11 @@ class HomeState: ObservableObject {
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
 
-    @Published var sidebarState: SidebarState = .closed
     #if os(iOS)
+        @Published var sidebarState: SidebarState = .closed
         @Published var isSidebarFloating: Bool = true
     #else
+        @Published var sidebarState: SidebarState = .open
         @Published var isSidebarFloating: Bool = false
     #endif
 

@@ -108,7 +108,7 @@ struct OnLbLinkViewModifier: ViewModifier {
                 AppState.shared.error = .custom(title: "Could not open link", msg: "File not found")
                 return
             }
-            
+
             DispatchQueue.main.async {
                 workspaceInput.openFile(id: file.id)
             }

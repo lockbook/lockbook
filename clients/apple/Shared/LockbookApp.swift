@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
-@main struct LockbookApp: App {    
+@main struct LockbookApp: App {
     var body: some Scene {
         #if os(macOS)
             macOS

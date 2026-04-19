@@ -572,7 +572,7 @@ public class Lb: LbAPI {
     
     public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {
         let res = lb_get_file_link_url(lb, id.toLbUuid())
-        defer { lb_free_get_file_link_res(res) }
+        defer { lb_free_get_file_link_url_res(res) }
 
         return .success(String(cString: res.link_url))
     }
@@ -760,7 +760,7 @@ public class MockLb: LbAPI {
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> { .success(()) }
     public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {
-        .success("https://app.lockbook.net/")
+        .success("https://app.lockbook.net/open/a6743b18-c7ef-4960-9825-8022e2fa5672")
     }
     public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> { .success([]) }
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> { .success(()) }
