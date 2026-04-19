@@ -51,11 +51,13 @@ macro_rules! core_req {
         method(<$Req>::METHOD)
             .and(warp::path(&<$Req>::ROUTE[1..]))
             .and(warp::any().map(move || cloned_state.clone()))
+            .and(warp::any().map(|| lb_rs::model::clock::get_time())) // Capture time before body
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
             .and(warp::filters::addr::remote())
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
+                 request_time: lb_rs::model::clock::Timestamp,
                  request: Bytes,
                  version: Option<String>,
                  ip: Option<SocketAddr>| {
@@ -82,7 +84,7 @@ macro_rules! core_req {
                             .start_timer();
 
                         let request: RequestWrapper<$Req> =
-                            match deserialize_and_check(&state.config, request, version) {
+                            match deserialize_and_check(&state.config, request, version, request_time) {
                                 Ok(req) => req,
                                 Err(err) => {
                                     warn!("request failed to parse: {:?}", err);
@@ -473,7 +475,10 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    config: &Config, request: Bytes, version: Option<String>,
+    config: &Config,
+    request: Bytes,
+    version: Option<String>,
+    request_time: lb_rs::model::clock::Timestamp,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
     Req: Request + DeserializeOwned + Serialize,
@@ -485,7 +490,7 @@ where
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
-    verify_auth(config, &request).map_err(|err| match err.kind {
+    verify_auth(config, &request, request_time).map_err(|err| match err.kind {
         LbErrKind::Sign(SignError::SignatureExpired(_))
         | LbErrKind::Sign(SignError::SignatureInTheFuture(_)) => {
             warn!("expired auth");
