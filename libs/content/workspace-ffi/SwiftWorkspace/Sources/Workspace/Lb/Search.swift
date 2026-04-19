@@ -305,10 +305,16 @@ public final class LbContentSearcher: ContentSearching {
             return nil
         }
         return SearcherSnippet(
-            prefix: String(cString: prefix),
-            matched: String(cString: matched),
-            suffix: String(cString: suffix)
+            prefix: Self.clean(String(cString: prefix)),
+            matched: Self.clean(String(cString: matched)),
+            suffix: Self.clean(String(cString: suffix))
         )
+    }
+
+    /// Flatten newlines so the snippet fits on a single line. Matches the cleanup the egui
+    /// search UI does in `workspace::search::content::extract_snippet`.
+    private static func clean(_ s: String) -> String {
+        String(s.map { ($0 == "\n" || $0 == "\r") ? " " : $0 })
     }
 }
 

@@ -14,15 +14,25 @@ struct SearchContainerView<Content: View>: View {
 
     var body: some View {
         VStack {
-            SearchBar(searchContainerModel: model, isFocused: $isFocused)
+            SearchBar(searchContainerModel: model, isFocused: $isFocused, isSearching: $isSearching)
 
-            SearchContainerSubView(isSearching: $isSearching, model: model, dismissSearch: { isFocused = false }, content: content)
-                .onChange(of: model.input) { _ in
-                    model.search()
-                }
+            SearchContainerSubView(
+                isSearching: $isSearching,
+                model: model,
+                dismissSearch: {
+                    isFocused = false
+                    isSearching = false
+                },
+                content: content
+            )
+            .onChange(of: model.input) { _ in
+                model.search()
+            }
         }
         .onChange(of: isFocused) { newValue in
-            isSearching = newValue
+            if newValue {
+                isSearching = true
+            }
         }
     }
 }
@@ -31,6 +41,7 @@ struct SearchBar: View {
     @StateObject var searchContainerModel: SearchContainerViewModel
 
     @FocusState.Binding var isFocused: Bool
+    @Binding var isSearching: Bool
 
     var body: some View {
         HStack {
@@ -45,6 +56,7 @@ struct SearchBar: View {
                 .onExitCommand {
                     searchContainerModel.input = ""
                     isFocused = false
+                    isSearching = false
                 }
                 .textFieldStyle(.plain)
                 .background(
@@ -60,10 +72,11 @@ struct SearchBar: View {
                     }
                 })
 
-            if isFocused {
+            if isSearching {
                 Button(action: {
                     searchContainerModel.input = ""
                     isFocused = false
+                    isSearching = false
                 }, label: {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.gray)
