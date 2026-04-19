@@ -118,7 +118,7 @@ async fn test_get_file_link_url() {
     let core = test_core_with_account().await;
     let id = core.create_at_path("test.md").await.unwrap().id;
 
-    let link_url = core.get_file_link_url(&id).await.unwrap();
+    let link_url = core.get_file_link_url(id).await.unwrap();
     let expected_link = format!("{}/open/{}", &url(), id);
 
     assert_eq!(expected_link, link_url);
