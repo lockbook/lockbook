@@ -12,9 +12,9 @@ class ClipboardHelper {
     }
 
     static func copyFileLink(_ id: UUID) {
-        switch AppState.lb.getAccount() {
-        case .success(let account):
-            ClipboardHelper.copyToClipboard("\(account.apiUrl)/\(id.uuidString)")
+        switch AppState.lb.getFileLinkUrl(id: id) {
+        case .success(let url):
+            ClipboardHelper.copyToClipboard(url)
         case .failure(let err):
             AppState.shared.error = .custom(title: "Failed to copy file link", msg: err.msg)
         }

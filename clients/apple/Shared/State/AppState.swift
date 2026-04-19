@@ -42,10 +42,6 @@ class AppState: ObservableObject {
             account = nil
         }
     }
-
-    static func isInternalLink(_ url: URL) -> Bool {
-        url.scheme == "lb"
-    }
 }
 
 enum UIError: Identifiable {

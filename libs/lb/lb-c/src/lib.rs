@@ -685,6 +685,22 @@ pub extern "C" fn lb_export_file(
 }
 
 #[repr(C)]
+pub struct LbGetFileLinkUrlRes {
+    err: *mut LbFfiErr,
+    link_url: *mut c_char,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_get_file_link_url(lb: *mut Lb, id: LbUuid) -> LbGetFileLinkUrlRes {
+    let lb = rlb(lb);
+
+    match lb.get_file_link_url(id.into()) {
+        Ok(link_url) => LbGetFileLinkUrlRes { err: null_mut(), link_url: cstring(link_url) },
+        Err(err) => LbGetFileLinkUrlRes { err: lb_err(err), link_url: null_mut() },
+    }
+}
+
+#[repr(C)]
 pub struct LbSearchRes {
     err: *mut LbFfiErr,
     results: *mut LbSearchResult,
