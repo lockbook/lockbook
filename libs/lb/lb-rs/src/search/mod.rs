@@ -1,7 +1,6 @@
 pub mod content;
 pub mod path;
 
-use crate::Lb;
 use std::ops::Range;
 use uuid::Uuid;
 
@@ -29,12 +28,10 @@ pub struct ContentMatch {
     pub exact: bool,
 }
 
+use crate::Lb;
+
 impl Lb {
     pub async fn path_searcher(&self) -> PathSearcher {
         PathSearcher::new(self).await
-    }
-
-    pub async fn content_searcher(&self) -> ContentSearcher {
-        ContentSearcher::new(self).await
     }
 }

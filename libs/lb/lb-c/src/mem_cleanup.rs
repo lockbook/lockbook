@@ -1,15 +1,16 @@
 use std::ffi::{CString, c_char};
 
 use lb_rs::Uuid;
-use lb_rs::search::PathSearcher;
+use lb_rs::search::{ContentSearcher, PathSearcher};
 
 use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
 use crate::{
-    LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
-    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathSearcherResults,
-    LbPathsRes, LbSearchRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbDocRes,
+    LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbIdListRes, LbInitRes,
+    LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathSearcherResults, LbPathsRes, LbSearchRes,
+    LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -258,6 +259,47 @@ pub extern "C" fn lb_free_path_search_results(results: LbPathSearcherResults) {
             drop(CString::from_raw(result.parent_path));
         }
         drop(rvec(result.matched_indices, result.matched_indices_len));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_searcher(searcher: *mut ContentSearcher) {
+    if searcher.is_null() {
+        return;
+    }
+    unsafe { drop(Box::from_raw(searcher)) };
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_search_results(results: LbContentSearcherResults) {
+    if results.results.is_null() {
+        return;
+    }
+
+    let results = rvec(results.results, results.results_len);
+    for result in results {
+        unsafe {
+            drop(CString::from_raw(result.filename));
+            drop(CString::from_raw(result.parent_path));
+        }
+        if !result.matches.is_null() {
+            drop(rvec(result.matches, result.matches_len));
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_searcher_snippet(snippet: LbContentSearcherSnippet) {
+    unsafe {
+        if !snippet.prefix.is_null() {
+            drop(CString::from_raw(snippet.prefix));
+        }
+        if !snippet.matched.is_null() {
+            drop(CString::from_raw(snippet.matched));
+        }
+        if !snippet.suffix.is_null() {
+            drop(CString::from_raw(snippet.suffix));
+        }
     }
 }
 

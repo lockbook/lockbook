@@ -13,7 +13,6 @@ class PathSearchViewModel: ObservableObject {
     let workspaceInput: WorkspaceInputState
 
     private var searcher: PathSearching?
-    private let searchQueue = DispatchQueue(label: "app.lockbook.path-search")
 
     init(filesModel: FilesViewModel, workspaceInput: WorkspaceInputState) {
         self.filesModel = filesModel
@@ -44,18 +43,9 @@ class PathSearchViewModel: ObservableObject {
 
     func search() {
         selected = 0
-        let input = input
-
-        searchQueue.async { [weak self] in
-            guard let searcher = self?.searcher else { return }
-            let results = Array(searcher.query(input).prefix(20))
-
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.results = results
-                self.selected = min(self.selected, results.count - 1)
-            }
-        }
+        guard let searcher else { return }
+        results = Array(searcher.query(input).prefix(20))
+        selected = min(selected, results.count - 1)
     }
 
     func selectNextPath() {

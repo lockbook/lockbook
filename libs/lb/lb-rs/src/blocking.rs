@@ -262,7 +262,7 @@ impl Lb {
     }
 
     pub fn content_searcher(&self) -> crate::search::ContentSearcher {
-        self.block_on(self.lb.content_searcher())
+        crate::search::ContentSearcher::new(self)
     }
 
     pub fn validate(&self) -> LbResult<Vec<Warning>> {

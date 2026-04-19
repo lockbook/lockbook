@@ -23,47 +23,67 @@ pub struct ContentSearcher {
 }
 
 impl ContentSearcher {
-    pub async fn new(lb: &Lb) -> Self {
+    pub fn new(lb: &Lb) -> Self {
         let start = Instant::now();
-        let metas = lb.list_metadatas().await.unwrap_or_default();
-        let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
+        let metas = lb.list_metadatas().unwrap_or_default();
+        let paths = Arc::new(lb.list_paths_with_ids(None).unwrap_or_default());
 
         let md_files: Vec<File> = metas
             .into_iter()
             .filter(|m| m.is_document() && m.name.ends_with(".md"))
             .collect();
 
-        let futures = md_files.into_iter().map(|meta| async {
-            let id = meta.id;
-            let doc = lb
-                .read_document(id, false)
-                .await
-                .ok()
-                .and_then(|bytes| String::from_utf8(bytes).ok());
-            (meta, doc)
-        });
+        let work = Arc::new(Mutex::new(md_files));
+        let documents = Arc::new(Mutex::new(Vec::<Document>::new()));
 
-        let mut documents = Vec::new();
-        let mut stream = stream::iter(futures).buffer_unordered(4);
+        let handles: Vec<_> = (0..thread::available_parallelism()
+            .map(|n| n.get())
+            .unwrap_or(4))
+            .map(|_| {
+                let work = work.clone();
+                let paths = paths.clone();
+                let documents = documents.clone();
+                let lb = lb.clone();
+                thread::spawn(move || loop {
+                    let Some(meta) = work.lock().unwrap().pop() else {
+                        return;
+                    };
 
-        while let Some((meta, doc)) = stream.next().await {
-            let Some(content) = doc else { continue };
+                    let id = meta.id;
+                    let doc = lb
+                        .read_document(meta.id, false)
+                        .ok()
+                        .and_then(|bytes| String::from_utf8(bytes).ok());
 
-            let path = paths
-                .iter()
-                .find(|(i, _)| *i == meta.id)
-                .map(|(_, p)| p.clone())
-                .unwrap_or_default();
+                    if let Some(content) = doc {
+                        let path = paths
+                            .iter()
+                            .find(|(i, _)| *i == id)
+                            .map(|(_, p)| p.clone())
+                            .unwrap_or_default();
 
-            let (parent, name) = split_path(&path);
+                        let (parent, name) = split_path(&path);
 
-            documents.push(Document {
-                file: meta,
-                filename: name.to_string(),
-                parent_path: parent.to_string(),
-                content: content.to_lowercase(),
-            });
+                        documents.lock().unwrap().push(Document {
+                            file: meta,
+                            filename: name.to_string(),
+                            parent_path: parent.to_string(),
+                            content: content.to_lowercase(),
+                        });
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().unwrap();
         }
+
+        let documents = Arc::try_unwrap(documents)
+            .ok()
+            .expect("all workers joined")
+            .into_inner()
+            .unwrap();
 
         Self {
             documents,
