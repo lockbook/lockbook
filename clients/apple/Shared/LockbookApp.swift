@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftWorkspace
 
-@main struct LockbookApp: App {
+@main struct LockbookApp: App {    
     var body: some Scene {
         #if os(macOS)
             macOS
@@ -101,29 +101,3 @@ struct HomeContextWrapper: View {
     return ContentView()
         .withCommonPreviewEnvironment()
 }
-
-#if os(macOS)
-import Cocoa
-import SwiftUI
-
-class AppDelegate: NSObject, NSApplicationDelegate {
-    func application(
-        _ application: NSApplication,
-        continue userActivity: NSUserActivity,
-        restorationHandler: @escaping ([NSUserActivityRestoring]?) -> Void
-    ) -> Bool {
-
-        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
-              let url = userActivity.webpageURL else {
-            return false
-        }
-
-        NotificationCenter.default.post(
-            name: .didReceiveUniversalLink,
-            object: url
-        )
-
-        return true
-    }
-}
-#endif

@@ -16,6 +16,11 @@ struct OnLbLinkViewModifier: ViewModifier {
             .onOpenURL(perform: { url in
                 openUrl(url: url)
             })
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb, perform: { userActivity in
+                if let url = userActivity.webpageURL {
+                    openUrl(url: url)
+                }
+            })
             .onReceive(workspaceOutput.$urlsOpened, perform: { urls in
                 for url in urls {
                     openUrl(url: url)
@@ -104,8 +109,6 @@ struct OnLbLinkViewModifier: ViewModifier {
                 return
             }
             
-            print("opening the file...", id)
-
             DispatchQueue.main.async {
                 workspaceInput.openFile(id: file.id)
             }
