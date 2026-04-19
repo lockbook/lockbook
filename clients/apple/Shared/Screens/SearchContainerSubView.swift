@@ -1,6 +1,20 @@
 import SwiftUI
 import SwiftWorkspace
 
+public enum SearchMode: String, CaseIterable, Identifiable, Hashable {
+    case path = "Filename"
+    case content = "Content"
+    public var id: String { rawValue }
+
+    static var platformDefault: SearchMode {
+        #if os(iOS)
+            .path
+        #else
+            .content
+        #endif
+    }
+}
+
 struct SearchContainerSubView<Content: View>: View {
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var homeState: HomeState
@@ -22,7 +36,9 @@ struct SearchContainerSubView<Content: View>: View {
         Group {
             if isSearching {
                 VStack(spacing: 0) {
-                    if let focused = model.focusedResult {
+                    modePicker
+
+                    if model.mode == .content, let focused = model.focusedResult {
                         FocusedSearchResultView(
                             result: focused,
                             fetchSnippet: { match in
@@ -34,7 +50,12 @@ struct SearchContainerSubView<Content: View>: View {
                             }
                         )
                     } else {
-                        resultsList
+                        switch model.mode {
+                        case .content:
+                            contentResultsList
+                        case .path:
+                            pathResultsList
+                        }
                     }
                     SearchMetricsBar(model: model)
                 }
@@ -49,17 +70,48 @@ struct SearchContainerSubView<Content: View>: View {
                 model.stopSearching()
             }
         }
+        .onChange(of: model.mode) { _ in
+            model.search()
+        }
     }
 
-    var resultsList: some View {
+    var modePicker: some View {
+        Picker("", selection: $model.mode) {
+            ForEach(SearchMode.allCases) { m in
+                Text(m.rawValue).tag(m)
+            }
+        }
+        .pickerStyle(.segmented)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+    }
+
+    var contentResultsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(model.results) { result in
+                ForEach(model.contentResults) { result in
                     SearchResultRow(
                         result: result,
                         fetchSnippet: { match in model.snippet(id: result.id, match: match) },
                         onTap: { openAndCloseFloatingSidebar(id: result.id) },
                         onShowMore: { model.focusedResult = result }
+                    )
+                    .onAppear { model.rendered.insert(result.id) }
+                    .onDisappear { model.rendered.remove(result.id) }
+                    Divider()
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    var pathResultsList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(model.pathResults) { result in
+                    PathSearcherRow(
+                        result: result,
+                        onTap: { openAndCloseFloatingSidebar(id: result.id) }
                     )
                     .onAppear { model.rendered.insert(result.id) }
                     .onDisappear { model.rendered.remove(result.id) }
@@ -127,6 +179,56 @@ struct SearchResultRow: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+}
+
+struct PathSearcherRow: View {
+    let result: PathSearcherResult
+    let onTap: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            highlighted(result.filename, offset: filenameOffset)
+                .font(.body)
+            if !result.parentPath.isEmpty, result.parentPath != "/" {
+                highlighted(result.parentPath, offset: parentOffset)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
+    }
+
+    private var parentOffset: Int {
+        // leading "/" consumes index 0, so parent text starts at 1 for nested paths
+        result.parentPath == "/" ? 0 : 1
+    }
+
+    private var filenameOffset: Int {
+        // root: "/" + filename → filename starts at 1
+        // nested: "/" + parent + "/" + filename → starts at parent.count + 2
+        if result.parentPath.isEmpty || result.parentPath == "/" {
+            return 1
+        }
+        return result.parentPath.unicodeScalars.count + 2
+    }
+
+    private func highlighted(_ s: String, offset: Int) -> Text {
+        let indices = Set(result.matchedIndices.map { Int($0) })
+        var out = Text("")
+        for (i, scalar) in s.unicodeScalars.enumerated() {
+            let part = Text(String(scalar))
+            if indices.contains(i + offset) {
+                out = out + part.bold().foregroundColor(.primary)
+            } else {
+                out = out + part.foregroundColor(.secondary)
+            }
+        }
+        return out
     }
 }
 
@@ -212,7 +314,7 @@ struct SearchMetricsBar: View {
             if let dur = model.lastQueryDuration {
                 metric(label: "query", value: format(ms: dur * 1000))
             }
-            metric(label: "results", value: "\(model.results.count)")
+            metric(label: "results", value: "\(model.resultCount)")
             metric(label: "rendered", value: "\(model.rendered.count)")
             Spacer()
         }
@@ -237,42 +339,65 @@ struct SearchMetricsBar: View {
 class SearchContainerViewModel: ObservableObject {
     @Published var input: String = ""
     @Published var isShown: Bool = false
+    @Published var mode: SearchMode = .platformDefault
     @Published var buildDuration: TimeInterval? = nil
     @Published var lastQueryDuration: TimeInterval? = nil
-    @Published var results: [ContentSearcherResult] = []
+    @Published var contentResults: [ContentSearcherResult] = []
+    @Published var pathResults: [PathSearcherResult] = []
     @Published var rendered: Set<UUID> = []
     @Published var focusedResult: ContentSearcherResult? = nil
 
     let filesModel: FilesViewModel
 
     private var contentSearcher: ContentSearching?
+    private var pathSearcher: PathSearching?
 
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
+    }
+
+    var resultCount: Int {
+        switch mode {
+        case .content: contentResults.count
+        case .path: pathResults.count
+        }
     }
 
     func startSearching() {
         guard contentSearcher == nil else { return }
         let start = Date()
         contentSearcher = AppState.lb.contentSearcher()
+        pathSearcher = AppState.lb.pathSearcher()
         buildDuration = Date().timeIntervalSince(start)
+        search()
     }
 
     func stopSearching() {
         contentSearcher = nil
+        pathSearcher = nil
         buildDuration = nil
         lastQueryDuration = nil
-        results = []
+        contentResults = []
+        pathResults = []
         rendered = []
         focusedResult = nil
     }
 
     func search() {
-        guard let contentSearcher else { return }
         let start = Date()
-        results = contentSearcher.query(input)
+        switch mode {
+        case .content:
+            if let contentSearcher {
+                contentResults = contentSearcher.query(input)
+            }
+        case .path:
+            if let pathSearcher {
+                pathResults = pathSearcher.query(input)
+            }
+        }
         lastQueryDuration = Date().timeIntervalSince(start)
         focusedResult = nil
+        rendered = []
     }
 
     func snippet(id: UUID, match: ContentSearcherMatch) -> SearcherSnippet? {
