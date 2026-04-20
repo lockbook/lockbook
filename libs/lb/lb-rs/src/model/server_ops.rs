@@ -75,9 +75,7 @@ impl<'a> LazyTree<ServerTree<'a>> {
         Ok(self.stage_unvalidated(changes))
     }
 
-    pub fn stage_unvalidated(
-        self, changes: Vec<FileDiff<SignedMeta>>,
-    ) -> LazyServerStaged1<'a> {
+    pub fn stage_unvalidated(self, changes: Vec<FileDiff<SignedMeta>>) -> LazyServerStaged1<'a> {
         let now = get_time().0 as u64;
         let changes = changes
             .into_iter()
