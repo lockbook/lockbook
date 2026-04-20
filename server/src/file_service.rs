@@ -43,9 +43,42 @@ where
             let db = lock.deref_mut();
             let tx = db.begin_transaction()?;
 
-            let usage_cap =
-                Self::get_cap(db, &context.public_key).map_err(|err| internal!("{:?}", err))?;
+            // Collect unique owners from the updates
+            let mut affected_owners: HashSet<Owner> = HashSet::new();
+            for update in &request.updates {
+                affected_owners.insert(update.new.owner());
+            }
 
+            // Get usage caps and calculate old/new usage for each affected owner
+            // Each owner needs their own tree to see all their files
+            for &owner in &affected_owners {
+                let usage_cap =
+                    Self::get_cap(db, &owner.0).map_err(|err| internal!("{:?}", err))?;
+
+                let mut tree = ServerTree::new(
+                    owner,
+                    &mut db.owned_files,
+                    &mut db.shared_files,
+                    &mut db.file_children,
+                    &mut db.metas,
+                )?
+                .to_lazy();
+
+                let old_usage = tree.calculate_usage(owner)?;
+
+                let mut tree = tree.stage_diff_v2(request.updates.clone())?;
+                tree.assert_changes_authorized(req_owner)?;
+                let new_usage = tree.calculate_usage(owner)?;
+
+                debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+
+                if new_usage > usage_cap && new_usage >= old_usage {
+                    warn!(?owner, "user over cap");
+                    return Err(ClientError(UpsertError::UsageIsOverDataCap));
+                }
+            }
+
+            // Now do the actual operation with requester's tree
             let mut tree = ServerTree::new(
                 req_owner,
                 &mut db.owned_files,
@@ -54,12 +87,6 @@ where
                 &mut db.metas,
             )?
             .to_lazy();
-
-            let old_usage = Self::get_usage_helper(&mut tree)
-                .map_err(|err| internal!("{:?}", err))?
-                .iter()
-                .map(|f| f.size_bytes)
-                .sum::<u64>();
 
             for id in tree.ids() {
                 if tree.calculate_deleted(&id)? {
@@ -75,19 +102,6 @@ where
             }
 
             tree.validate(req_owner)?;
-
-            let new_usage = Self::get_usage_helper(&mut tree)
-                .map_err(|err| internal!("{:?}", err))?
-                .iter()
-                .map(|f| f.size_bytes)
-                .sum::<u64>();
-
-            debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
-
-            if new_usage > usage_cap && new_usage >= old_usage {
-                warn!("user over cap");
-                return Err(ClientError(UpsertError::UsageIsOverDataCap));
-            }
 
             let tree = tree.promote()?;
 

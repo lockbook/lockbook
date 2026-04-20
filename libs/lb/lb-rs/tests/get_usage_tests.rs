@@ -345,3 +345,47 @@ async fn sharee_cannot_exceed_sharer_data_cap() {
     let result = core_b.sync().await;
     assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
 }
+
+#[tokio::test]
+async fn sharee_cannot_exceed_sharer_data_cap_via_metadata() {
+    let core_a = test_core_with_account().await;
+    let core_b = test_core_with_account().await;
+    let account_b = core_b.get_account().unwrap();
+
+    // A shares a folder with B
+    let folder = core_a.create_at_path("shared_folder/").await.unwrap();
+    core_a
+        .share_file(folder.id, &account_b.username, ShareMode::Write)
+        .await
+        .unwrap();
+    core_a.sync().await.unwrap();
+
+    // B syncs and creates a link to the shared folder
+    core_b.sync().await.unwrap();
+    core_b.create_link_at_path("link", folder.id).await.unwrap();
+    core_b.sync().await.unwrap();
+
+    // B creates a large document that uses most of A's data cap
+    // Account for: root (1) + shared_folder (1) + large.md (1) = 3 files of metadata already
+    // Leave room for ~5 more files of metadata
+    let large_doc = core_b
+        .create_file("large.md", &folder.id, FileType::Document)
+        .await
+        .unwrap();
+    let content_size = FREE_TIER_USAGE_SIZE - (METADATA_FEE * 8);
+    let content: Vec<u8> = (0..content_size).map(|_| rand::random::<u8>()).collect();
+    core_b.write_document(large_doc.id, &content).await.unwrap();
+    core_b.sync().await.unwrap();
+
+    // Now B creates more empty files to exceed A's cap via metadata alone
+    for i in 0..10 {
+        core_b
+            .create_file(&format!("file{i}.md"), &folder.id, FileType::Document)
+            .await
+            .unwrap();
+    }
+
+    // B's sync should fail because the metadata would exceed A's data cap
+    let result = core_b.sync().await;
+    assert_eq!(result.unwrap_err().kind, LbErrKind::UsageIsOverDataCap);
+}
