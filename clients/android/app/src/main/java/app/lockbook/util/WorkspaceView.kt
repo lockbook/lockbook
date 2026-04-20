@@ -50,9 +50,14 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
+
+    private val logger = AppLogger.getLogger("WorkspaceView")
+
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
@@ -63,6 +68,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val nativeLock = ReentrantLock()
 
     private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
+
     private val frameOutputJsonParser = Json {
         ignoreUnknownKeys = true
     }
@@ -74,11 +80,29 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingDy = AtomicReference(0f)
     private var propagateFlick = false
 
-    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, Int>>())
+    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, WorkspaceTextState>>())
 
     var lastFrameTransform = 0
 
-    var frameCount = AtomicReference(0)
+
+    data class WorkspaceTextState(
+        val selection: JTextRange,
+        val textLength: Int,
+        val buffer: String,
+        val frameCount: Int
+    ): Comparable<WorkspaceTextState> {
+        override fun compareTo(other: WorkspaceTextState): Int =
+            textLength.compareTo(other.textLength)
+    }
+
+     val pendingWorkspaceTextState = AtomicReference(
+        WorkspaceTextState(
+            selection = JTextRange(none = true, start = 0, end = 0),
+            textLength = 0,
+            buffer = "",
+            frameCount = 0
+        )
+    )
 
     sealed class WsTextMutation {
         data class Replace(
@@ -228,10 +252,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private val pendingFocusX = AtomicReference(0f)
     private val pendingFocusY = AtomicReference(0f)
 
-    val pendingSelection = AtomicReference(JTextRange(false, 0, 0))
-    val pendingTextLength = AtomicReference(0)
-    val pendingBuffer = AtomicReference("")
-
     var lastFrameDirty = false
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -280,13 +300,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         renderJob?.cancel()
         renderJob = renderScope.launch {
+            val timeSource = TimeSource.Monotonic
+            // Move this OUTSIDE the while loop so it persists
+            var fastModeDeadline = timeSource.markNow()
             while (isActive) {
                 val delayTime = drawWorkspace()
 
+                // 2. Determine if we are currently in the "sticky" window
+                val isSticky = fastModeDeadline.hasNotPassedNow()
+
+                // 3. If sticky, blast (0ms delay). Otherwise, use standard delay.
+                val effectiveDelay = if (isSticky) 0L else delayTime
+
                 select<Unit> {
                     redrawChannel.onReceive {
+                        fastModeDeadline = timeSource.markNow() + 1000.milliseconds
                     }
-                    onTimeout(delayTime) {
+                    onTimeout(effectiveDelay) {
                     }
                 }
             }
@@ -430,93 +460,81 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             val thisFrameDirty = textMutations.get().any { it.first is WsTextMutation.Replace }
-
             while (true) {
-
                 val event = textMutations.get().pollFirst() ?: break
                 val mutation = event.first
-                if (event.second != -1) {
-                    if (event.second != frameCount.get()) {
-                        if (lastFrameDirty) {
-
-                            mutation.transformed(lastFrameTransform)
-                            if (textMutations.get().isEmpty()) {
-                                lastFrameTransform = 0
-                            }
-                        }
-                    } else {
-                        lastFrameTransform = mutation.delta()
-                        if (lastFrameTransform != 0) {
-                        }
-                    }
+                if (pendingWorkspaceTextState.get().textLength != event.second.textLength){
+                    val transform = pendingWorkspaceTextState.get().textLength - event.second.textLength
+                    logger.d("stale event t:${transform}")
+                    mutation.transformed(transform)
                 }
                 when (mutation) {
                     is WsTextMutation.Replace -> {
+                        logger.i("REPL ${mutation.start} ${mutation.end} ${mutation.text}")
 
                         Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
                     }
                     is WsTextMutation.InsertAtCursor -> {
+                        logger.i("INSERT ${mutation.text}")
 
                         Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.ClipboardPaste -> {
+                        logger.i("PASTE ${mutation.text}")
                         Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.SendKeyEvent -> {
+                        logger.i("KEY ${mutation.keyCode} ${mutation.content}")
 
                         Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
                     }
                     is WsTextMutation.SelectAll -> {
+                        logger.i("SELECT ALL")
                         Workspace.selectAll(WGPU_OBJ)
                     }
                     is WsTextMutation.ClipboardCut -> {
+                        logger.i("CUT")
                         Workspace.clipboardCut(WGPU_OBJ)
                     }
                     is WsTextMutation.ClipboardCopy -> {
+                        logger.i("COPY")
                         Workspace.clipboardCopy(WGPU_OBJ)
                     }
                     is WsTextMutation.NotifySelectionUpdate -> {
+                        logger.i("NOTIFY SEL UPDATE")
                         containsNotify = true
                     }
                     WsTextMutation.WsNotifySelectionUpdate -> {
+                        logger.i("NOTIFY WS SEL UPDATE")
 //                        containsNotify = !lastFrameDirty
 //                        
                     }
                     is WsTextMutation.Clear -> {
+                        logger.i("CLEAR")
 
                         Workspace.clear(WGPU_OBJ)
                     }
                     is WsTextMutation.SetSelection -> {
+                        logger.i("SET SELECTION")
                         Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
                     }
                     is WsTextMutation.Append -> {
+                        logger.i("APPEND")
                         Workspace.append(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.Insert -> {
+                        logger.i("INSERT ${mutation.where} ${mutation.text}")
+
                         Workspace.insert(WGPU_OBJ, mutation.where, mutation.text)
                     }
                 }
             }
 
             val res = Workspace.enterFrame(WGPU_OBJ)
-
+            logger.d("${"-".repeat(10)}\nENDF")
             lastFrameDirty = thisFrameDirty
-            frameCount.getAndUpdate { it + 1 }
-
             // you get the update here
-            val selection: JTextRange = frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
-
-            pendingSelection.set(JTextRange(selection.none, selection.start, selection.end))
-            pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
-            pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
-
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (containsNotify && textMutations.get().isEmpty()) {
-                        textInputWrapper.wsInputConnection.applySelectionNotification()
-                    }
-                }
-            }
+            updateWorkspaceState(containsNotify)
 
             res
         }
@@ -563,7 +581,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     }
 
 //                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount.get() == 0) {
-
 //                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
 //                    }
 
@@ -586,6 +603,32 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
 //        return min(response.redrawIn, 500u).toLong()
         return response.redrawIn.toLong()
+    }
+
+
+    private fun updateWorkspaceState(containsNotify: Boolean) {
+        val start = System.currentTimeMillis()
+
+        val selection: JTextRange = Workspace.getSelection(WGPU_OBJ)
+
+        pendingWorkspaceTextState.set(
+            WorkspaceTextState(
+                selection = JTextRange(selection.none, selection.start, selection.end),
+                textLength = Workspace.getTextLength(WorkspaceView.WGPU_OBJ),
+                buffer = Workspace.getBuffer(WGPU_OBJ),
+                frameCount = pendingWorkspaceTextState.get().frameCount + 1
+            )
+        )
+
+        if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                if (containsNotify && textMutations.get().isEmpty()) {
+                    textInputWrapper.wsInputConnection.applySelectionNotification()
+                }
+            }
+        }
+
+        logger.d("WS UPDATE  ${System.currentTimeMillis() - start}ms")
     }
 
     fun drawImmediately() {

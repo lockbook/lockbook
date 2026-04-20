@@ -1,7 +1,7 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
+use jni::objects::{JClass, JObject, JPrimitiveArray, JString, JValue};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
@@ -432,21 +432,28 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let resp = match obj.workspace.current_tab_markdown_mut() {
+    let (none, start, end) = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
             let (start, end) = markdown.buffer.current.selection;
-            JTextRange { none: false, start: start.0, end: end.0 }
+            (false, start.0, end.0)
         }
-        None => JTextRange { none: true, start: 0, end: 0 },
+        None => (true, 0, 0),
     };
 
-    env.new_string(serde_json::to_string(&resp).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
+    let class = env.find_class("app/lockbook/workspace/JTextRange").unwrap();
+    let obj = env
+        .new_object(
+            class,
+            "(ZII)V",
+            &[JValue::Bool(none as u8), JValue::Int(start as i32), JValue::Int(end as i32)],
+        )
+        .unwrap();
+
+    obj.into_raw()
 }
 
 #[no_mangle]

@@ -11,6 +11,8 @@ import app.lockbook.workspace.Workspace
 
 class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
 
+    private val logger = AppLogger.getLogger("InputBridging")
+
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
@@ -23,7 +25,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     var localQueue: ArrayDeque<WorkspaceView.WsTextMutation> = ArrayDeque()
 
     val queueId: Int get() {
-        return view.frameCount.get()
+        return view.pendingWorkspaceTextState.get().frameCount
     }
 
     val selectionStart: Int get() {
@@ -38,20 +40,22 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         return Workspace.getAllText(WorkspaceView.WGPU_OBJ)
     }
 
-    fun getSelection(): JTextRange = view.pendingSelection.get()
+    fun getSelection(): JTextRange = view.pendingWorkspaceTextState.get().selection
 
     override fun get(index: Int): Char {
+        logger.d("GET ${index}")
 
         return getTextInRange(index, index).getOrNull(0) ?: '0'
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
+        logger.d("GET SUB SEQUENCE ${startIndex} ${endIndex}")
 
         return getTextInRange(startIndex, endIndex)
     }
 
     override fun getChars(start: Int, end: Int, dest: CharArray?, destoff: Int) {
-
+        logger.d("GET CHARS ${start} ${end}")
         dest?.let { realDest ->
             val text = getTextInRange(start, end)
 
@@ -70,6 +74,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
+        logger.d("GET SPANS ${start} ${end} ${type}")
 
         val spans: MutableList<Any> = mutableListOf()
         val spanRange = start..end
@@ -103,14 +108,18 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun getSpanStart(tag: Any?): Int {
 
         if (tag == Selection.SELECTION_START) {
+            logger.d("GET SPAN START a: ${selectionStart}")
+
             return selectionStart
         }
 
         if (tag == Selection.SELECTION_END) {
+            logger.d("GET SPAN START b: ${selectionEnd}")
             return selectionEnd
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
+            logger.d("GET SPAN START c: ${composingStart}")
             return composingStart
         }
 
@@ -120,10 +129,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun getSpanEnd(tag: Any?): Int {
 
         if (tag == Selection.SELECTION_START || tag == Selection.SELECTION_END) {
+
             TODO("not needed")
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
+            logger.d("GET SPAN END a: ${composingEnd}")
             return composingEnd
         }
 
@@ -131,6 +142,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanFlags(tag: Any?): Int {
+        logger.d("GET SPAN FLAGS ${tag}")
 
         return when (tag) {
             Selection.SELECTION_START -> {
@@ -154,14 +166,15 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
+        logger.d("SET SPAN ${what} ${start} ${end} ${flags}")
 
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end) to -1)
+            wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.SetSelection(start, end) )
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end)to -1)
+            wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.SetSelection(start, end))
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
@@ -176,6 +189,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun removeSpan(what: Any?) {
+        logger.d("DEL SPAN ${what}")
 
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
             composingStart = -1
@@ -186,9 +200,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: CharSequence?): Editable {
+        logger.d("APPEND ${text}")
 
         text?.let { realText ->
-            localQueue.add(WorkspaceView.WsTextMutation.Append(realText.toString()))
+            wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Append(realText.toString()) )
             view.drawImmediately()
         }
 
@@ -197,7 +212,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
 
-        localQueue.add(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
+        logger.d("APPEND ${start} ${end} ${text} ")
+        
+        wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
 
         view.drawImmediately()
 
@@ -205,8 +222,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: Char): Editable {
+        logger.d("APPEND ${text} ")
 
-        localQueue.add(WorkspaceView.WsTextMutation.Append(text.toString()))
+        wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Append(text.toString()) )
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated(true)
 
@@ -214,6 +232,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
+        logger.d("REPLACE ${st} ${end} $source, $start, $end")
 
         source?.let { realText ->
             replace(st, en, realText.subSequence(start, end))
@@ -223,6 +242,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     private fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
+        logger.d("GET COMPOSING SPANS $spannable")
 
         for (span in spannable.getSpans(0, spannable.length, Object::class.java)) {
             val flags = spannable.getSpanFlags(span)
@@ -236,19 +256,39 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
+        logger.d("REPLACE $st $en $text")
 
         text?.let { realText ->
+            // 1. Dispatch the mutation to the Rust core
+            val pendingCommand = WorkspaceView.WsTextMutation.Replace(
+                st, en, realText.toString(), wsInputConnection.batchEditCount.get()
+            )
+            wsInputConnection.pushTextMutationEvent(pendingCommand)
 
-            val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, realText.toString(), wsInputConnection.batchEditCount.get())
+            // Calculate the theoretical new length of the document
+            // Assuming 'this.length' or 'model.length' gets the current length before this edit
+            val currentTotalLength = this.length
+            val replacedLen = en - st
+            val delta = realText.length - replacedLen
+            val expectedNewLength = currentTotalLength + delta
 
-            localQueue.add(pendingCommand)
-            if (en < composingStart) {
-                val replacedLen = en - st
-
-                composingStart = composingStart - replacedLen + realText.length
-                composingEnd = composingEnd - replacedLen + realText.length
+            // 2. Safely shift the existing composing span
+            if (composingStart != -1 && composingEnd != -1) {
+                if (en <= composingStart) {
+                    // Edit happens entirely BEFORE the composing span: Shift it right/left
+                    composingStart += delta
+                    composingEnd += delta
+                } else if (st < composingEnd) {
+                    // Edit OVERLAPS or is INSIDE the composing span:
+                    // Invalidate the old span. We will rely on the incoming Spannable
+                    // to redefine the composing region if it's still active.
+                    composingStart = -1
+                    composingEnd = -1
+                }
+                // If st >= composingEnd, the edit is after the span, so we do nothing.
             }
 
+            // 3. Extract and apply new composing spans from the incoming text
             val spannableSource = realText as? Spannable
             if (spannableSource != null) {
                 val (sourceComposingStart, sourceComposingEnd) = if (composingTag == null) {
@@ -257,23 +297,26 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                     Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
                 }
 
-                if (sourceComposingStart != -1) {
-                    val newStart = st + sourceComposingStart
-
-                    if (composingStart == -1 || composingStart > newStart) {
-                        composingStart = newStart
-                    }
-                }
-
-                if (sourceComposingEnd != -1) {
-                    val newEnd = st + sourceComposingEnd
-
-                    if (composingEnd < newEnd) {
-                        composingEnd = newEnd
-                    }
+                // If the incoming text contains a composing span, it overrides the current state
+                if (sourceComposingStart != -1 && sourceComposingEnd != -1) {
+                    composingStart = st + sourceComposingStart
+                    composingEnd = st + sourceComposingEnd
                 }
             }
 
+            // 4. THE CRITICAL FIX: Clamp the values to prevent Rust panics
+            if (composingStart != -1) {
+                composingStart = composingStart.coerceIn(0, this.length)
+                composingEnd = composingEnd.coerceIn(0, this.length)
+
+                // Sanity check: If logic broke and start is after end, invalidate it
+                if (composingStart > composingEnd) {
+                    composingStart = -1
+                    composingEnd = -1
+                }
+            }
+
+            // 5. Trigger UI and selection updates
             view.drawImmediately()
             wsInputConnection.notifySelectionUpdated(true)
         }
@@ -282,12 +325,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun insert(where: Int, text: CharSequence?, start: Int, end: Int): Editable {
+        logger.d("INSERT $where $text $start $end")
 
         text?.let { realText ->
             val subRealText = realText.substring(start, end)
 
             if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                localQueue.add(
+                wsInputConnection.pushTextMutationEvent(
                     WorkspaceView.WsTextMutation.SendKeyEvent(
                         KeyEvent.KEYCODE_ENTER,
                         "",
@@ -295,10 +339,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                         false,
                         false,
                         false
-                    )
+                    ) 
                 )
             } else {
-                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, subRealText))
+                wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Insert(where, subRealText) )
             }
             if (where < composingStart) {
                 composingStart += subRealText.length
@@ -313,11 +357,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun insert(where: Int, text: CharSequence?): Editable {
+        logger.d("INSERT $where $text")
 
         text?.let { realText ->
 
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                localQueue.add(
+                wsInputConnection.pushTextMutationEvent(
                     WorkspaceView.WsTextMutation.SendKeyEvent(
                         KeyEvent.KEYCODE_ENTER,
                         "",
@@ -325,10 +370,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                         false,
                         false,
                         false
-                    )
+                    ) 
                 )
             } else {
-                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, realText.toString()))
+                wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Insert(where, realText.toString()) )
             }
 
             if (where < composingStart) {
@@ -344,9 +389,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
+        logger.d("DELETE $st $en")
 
         val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, "", wsInputConnection.batchEditCount.get())
-        localQueue.add(pendingCommand)
+        wsInputConnection.pushTextMutationEvent(pendingCommand )
 
         if (en < composingStart) {
             composingStart -= (en - st)
@@ -360,8 +406,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clear() {
+        logger.d("CLEAR")
 
-        localQueue.add(WorkspaceView.WsTextMutation.Clear)
+        wsInputConnection.pushTextMutationEvent(WorkspaceView.WsTextMutation.Clear )
 
         composingStart = -1
         composingEnd = -1
@@ -371,6 +418,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clearSpans() {
+        logger.d("CLEAR SPANS")
 
         if (composingStart != -1 || composingEnd != -1) {
             composingStart = -1
@@ -384,18 +432,19 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     override fun getFilters(): Array<InputFilter> = arrayOf()
 
     override val length: Int get() {
+        logger.d("GET LENGTH ${view.pendingWorkspaceTextState.get().textLength}")
 
-        return view.pendingTextLength.get()
+        return view.pendingWorkspaceTextState.get().textLength
     }
 
     private fun getTextInRange(st: Int, en: Int): String {
-        return view.pendingBuffer.get().slice(st..<en)
+        return view.pendingWorkspaceTextState.get().buffer.slice(st..<en)
     }
 
     fun flushQueue() {
         while (localQueue.isNotEmpty()) {
             val mutation = localQueue.removeFirst()
-            view.textMutations.get().add(mutation to queueId)
+            wsInputConnection.pushTextMutationEvent(mutation )
         }
     }
 }

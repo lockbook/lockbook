@@ -115,7 +115,7 @@ object Workspace {
 
     // text input
     external fun setSelection(rustObj: Long, start: Int, end: Int)
-    external fun getSelection(rustObj: Long): String
+    external fun getSelection(rustObj: Long): JTextRange
     external fun getTextLength(rustObj: Long): Int
     external fun clear(rustObj: Long)
     external fun replace(rustObj: Long, start: Int, end: Int, text: String)
