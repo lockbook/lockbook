@@ -35,52 +35,51 @@ where
         let request = context.request;
         let req_owner = Owner(context.public_key);
 
-        {
-            let mut prior_deleted = HashSet::new();
-            let mut current_deleted = HashSet::new();
+        let mut prior_deleted = HashSet::new();
+        let mut current_deleted = HashSet::new();
 
-            let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
-            let tx = db.begin_transaction()?;
+        let mut lock = self.index_db.lock().await;
+        let db = lock.deref_mut();
+        let tx = db.begin_transaction()?;
 
-            // Collect unique owners from the updates
-            let mut affected_owners: HashSet<Owner> = HashSet::new();
-            for update in &request.updates {
-                affected_owners.insert(update.new.owner());
+        // Quickly verify and fail fast and check things like access control
+        let mut tree = ServerTree::new(
+            req_owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        for id in tree.ids() {
+            if tree.calculate_deleted(&id)? {
+                prior_deleted.insert(id);
             }
+        }
 
-            // Get usage caps and calculate old/new usage for each affected owner
-            // Each owner needs their own tree to see all their files
-            for &owner in &affected_owners {
-                let usage_cap =
-                    Self::get_cap(db, &owner.0).map_err(|err| internal!("{:?}", err))?;
-
-                let mut tree = ServerTree::new(
-                    owner,
-                    &mut db.owned_files,
-                    &mut db.shared_files,
-                    &mut db.file_children,
-                    &mut db.metas,
-                )?
-                .to_lazy();
-
-                let old_usage = tree.calculate_usage(owner)?;
-
-                let mut tree = tree.stage_diff_v2(request.updates.clone())?;
-                tree.assert_changes_authorized(req_owner)?;
-                let new_usage = tree.calculate_usage(owner)?;
-
-                debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
-
-                if new_usage > usage_cap && new_usage >= old_usage {
-                    warn!(?owner, "user over cap");
-                    return Err(ClientError(UpsertError::UsageIsOverDataCap));
-                }
+        let mut tree = tree.stage_diff_v2(request.updates.clone())?;
+        for id in tree.ids() {
+            if tree.calculate_deleted(&id)? {
+                current_deleted.insert(id);
             }
+        }
 
-            // Now do the actual operation with requester's tree
+        tree.validate(req_owner)?;
+
+        // Collect unique owners from the updates
+        let mut affected_owners: HashSet<Owner> = HashSet::new();
+        for update in &request.updates {
+            affected_owners.insert(update.new.owner());
+        }
+
+        // Get usage caps and calculate old/new usage for each affected owner
+        // Each owner needs their own tree to see all their files
+        for &owner in &affected_owners {
+            let usage_cap = Self::get_cap(db, &owner.0).map_err(|err| internal!("{:?}", err))?;
+
             let mut tree = ServerTree::new(
-                req_owner,
+                owner,
                 &mut db.owned_files,
                 &mut db.shared_files,
                 &mut db.file_children,
@@ -88,51 +87,59 @@ where
             )?
             .to_lazy();
 
-            for id in tree.ids() {
-                if tree.calculate_deleted(&id)? {
-                    prior_deleted.insert(id);
-                }
-            }
+            let old_usage = tree.calculate_usage(owner)?;
 
             let mut tree = tree.stage_diff_v2(request.updates.clone())?;
-            for id in tree.ids() {
-                if tree.calculate_deleted(&id)? {
-                    current_deleted.insert(id);
-                }
+            let new_usage = tree.calculate_usage(owner)?;
+
+            debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
+
+            if new_usage > usage_cap && new_usage >= old_usage {
+                warn!(?owner, "user over cap");
+                return Err(ClientError(UpsertError::UsageIsOverDataCap));
             }
-
-            tree.validate(req_owner)?;
-
-            let tree = tree.promote()?;
-
-            for id in tree.ids() {
-                if tree.find(&id)?.is_document()
-                    && current_deleted.contains(&id)
-                    && !prior_deleted.contains(&id)
-                {
-                    let meta = tree.find(&id)?;
-                    if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
-                        db.scheduled_file_cleanups
-                            .insert((*meta.id(), hmac), get_time().0)?;
-                    }
-                }
-            }
-
-            let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
-            for meta in all_files {
-                let id = meta.id();
-                if current_deleted.contains(id) && !prior_deleted.contains(id) {
-                    for user_access_info in meta.user_access_keys() {
-                        db.shared_files
-                            .remove(&Owner(user_access_info.encrypted_for), id)?;
-                    }
-                }
-            }
-
-            db.last_seen.insert(req_owner, get_time().0 as u64)?;
-
-            tx.drop_safely()?;
         }
+
+        // Now do the actual operation with requester's tree
+        let tree = ServerTree::new(
+            req_owner,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let tree = tree.stage_diff_v2(request.updates.clone())?;
+        let tree = tree.promote()?;
+
+        for id in tree.ids() {
+            if tree.find(&id)?.is_document()
+                && current_deleted.contains(&id)
+                && !prior_deleted.contains(&id)
+            {
+                let meta = tree.find(&id)?;
+                if let Some(hmac) = meta.file.timestamped_value.value.document_hmac().copied() {
+                    db.scheduled_file_cleanups
+                        .insert((*meta.id(), hmac), get_time().0)?;
+                }
+            }
+        }
+
+        let all_files: Vec<ServerMeta> = tree.all_files()?.into_iter().cloned().collect();
+        for meta in all_files {
+            let id = meta.id();
+            if current_deleted.contains(id) && !prior_deleted.contains(id) {
+                for user_access_info in meta.user_access_keys() {
+                    db.shared_files
+                        .remove(&Owner(user_access_info.encrypted_for), id)?;
+                }
+            }
+        }
+
+        db.last_seen.insert(req_owner, get_time().0 as u64)?;
+
+        tx.drop_safely()?;
 
         Ok(())
     }
