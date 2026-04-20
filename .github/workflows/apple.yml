@@ -20,6 +20,7 @@ jobs:
       APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
       MAC_MINI_LOGIN_KEYCHAIN: ${{ secrets.MAC_MINI_LOGIN_KEYCHAIN }}
       GITHUB_TOKEN: ${{ secrets.FH_PAT }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     steps:
     - uses: actions/checkout@v4
     - name: Configure PATH
