@@ -27,7 +27,8 @@ impl<'ast> MdRender {
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level <= 2 { self.layout.block_spacing } else { 0. }
+        let trailing = if level <= 2 && !self.inline_only { self.layout.block_spacing } else { 0. };
+        text_height + trailing
     }
 
     // https://github.github.com/gfm/#setext-headings
@@ -108,7 +109,9 @@ impl<'ast> MdRender {
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
         let node_line = self.node_line(node, line);
 
-        let reveal = self.range_revealed(line, true);
+        // inline_only: the `# ` prefix isn't in the user's buffer, so never
+        // reveal it — only render the inline children.
+        let reveal = !self.inline_only && self.range_revealed(line, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
             self.split_range(node, node_line)
@@ -127,7 +130,7 @@ impl<'ast> MdRender {
             if reveal && !postfix_range.is_empty() {
                 wrap.offset += self.span_section(&wrap, postfix_range, self.text_format(node));
             }
-        } else {
+        } else if !self.inline_only {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
             wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax());
         }
@@ -290,7 +293,7 @@ impl<'ast> MdRender {
         let node_line = self.node_line(node, line);
 
         let height = self.height_atx_heading(node);
-        let reveal = self.range_revealed(line, true);
+        let reveal = !self.inline_only && self.range_revealed(line, true);
 
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
             self.split_range(node, node_line)
@@ -326,7 +329,7 @@ impl<'ast> MdRender {
                     self.text_format(node),
                 );
             }
-        } else {
+        } else if !self.inline_only {
             // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
             resp |=
                 self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
@@ -334,7 +337,7 @@ impl<'ast> MdRender {
 
         top_left.y += height;
         self.bounds.wrap_lines.extend(wrap.row_ranges);
-        if level <= 2 {
+        if level <= 2 && !self.inline_only {
             self.show_heading_rule(ui, top_left, width);
         }
 

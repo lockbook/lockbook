@@ -70,7 +70,12 @@ impl<'ast> MdEdit {
                     return None;
                 }
 
-                let text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
+                let mut text = text.replace('\u{a0}', " "); // parser does not interact well with non-breaking spaces
+                // inline_only: the buffer must not contain newlines or the
+                // heading-wrap parse collapses. Collapse CRLF/LF to a space.
+                if self.renderer.inline_only {
+                    text = text.replace("\r\n", " ").replace('\n', " ");
+                }
 
                 // with text selected, pasting a link turns selected text into a
                 // markdown link...
@@ -121,9 +126,21 @@ impl<'ast> MdEdit {
                 if self.renderer.readonly {
                     return None;
                 }
+                // inline_only: strip any newline bytes — the heading-wrap
+                // parse collapses if the buffer gains a `\n`. Some platforms
+                // emit Enter / IME composition as a Text event.
+                let text = if self.renderer.inline_only {
+                    let stripped: String = text.chars().filter(|c| *c != '\n' && *c != '\r').collect();
+                    if stripped.is_empty() {
+                        return None;
+                    }
+                    stripped
+                } else {
+                    text.clone()
+                };
                 Some(Event::Replace {
                     region: Region::Selection,
-                    text: text.clone(),
+                    text,
                     advance_cursor: true,
                 })
             }
@@ -151,6 +168,12 @@ impl<'ast> MdEdit {
                 if !cfg!(target_os = "ios") =>
             {
                 if self.renderer.readonly {
+                    return None;
+                }
+                // inline_only: Enter is a no-op — the caller (e.g. search)
+                // may have consumed it already to submit; otherwise it just
+                // shouldn't insert a newline.
+                if self.renderer.inline_only {
                     return None;
                 }
                 Some(Event::Newline { shift: modifiers.shift })

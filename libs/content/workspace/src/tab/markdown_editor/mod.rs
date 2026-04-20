@@ -118,6 +118,12 @@ pub struct MdRender {
     /// parsing, no fold UI, no completion popups. Set at construction from
     /// the non-`md` ext check; callers may also flip it directly.
     pub plaintext: bool,
+    /// When true, parse the buffer as if prefixed with `"# "` so comrak
+    /// produces `Document → Heading → inlines` — no lists, blockquotes, or
+    /// code blocks regardless of the buffer. Paired with render overrides
+    /// that strip heading styling + suppress newline input, this gives a
+    /// single-line inline-formatted input (search boxes, chat title, etc.).
+    pub inline_only: bool,
     pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
     pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
 
@@ -367,6 +373,7 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            inline_only: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -404,6 +411,7 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            inline_only: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -425,7 +433,12 @@ impl MdRender {
     /// also invoke [`MdRender::height`] on the returned root.
     pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
         let options = Self::comrak_options();
-        let text_with_newline = format!("{}\n", self.buffer.current.text);
+        // inline_only: prefix `# ` so comrak sees `Document → Heading →
+        // inlines` and can't produce block-level children. Sourcepos
+        // translation in `bounds::line_column_to_offset` subtracts the
+        // prefix length on line 0.
+        let prefix = if self.inline_only { "# " } else { "" };
+        let text_with_newline = format!("{prefix}{}\n", self.buffer.current.text);
         let root = comrak::parse_document(arena, &text_with_newline, &options);
 
         self.bounds.inline_paragraphs.clear();
@@ -503,6 +516,7 @@ impl Editor {
             interactive: true,
             readonly,
             plaintext,
+            inline_only: false,
             reveal_ranges: Vec::new(),
             text_highlight_range: None,
 
@@ -1510,5 +1524,215 @@ mod test {
 
         assert_eq!(ws.get_text(), "hello the world");
         assert_eq!(ws.get_selection(), (9, 9)); // cursor after "the"
+    }
+}
+
+#[cfg(test)]
+mod inline_only_tests {
+    //! Directly exercise `MdRender::reparse` under `inline_only = true` to
+    //! confirm the heading-wrap trick yields an AST with exactly one
+    //! `Document → Heading(1)` containing only inline descendants — no
+    //! nested blocks — regardless of user input. Also validates the
+    //! sourcepos → buffer-offset round-trip for the single source line.
+
+    use super::*;
+    use comrak::Arena;
+    use comrak::nodes::{NodeValue, Sourcepos};
+    use lb_rs::model::text::offset_types::DocCharOffset;
+
+    fn render_for(buf: &str) -> MdRender {
+        let ctx = Context::default();
+        let mut r = MdRender::empty(ctx);
+        r.inline_only = true;
+        r.buffer = buf.into();
+        r
+    }
+
+    /// Walk the AST and collect every NodeValue discriminant name. Used to
+    /// assert that only inline / heading / document nodes appear.
+    fn node_kinds<'a>(root: &'a comrak::nodes::AstNode<'a>) -> Vec<&'static str> {
+        let mut out = Vec::new();
+        for n in root.descendants() {
+            out.push(match &n.data.borrow().value {
+                NodeValue::Document => "Document",
+                NodeValue::Heading(_) => "Heading",
+                NodeValue::Paragraph => "Paragraph",
+                NodeValue::List(_) => "List",
+                NodeValue::Item(_) => "Item",
+                NodeValue::TaskItem(_) => "TaskItem",
+                NodeValue::BlockQuote => "BlockQuote",
+                NodeValue::CodeBlock(_) => "CodeBlock",
+                NodeValue::HtmlBlock(_) => "HtmlBlock",
+                NodeValue::ThematicBreak => "ThematicBreak",
+                NodeValue::Table(_) => "Table",
+                NodeValue::Text(_) => "Text",
+                NodeValue::Code(_) => "Code",
+                NodeValue::Emph => "Emph",
+                NodeValue::Strong => "Strong",
+                NodeValue::Link(_) => "Link",
+                NodeValue::SoftBreak => "SoftBreak",
+                NodeValue::LineBreak => "LineBreak",
+                _ => "Other",
+            });
+        }
+        out
+    }
+
+    /// Assert that the parsed AST has only the expected shape:
+    /// `Document → Heading → {inlines}` and no block-level children beyond
+    /// the synthesized wrapper heading.
+    fn assert_inline_only_shape(buf: &str) {
+        let mut r = render_for(buf);
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        let kinds = node_kinds(root);
+        let head = &kinds[..2.min(kinds.len())];
+        assert_eq!(head, &["Document", "Heading"], "buf={buf:?} kinds={kinds:?}");
+        for (i, k) in kinds.iter().enumerate().skip(2) {
+            assert!(
+                !matches!(
+                    *k,
+                    "Paragraph"
+                        | "List"
+                        | "Item"
+                        | "TaskItem"
+                        | "BlockQuote"
+                        | "CodeBlock"
+                        | "HtmlBlock"
+                        | "ThematicBreak"
+                        | "Table"
+                ),
+                "block child #{i} = {k:?} leaked for buf {buf:?}: {kinds:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn empty_stays_inline() {
+        assert_inline_only_shape("");
+    }
+
+    #[test]
+    fn plain_text_stays_inline() {
+        assert_inline_only_shape("hello world");
+    }
+
+    #[test]
+    fn inline_formatting_preserved() {
+        assert_inline_only_shape("bold **word** and *italic*");
+    }
+
+    #[test]
+    fn heading_syntax_is_literal_text() {
+        // "# foo" wraps to "# # foo" — outer heading consumes the first
+        // marker, inner "# foo" stays as inline text.
+        assert_inline_only_shape("# foo");
+        assert_inline_only_shape("## foo");
+        assert_inline_only_shape("###### foo");
+    }
+
+    #[test]
+    fn list_syntax_is_literal_text() {
+        assert_inline_only_shape("- foo");
+        assert_inline_only_shape("* foo");
+        assert_inline_only_shape("1. foo");
+    }
+
+    #[test]
+    fn blockquote_syntax_is_literal_text() {
+        assert_inline_only_shape("> quoted");
+    }
+
+    #[test]
+    fn indented_code_is_literal_text() {
+        assert_inline_only_shape("    foo");
+    }
+
+    #[test]
+    fn code_fence_syntax_is_literal_text() {
+        // Triple backticks have no block meaning on a single line after the
+        // heading opener; comrak sees inline code-span attempts, no fence.
+        assert_inline_only_shape("```rust foo");
+    }
+
+    #[test]
+    fn thematic_break_syntax_is_literal_text() {
+        assert_inline_only_shape("---");
+        assert_inline_only_shape("***");
+    }
+
+    #[test]
+    fn just_hash_is_not_empty_heading_syntax_render_target() {
+        // `#` as content becomes an empty heading (the `#` becomes the
+        // optional closing sequence). The render path's empty-heading
+        // fallback is gated behind !inline_only, so this shouldn't bleed
+        // into syntax styling — here we just assert the AST shape.
+        let mut r = render_for("#");
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        let kinds = node_kinds(root);
+        assert_eq!(&kinds[..2.min(kinds.len())], &["Document", "Heading"]);
+    }
+
+    /// Cardinal sourcepos on line 1 → ordinal buffer offset should subtract
+    /// the 2-char prefix; line 2+ should not subtract.
+    #[test]
+    fn sourcepos_translation_line_1_subtracts_prefix() {
+        let mut r = render_for("hello");
+        let arena = Arena::new();
+        let _ = r.reparse(&arena);
+
+        // comrak sourcepos inclusive/inclusive; first buffer char ("h") sits
+        // at line 1 col 3 in the prefixed text ("# hello").
+        let sp = Sourcepos {
+            start: comrak::nodes::LineColumn { line: 1, column: 3 },
+            end: comrak::nodes::LineColumn { line: 1, column: 7 },
+        };
+        let range = r.sourcepos_to_range(sp);
+        assert_eq!(range, (DocCharOffset(0), DocCharOffset(5)), "hello range");
+    }
+
+    #[test]
+    fn offset_to_line_column_roundtrip() {
+        let mut r = render_for("abcdef");
+        let arena = Arena::new();
+        let _ = r.reparse(&arena);
+
+        for i in 0..=6 {
+            let lc = r.offset_to_line_column(DocCharOffset(i));
+            // Cardinal line 1, column should be i + 1 + prefix(=2).
+            assert_eq!(lc.line, 1, "i={i}");
+            assert_eq!(lc.column, i + 3, "i={i} lc={lc:?}");
+        }
+    }
+
+    /// If the invariant is broken (user buffer somehow gets a `\n`), the
+    /// parse produces a Paragraph after the Heading. This test documents
+    /// that consequence so downstream mitigations (paste sanitization,
+    /// Text-event sanitization, Newline suppression) are justified.
+    #[test]
+    fn multiline_buffer_breaks_invariant() {
+        let mut r = render_for("line1\nline2");
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        let kinds = node_kinds(root);
+        // Second line becomes a Paragraph — this is the FAILURE mode the
+        // input-side sanitization is designed to prevent. Assert it's
+        // actually triggerable so the sanitization has a real job.
+        assert!(kinds.contains(&"Paragraph"), "kinds={kinds:?}");
+    }
+
+    /// Heading row-scale override — `row_height(Heading)` drives
+    /// `wrap.row_height` which drives `font_size` during render. Without
+    /// the inline_only short-circuit we'd get 2.4× text in search boxes.
+    #[test]
+    fn row_height_not_heading_scaled_when_inline_only() {
+        let mut r = render_for("x");
+        let arena = Arena::new();
+        let root = r.reparse(&arena);
+        let heading = root.children().next().expect("wrapper heading");
+        assert!(matches!(heading.data.borrow().value, NodeValue::Heading(_)));
+        let rh = r.row_height(heading);
+        assert_eq!(rh, r.layout.row_height, "row_height leaked heading scale");
     }
 }

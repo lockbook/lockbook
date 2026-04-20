@@ -87,6 +87,11 @@ impl Chat {
         composer.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
         composer.file_id = id;
+        // Shake out the inline-only heading-wrap trick: composer is single-
+        // line, Enter sends (already wired via Cmd+Enter consume above; with
+        // inline_only, bare Enter becomes a no-op too). Swap back or make
+        // this opt-in once single-line is its own well-tested surface.
+        composer.renderer.inline_only = true;
         Self { id, hmac, entries, composer, username, seq: 0, initialized: false, ctx }
     }
 

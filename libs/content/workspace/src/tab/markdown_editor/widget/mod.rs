@@ -246,7 +246,11 @@ impl<'ast> MdRender {
 
     pub fn row_height(&self, node: &AstNode<'_>) -> f32 {
         match &node.data.borrow().value {
-            NodeValue::Heading(NodeHeading { level, .. }) => self.heading_row_height(*level),
+            // inline_only wraps the buffer as a level-1 heading for parsing;
+            // don't apply the heading row scale — render as regular text.
+            NodeValue::Heading(NodeHeading { level, .. }) if !self.inline_only => {
+                self.heading_row_height(*level)
+            }
             _ => self.layout.row_height,
         }
     }

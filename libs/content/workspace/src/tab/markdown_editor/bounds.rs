@@ -81,9 +81,14 @@ impl MdRender {
     /// comrak::Sourcepos, are inclusive/inclusive so just translating the start and end using this function is
     /// incorrect - use [`sourcepos_to_range`] instead.
     pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
+        // inline_only: comrak saw `"# " + buffer`, so its sourcepos columns
+        // on line 0 are shifted by 2. Translate back into buffer coords.
+        let prefix = self.inline_only_prefix_len(line_column.line);
+        let column_ord = (line_column.column - 1).saturating_sub(prefix);
+
         // convert cardinal to ordinal
         let line_column =
-            LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 };
+            LineColumn { line: line_column.line.saturating_sub(1), column: column_ord };
 
         let line: (DocCharOffset, DocCharOffset) = *self
             .bounds
@@ -105,8 +110,17 @@ impl MdRender {
         let line_start_byte = self.offset_to_byte(line.start());
         let line_column_byte = self.offset_to_byte(offset) - line_start_byte;
 
-        // convert ordinal to cardinal
-        LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 }
+        // convert ordinal to cardinal; re-add inline_only prefix so we
+        // produce the same cardinal comrak would emit for this range.
+        let prefix = self.inline_only_prefix_len(line_idx + 1);
+        LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 + prefix }
+    }
+
+    /// Column shift introduced by the `inline_only` heading-wrap prefix.
+    /// The prefix (`"# "`, 2 chars) only occupies the first source line, so
+    /// lines beyond 0 get no shift.
+    fn inline_only_prefix_len(&self, cardinal_line: usize) -> usize {
+        if self.inline_only && cardinal_line == 1 { 2 } else { 0 }
     }
 
     pub fn sourcepos_to_range(&self, mut sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
