@@ -32,8 +32,8 @@ where
     pub async fn upsert_file_metadata_v2(
         &self, context: RequestContext<UpsertRequestV2>,
     ) -> Result<(), ServerError<UpsertError>> {
-        let request = context.request;
         let req_owner = Owner(context.public_key);
+        let UpsertRequestV2 { updates } = context.request;
 
         let mut prior_deleted = HashSet::new();
         let mut current_deleted = HashSet::new();
@@ -42,7 +42,7 @@ where
         let db = lock.deref_mut();
         let tx = db.begin_transaction()?;
 
-        // Quickly verify and fail fast and check things like access control
+        // fail fast on things like access control
         let mut tree = ServerTree::new(
             req_owner,
             &mut db.owned_files,
@@ -58,18 +58,20 @@ where
             }
         }
 
-        let mut tree = tree.stage_diff_v2(request.updates.clone())?;
+        let mut tree = tree.stage_diff_v2(updates.clone())?;
+        tree.validate(req_owner)?;
+
         for id in tree.ids() {
             if tree.calculate_deleted(&id)? {
                 current_deleted.insert(id);
             }
         }
 
-        tree.validate(req_owner)?;
+        drop(tree);
 
         // Collect unique owners from the updates
         let mut affected_owners: HashSet<Owner> = HashSet::new();
-        for update in &request.updates {
+        for update in &updates {
             affected_owners.insert(update.new.owner());
         }
 
@@ -88,8 +90,7 @@ where
             .to_lazy();
 
             let old_usage = tree.calculate_usage(owner)?;
-
-            let mut tree = tree.stage_diff_v2(request.updates.clone())?;
+            let mut tree = tree.stage_unvalidated(updates.clone());
             let new_usage = tree.calculate_usage(owner)?;
 
             debug!(?owner, ?old_usage, ?new_usage, ?usage_cap, "usage caps on upsert");
@@ -100,7 +101,6 @@ where
             }
         }
 
-        // Now do the actual operation with requester's tree
         let tree = ServerTree::new(
             req_owner,
             &mut db.owned_files,
@@ -110,7 +110,7 @@ where
         )?
         .to_lazy();
 
-        let tree = tree.stage_diff_v2(request.updates.clone())?;
+        let tree = tree.stage_unvalidated(updates.clone());
         let tree = tree.promote()?;
 
         for id in tree.ids() {

@@ -12,7 +12,7 @@ type LazyServerStaged1<'a> = LazyStaged1<ServerTree<'a>, Vec<ServerMeta>>;
 
 impl<'a> LazyTree<ServerTree<'a>> {
     pub fn stage_diff_v2(
-        self, mut changes: Vec<FileDiff<SignedMeta>>,
+        self, changes: Vec<FileDiff<SignedMeta>>,
     ) -> LbResult<LazyServerStaged1<'a>> {
         // Check new.id == old.id
         for change in &changes {
@@ -51,7 +51,7 @@ impl<'a> LazyTree<ServerTree<'a>> {
         }
 
         // Check for race conditions and populate prior size
-        for change in &mut changes {
+        for change in &changes {
             match &change.old {
                 Some(old) => {
                     let current = &self
@@ -72,12 +72,18 @@ impl<'a> LazyTree<ServerTree<'a>> {
             }
         }
 
+        Ok(self.stage_unvalidated(changes))
+    }
+
+    pub fn stage_unvalidated(
+        self, changes: Vec<FileDiff<SignedMeta>>,
+    ) -> LazyServerStaged1<'a> {
         let now = get_time().0 as u64;
         let changes = changes
             .into_iter()
             .map(|change| change.new.add_time(now))
             .collect();
 
-        Ok(self.stage(changes))
+        self.stage(changes)
     }
 }
