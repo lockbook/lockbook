@@ -54,12 +54,14 @@ jobs:
       with:
         name: lockbook-macos
         path: clients/apple/build/lockbook-macos.app.zip
+        compression-level: 0
     - name: Upload macOS CLI
       if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
       with:
         name: lockbook-cli-macos
         path: target/universal-cli/lockbook-cli-macos.tar.gz
+        compression-level: 0
     - name: Upload macOS egui
       if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
