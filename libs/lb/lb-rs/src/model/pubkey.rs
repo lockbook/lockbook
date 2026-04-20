@@ -29,15 +29,13 @@ pub fn sign<T: Serialize>(
 }
 
 pub fn verify<T: Serialize>(
-    pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64,
-    time_getter: TimeGetter,
+    pk: &PublicKey, signed: &ECSigned<T>, max_delay_ms: u64, max_skew_ms: u64, current_time: i64,
 ) -> LbResult<()> {
     if &signed.public_key != pk {
         Err(LbErrKind::Sign(SignError::WrongPublicKey))?;
     }
 
     let auth_time = signed.timestamped_value.timestamp;
-    let current_time = time_getter().0;
     let max_skew_ms = max_skew_ms as i64;
     let max_delay_ms = max_delay_ms as i64;
 
@@ -90,14 +88,13 @@ mod unit_tests {
     use crate::model::pubkey::*;
 
     static EARLY_CLOCK: fn() -> Timestamp = || Timestamp(500);
-    static LATE_CLOCK: fn() -> Timestamp = || Timestamp(520);
 
     #[test]
     fn ec_test_sign_verify() {
         let sk = generate_key();
         let pk = PublicKey::from_secret_key(&sk);
         let value = sign(&sk, &pk, "Test", EARLY_CLOCK).unwrap();
-        verify(&pk, &value, 20, 20, LATE_CLOCK).unwrap();
+        verify(&pk, &value, 20, 20, 520).unwrap();
     }
 
     #[test]
@@ -105,7 +102,7 @@ mod unit_tests {
         let sk = generate_key();
         let pk = PublicKey::from_secret_key(&sk);
         let value = sign(&sk, &pk, "Test", EARLY_CLOCK).unwrap();
-        verify(&pk, &value, 10, 10, LATE_CLOCK).unwrap_err();
+        verify(&pk, &value, 10, 10, 520).unwrap_err();
     }
 
     #[test]
