@@ -273,8 +273,8 @@ pub trait FilesExt {
     }
 
     /// returns all known parents until we can't find one (share) or we hit root.
-    /// Paths rooted in the user's own tree start with `/`. Paths in a share tree
-    /// (where the walk stopped at a share boundary) omit the leading `/`.
+    /// All paths start with `/`: own-tree paths anchor at the user root,
+    /// share-tree paths anchor at virtual share roots that are children of `/`.
     fn path(&self, id: Uuid) -> String {
         let Some(file) = self.get_by_id(id) else { return "/".to_string() };
         if file.is_root() {
@@ -282,11 +282,9 @@ pub trait FilesExt {
         }
         let mut parts = vec![file.name.as_str()];
         let mut current = file.parent;
-        let mut reached_root = false;
         loop {
             let Some(f) = self.get_by_id(current) else { break };
             if f.is_root() {
-                reached_root = true;
                 break;
             }
             parts.push(f.name.as_str());
@@ -294,26 +292,28 @@ pub trait FilesExt {
         }
         parts.reverse();
         let joined = parts.join("/");
-        if reached_root && file.is_folder() {
-            format!("/{joined}/")
-        } else if reached_root {
-            format!("/{joined}")
-        } else if file.is_folder() {
-            format!("{joined}/")
-        } else {
-            joined
-        }
+        if file.is_folder() { format!("/{}/", joined) } else { format!("/{}", joined) }
     }
 
     fn by_path(&self, path: &str) -> Option<&File> {
         let components: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
         let mut current = self.root().id;
-        for component in components {
-            current = self
+        for (i, component) in components.iter().enumerate() {
+            if let Some(child) = self
                 .children(current)
                 .into_iter()
-                .find(|f| f.name == component)?
-                .id;
+                .find(|f| f.name == *component)
+            {
+                current = child.id;
+            } else if i == 0 {
+                // At the root level, try to find a share root with this name
+                let share_root = self
+                    .iter_files()
+                    .find(|f| f.name == *component && self.get_by_id(f.parent).is_none())?;
+                current = share_root.id;
+            } else {
+                return None;
+            }
         }
         self.get_by_id(current)
     }
@@ -347,9 +347,13 @@ pub trait FilesExt {
             return Some(ResolvedLink::External(url.to_string()));
         }
 
-        let parent_path = self.path(from_id);
-        let combined = format!("{}/{}", parent_path.trim_end_matches('/'), url);
-        let canonical = canonicalize(&combined);
+        let canonical = if url.starts_with('/') {
+            canonicalize(url)
+        } else {
+            let parent_path = self.path(from_id);
+            let combined = format!("{}/{}", parent_path.trim_end_matches('/'), url);
+            canonicalize(&combined)
+        };
         let decoded = decode(&canonical)
             .map(|c| c.into_owned())
             .unwrap_or(canonical);
@@ -403,9 +407,8 @@ pub trait FilesExt {
             _ => candidates
                 .iter()
                 .min_by_key(|f| {
-                    relative_path(&parent_path, &self.path(f.id))
-                        .matches("../")
-                        .count()
+                    let rel = relative_path(&parent_path, &self.path(f.id));
+                    rel.matches('/').count()
                 })
                 .map(|f| f.id),
         }
