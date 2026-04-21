@@ -662,12 +662,11 @@ impl Workspace {
                         DocType::Chat => {
                             let reload = tab.chat().is_some() && !tab_created;
                             if !reload {
-                                let username = self.account.username.clone();
                                 tab.content = ContentState::Open(TabContent::Chat(Chat::new(
                                     &bytes,
                                     id,
                                     maybe_hmac,
-                                    username,
+                                    self.account.clone(),
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
                                 )));

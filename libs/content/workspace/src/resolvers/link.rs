@@ -44,9 +44,12 @@ impl LinkResolver for () {
     }
 }
 
+const CROSS_TREE_MSG: &str =
+    "This link points to a file shared differently and may not be visible to all collaborators.";
+
 /// Resolver backed by lockbook's file cache. Resolves links relative to the
-/// parent folder of a given file, and flags links whose target can't be
-/// reached by all collaborators on the source file.
+/// parent folder of a given file. Cross-tree UUID links from a pending share
+/// tree are flagged with a yellow warning; the crypto layer enforces access.
 #[derive(Clone)]
 pub struct FileCacheLinkResolver {
     files: Arc<RwLock<FileCache>>,
@@ -81,12 +84,11 @@ impl LinkResolver for FileCacheLinkResolver {
             None => LinkState::Broken { message: "Destination not found".into() },
             Some(ResolvedLink::External(_)) => LinkState::Normal,
             Some(ResolvedLink::File(target_id)) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning {
-                        message: "Some collaborators cannot access this link destination".into(),
-                    }
-                } else {
+                let from_own = guard.tree_root(from_id) == guard.root().id;
+                if from_own || guard.same_tree(from_id, target_id) {
                     LinkState::Normal
+                } else {
+                    LinkState::Warning { message: CROSS_TREE_MSG.into() }
                 }
             }
         }
@@ -99,15 +101,7 @@ impl LinkResolver for FileCacheLinkResolver {
         };
         match guard.resolve_wikilink(title, from_id) {
             None => LinkState::Broken { message: "Destination not found".into() },
-            Some(target_id) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning {
-                        message: "Some collaborators cannot access this link target".into(),
-                    }
-                } else {
-                    LinkState::Normal
-                }
-            }
+            Some(_) => LinkState::Normal, // wikilinks are always within-tree
         }
     }
 }

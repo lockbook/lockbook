@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
@@ -181,53 +181,6 @@ impl FileCache {
         segments
     }
 
-    /// Collects the set of usernames who have access to a file: the owner plus
-    /// anyone with a share entry on the file or any of its ancestors.
-    pub fn users_with_access(&self, id: Uuid) -> HashSet<&str> {
-        let mut users = HashSet::new();
-        for ancestor_id in iter::once(id).chain(self.ancestors(id)) {
-            let Some(file) = self.get_by_id(ancestor_id) else { break };
-            if users.is_empty() {
-                users.insert(file.owner.as_str());
-            }
-            for share in &file.shares {
-                users.insert(share.shared_with.as_str());
-            }
-        }
-        users
-    }
-
-    /// Returns true if any user with access to `from_id` cannot access `target_id`.
-    pub fn link_has_access_gap(&self, from_id: Uuid, target_id: Uuid) -> bool {
-        let from_users = self.users_with_access(from_id);
-        let target_users = self.users_with_access(target_id);
-        from_users.iter().any(|u| !target_users.contains(u))
-    }
-
-    /// Returns true if two files are in the same tree. Files in different share
-    /// trees or across the user's own tree and a share tree are in different trees.
-    /// Two files are in the same tree if walking up ancestors from both reaches the
-    /// same root (either the user's root or the same share root).
-    pub fn same_tree(&self, a: Uuid, b: Uuid) -> bool {
-        self.tree_root(a) == self.tree_root(b)
-    }
-
-    /// Walks ancestors to find the tree root: the user's root or the topmost
-    /// reachable file (share root, where the parent is not in the cache).
-    pub fn tree_root(&self, id: Uuid) -> Uuid {
-        let mut current = id;
-        loop {
-            let Some(file) = self.get_by_id(current) else { return current };
-            if file.is_root() {
-                return current;
-            }
-            if self.get_by_id(file.parent).is_none() {
-                return current; // share root: parent not in cache
-            }
-            current = file.parent;
-        }
-    }
-
     pub fn last_modified_by_recursive(&self, id: Uuid) -> &str {
         self.last_modified_by_recursive
             .get(&id)
@@ -272,9 +225,28 @@ pub trait FilesExt {
         descendents
     }
 
-    /// returns all known parents until we can't find one (share) or we hit root.
-    /// All paths start with `/`: own-tree paths anchor at the user root,
-    /// share-tree paths anchor at virtual share roots that are children of `/`.
+    /// Walks ancestors to find the tree root: the user's own root or the topmost
+    /// reachable file (a pending share root, whose parent is not in the cache).
+    fn tree_root(&self, id: Uuid) -> Uuid {
+        let mut current = id;
+        loop {
+            let Some(file) = self.get_by_id(current) else { return current };
+            if file.is_root() {
+                return current;
+            }
+            if self.get_by_id(file.parent).is_none() {
+                return current;
+            }
+            current = file.parent;
+        }
+    }
+
+    fn same_tree(&self, a: Uuid, b: Uuid) -> bool {
+        self.tree_root(a) == self.tree_root(b)
+    }
+
+    /// Returns the path string for a file. Own-tree paths start with `/`;
+    /// pending share-tree paths have no leading `/` (they have no absolute address).
     fn path(&self, id: Uuid) -> String {
         let Some(file) = self.get_by_id(id) else { return "/".to_string() };
         if file.is_root() {
@@ -282,9 +254,11 @@ pub trait FilesExt {
         }
         let mut parts = vec![file.name.as_str()];
         let mut current = file.parent;
+        let mut reached_root = false;
         loop {
             let Some(f) = self.get_by_id(current) else { break };
             if f.is_root() {
+                reached_root = true;
                 break;
             }
             parts.push(f.name.as_str());
@@ -292,27 +266,52 @@ pub trait FilesExt {
         }
         parts.reverse();
         let joined = parts.join("/");
-        if file.is_folder() { format!("/{}/", joined) } else { format!("/{}", joined) }
+        if reached_root && file.is_folder() {
+            format!("/{joined}/")
+        } else if reached_root {
+            format!("/{joined}")
+        } else if file.is_folder() {
+            format!("{joined}/")
+        } else {
+            joined
+        }
     }
 
     fn by_path(&self, path: &str) -> Option<&File> {
         let components: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
         let mut current = self.root().id;
-        for (i, component) in components.iter().enumerate() {
-            if let Some(child) = self
+        for component in components {
+            current = self
                 .children(current)
                 .into_iter()
-                .find(|f| f.name == *component)
-            {
-                current = child.id;
-            } else if i == 0 {
-                // At the root level, try to find a share root with this name
-                let share_root = self
-                    .iter_files()
-                    .find(|f| f.name == *component && self.get_by_id(f.parent).is_none())?;
-                current = share_root.id;
-            } else {
-                return None;
+                .find(|f| f.name == component)?
+                .id;
+        }
+        self.get_by_id(current)
+    }
+
+    /// Resolves a relative path by walking the tree from `from_id`. Handles `..`
+    /// by ascending to the parent; stops at the tree root (own or share). Does not
+    /// cross tree boundaries.
+    fn resolve_relative_path(&self, from_id: Uuid, rel: &str) -> Option<&File> {
+        let mut current = from_id;
+        for component in rel.split('/') {
+            match component {
+                "" | "." => {}
+                ".." => {
+                    let f = self.get_by_id(current)?;
+                    if f.is_root() || self.get_by_id(f.parent).is_none() {
+                        return None; // can't go above tree root
+                    }
+                    current = f.parent;
+                }
+                name => {
+                    current = self
+                        .children(current)
+                        .into_iter()
+                        .find(|f| f.name == name)?
+                        .id;
+                }
             }
         }
         self.get_by_id(current)
@@ -322,10 +321,10 @@ pub trait FilesExt {
     ///
     /// - `lb://uuid` — verified against cache, returned as `File(uuid)`
     /// - external (http/https/mailto/#) — returned as `External(url)`
-    /// - absolute path (`/foo`) — anchored at the user's own root. Share
-    ///   roots appear as virtual children of `/` (so `/s0/f.md` resolves into
-    ///   share `s0`).
-    /// - relative path — resolved against `from_id`'s folder.
+    /// - absolute path (`/foo`) — anchored at the user's own root only;
+    ///   never resolves into a pending share tree.
+    /// - relative path — resolved against `from_id`'s folder, within the
+    ///   same tree only; cross-tree links return None.
     ///
     /// Only documents resolve to `File`; folders are treated as broken.
     /// Returns None if the URL is an internal path that doesn't resolve.
@@ -347,18 +346,22 @@ pub trait FilesExt {
             return Some(ResolvedLink::External(url.to_string()));
         }
 
-        let canonical = if url.starts_with('/') {
-            canonicalize(url)
+        let file = if url.starts_with('/') {
+            let canonical = canonicalize(url);
+            let decoded = decode(&canonical)
+                .map(|c| c.into_owned())
+                .unwrap_or(canonical);
+            self.by_path(&decoded)?
         } else {
-            let parent_path = self.path(from_id);
-            let combined = format!("{}/{}", parent_path.trim_end_matches('/'), url);
-            canonicalize(&combined)
+            let decoded = decode(url)
+                .map(|c| c.into_owned())
+                .unwrap_or_else(|_| url.to_string());
+            self.resolve_relative_path(from_id, &decoded)?
         };
-        let decoded = decode(&canonical)
-            .map(|c| c.into_owned())
-            .unwrap_or(canonical);
-        let file = self.by_path(&decoded)?;
         if !file.is_document() {
+            return None;
+        }
+        if !self.same_tree(from_id, file.id) {
             return None;
         }
         Some(ResolvedLink::File(file.id))
@@ -367,20 +370,20 @@ pub trait FilesExt {
     /// Resolves a wikilink title to a document UUID.
     ///
     /// - disambiguation paths ("folder/title") resolved via relative path from `from_id`
-    /// - bare titles matched case-insensitively against the cache
+    /// - bare titles matched case-insensitively within the same tree as `from_id`
     /// - on conflict, prefers the file closest to `from_id`
     ///
-    /// Only documents match; folders are ignored.
+    /// Only documents match; folders are ignored. Cross-tree matches are never returned.
     /// Returns None if no matching document is found.
     fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
-        let parent_path = self.path(from_id);
-
         if title.contains('/') {
             let with_ext =
                 if title.ends_with(".md") { title.to_string() } else { format!("{}.md", title) };
-            let combined = format!("{}/{}", parent_path.trim_end_matches('/'), with_ext);
-            let canonical = canonicalize(&combined);
-            if let Some(file) = self.by_path(&canonical).filter(|f| f.is_document()) {
+            if let Some(file) = self
+                .resolve_relative_path(from_id, &with_ext)
+                .filter(|f| f.is_document())
+                .filter(|f| self.same_tree(from_id, f.id))
+            {
                 return Some(file.id);
             }
         }
@@ -394,6 +397,7 @@ pub trait FilesExt {
         let candidates: Vec<_> = self
             .iter_files()
             .filter(|f| f.is_document())
+            .filter(|f| self.same_tree(from_id, f.id))
             .filter(|f| {
                 f.name
                     .trim_end_matches(".md")
@@ -407,7 +411,8 @@ pub trait FilesExt {
             _ => candidates
                 .iter()
                 .min_by_key(|f| {
-                    let rel = relative_path(&parent_path, &self.path(f.id));
+                    let from_path = self.path(from_id);
+                    let rel = relative_path(&from_path, &self.path(f.id));
                     rel.matches('/').count()
                 })
                 .map(|f| f.id),

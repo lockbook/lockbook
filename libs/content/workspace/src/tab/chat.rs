@@ -10,6 +10,7 @@ use egui::{
     Color32, CornerRadius, Galley, Id, Key, Modifiers, Rect, ScrollArea, Sense, Ui, pos2, vec2,
 };
 use lb_rs::Uuid;
+use lb_rs::model::account::Account;
 use lb_rs::model::chat::{Buffer, Message};
 use lb_rs::model::file_metadata::DocumentHmac;
 
@@ -66,7 +67,7 @@ pub struct Chat {
     pub hmac: Option<DocumentHmac>,
     pub entries: Vec<Entry>,
     pub composer: MdEdit,
-    pub username: String,
+    pub account: Account,
     pub seq: usize,
     pub initialized: bool,
     ctx: egui::Context,
@@ -74,7 +75,7 @@ pub struct Chat {
 
 impl Chat {
     pub fn new(
-        bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, username: String, ctx: egui::Context,
+        bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
         files: Arc<RwLock<FileCache>>,
     ) -> Self {
         let entries = Buffer::new(bytes)
@@ -87,7 +88,7 @@ impl Chat {
         composer.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
         composer.file_id = id;
-        Self { id, hmac, entries, composer, username, seq: 0, initialized: false, ctx }
+        Self { id, hmac, entries, composer, account, seq: 0, initialized: false, ctx }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -191,7 +192,7 @@ impl Chat {
                     for i in 0..n {
                         let from = self.entries[i].msg.from.clone();
                         let ts = self.entries[i].msg.ts;
-                        let is_mine = from == self.username;
+                        let is_mine = from == self.account.username;
                         let first_in_run = i == 0 || self.entries[i - 1].msg.from != from;
                         let last_in_run = i + 1 >= n || self.entries[i + 1].msg.from != from;
 
@@ -345,8 +346,11 @@ impl Chat {
                 .trim()
                 .to_string();
             if !content.is_empty() {
-                let msg =
-                    Message { from: self.username.clone(), content, ts: Utc::now().timestamp() };
+                let msg = Message {
+                    from: self.account.username.clone(),
+                    content,
+                    ts: Utc::now().timestamp(),
+                };
                 self.entries.push(Entry::new(
                     msg,
                     &self.ctx,
