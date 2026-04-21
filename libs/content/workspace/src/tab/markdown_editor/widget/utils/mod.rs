@@ -53,21 +53,22 @@ impl<'ast> MdRender {
         while pos < bytes.len() {
             let mut start_pos = pos;
 
-            // Find the end of this line
+            // Find the end of this line. CommonMark line endings: \n, \r\n, or
+            // bare \r (CR not followed by LF). Must match comrak's line
+            // counting — if we missed a separator it splits on, our
+            // `source_lines` wouldn't align with comrak's sourcepos line
+            // numbers.
             while pos < bytes.len() {
-                // Check for line endings
                 if bytes[pos] == b'\n' {
-                    // Found a newline
                     let line_range = (base_offset + start_pos, base_offset + pos);
                     result.push(self.range_to_char(line_range));
-                    pos += 1; // Move past the \n
+                    pos += 1;
                     start_pos = pos;
                     break;
-                } else if pos + 1 < bytes.len() && bytes[pos] == b'\r' && bytes[pos + 1] == b'\n' {
-                    // Found a CRLF
+                } else if bytes[pos] == b'\r' {
                     let line_range = (base_offset + start_pos, base_offset + pos);
                     result.push(self.range_to_char(line_range));
-                    pos += 2; // Move past the \r\n
+                    pos += if pos + 1 < bytes.len() && bytes[pos + 1] == b'\n' { 2 } else { 1 };
                     start_pos = pos;
                     break;
                 }
