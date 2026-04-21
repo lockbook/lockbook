@@ -13,6 +13,11 @@ pub mod theme;
 pub mod widgets;
 pub mod workspace;
 
+#[cfg(test)]
+mod file_cache_prop_tests;
+#[cfg(test)]
+mod test_utils;
+
 pub use output::Response;
 pub use tab::Event;
 

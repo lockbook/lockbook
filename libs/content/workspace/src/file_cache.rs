@@ -322,7 +322,10 @@ pub trait FilesExt {
     ///
     /// - `lb://uuid` — verified against cache, returned as `File(uuid)`
     /// - external (http/https/mailto/#) — returned as `External(url)`
-    /// - relative path — resolved against `from_id`'s folder in the cache
+    /// - absolute path (`/foo`) — anchored at the user's own root. Share
+    ///   roots appear as virtual children of `/` (so `/s0/f.md` resolves into
+    ///   share `s0`).
+    /// - relative path — resolved against `from_id`'s folder.
     ///
     /// Only documents resolve to `File`; folders are treated as broken.
     /// Returns None if the URL is an internal path that doesn't resolve.
