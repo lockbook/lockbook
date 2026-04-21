@@ -16,17 +16,28 @@
 //!
 //! # Test structure
 //!
-//! Trees are byte-stream generated into a `FileCache`: one own root in `files`,
-//! plus 0–3 pending shares in `shared`. Each pending share's root has a parent
-//! UUID that's absent from the cache (modeling the owner's file we don't have
-//! access to), and can be either a folder with filled-in children or a single
-//! document. Names are drawn from `a`/`b`/`c`/`d`/`a b` for both own-tree and
-//! share-tree files, so cross-parent and cross-tree name collisions are common;
-//! within-parent collisions are skipped. On failure the buffer is
-//! delta-debugged and the shrunken case is printed.
+//! Each seed produces a `FileCache` with one own tree and 0–3 pending shares.
+//! Names are drawn from a shared pool, so cross-tree collisions are common.
+//! Nested shared folders are out of scope — see
+//! <https://github.com/lockbook/lockbook/issues/4496>. On failure the buffer
+//! is delta-debugged and the shrunken case is printed.
 //!
-//! We do not check nested shared folders, which have some unresolved cases:
-//! <https://github.com/lockbook/lockbook/issues/4496>.
+//! # Breakages this suite detects
+//!
+//! Confirmed via fault injection:
+//!
+//! - **Tree isolation is violated** — absolute paths resolving across trees,
+//!   or wikilinks matching documents in a different tree.
+//! - **`path()` produces wrong strings** — components in reverse order, or
+//!   own-tree paths missing their leading `/`.
+//! - **Percent-encoded absolute paths fail to resolve.**
+//! - **Wikilinks can't find their target** because `.md` isn't trimmed from
+//!   filenames before comparing to the title.
+//! - **Folder paths resolve as documents** (should return None).
+//! - **Wikilink ties are resolved toward the farthest match** instead of the
+//!   nearest.
+//! - **Excessive `..` in a relative path saturates silently** at the tree
+//!   root instead of returning None.
 
 use std::collections::HashMap;
 
@@ -40,6 +51,7 @@ use crate::file_cache::{FileCache, FilesExt, ResolvedLink, relative_path};
 use crate::test_utils::byte_source::ByteSource;
 use crate::test_utils::shrink::shrink;
 
+/// Builds a `File` with zero-valued defaults for fields the tests don't use.
 fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
     File {
         id,
@@ -56,8 +68,17 @@ fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
 
 const POOL: [&str; 5] = ["a", "b", "c", "d", "a b"];
 
-/// Picks a name + file_type for a new file. Folders use the bare pool name;
-/// documents append `.md`. 50/50 folder/document.
+/// Weights for picking how many files to add in a subtree (max iterations =
+/// length - 1). Bounds tree depth, since each iteration can add at most one
+/// level when every file is a folder in a straight chain.
+const SUBTREE_SIZE_BIAS: &[u32] = &[2, 3, 4, 4, 3, 2, 2, 1];
+
+/// Upper bound on own-tree depth: derived from `SUBTREE_SIZE_BIAS` on the
+/// assumption that every added file is a folder extending the deepest chain.
+const MAX_TREE_DEPTH: usize = SUBTREE_SIZE_BIAS.len() - 1;
+
+/// Picks a name and type: 50/50 folder/document, name drawn from `POOL`.
+/// Documents get `.md` appended.
 fn pick_file(src: &mut ByteSource) -> (String, FileType) {
     let is_folder = src.bias(&[1, 1]) == 1;
     let c = POOL[src.draw(POOL.len())];
@@ -68,12 +89,11 @@ fn pick_file(src: &mut ByteSource) -> (String, FileType) {
     }
 }
 
-/// Fills a subtree under `root_id`, appending files to `out`. Caller is
-/// responsible for placing `root_id` itself. Skips any (parent, name) that
-/// already exists, since files aren't allowed to have path conflicts.
+/// Fills descendants under `root_id` (already in `out`), skipping any sibling
+/// name collision since files can't have path conflicts.
 fn fill_subtree(out: &mut Vec<File>, src: &mut ByteSource, root_id: Uuid) {
     let mut folders = vec![root_id];
-    for _ in 0..src.bias(&[2, 3, 4, 4, 3, 2, 2, 1]) {
+    for _ in 0..src.bias(SUBTREE_SIZE_BIAS) {
         let parent = folders[src.draw(folders.len())];
         let (name, file_type) = pick_file(src);
         if out.iter().any(|f| f.parent == parent && f.name == name) {
@@ -87,33 +107,30 @@ fn fill_subtree(out: &mut Vec<File>, src: &mut ByteSource, root_id: Uuid) {
     }
 }
 
-/// Appends one pending share subtree to `shared`. The share root's parent is
-/// a fresh UUID that doesn't appear anywhere else — modeling the owner's file
-/// that we don't have access to. The root draws its name and type from the
-/// same pool as everything else, so a share might be a folder named "a"
-/// (colliding with an own-tree "a"), or a single document. Folder shares get
-/// descendants filled in; document shares stand alone.
-fn add_share(shared: &mut Vec<File>, src: &mut ByteSource) {
-    let absent_parent = Uuid::new_v4();
-    let share_root_id = Uuid::new_v4();
-    let (name, file_type) = pick_file(src);
-    let is_folder = matches!(file_type, FileType::Folder);
-    shared.push(file(share_root_id, absent_parent, &name, file_type));
-    if is_folder {
-        fill_subtree(shared, src, share_root_id);
-    }
-}
-
+/// Generates a `FileCache` from `src`: one own tree plus 0–3 disjoint pending
+/// shares. Every file's name is drawn from the same pool.
 fn cache(src: &mut ByteSource) -> FileCache {
+    // Own tree: a self-parenting root and its descendants.
     let own_root_id = Uuid::new_v4();
     let own_root = file(own_root_id, own_root_id, "root", FileType::Folder);
-
     let mut files = vec![own_root.clone()];
     fill_subtree(&mut files, src, own_root_id);
 
+    // 0–3 pending shares. Each share root's parent is a fresh UUID that doesn't
+    // appear anywhere else — modeling the owner's file we don't have access to.
+    // The share root can be a folder (with filled-in descendants) or a single
+    // document. Its name comes from the same pool as everything else, so
+    // cross-tree name collisions are common.
     let mut shared = vec![];
     for _ in 0..src.bias(&[6, 3, 2, 1]) {
-        add_share(&mut shared, src);
+        let absent_parent = Uuid::new_v4();
+        let share_root_id = Uuid::new_v4();
+        let (name, file_type) = pick_file(src);
+        let is_folder = matches!(file_type, FileType::Folder);
+        shared.push(file(share_root_id, absent_parent, &name, file_type));
+        if is_folder {
+            fill_subtree(&mut shared, src, share_root_id);
+        }
     }
 
     FileCache {
@@ -128,6 +145,8 @@ fn cache(src: &mut ByteSource) -> FileCache {
     }
 }
 
+/// Round-trips absolute / relative / percent-encoded paths for own-tree docs,
+/// and checks that folder paths don't resolve and excess `..` doesn't escape.
 fn link_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut src = ByteSource::new(buf);
     let cache = cache(&mut src);
@@ -168,9 +187,43 @@ fn link_check(buf: &[u8]) -> Result<(), &'static str> {
             }
         }
     }
+    // D: a path that points to a folder must not resolve (only documents do)
+    if from_is_own_tree {
+        for f in cache.iter_files().filter(|f| f.is_folder()) {
+            if cache.tree_root(f.id) != own_root {
+                continue;
+            }
+            let abs = cache.path(f.id);
+            if cache.resolve_link(&abs, from_id).is_some() {
+                return Err("absolute path to a folder must not resolve");
+            }
+        }
+    }
+    // E: excessive `..` in a relative path must not saturate at the tree root
+    // and silently continue resolving — it must return None. Prefix an
+    // existing own-tree doc's path with one more `..` than the tree's max
+    // depth, guaranteeing the walk would escape. If `..` at root correctly
+    // returns None the whole path fails; if it no-ops, the excess dots
+    // saturate and the tail finds the doc from root.
+    if from_is_own_tree {
+        for target in cache
+            .iter_files()
+            .filter(|f| f.is_document())
+            .filter(|f| cache.tree_root(f.id) == own_root)
+        {
+            let tail = cache.path(target.id);
+            let tail = tail.trim_start_matches('/');
+            let escape = format!("{}{tail}", "../".repeat(MAX_TREE_DEPTH + 1));
+            if cache.resolve_link(&escape, from_id).is_some() {
+                return Err("excessive `..` escaped the tree root");
+            }
+        }
+    }
     Ok(())
 }
 
+/// Wikilinks resolve within the same tree by case-insensitive title match,
+/// with disambiguation via a relative path.
 fn wikilink_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut src = ByteSource::new(buf);
     let cache = cache(&mut src);
@@ -219,6 +272,8 @@ fn wikilink_check(buf: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// UUID links always resolve to a `File`; path-based links never cross tree
+/// boundaries in either direction.
 fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut src = ByteSource::new(buf);
     let cache = cache(&mut src);
@@ -246,7 +301,8 @@ fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
             }
         }
 
-        // Relative path resolves iff source and target are in the same tree
+        // Relative path resolves iff source and target are in the same tree.
+        // (The "both own-tree but different" case can't happen: own tree is one tree.)
         if same {
             let from_path = cache.path(from_id);
             let abs = cache.path(f.id);
@@ -255,8 +311,6 @@ fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
             {
                 return Err("rel path: same-tree must resolve");
             }
-        } else if f_is_own && from_is_own {
-            // both own-tree but different... can't happen (own tree is one tree)
         } else {
             // relative path computed toward a cross-tree file must not reach that file
             let from_path = cache.path(from_id);
@@ -271,17 +325,8 @@ fn cross_tree_policy_check(buf: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
-fn report_and_panic(seed: u64, reason: &str, shrunk: Vec<u8>) -> ! {
-    let mut src = ByteSource::new(&shrunk);
-    let cache = cache(&mut src);
-    panic!(
-        "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\nfiles:\n{:#?}\nshared:\n{:#?}",
-        shrunk.len(),
-        cache.files,
-        cache.shared,
-    );
-}
-
+/// Runs `check` across 2048 seeded buffers. On failure, delta-debugs the
+/// input and panics with the shrunken buffer and its reconstructed cache.
 fn run(check: fn(&[u8]) -> Result<(), &'static str>) {
     for seed in 0..2048u64 {
         let mut rng = StdRng::seed_from_u64(seed);
@@ -289,7 +334,14 @@ fn run(check: fn(&[u8]) -> Result<(), &'static str>) {
         rng.fill(&mut buf[..]);
         if let Err(reason) = check(&buf) {
             let shrunk = shrink(buf, |b| check(b).is_err());
-            report_and_panic(seed, reason, shrunk);
+            let mut src = ByteSource::new(&shrunk);
+            let cache = cache(&mut src);
+            panic!(
+                "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\nfiles:\n{:#?}\nshared:\n{:#?}",
+                shrunk.len(),
+                cache.files,
+                cache.shared,
+            );
         }
     }
 }
