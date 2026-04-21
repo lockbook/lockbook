@@ -22,40 +22,12 @@ class AppState: ObservableObject {
         }
         let newURL = groupURL.appendingPathComponent("lockbook", isDirectory: true)
 
-        migrateLegacyDataIfNeeded(from: legacyURL, to: newURL)
+        if !fm.fileExists(atPath: newURL.path) {
+            try? fm.moveItem(at: legacyURL, to: newURL)
+        }
+        try? fm.createDirectory(at: newURL, withIntermediateDirectories: true)
 
         return newURL.path
-    }
-
-    private static func migrateLegacyDataIfNeeded(from legacyURL: URL, to newURL: URL) {
-        let fm = FileManager.default
-
-        if (try? fm.createDirectory(at: newURL, withIntermediateDirectories: true)) == nil {
-            return
-        }
-
-        let legacyContents: [String]
-        do {
-            legacyContents = try fm.contentsOfDirectory(atPath: legacyURL.path)
-        } catch {
-            return
-        }
-
-        for name in legacyContents {
-            let src = legacyURL.appendingPathComponent(name)
-            let dst = newURL.appendingPathComponent(name)
-            if fm.fileExists(atPath: dst.path) { continue }
-            do {
-                try fm.moveItem(at: src, to: dst)
-            } catch {
-                do {
-                    try fm.copyItem(at: src, to: dst)
-                    try fm.removeItem(at: src)
-                } catch {
-                    continue
-                }
-            }
-        }
     }
     #endif
 
