@@ -328,7 +328,7 @@ impl MdRender {
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
-                    wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
+                    wrap.row() as f32 * (wrap.row_height + wrap.row_spacing) + y_offset,
                 );
             let rect = Rect::from_min_size(pos, size);
             let advance = if i < split_len - 1 { wrap.row_remaining() } else { size.x };
