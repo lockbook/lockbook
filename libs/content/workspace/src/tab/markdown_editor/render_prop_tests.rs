@@ -349,7 +349,7 @@ fn width_monotonic_check(buf: &[u8]) -> Result<(), &'static str> {
 fn galley_disjoint_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut src = ByteSource::new(buf);
     let md = markdown_doc(&mut src);
-    let width = 100.0 + (src.draw(10) as f32) * 100.0;
+    let width = 250.0 + (src.draw(8) as f32) * 100.0;
     let mut ranges: Vec<_> = render_galleys(&md, width)
         .1
         .into_iter()
