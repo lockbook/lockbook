@@ -190,7 +190,7 @@ where
         let usage_cap = Self::get_cap(db, &tree_owner.0).map_err(|err| internal!("{:?}", err))?;
 
         let mut tree = ServerTree::new(
-            tree_owner,
+            requester,
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
@@ -198,7 +198,6 @@ where
         )?
         .to_lazy();
 
-        let old_usage = tree.calculate_usage(tree_owner)?;
         let current_meta = &tree
             .maybe_find(&id)
             .ok_or(ClientError(DocumentNotFound))?
@@ -216,8 +215,19 @@ where
 
         let mut tree = tree.stage(vec![new_meta.clone()]);
         tree.validate(requester)?;
-        let new_usage = tree.calculate_usage(tree_owner)?;
 
+        let mut tree = ServerTree::new(
+            requester,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let old_usage = tree.calculate_usage(tree_owner)?;
+        let mut tree = tree.stage(vec![new_meta.clone()]); // todo check if this used to be stage
+        let new_usage = tree.calculate_usage(tree_owner)?;
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage > usage_cap && new_usage >= old_usage {
