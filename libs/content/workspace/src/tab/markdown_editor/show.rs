@@ -79,9 +79,14 @@ impl MdEdit {
         }
 
         let mut ops = Vec::new();
+        // Some events (Undo, Redo, Camera) mutate state directly inside
+        // `calc_operations` instead of pushing to `ops`. Their `Response`
+        // must be merged with the queued-op response so reparse & cache
+        // invalidation fire when undo changes the text.
+        let mut direct_resp = buffer::Response::default();
 
         for event in std::mem::take(&mut self.event.internal_events) {
-            self.calc_operations(ctx, root, event, &mut ops);
+            direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
         }
 
         if focused {
@@ -94,13 +99,14 @@ impl MdEdit {
             let key_events: Vec<egui::Event> = ctx.input(|r| r.filtered_events(&filter));
             for e in key_events {
                 if let Some(edit_event) = self.translate_egui_keyboard_event(e, root) {
-                    self.calc_operations(ctx, root, edit_event, &mut ops);
+                    direct_resp |= self.calc_operations(ctx, root, edit_event, &mut ops);
                 }
             }
         }
 
         self.renderer.buffer.queue(ops);
-        let buf_resp = self.renderer.buffer.update();
+        let mut buf_resp = direct_resp;
+        buf_resp |= self.renderer.buffer.update();
 
         if buf_resp.text_updated {
             self.renderer.layout_cache.invalidate_text_change();
@@ -378,9 +384,14 @@ impl MdEdit {
         // show_completions, which submits its own callback on a later layer.
         let text_areas = std::mem::take(&mut self.renderer.text_areas);
         if !text_areas.is_empty() {
+            // The callback rect is `clip_rect`, not `max_rect`: this `ui` is
+            // inside the editor's `ScrollArea + Frame`, and its `max_rect`
+            // scrolls off-screen once the user passes one viewport-height.
+            // `egui_wgpu` clamps the callback rect to the screen, and a
+            // zero-area result silently drops the callback — no text paints.
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
+                    ui.clip_rect(),
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
         }

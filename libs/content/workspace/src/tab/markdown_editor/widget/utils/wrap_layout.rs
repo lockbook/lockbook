@@ -145,10 +145,18 @@ impl MdRender {
                 text_format,
             );
             let tmp = tmp.read().unwrap();
+            // Same display-vs-source ordering caveat as the per-run fold
+            // below: in an RTL run the visually-last glyph is the
+            // source-leftmost one, so `glyphs.last().end` would understate
+            // the row's byte span. Take the max source byte over all glyphs.
             tmp.layout_runs()
                 .next()
-                .and_then(|run| run.glyphs.last())
-                .map(|g| g.end)
+                .filter(|run| !run.glyphs.is_empty())
+                .map(|run| {
+                    run.glyphs
+                        .iter()
+                        .fold(0usize, |hi, g| hi.max(g.start).max(g.end))
+                })
                 .unwrap_or(text.len())
         };
 
@@ -181,11 +189,56 @@ impl MdRender {
                     text_format,
                 );
                 let tmp = tmp.read().unwrap();
+                // Cosmic-text indexes glyphs into its own per-paragraph
+                // buffer lines, not into the string we passed in. It splits
+                // on Unicode BiDi paragraph separators (anything in BiDi
+                // class B: `\n`, `\r`, `\u{85}`, `\u{1c}`-`\u{1e}`,
+                // `\u{2029}`). For an input like
+                //
+                // ```text
+                // hello\u{1c}world
+                // ```
+                //
+                // we get two `LayoutRun`s, each numbering its glyphs from 0.
+                // Translate to absolute offsets in `remaining_str` by tracking
+                // each paragraph's start as we iterate.
+                let mut line_base: usize = 0;
+                let mut line_text_len: usize = 0;
+                let mut prev_line_i: Option<usize> = None;
                 tmp.layout_runs()
                     .map(|run| {
-                        let start = run.glyphs.first().map(|g| g.start).unwrap_or(0);
-                        let end = run.glyphs.last().map(|g| g.end).unwrap_or(0);
-                        (start, end)
+                        if prev_line_i != Some(run.line_i) {
+                            let search_start = match prev_line_i {
+                                Some(_) => line_base + line_text_len,
+                                None => 0,
+                            };
+                            let sep = remaining_str[search_start..].find(run.text).unwrap_or(0);
+                            line_base = search_start + sep;
+                            line_text_len = run.text.len();
+                            prev_line_i = Some(run.line_i);
+                        }
+                        // Cosmic-text reports glyph byte ranges in display
+                        // order, not source order. For LTR runs that matches
+                        // source order, but for an RTL run like
+                        //
+                        // ```text
+                        // שלום
+                        // ```
+                        //
+                        // the first glyph in `glyphs` is the visually leftmost
+                        // = source-rightmost, and within an individual glyph
+                        // `g.start` may itself exceed `g.end`. Treat each
+                        // glyph as a logical (lo, hi) pair and take the
+                        // overall min/max to recover the source byte range.
+                        let (start, end) =
+                            run.glyphs.iter().fold((usize::MAX, 0usize), |(lo, hi), g| {
+                                let g_lo = g.start.min(g.end);
+                                let g_hi = g.start.max(g.end);
+                                (lo.min(g_lo), hi.max(g_hi))
+                            });
+                        let (start, end) =
+                            if run.glyphs.is_empty() { (0, 0) } else { (start, end) };
+                        (line_base + start, line_base + end)
                     })
                     .collect()
             };
@@ -243,7 +296,7 @@ impl MdRender {
         } else {
             wrap.row_height
         };
-        let y_offset = if text_format.subscript { 0.3 * wrap.row_height } else { 0. };
+        let y_offset = if text_format.subscript { wrap.row_height - font_size } else { 0. };
         let color = {
             let [r, g, b, a] = text_format.color.to_array();
             glyphon::Color::rgba(r, g, b, a)
@@ -275,7 +328,7 @@ impl MdRender {
             let pos = top_left
                 + Vec2::new(
                     wrap.row_offset(),
-                    wrap.row() as f32 * (font_size + wrap.row_spacing) + y_offset,
+                    wrap.row() as f32 * (wrap.row_height + wrap.row_spacing) + y_offset,
                 );
             let rect = Rect::from_min_size(pos, size);
             let advance = if i < split_len - 1 { wrap.row_remaining() } else { size.x };
