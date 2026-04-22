@@ -198,13 +198,8 @@ where
         )?
         .to_lazy();
 
-        let current_meta = &tree
-            .maybe_find(&id)
-            .ok_or(ClientError(DocumentNotFound))?
-            .file;
-
         if let Some(old) = &diff.old {
-            if current_meta != old {
+            if &og_meta.file != old {
                 return Err(ClientError(OldVersionIncorrect));
             }
         }
@@ -217,7 +212,7 @@ where
         tree.validate(requester)?;
 
         let mut tree = ServerTree::new(
-            requester,
+            tree_owner,
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
