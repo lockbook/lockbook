@@ -45,6 +45,26 @@ impl UnicodeSegs {
         (self.offset_to_char(i.0), self.offset_to_char(i.1))
     }
 
+    /// Snap a byte offset down to the start of the grapheme containing it.
+    /// Use for converting an *inclusive* byte position from a non-grapheme-
+    /// aware source into a `DocCharOffset`.
+    pub fn byte_to_char_floor(&self, b: DocByteOffset) -> DocCharOffset {
+        match self.grapheme_indexes.binary_search(&b) {
+            Ok(i) => DocCharOffset(i),
+            Err(i) => DocCharOffset(i.saturating_sub(1)),
+        }
+    }
+
+    /// Snap a byte offset up to the start of the next grapheme. Use for
+    /// converting an *exclusive* byte position so the resulting range fully
+    /// contains every grapheme any of its bytes belong to.
+    pub fn byte_to_char_ceil(&self, b: DocByteOffset) -> DocCharOffset {
+        match self.grapheme_indexes.binary_search(&b) {
+            Ok(i) => DocCharOffset(i),
+            Err(i) => DocCharOffset(i.min(self.grapheme_indexes.len().saturating_sub(1))),
+        }
+    }
+
     pub fn last_cursor_position(&self) -> DocCharOffset {
         DocCharOffset(self.grapheme_indexes.len() - 1)
     }
