@@ -60,12 +60,40 @@ impl MdRender {
     pub fn calc_words(&mut self) {
         self.bounds.words.clear();
 
+        // The editor cursor only stops at grapheme boundaries, so words are
+        // ranges of graphemes here. UAX #29 word boundaries are *almost* a
+        // subset of grapheme boundaries but not quite — GB9b says don't break
+        // between a Prepend codepoint and the following character (so they
+        // form one grapheme), but word segmentation has no equivalent rule
+        // and inserts a word boundary between them anyway.
+        //
+        // Document that triggers this:
+        //
+        // ```text
+        // \u{600} hello
+        // ```
+        //
+        // (U+0600 ARABIC NUMBER SIGN is a Prepend codepoint.) The grapheme
+        // boundaries are at byte 0 and byte 3 — the U+0600 + space is one
+        // grapheme. The word boundaries include byte 2, between U+0600 and
+        // the space. Byte 2 has no corresponding `DocCharOffset`, so we snap
+        // down to the enclosing grapheme. Adjacent word boundaries that
+        // collapse into the same grapheme produce zero-length word ranges
+        // that the whitespace check below filters out.
+        let segs = &self.buffer.current.segs;
+        let snap = |byte: usize| -> DocCharOffset {
+            match segs.grapheme_indexes.binary_search(&DocByteOffset(byte)) {
+                Ok(i) => DocCharOffset(i),
+                Err(i) => DocCharOffset(i.saturating_sub(1)),
+            }
+        };
+
         let mut prev_char_offset = DocCharOffset(0);
         let mut prev_word = "";
         for (byte_offset, word) in
             (self.buffer.current.text.clone() + " ").split_word_bound_indices()
         {
-            let char_offset = self.offset_to_char(DocByteOffset(byte_offset));
+            let char_offset = snap(byte_offset);
 
             if !prev_word.trim().is_empty() {
                 // whitespace-only sequences don't count as words
@@ -116,10 +144,39 @@ impl MdRender {
         // which would otherwise underflow
         sourcepos.end.column += 1;
 
-        let start = self.line_column_to_offset(sourcepos.start);
-        let end = self.line_column_to_offset(sourcepos.end);
-
-        (start, end)
+        // Comrak's positions are byte-precise; ours are grapheme-precise.
+        // For a document that triggers the mismatch:
+        //
+        // ```text
+        // \!\u{300}
+        // ```
+        //
+        // (an escaped `!` followed by U+0300 COMBINING GRAVE ACCENT.) Comrak
+        // emits a sourcepos for the `\!` escape covering bytes 0..2 — but `!`
+        // is the base of the combining sequence, so `!\u{300}` is one
+        // grapheme spanning bytes 1..4. Byte 2 (the exclusive end) sits
+        // inside that grapheme and has no corresponding `DocCharOffset`.
+        //
+        // We can't go through `line_column_to_offset` here — it would panic
+        // on byte 2. Instead compute the source bytes directly and snap with
+        // explicit direction: floor the inclusive start, ceil the exclusive
+        // end, so the resulting grapheme range fully contains every byte the
+        // sourcepos covered.
+        let to_byte = |lc: LineColumn| -> DocByteOffset {
+            let line_idx = lc.line.saturating_sub(1);
+            let col_idx = lc.column - 1;
+            let line = *self
+                .bounds
+                .source_lines
+                .get(line_idx)
+                .expect("source line should be in bounds");
+            self.offset_to_byte(line.start()) + col_idx
+        };
+        let segs = &self.buffer.current.segs;
+        (
+            segs.byte_to_char_floor(to_byte(sourcepos.start)),
+            segs.byte_to_char_ceil(to_byte(sourcepos.end)),
+        )
     }
 
     pub fn range_to_sourcepos(&self, range: (DocCharOffset, DocCharOffset)) -> Sourcepos {
