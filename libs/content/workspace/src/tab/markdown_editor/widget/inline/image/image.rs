@@ -55,8 +55,13 @@ impl<'ast> MdRender {
     }
 
     pub fn image_size(&self, texture_size: Vec2, width: f32) -> Vec2 {
+        // Constrain the image to fit the renderer with a margin of breathing
+        // room. Clamp to non-negative — when the renderer is too small to
+        // satisfy the margin (initial frames before viewport is known,
+        // zero-height containers), the image collapses to 0 rather than
+        // letting negative dimensions corrupt the surrounding block layout.
         let image_max_size =
-            { Vec2::new(self.width, self.height) - Vec2::splat(self.layout.margin) };
+            (Vec2::new(self.width, self.height) - Vec2::splat(self.layout.margin)).max(Vec2::ZERO);
 
         // only shrink images, never stretch beyond their natural size
         let width = width.min(texture_size.x).min(image_max_size.x);
