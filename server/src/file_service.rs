@@ -189,6 +189,31 @@ where
 
         let usage_cap = Self::get_cap(db, &tree_owner.0).map_err(|err| internal!("{:?}", err))?;
 
+        let tree = ServerTree::new(
+            requester,
+            &mut db.owned_files,
+            &mut db.shared_files,
+            &mut db.file_children,
+            &mut db.metas,
+        )?
+        .to_lazy();
+
+        let current_meta = &tree
+            .maybe_find(&id)
+            // note: DocumentNotFound would be returned above, if NotPermissioned *you* don't have
+            // access
+            .ok_or(ClientError(NotPermissioned))?
+            .file;
+
+        if let Some(old) = &diff.old {
+            if current_meta != old {
+                return Err(ClientError(OldVersionIncorrect));
+            }
+        }
+
+        let mut tree = tree.stage(vec![new_meta.clone()]);
+        tree.validate(requester)?;
+
         let mut tree = ServerTree::new(
             tree_owner,
             &mut db.owned_files,
@@ -199,25 +224,8 @@ where
         .to_lazy();
 
         let old_usage = tree.calculate_usage(tree_owner)?;
-        let current_meta = &tree
-            .maybe_find(&id)
-            .ok_or(ClientError(DocumentNotFound))?
-            .file;
-
-        if let Some(old) = &diff.old {
-            if current_meta != old {
-                return Err(ClientError(OldVersionIncorrect));
-            }
-        }
-
-        if tree.calculate_deleted(&id)? {
-            return Err(ClientError(DocumentDeleted));
-        }
-
-        let mut tree = tree.stage(vec![new_meta.clone()]);
-        tree.validate(requester)?;
+        let mut tree = tree.stage(vec![new_meta.clone()]); // todo check if this used to be stage
         let new_usage = tree.calculate_usage(tree_owner)?;
-
         debug!(?old_usage, ?new_usage, ?usage_cap, "usage caps on change doc");
 
         if new_usage > usage_cap && new_usage >= old_usage {
