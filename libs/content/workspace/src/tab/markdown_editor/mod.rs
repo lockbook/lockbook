@@ -63,6 +63,8 @@ mod galleys;
 pub mod input;
 pub mod md_label;
 pub mod output;
+#[cfg(test)]
+mod render_prop_tests;
 pub mod show;
 mod theme;
 mod widget;
