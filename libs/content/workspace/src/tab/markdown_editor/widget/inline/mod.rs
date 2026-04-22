@@ -360,12 +360,11 @@ impl<'ast> MdRender {
                         // representing the beginning of the prefix, so that clicking
                         // at the start of the circumfix places the cursor before
                         // the syntax
-                        self.show_section(
+                        self.show_empty_marker(
                             ui,
                             top_left,
                             wrap,
                             prefix_range.start().into_range(),
-                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -390,12 +389,11 @@ impl<'ast> MdRender {
                         // representing the end of the postfix, so that clicking
                         // at the end of the circumfix places the cursor after
                         // the syntax
-                        self.show_section(
+                        self.show_empty_marker(
                             ui,
                             top_left,
                             wrap,
                             postfix_range.end().into_range(),
-                            self.text_format_syntax(),
                         );
                     }
                 }
@@ -408,6 +406,26 @@ impl<'ast> MdRender {
             }
         }
 
+        response
+    }
+
+    /// 0-width cursor-target marker for hidden circumfix syntax. Rewind past
+    /// row boundaries so it lands on the preceding row — otherwise
+    /// `wrap.height()` (offset-based) wouldn't count it and the parent
+    /// block's height claim would underreport.
+    fn show_empty_marker(
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
+        range: (DocCharOffset, DocCharOffset),
+    ) -> Response {
+        const EPS: f32 = 0.01;
+        let on_boundary = wrap.row_offset() < EPS && wrap.row() > 0;
+        if on_boundary {
+            wrap.offset -= EPS;
+        }
+        let response = self.show_section(ui, top_left, wrap, range, self.text_format_syntax());
+        if on_boundary {
+            wrap.offset += EPS;
+        }
         response
     }
 
