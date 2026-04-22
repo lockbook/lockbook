@@ -296,7 +296,7 @@ impl MdRender {
         } else {
             wrap.row_height
         };
-        let y_offset = if text_format.subscript { 0.3 * wrap.row_height } else { 0. };
+        let y_offset = if text_format.subscript { wrap.row_height - font_size } else { 0. };
         let color = {
             let [r, g, b, a] = text_format.color.to_array();
             glyphon::Color::rgba(r, g, b, a)
