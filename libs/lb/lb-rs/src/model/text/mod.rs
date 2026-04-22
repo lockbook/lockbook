@@ -2,6 +2,7 @@ pub mod buffer;
 pub mod offset_types;
 pub mod operation_types;
 pub mod unicode_segs;
+pub mod units;
 
 use offset_types::{DocByteOffset, RangeExt as _};
 use operation_types::Replace;

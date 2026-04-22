@@ -1,6 +1,7 @@
 use super::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
 use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
+use super::units::{Grapheme, Graphemes};
 use super::{diff, unicode_segs};
 use std::ops::Index;
 use web_time::{Duration, Instant};
@@ -80,24 +81,28 @@ impl Snapshot {
         Response::default()
     }
 
-    fn apply_replace(&mut self, replace: &Replace) -> (Response, RelCharOffset) {
+    fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
-        let old_last = self.segs.last_cursor_position();
+
+        // Capture pre-apply segs so `Graphemes::measure_replace` can compute
+        // the buffer delta. It's the only construction path for an
+        // OT-correct grapheme count — bypassing it (e.g.
+        // `text.graphemes(true).count()`) would produce a `usize`, not a
+        // `Graphemes`, so any caller of this function wouldn't compile.
+        let old_segs = self.segs.clone();
 
         self.text
             .replace_range(byte_range.start().0..byte_range.end().0, text);
         self.segs = unicode_segs::calc(&self.text);
 
-        // Actual contribution after seam fusion. The in-isolation count
-        // `text.graphemes(true).count()` would over- or under-count when the
-        // inserted text fuses with an adjacent character — e.g. a Devanagari
-        // spacing mark joining the preceding consonant. We measure the buffer
-        // delta instead so OT positions shift by the true contribution.
-        let new_last = self.segs.last_cursor_position();
-        let actual_len = (new_last + range.len()) - old_last;
+        let actual_len = Graphemes::measure_replace(
+            &old_segs,
+            &self.segs,
+            (Grapheme::from_doc_char(range.0), Grapheme::from_doc_char(range.1)),
+        );
 
-        adjust_subsequent_range(*range, actual_len, false, &mut self.selection);
+        adjust_subsequent_range(*range, actual_len.into_rel_char(), false, &mut self.selection);
 
         (Response { text_updated: true, ..Default::default() }, actual_len)
     }
@@ -156,12 +161,13 @@ struct Ops {
     transformed_inverted: Vec<InverseOperation>,
 
     /// Actual graphemes contributed by each `transformed` op once spliced
-    /// into the buffer. Differs from `text.graphemes(true).count()` when the
-    /// inserted text fuses with adjacent buffer content at the seam (e.g.
-    /// Devanagari spacing marks, ZWJ sequences). Read by OT transforms so
-    /// subsequent positions shift by the actual contribution rather than the
-    /// in-isolation count. Always 0 for `Operation::Select`.
-    transformed_actual_len: Vec<RelCharOffset>,
+    /// into the buffer. The `Graphemes` newtype enforces this distinction
+    /// at the type level — populating this field requires a value from
+    /// `Graphemes::measure_replace`, not `text.graphemes(true).count()`,
+    /// which would account for in-isolation counts only and miss seam fusion
+    /// (Devanagari spacing marks, ZWJ sequences). Always 0 for
+    /// `Operation::Select`.
+    transformed_actual_len: Vec<Graphemes>,
 }
 
 impl Ops {
@@ -369,7 +375,7 @@ impl Buffer {
             self.ops.transformed.push(op.clone());
             self.ops
                 .transformed_actual_len
-                .push(RelCharOffset::default());
+                .push(Graphemes::default());
             self.ops.processed_seq += 1;
 
             result |= self.redo();
@@ -377,7 +383,7 @@ impl Buffer {
             let actual_len = *self.ops.transformed_actual_len.last().unwrap();
             self.ops
                 .transformed_inverted
-                .push(partial_inverse.finalize(actual_len));
+                .push(partial_inverse.finalize(actual_len.into_rel_char()));
         }
 
         result.seq_after = self.current.seq;
@@ -413,7 +419,7 @@ impl Buffer {
                     | Operation::Select(transformed_range) => {
                         adjust_subsequent_range(
                             *preceding_replaced_range,
-                            preceding_actual_len,
+                            preceding_actual_len.into_rel_char(),
                             true,
                             transformed_range,
                         );
@@ -449,7 +455,7 @@ impl Buffer {
                 }
                 Operation::Select(range) => {
                     response |= self.current.apply_select(*range);
-                    RelCharOffset::default()
+                    Graphemes::default()
                 }
             };
             self.ops.transformed_actual_len[idx] = actual_len;
@@ -502,7 +508,12 @@ impl Buffer {
                     return false;
                 }
                 let replacement_len = self.ops.transformed_actual_len[start + i];
-                adjust_subsequent_range(replace.range, replacement_len, false, range);
+                adjust_subsequent_range(
+                    replace.range,
+                    replacement_len.into_rel_char(),
+                    false,
+                    range,
+                );
             }
         }
         true
