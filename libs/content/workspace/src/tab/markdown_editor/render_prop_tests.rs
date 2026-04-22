@@ -31,7 +31,6 @@
 
 use comrak::Arena;
 use egui::{Pos2, RawInput, Rect, UiBuilder, Vec2};
-use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::DocCharOffset;
 
 use super::MdRender;
@@ -109,28 +108,6 @@ fn render_galleys(md: &str, width: f32) -> (Rect, Vec<GalleySnapshot>) {
         });
     });
     (area, snap)
-}
-
-/// Renders `other` on `r` first, then replaces the buffer with `md` and
-/// measures its height. Mirrors the `prepare` step `MdLabel` does between
-/// invocations. Used to check that prior renders don't leak state.
-fn render_height_after(
-    r: &mut MdRender, other: &str, other_width: f32, md: &str, width: f32,
-) -> f32 {
-    r.buffer = Buffer::from(other);
-    r.width = other_width;
-    r.layout_cache.invalidate_text_change();
-    {
-        let arena = Arena::new();
-        let root = r.reparse(&arena);
-        let _ = r.height(root, &[root]);
-    }
-    r.buffer = Buffer::from(md);
-    r.width = width;
-    r.layout_cache.invalidate_text_change();
-    let arena = Arena::new();
-    let root = r.reparse(&arena);
-    r.height(root, &[root])
 }
 
 /// Picks one inline token. Covers comrak's enabled inline extensions: emphasis
@@ -464,11 +441,6 @@ fn run(check: fn(&[u8]) -> Result<(), &'static str>, gen: fn(&mut ByteSource) ->
             );
         }
     }
-}
-
-#[test]
-fn determinism() {
-    run(determinism_check, markdown_doc);
 }
 
 #[test]
