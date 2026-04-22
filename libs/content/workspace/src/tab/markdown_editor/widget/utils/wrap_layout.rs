@@ -167,7 +167,11 @@ impl MdRender {
             range
         } else {
             let start = self.offset_to_byte(range.start());
-            self.range_to_char((start, start + first_row_bytes))
+            // `start + first_row_bytes` comes from cosmic-text glyph positions
+            // which can land inside a grapheme cluster (an inserted combining
+            // mark joining the preceding char). Snap the end up to the next
+            // boundary so we don't `range_to_char` a non-boundary byte.
+            self.range_to_char_ceil((start, start + first_row_bytes))
         };
 
         let mut split = vec![SplitRow { text: first_row_str, range: first_row_range }];
@@ -249,7 +253,8 @@ impl MdRender {
                 let row_range = if is_override {
                     range
                 } else {
-                    self.range_to_char((
+                    // Same cluster-snap concern as the first-row branch above.
+                    self.range_to_char_ceil((
                         remaining_start_byte + text_start,
                         remaining_start_byte + end,
                     ))

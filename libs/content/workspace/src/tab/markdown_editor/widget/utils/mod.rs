@@ -28,6 +28,35 @@ impl<'ast> MdRender {
         self.buffer.current.segs.range_to_char(i)
     }
 
+    /// Byte→char conversion for byte offsets that may not land on a grapheme
+    /// boundary. Snaps each endpoint up to the next boundary.
+    ///
+    /// `DocCharOffset` indexes graphemes; the strict `range_to_char` panics on
+    /// any byte that isn't a grapheme start (no corresponding char). That's the
+    /// right behavior when bytes come from the buffer's own segs or round-trip
+    /// through a `DocCharOffset` — a panic there is a real bug, not data we
+    /// should paper over.
+    ///
+    /// Use this version *only* when the byte source promises codepoint
+    /// boundaries but not grapheme boundaries — i.e. cosmic-text glyph byte
+    /// positions and comrak sourcepos. Both index by codepoint and will hand
+    /// us positions inside a cluster whenever an extending codepoint
+    /// (Devanagari vowel sign, ZWJ, variation selector, virama) sits at a
+    /// rendering or parsing seam. The strict converter has no recourse for
+    /// these; rounding up is the only well-defined answer that keeps the
+    /// editor usable on Indic / emoji text.
+    ///
+    /// Snapping consistently to ceil gives every cluster exactly one home: it
+    /// belongs to whichever row/section's *end* boundary crosses it, and the
+    /// next row/section's *start* lands at or past the cluster's far edge — no
+    /// double-counting, no gaps.
+    pub fn range_to_char_ceil(
+        &self, i: (DocByteOffset, DocByteOffset),
+    ) -> (DocCharOffset, DocCharOffset) {
+        let segs = &self.buffer.current.segs;
+        (segs.byte_to_char_ceil(i.0), segs.byte_to_char_ceil(i.1))
+    }
+
     pub fn last_cursor_position(&self) -> DocCharOffset {
         self.buffer.current.segs.last_cursor_position()
     }

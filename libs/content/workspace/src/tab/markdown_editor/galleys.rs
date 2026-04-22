@@ -158,12 +158,13 @@ impl MdRender {
             // Hopefully by this point you already know that a character is not
             // a byte. Instead, we have unicode. In Unicode, there is a table
             // that assigns a number called a **codepoint** to a symbol it
-            // represents. The codepoints are represented in a variable-width
-            // format so the most common ones take up less space. So, multiple
-            // bytes form a codepoint, and generally you defer to a library to
-            // tell you which. We interface with codepoints whenever we
-            // interpret the document in any way; all of the document's
-            // structure is built on top of codepoints.
+            // represents. Codepoints themselves are 21-bit integers, but the
+            // **UTF-8** encoding stores them as variable-length sequences of 1
+            // to 4 bytes so the most common ones take up less space. So, in
+            // UTF-8 multiple bytes form a codepoint, and generally you defer
+            // to a library to tell you which. We interface with codepoints
+            // whenever we interpret the document in any way; all of the
+            // document's structure is built on top of codepoints.
 
             // Sometimes we want to combine codepoints because otherwise the
             // number of required codepoints would be too high. For example,
@@ -177,9 +178,17 @@ impl MdRender {
             // skin tones (which apply to many emojis each) and country flag
             // variations (which would be politically tense to get through the
             // unicode committee). We interface with graphemes when moving the
-            // cursor or reading substrings from the text buffer because not all
-            // codepoints are valid text boundaries (and when not, they crash
-            // the program).
+            // cursor or reading substrings from the text buffer because that's
+            // the user's mental model — one arrow-key press, one grapheme.
+
+            // Codepoint boundaries are always valid byte boundaries (that's
+            // the contract of `&str` slicing in Rust; UTF-8 is
+            // self-synchronizing), but they aren't always *grapheme*
+            // boundaries. `DocCharOffset` is grapheme-indexed, so a byte
+            // offset that lands inside a multi-codepoint cluster (e.g. between
+            // a base character and a combining mark) has no corresponding
+            // `DocCharOffset` and the lookup crashes. The codepoint<->grapheme
+            // gap is exactly where most of our text-handling bugs live.
 
             // Graphemes are not the unit the font system works in. Instead, it
             // works in glyphs. A **glyph** is a unit that's output by the font.
@@ -206,14 +215,23 @@ impl MdRender {
             // between glyphs may not be a boundary between graphemes, but a
             // boundary between glyph clusters always is.
 
-            // In a glyph cluster, cosmic text reports the first glyph as having
-            // zero width and attributes the full width to the final glyph -
-            // this is best thought of as the width by which to advance the
-            // layout cursor after drawing the glyph. We only update
-            // `rel_offset` when the width is non-zero because that glyph is the
-            // last glyph in the glyph cluster, so its end is also the end of a
-            // grapheme. If it was not, the call to `offset_to_char()` below
-            // would immediately crash the program.
+            // In a glyph cluster, cosmic-text reports zero width on every
+            // glyph except one, and that one carries the cluster's full
+            // advance — the width by which to move the layout cursor after
+            // drawing. We only update `rel_offset` when width is non-zero, so
+            // the byte offset we feed to `offset_to_char()` is always the end
+            // of a glyph cluster.
+            //
+            // This is safe *if* (a) cosmic-text uses HarfBuzz's default
+            // cluster level (`MONOTONE_GRAPHEMES`), so glyph cluster
+            // boundaries coincide with grapheme cluster boundaries, and (b)
+            // the glyph carrying the advance is always positioned at the
+            // cluster's source end. Both hold today; if either drifts (e.g. a
+            // shaper change that puts the advance on the base of a base+mark
+            // pair while the mark sits at the cluster's source end), this
+            // would crash on the same Devanagari / ZWJ inputs that broke
+            // `split_rows`. The strict `offset_to_char` is intentional — we'd
+            // rather find out loudly than render against a stale assumption.
             if glyph.w > 0. {
                 x += glyph.w / self.ctx.pixels_per_point();
                 rel_offset = glyph.end;
