@@ -189,7 +189,7 @@ where
 
         let usage_cap = Self::get_cap(db, &tree_owner.0).map_err(|err| internal!("{:?}", err))?;
 
-        let mut tree = ServerTree::new(
+        let tree = ServerTree::new(
             requester,
             &mut db.owned_files,
             &mut db.shared_files,
@@ -198,14 +198,17 @@ where
         )?
         .to_lazy();
 
+        let current_meta = &tree
+            .maybe_find(&id)
+            // note: DocumentNotFound would be returned above, if NotPermissioned *you* don't have
+            // access
+            .ok_or(ClientError(NotPermissioned))? 
+            .file;
+
         if let Some(old) = &diff.old {
-            if &og_meta.file != old {
+            if current_meta != old {
                 return Err(ClientError(OldVersionIncorrect));
             }
-        }
-
-        if tree.calculate_deleted(&id)? {
-            return Err(ClientError(DocumentDeleted));
         }
 
         let mut tree = tree.stage(vec![new_meta.clone()]);
