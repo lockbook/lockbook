@@ -202,7 +202,7 @@ where
             .maybe_find(&id)
             // note: DocumentNotFound would be returned above, if NotPermissioned *you* don't have
             // access
-            .ok_or(ClientError(NotPermissioned))? 
+            .ok_or(ClientError(NotPermissioned))?
             .file;
 
         if let Some(old) = &diff.old {
