@@ -12,14 +12,15 @@
 //!
 //! # Stages
 //!
-//! - **Stage 2 (this commit)**: transport (UDS), framing, empty
-//!   request/response protocol enums. The module compiles, the wire format
-//!   is set, but no `Lb` method yet has a `Request`/`Response` variant.
-//!   `Lb::init` is unchanged and the IPC server is never started.
-//! - **Stage 3**: populate `Request`/`Response` with one variant per `Lb`
-//!   method, wire the server's dispatch to `LocalLb`, build `RemoteLb`
-//!   that implements those forwarders, and add the host/guest race to
-//!   `Lb::init`.
+//! - **Stage 2**: transport (UDS), framing, and empty request/response
+//!   protocol enums. Wire format set, but `Lb::init` unchanged.
+//! - **Stage 3 (this commit)**: host/guest race in `Lb::init`, `RemoteLb`
+//!   with persistent connection + seq demux, and a vertical slice of 8
+//!   `LocalLb` methods ported end-to-end. Unported methods remain reachable
+//!   via a `Deref<Target = LocalLb>` shim that panics in Guest mode.
+//! - **Stage 4**: expand the forwarders to the remaining ~46 public
+//!   `LocalLb` methods, remove the `Deref` shim, and restore error-kind
+//!   fidelity on the wire (Stage 3 ferries errors as strings).
 //! - **Follow-up (deferred)**: the subscriber API (`Lb::subscribe`) needs
 //!   its own treatment — a long-lived event stream doesn't fit the
 //!   request/response shape. Expected to land as additional `Frame`

@@ -19,7 +19,7 @@ pub fn sign<T: Serialize>(
     let serialized = bincode::serialize(&timestamped).map_unexpected()?;
     let digest = Sha256::digest(&serialized);
     let message = &Message::parse_slice(&digest)
-        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err)))?;
+        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err.to_string())))?;
     let (signature, _) = libsecp256k1::sign(message, sk);
     Ok(ECSigned {
         timestamped_value: timestamped,
@@ -63,7 +63,7 @@ pub fn verify<T: Serialize>(
     })?;
 
     let signature = Signature::parse_standard_slice(&signed.signature)
-        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err)))?;
+        .map_err(|err| LbErrKind::Sign(SignError::SignatureParseError(err.to_string())))?;
 
     if libsecp256k1::verify(message, &signature, &signed.public_key) {
         Ok(())

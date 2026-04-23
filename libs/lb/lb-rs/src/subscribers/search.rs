@@ -3,7 +3,7 @@ use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
 use crate::{LocalLb, tokio_spawn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -26,14 +26,14 @@ pub struct SearchIndex {
     pub tantivy_reader: IndexReader,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum SearchConfig {
     Paths,
     Documents,
     PathsAndDocuments,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
@@ -297,7 +297,7 @@ impl Default for SearchIndex {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ContentMatch {
     pub paragraph: String,
     pub matched_indices: Vec<usize>,
