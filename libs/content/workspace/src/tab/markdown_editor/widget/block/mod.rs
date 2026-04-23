@@ -708,6 +708,24 @@ impl MdRender {
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(text, font_size, line_height, width, format, true)
+    }
+
+    /// Like [`Self::upsert_glyphon_buffer`] but with `Wrap::None`. Use for
+    /// already-split text when you want a stable single-row shape; the
+    /// wrapped variant's break-point decisions vary subtly with input
+    /// context (a known cosmic-text quirk), so a piece chosen by one call
+    /// may re-wrap differently on a second call at the same width.
+    pub fn upsert_glyphon_buffer_unwrapped(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(text, font_size, line_height, width, format, false)
+    }
+
+    fn upsert_glyphon_buffer_inner(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+        wrap: bool,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
         let font_system = self
             .ctx
             .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))
@@ -727,6 +745,8 @@ impl MdRender {
         let width = width * ppi;
 
         use crate::widgets::glyphon_cache::*;
+        // Fold wrap mode into the cache key via a sub-ULP nudge to width.
+        let width_bits = if wrap { width.to_bits() } else { width.to_bits() ^ 1 };
         let key = GlyphonCacheKey::single(
             text,
             match format.family {
@@ -739,7 +759,7 @@ impl MdRender {
             Some(format.color.to_array()),
             font_size.to_bits(),
             line_height.to_bits(),
-            width.to_bits(),
+            width_bits,
         );
 
         let fs = Arc::clone(&font_system);
@@ -776,7 +796,11 @@ impl MdRender {
                 glyphon::Shaping::Advanced,
                 None,
             );
-            b.shape_until_scroll(&mut fs.lock().unwrap(), false);
+            // Default `Wrap::None` never wraps. `Glyph` wraps reliably; `Word`
+            // and `WordOrGlyph` silently refuse on some bold mixed-script
+            // content (Latin + Arabic), letting it overflow the cell.
+            let wrap_mode = if wrap { glyphon::Wrap::Glyph } else { glyphon::Wrap::None };
+            b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
             b
         })
     }

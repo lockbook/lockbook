@@ -9,6 +9,22 @@ struct SplitRow {
     text: String,
     range: (Grapheme, Grapheme),
 }
+
+/// One row's contribution to a section's layout. Built by `plan_section`,
+/// consumed identically by `text_mid_span` (sums advances) and
+/// `show_override_section` (places + paints).
+struct RowPlacement {
+    /// Per-row text passed to `upsert_glyphon_buffer_unwrapped` at paint time.
+    text: String,
+    /// Source range covered by this row.
+    range: (Grapheme, Grapheme),
+    /// Advance applied **before** placing the row (jumps to next visual row
+    /// when the row's content doesn't fit in `row_remaining` but would fit on
+    /// a fresh row). 0 unless the section-break check fired.
+    break_advance: f32,
+    /// Advance applied **after** placing the row.
+    advance: f32,
+}
 use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -287,6 +303,64 @@ impl MdRender {
         split
     }
 
+    /// Decides where each row of a section sits *without* mutating the
+    /// caller's wrap. Returns one [`RowPlacement`] per row; both
+    /// [`Self::text_mid_span`] (measure) and [`Self::show_override_section`]
+    /// (render) iterate this same plan and apply its advances.
+    fn plan_section(
+        &self, wrap: &Wrap, override_text: Option<&str>, range: (Grapheme, Grapheme),
+        font_size: f32, text_format: &Format,
+    ) -> Vec<RowPlacement> {
+        let ppi = self.ctx.pixels_per_point();
+        let split = self.split_rows(override_text, range, font_size, wrap, text_format);
+        let split_len = split.len();
+        let mut sim = wrap.clone();
+        let mut out = Vec::with_capacity(split_len);
+        for (i, row) in split.into_iter().enumerate() {
+            let shaped_w = self
+                .upsert_glyphon_buffer_unwrapped(
+                    &row.text,
+                    font_size,
+                    font_size,
+                    sim.width,
+                    text_format,
+                )
+                .read()
+                .unwrap()
+                .shaped_size(ppi)
+                .x;
+            // Section-break: if the row doesn't fit in what's left of the
+            // current visual row but would fit on a fresh one, jump first.
+            // Cosmic-text won't break unbreakable tokens (e.g. an Arabic
+            // word) mid-cluster, so without this they'd overflow past the
+            // wrap width.
+            let break_advance = if i == 0
+                && sim.row_offset() > 0.5
+                && shaped_w > sim.row_remaining() + 0.5
+                && shaped_w <= sim.width + 0.5
+            {
+                let b = sim.row_remaining();
+                sim.offset += b;
+                b
+            } else {
+                0.0
+            };
+            // Advance after placement: a full row for non-final rows; for
+            // the final row, the natural width capped at `row_remaining`.
+            // The cap means an over-wide last row leaves the wrap cursor at
+            // the row end — the galley extends past visually, but
+            // `wrap.height()` doesn't over-count rows.
+            let advance = if i < split_len - 1 {
+                sim.row_remaining()
+            } else {
+                shaped_w.min(sim.row_remaining())
+            };
+            sim.offset += advance;
+            out.push(RowPlacement { text: row.text, range: row.range, break_advance, advance });
+        }
+        out
+    }
+
     /// Show source text specified by the given range or override text. In the
     /// override case, clicking the text will select the given range.
     ///
@@ -332,18 +406,17 @@ impl MdRender {
             range: (Grapheme, Grapheme),
         }
 
-        // split
-        let split = self.split_rows(override_text, range, font_size, wrap, &text_format);
-        let split_len = split.len();
-
-        // shape
-        let mut shaped: Vec<ShapedRow> = Vec::new();
-        for (i, row) in split.into_iter().enumerate() {
-            let buffer = self.upsert_glyphon_buffer(
-                &row.text,
+        // Plan and place. The same plan drives `text_mid_span` above, so the
+        // wrap state ends in the same place either way.
+        let plan = self.plan_section(wrap, override_text, range, font_size, &text_format);
+        let mut shaped: Vec<ShapedRow> = Vec::with_capacity(plan.len());
+        for placement in plan {
+            wrap.offset += placement.break_advance;
+            let buffer = self.upsert_glyphon_buffer_unwrapped(
+                &placement.text,
                 font_size,
                 font_size,
-                wrap.row_remaining(),
+                wrap.width,
                 &text_format,
             );
             let size = buffer.read().unwrap().shaped_size(ppi);
@@ -353,10 +426,9 @@ impl MdRender {
                     wrap.row() as f32 * (wrap.row_height + wrap.row_spacing) + y_offset,
                 );
             let rect = Rect::from_min_size(pos, size);
-            let advance = if i < split_len - 1 { wrap.row_remaining() } else { size.x };
-            wrap.add_range(row.range);
-            wrap.offset += advance;
-            shaped.push(ShapedRow { buffer, size, pos, rect, range: row.range });
+            wrap.add_range(placement.range);
+            wrap.offset += placement.advance;
+            shaped.push(ShapedRow { buffer, size, pos, rect, range: placement.range });
         }
 
         // sense
@@ -424,42 +496,22 @@ impl MdRender {
         }
     }
 
-    /// Returns the span from the text itself of a single section.
+    /// Returns the span from the text itself of a single section. Sums the
+    /// advances of the same plan that [`Self::show_override_section`] uses, so
+    /// measure and render can't disagree.
     pub fn text_mid_span(
         &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: Format,
     ) -> f32 {
-        let ppi = self.ctx.pixels_per_point();
         let font_size = if text_format.superscript || text_format.subscript {
             wrap.row_height * 0.75
         } else {
             wrap.row_height
         };
-
-        let mut wrap = Wrap { offset: wrap.offset + pre_span, ..wrap.clone() };
-        let split = self.split_rows(Some(text), Default::default(), font_size, &wrap, &text_format);
-        let split_len = split.len();
-
-        let mut span = 0.0;
-        for (i, row) in split.iter().enumerate() {
-            let advance = if i < split_len - 1 {
-                wrap.row_remaining()
-            } else {
-                self.upsert_glyphon_buffer(
-                    &row.text,
-                    font_size,
-                    font_size,
-                    wrap.row_remaining(),
-                    &text_format,
-                )
-                .read()
-                .unwrap()
-                .shaped_size(ppi)
-                .x
-            };
-            span += advance;
-            wrap.offset += advance;
-        }
-        span
+        let wrap = Wrap { offset: wrap.offset + pre_span, ..wrap.clone() };
+        self.plan_section(&wrap, Some(text), Default::default(), font_size, &text_format)
+            .into_iter()
+            .map(|p| p.break_advance + p.advance)
+            .sum()
     }
 
     /// Returns the span of post-text padding for inline code, spoilers, etc.
