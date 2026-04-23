@@ -705,10 +705,38 @@ impl MdRender {
     /// across frames (and across widgets). The editor-specific concern here is
     /// emoji: graphemes containing emoji codepoints get the Twemoji font family
     /// while everything else uses the format's font family.
+    /// Default wrap mode: word boundaries preferred, glyph boundaries as a
+    /// fallback for over-wide single tokens. This is what `split_rows` reaches
+    /// for first when discovering row breaks.
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
-        self.upsert_glyphon_buffer_inner(text, font_size, line_height, width, format, true)
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::WordOrGlyph,
+        )
+    }
+
+    /// Glyph-level wrap. Used as a fallback by `split_rows` when
+    /// `WordOrGlyph` produces a layout run wider than the wrap width — a
+    /// known cosmic-text quirk on some bold mixed-script content. Glyph
+    /// mode breaks at any glyph boundary, which means mid-word splits, but
+    /// that's better than overflowing a cell.
+    pub fn upsert_glyphon_buffer_glyph(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::Glyph,
+        )
     }
 
     /// Like [`Self::upsert_glyphon_buffer`] but with `Wrap::None`. Use for
@@ -719,12 +747,19 @@ impl MdRender {
     pub fn upsert_glyphon_buffer_unwrapped(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
     ) -> Arc<RwLock<glyphon::Buffer>> {
-        self.upsert_glyphon_buffer_inner(text, font_size, line_height, width, format, false)
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::None,
+        )
     }
 
     fn upsert_glyphon_buffer_inner(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
-        wrap: bool,
+        wrap_mode: glyphon::Wrap,
     ) -> Arc<RwLock<glyphon::Buffer>> {
         let font_system = self
             .ctx
@@ -745,8 +780,16 @@ impl MdRender {
         let width = width * ppi;
 
         use crate::widgets::glyphon_cache::*;
-        // Fold wrap mode into the cache key via a sub-ULP nudge to width.
-        let width_bits = if wrap { width.to_bits() } else { width.to_bits() ^ 1 };
+        // Fold wrap mode into the cache key via low-bit nudges to width.
+        // Three modes need three distinct keys — a sub-ULP perturbation of
+        // an already-quantized pixel value, harmless to layout but enough
+        // to separate cache entries.
+        let width_bits = match wrap_mode {
+            glyphon::Wrap::WordOrGlyph => width.to_bits(),
+            glyphon::Wrap::None => width.to_bits() ^ 1,
+            glyphon::Wrap::Glyph => width.to_bits() ^ 2,
+            _ => width.to_bits() ^ 3,
+        };
         let key = GlyphonCacheKey::single(
             text,
             match format.family {
@@ -796,17 +839,6 @@ impl MdRender {
                 glyphon::Shaping::Advanced,
                 None,
             );
-            // `WordOrGlyph` wraps at word boundaries when it can and at glyph
-            // boundaries for over-wide single tokens. `None` is for already-
-            // split text whose per-row layout we want stable (see
-            // `upsert_glyphon_buffer_unwrapped`).
-            //
-            // Cosmic-text occasionally refuses to wrap some bold mixed-script
-            // content (Latin + Arabic) at any boundary in `WordOrGlyph` mode;
-            // that surfaces here as a row whose natural width exceeds
-            // `row_remaining`, which `plan_section`'s section-break catches
-            // by jumping to a fresh row before placing it.
-            let wrap_mode = if wrap { glyphon::Wrap::WordOrGlyph } else { glyphon::Wrap::None };
             b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
             b
         })

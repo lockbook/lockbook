@@ -18,6 +18,10 @@ struct RowPlacement {
     text: String,
     /// Source range covered by this row.
     range: (Grapheme, Grapheme),
+    /// Natural shaped width of `text` (no re-wrap). Used by `plan_section`
+    /// to detect when cosmic-text refused to wrap a row that's wider than
+    /// `wrap.width`, so it can fall back to a different wrap mode.
+    shaped_w: f32,
     /// Advance applied **before** placing the row. Combines (a) the
     /// section's pre-padding when this is the first row of a padded section
     /// starting mid-row, and (b) a section-break jump when the row doesn't
@@ -90,8 +94,10 @@ impl Wrap {
             if row > 0 {
                 if let Some(prev_line) = self.row_ranges.get_mut(row - 1) {
                     // when two rows' ranges touch, shorten the earlier so that
-                    // the boundary belongs to the later
-                    if prev_line.end() == range.start() {
+                    // the boundary belongs to the later. Skip if the earlier
+                    // row has nothing to give up (its range is empty); without
+                    // this guard, an empty first row at position 0 underflows.
+                    if prev_line.end() == range.start() && prev_line.1 > prev_line.0 {
                         prev_line.1 -= 1;
                     }
                 }
@@ -155,21 +161,27 @@ impl MdRender {
 
     /// Splits text into rows. For override text all rows share `range`; for
     /// source text each row gets its sub-range (cloned from the buffer).
+    /// `glyph_wrap` selects the wrap mode used to discover break points:
+    /// `false` uses `WordOrGlyph` (word boundaries preferred); `true` uses
+    /// `Glyph` and is the fallback `plan_section` reaches for when
+    /// `WordOrGlyph` produces a row wider than the wrap width — a known
+    /// cosmic-text quirk on some bold mixed-script content.
     fn split_rows(
         &self, override_text: Option<&str>, range: (Grapheme, Grapheme), font_size: f32,
-        wrap: &Wrap, text_format: &Format,
+        wrap: &Wrap, text_format: &Format, glyph_wrap: bool,
     ) -> Vec<SplitRow> {
         let text = override_text.unwrap_or(&self.buffer[range]);
         let is_override = override_text.is_some();
+        let shape = |s: &str, w: f32| {
+            if glyph_wrap {
+                self.upsert_glyphon_buffer_glyph(s, font_size, font_size, w, text_format)
+            } else {
+                self.upsert_glyphon_buffer(s, font_size, font_size, w, text_format)
+            }
+        };
 
         let first_row_bytes = {
-            let tmp = self.upsert_glyphon_buffer(
-                text,
-                font_size,
-                font_size,
-                wrap.row_remaining(),
-                text_format,
-            );
+            let tmp = shape(text, wrap.row_remaining());
             let tmp = tmp.read().unwrap();
             // Same display-vs-source ordering caveat as the per-run fold
             // below: in an RTL run the visually-last glyph is the
@@ -221,13 +233,7 @@ impl MdRender {
             };
 
             let run_byte_ranges: Vec<(usize, usize)> = {
-                let tmp = self.upsert_glyphon_buffer(
-                    &remaining_str,
-                    font_size,
-                    font_size,
-                    wrap.width,
-                    text_format,
-                );
+                let tmp = shape(&remaining_str, wrap.width);
                 let tmp = tmp.read().unwrap();
                 // Cosmic-text indexes glyphs into its own per-paragraph
                 // buffer lines, not into the string we passed in. It splits
@@ -316,9 +322,25 @@ impl MdRender {
     /// (highlights, code spans, etc.) — pre-pad lands in the first row's
     /// `break_advance`, post-pad in the last row's `advance` — so callers
     /// don't track padding separately from row layout.
+    ///
+    /// Tries `WordOrGlyph` wrap first; if cosmic-text leaves a row wider
+    /// than the wrap width (a known mixed-script quirk where it refuses to
+    /// break), falls back to `Glyph` mode for guaranteed wrapping.
     fn plan_section(
         &self, wrap: &Wrap, override_text: Option<&str>, range: (Grapheme, Grapheme),
         text_format: &Format,
+    ) -> Vec<RowPlacement> {
+        let plan = self.plan_section_with_mode(wrap, override_text, range, text_format, false);
+        if plan.iter().any(|p| p.shaped_w > wrap.width + 0.5) {
+            self.plan_section_with_mode(wrap, override_text, range, text_format, true)
+        } else {
+            plan
+        }
+    }
+
+    fn plan_section_with_mode(
+        &self, wrap: &Wrap, override_text: Option<&str>, range: (Grapheme, Grapheme),
+        text_format: &Format, glyph_wrap: bool,
     ) -> Vec<RowPlacement> {
         let ppi = self.ctx.pixels_per_point();
         let font_size = if text_format.superscript || text_format.subscript {
@@ -338,7 +360,7 @@ impl MdRender {
         };
 
         let mut sim = Wrap { offset: wrap.offset + pre_pad, ..wrap.clone() };
-        let split = self.split_rows(override_text, range, font_size, &sim, text_format);
+        let split = self.split_rows(override_text, range, font_size, &sim, text_format, glyph_wrap);
         let split_len = split.len();
         let mut out = Vec::with_capacity(split_len);
         for (i, row) in split.into_iter().enumerate() {
@@ -394,7 +416,13 @@ impl MdRender {
                 advance += post_pad;
                 sim.offset += post_pad;
             }
-            out.push(RowPlacement { text: row.text, range: row.range, break_advance, advance });
+            out.push(RowPlacement {
+                text: row.text,
+                range: row.range,
+                shaped_w,
+                break_advance,
+                advance,
+            });
         }
         out
     }
