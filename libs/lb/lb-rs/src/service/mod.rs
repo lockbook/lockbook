@@ -17,5 +17,6 @@ pub mod keychain;
 pub mod lb_id;
 pub mod logging;
 pub mod path;
+pub mod pin;
 pub mod share;
 pub mod usage;

@@ -225,6 +225,18 @@ impl Lb {
         self.block_on(self.lb.clear_suggested_id(target_id))
     }
 
+    pub fn pin_file(&self, id: Uuid) -> LbResult<()> {
+        self.block_on(self.lb.pin_file(id))
+    }
+
+    pub fn unpin_file(&self, id: Uuid) -> LbResult<()> {
+        self.block_on(self.lb.unpin_file(id))
+    }
+
+    pub fn list_pinned(&self) -> LbResult<Vec<Uuid>> {
+        self.block_on(self.lb.list_pinned())
+    }
+
     // TODO: examine why the old get_usage does a bunch of things
     pub fn get_usage(&self) -> LbResult<UsageMetrics> {
         self.block_on(self.lb.get_usage())
