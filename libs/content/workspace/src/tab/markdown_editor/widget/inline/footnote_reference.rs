@@ -42,7 +42,7 @@ impl<'ast> MdRender {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
                 let text = format!("{ix}");
-                self.text_mid_span(wrap, 0., &text, self.text_format(node))
+                self.span_override_section(wrap, &text, self.text_format(node))
             } else {
                 0.0
             }

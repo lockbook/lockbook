@@ -11,18 +11,21 @@ struct SplitRow {
 }
 
 /// One row's contribution to a section's layout. Built by `plan_section`,
-/// consumed identically by `text_mid_span` (sums advances) and
+/// consumed identically by `span_section` (sums advances) and
 /// `show_override_section` (places + paints).
 struct RowPlacement {
     /// Per-row text passed to `upsert_glyphon_buffer_unwrapped` at paint time.
     text: String,
     /// Source range covered by this row.
     range: (Grapheme, Grapheme),
-    /// Advance applied **before** placing the row (jumps to next visual row
-    /// when the row's content doesn't fit in `row_remaining` but would fit on
-    /// a fresh row). 0 unless the section-break check fired.
+    /// Advance applied **before** placing the row. Combines (a) the
+    /// section's pre-padding when this is the first row of a padded section
+    /// starting mid-row, and (b) a section-break jump when the row doesn't
+    /// fit in `row_remaining` but would on a fresh row.
     break_advance: f32,
-    /// Advance applied **after** placing the row.
+    /// Advance applied **after** placing the row. Combines the row's own
+    /// content advance with the section's post-padding when this is the
+    /// last row of a padded section.
     advance: f32,
 }
 use crate::tab::markdown_editor::bounds::Lines;
@@ -110,15 +113,17 @@ impl MdRender {
         wrap.height()
     }
 
-    /// Returns the span of a text section in a wrap layout, which includes
-    /// space added to the end of a row when text wraps.
+    /// Returns the wrap-cursor advance produced by laying out a text section
+    /// — the same advance [`Self::show_override_section`] applies. Sums the
+    /// per-row break + advance from a shared plan, so measure and render
+    /// cannot disagree.
     pub fn span_section(
         &self, wrap: &Wrap, range: (Grapheme, Grapheme), text_format: Format,
     ) -> f32 {
-        let pre_span = self.text_pre_span(wrap, &text_format);
-        let mid_span = self.text_mid_span(wrap, pre_span, &self.buffer[range], text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
-        pre_span + mid_span + post_span
+        self.plan_section(wrap, None, range, &text_format)
+            .into_iter()
+            .map(|p| p.break_advance + p.advance)
+            .sum()
     }
 
     /// Show source text specified by the given range.
@@ -139,14 +144,13 @@ impl MdRender {
         wrap.height()
     }
 
-    /// Returns the span of a single section that's not from the document's
-    /// source text in a wrap layout, which includes space added to the end of a
-    /// row when text wraps.
+    /// Like [`Self::span_section`] but for text that isn't from the
+    /// document's source (e.g. a shortcode emoji preview).
     pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: Format) -> f32 {
-        let pre_span = self.text_pre_span(wrap, &text_format);
-        let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
-        pre_span + mid_span + post_span
+        self.plan_section(wrap, Some(text), Default::default(), &text_format)
+            .into_iter()
+            .map(|p| p.break_advance + p.advance)
+            .sum()
     }
 
     /// Splits text into rows. For override text all rows share `range`; for
@@ -305,16 +309,37 @@ impl MdRender {
 
     /// Decides where each row of a section sits *without* mutating the
     /// caller's wrap. Returns one [`RowPlacement`] per row; both
-    /// [`Self::text_mid_span`] (measure) and [`Self::show_override_section`]
+    /// [`Self::span_section`] (measure) and [`Self::show_override_section`]
     /// (render) iterate this same plan and apply its advances.
+    ///
+    /// Folds in section-level padding for inlines with a background
+    /// (highlights, code spans, etc.) — pre-pad lands in the first row's
+    /// `break_advance`, post-pad in the last row's `advance` — so callers
+    /// don't track padding separately from row layout.
     fn plan_section(
         &self, wrap: &Wrap, override_text: Option<&str>, range: (Grapheme, Grapheme),
-        font_size: f32, text_format: &Format,
+        text_format: &Format,
     ) -> Vec<RowPlacement> {
         let ppi = self.ctx.pixels_per_point();
-        let split = self.split_rows(override_text, range, font_size, wrap, text_format);
+        let font_size = if text_format.superscript || text_format.subscript {
+            wrap.row_height * 0.75
+        } else {
+            wrap.row_height
+        };
+        let padded = text_format.background != egui::Color32::TRANSPARENT;
+
+        // Pre-padding: keep the background's left edge from visually
+        // overlapping the previous inline. Only when the section starts
+        // mid-row.
+        let pre_pad = if padded && wrap.row_offset() > 0.5 {
+            self.layout.inline_padding.min(wrap.row_remaining())
+        } else {
+            0.0
+        };
+
+        let mut sim = Wrap { offset: wrap.offset + pre_pad, ..wrap.clone() };
+        let split = self.split_rows(override_text, range, font_size, &sim, text_format);
         let split_len = split.len();
-        let mut sim = wrap.clone();
         let mut out = Vec::with_capacity(split_len);
         for (i, row) in split.into_iter().enumerate() {
             let shaped_w = self
@@ -334,28 +359,34 @@ impl MdRender {
             // Cosmic-text won't break unbreakable tokens (e.g. an Arabic
             // word) mid-cluster, so without this they'd overflow past the
             // wrap width.
-            let break_advance = if i == 0
+            let mut break_advance = if i == 0 { pre_pad } else { 0.0 };
+            if i == 0
                 && sim.row_offset() > 0.5
                 && shaped_w > sim.row_remaining() + 0.5
                 && shaped_w <= sim.width + 0.5
             {
-                let b = sim.row_remaining();
-                sim.offset += b;
-                b
-            } else {
-                0.0
-            };
+                let jump = sim.row_remaining();
+                break_advance += jump;
+                sim.offset += jump;
+            }
             // Advance after placement: a full row for non-final rows; for
             // the final row, the natural width capped at `row_remaining`.
             // The cap means an over-wide last row leaves the wrap cursor at
             // the row end — the galley extends past visually, but
             // `wrap.height()` doesn't over-count rows.
-            let advance = if i < split_len - 1 {
+            let mut advance = if i < split_len - 1 {
                 sim.row_remaining()
             } else {
                 shaped_w.min(sim.row_remaining())
             };
             sim.offset += advance;
+            // Post-padding on the final row of a padded section: same role
+            // as `pre_pad`, on the right side.
+            if i == split_len - 1 && padded {
+                let post_pad = self.layout.inline_padding.min(sim.row_remaining());
+                advance += post_pad;
+                sim.offset += post_pad;
+            }
             out.push(RowPlacement { text: row.text, range: row.range, break_advance, advance });
         }
         out
@@ -381,12 +412,6 @@ impl MdRender {
             panic!("show_text_line: text contains newline: {text:?}");
         }
 
-        let pre_span = self.text_pre_span(wrap, &text_format);
-        let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
-
-        wrap.offset += pre_span;
-
         let font_size = if text_format.superscript || text_format.subscript {
             wrap.row_height * 0.75
         } else {
@@ -406,9 +431,10 @@ impl MdRender {
             range: (Grapheme, Grapheme),
         }
 
-        // Plan and place. The same plan drives `text_mid_span` above, so the
-        // wrap state ends in the same place either way.
-        let plan = self.plan_section(wrap, override_text, range, font_size, &text_format);
+        // Plan and place. The same plan drives `span_section`, so the wrap
+        // state ends in the same place either way. Section-level pre/post
+        // padding for backgrounds is folded into the placements' advances.
+        let plan = self.plan_section(wrap, override_text, range, &text_format);
         let mut shaped: Vec<ShapedRow> = Vec::with_capacity(plan.len());
         for placement in plan {
             wrap.offset += placement.break_advance;
@@ -481,52 +507,7 @@ impl MdRender {
             }
         }
 
-        wrap.offset += post_span;
-
         response
-    }
-
-    /// Returns the span of pre-text padding for inline code, spoilers, etc.
-    pub fn text_pre_span(&self, wrap: &Wrap, text_format: &Format) -> f32 {
-        let padded = text_format.background != egui::Color32::TRANSPARENT;
-        if padded && wrap.row_offset() > 0.5 {
-            self.layout.inline_padding.min(wrap.row_remaining())
-        } else {
-            0.
-        }
-    }
-
-    /// Returns the span from the text itself of a single section. Sums the
-    /// advances of the same plan that [`Self::show_override_section`] uses, so
-    /// measure and render can't disagree.
-    pub fn text_mid_span(
-        &self, wrap: &Wrap, pre_span: f32, text: &str, text_format: Format,
-    ) -> f32 {
-        let font_size = if text_format.superscript || text_format.subscript {
-            wrap.row_height * 0.75
-        } else {
-            wrap.row_height
-        };
-        let wrap = Wrap { offset: wrap.offset + pre_span, ..wrap.clone() };
-        self.plan_section(&wrap, Some(text), Default::default(), font_size, &text_format)
-            .into_iter()
-            .map(|p| p.break_advance + p.advance)
-            .sum()
-    }
-
-    /// Returns the span of post-text padding for inline code, spoilers, etc.
-    pub fn text_post_span(&self, wrap: &Wrap, pre_plus_mid_span: f32, text_format: &Format) -> f32 {
-        let padded = text_format.background != egui::Color32::TRANSPARENT;
-        if padded {
-            let wrap = Wrap {
-                offset: wrap.offset + pre_plus_mid_span,
-                row_ranges: Default::default(),
-                ..*wrap
-            };
-            self.layout.inline_padding.min(wrap.row_remaining())
-        } else {
-            0.
-        }
     }
 
     fn draw_decorations(

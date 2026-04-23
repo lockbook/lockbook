@@ -33,12 +33,7 @@ impl<'ast> MdRender {
             let text_format =
                 if reveal { self.text_format_syntax() } else { self.text_format(node) };
             let text = if reveal { &self.buffer[node_range] } else { "" };
-
-            let pre_span = self.text_pre_span(&tmp_wrap, &text_format);
-            let mid_span = self.text_mid_span(&tmp_wrap, pre_span, text, text_format.clone());
-            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, &text_format);
-
-            tmp_wrap.offset += pre_span + mid_span + post_span;
+            tmp_wrap.offset += self.span_override_section(&tmp_wrap, text, text_format);
         }
 
         tmp_wrap.offset - wrap.offset

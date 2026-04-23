@@ -11,19 +11,7 @@ impl<'ast> MdRender {
     pub fn span_text(
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
-        let node_range = self.node_range(node);
-        let text_format = self.text_format(node);
-
-        let pre_span = self.text_pre_span(wrap, &text_format);
-        let mid_span = self.text_mid_span(
-            wrap,
-            pre_span,
-            &self.buffer[node_range.trim(&range)],
-            text_format.clone(),
-        );
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
-
-        pre_span + mid_span + post_span
+        self.span_section(wrap, self.node_range(node).trim(&range), self.text_format(node))
     }
 
     pub fn show_text(

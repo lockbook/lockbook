@@ -23,7 +23,6 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let node_range = self.node_range(node);
-        let text_format = self.text_format(node);
 
         let prefix_range = (node_range.start(), node_range.start() + 1).trim(&range);
         let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
@@ -37,16 +36,7 @@ impl<'ast> MdRender {
                 self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax());
         }
         if !infix_range.is_empty() {
-            let pre_span = self.text_pre_span(&tmp_wrap, &text_format);
-            let mid_span = self.text_mid_span(
-                &tmp_wrap,
-                pre_span,
-                &self.buffer[infix_range],
-                text_format.clone(),
-            );
-            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, &text_format);
-
-            tmp_wrap.offset += pre_span + mid_span + post_span;
+            tmp_wrap.offset += self.span_section(&tmp_wrap, infix_range, self.text_format(node));
         }
         if !postfix_range.is_empty() && reveal {
             tmp_wrap.offset +=
