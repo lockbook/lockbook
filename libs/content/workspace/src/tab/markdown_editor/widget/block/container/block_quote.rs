@@ -3,6 +3,7 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -111,23 +112,30 @@ impl<'ast> MdRender {
         // result of prepending a block quote marker to the beginning of each
         // line in Ls is a block quote containing Bs."
         let text = &self.buffer[node_line];
-        if text.starts_with("   > ") {
-            result += 5;
-        } else if text.starts_with("   >") || text.starts_with("  > ") {
-            result += 4;
-        } else if text.starts_with("  >") || text.starts_with(" > ") {
-            result += 3;
-        } else if text.starts_with(" >") || text.starts_with("> ") {
-            result += 2;
-        } else if text.starts_with(">") {
-            result += 1;
-        } else {
+
+        // Up to 3 columns of leading whitespace before `>`. Tabs count via
+        // 4-column tab stops per CommonMark §2.2; a tab at column 0 expands
+        // to 4 columns and so cannot be leading-WS for a blockquote. Leading
+        // whitespace here is ' ' or '\t' only (both ASCII), so grapheme
+        // count equals byte count.
+        let lead = consume_indent_columns(text, 3);
+        let after_lead = &text[lead..];
+        if !after_lead.starts_with('>') {
             // "If a string of lines Ls constitute a block quote with contents Bs,
             // then the result of deleting the initial block quote marker from one
             // or more lines in which the next non-whitespace character after the
             // block quote marker is paragraph continuation text is a block quote
             // with Bs as its content."
             return None;
+        }
+        result += lead;
+        result += 1; // the `>`
+        // Optional single column of marker space — a literal space or a tab
+        // (the tab grapheme is consumed even though it represents more than
+        // 1 column, per CommonMark §2.2).
+        let after_marker = &after_lead[1..];
+        if after_marker.starts_with(' ') || after_marker.starts_with('\t') {
+            result += 1;
         }
 
         Some(result)

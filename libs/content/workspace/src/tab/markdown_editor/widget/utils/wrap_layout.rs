@@ -290,7 +290,11 @@ impl MdRender {
             };
 
             for (start, end) in run_byte_ranges {
-                let skip_leading_space = remaining_str[start..].starts_with(' ');
+                // Empty runs (start == end) come from cosmic-text emitting a
+                // layout run for a paragraph separator with no glyphs after
+                // it; don't try to advance past them or we'd produce an
+                // inverted slice.
+                let skip_leading_space = start < end && remaining_str[start..].starts_with(' ');
                 let text_start = if skip_leading_space { start + 1 } else { start };
                 let row_range = if is_override {
                     range

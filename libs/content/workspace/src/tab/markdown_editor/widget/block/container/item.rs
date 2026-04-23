@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, R
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -197,12 +198,7 @@ impl<'ast> MdRender {
             //
             // "If a line is empty, then it need not be indented."
             let text = &self.buffer[node_line];
-            for i in 0..(indentation + marker_width_including_spaces) {
-                if text.starts_with(&" ".repeat(indentation + marker_width_including_spaces - i)) {
-                    result += indentation + marker_width_including_spaces - i;
-                    break;
-                }
-            }
+            result += consume_indent_columns(text, indentation + marker_width_including_spaces);
         }
 
         // marker_width_including_spaces reports the width _with_ spaces even

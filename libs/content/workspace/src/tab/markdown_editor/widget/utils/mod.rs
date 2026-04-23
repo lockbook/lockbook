@@ -6,6 +6,37 @@ use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod wrap_layout;
 
+/// Consume leading whitespace from `text` until the column position reaches
+/// `target_columns`, returning the number of graphemes consumed. Per
+/// CommonMark/GFM §2.2, tabs in indent positions act as if expanded to
+/// spaces with a tab stop of 4 columns (so a tab at column 0 = 4 spaces, at
+/// column 1 = 3 spaces, etc.). Tabs are atomic — consumed wholesale even if
+/// they advance past `target_columns` (you can't strip half a tab from
+/// source). Used by container-block prefix-stripping (list items, task
+/// items, blockquotes) where the parent owns the leading indent and the
+/// renderer needs to skip it before showing the line content.
+pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
+    let mut cols = 0;
+    let mut graphemes = 0;
+    for c in text.chars() {
+        if cols >= target_columns {
+            break;
+        }
+        match c {
+            ' ' => {
+                cols += 1;
+                graphemes += 1;
+            }
+            '\t' => {
+                cols = (cols / 4 + 1) * 4;
+                graphemes += 1;
+            }
+            _ => break,
+        }
+    }
+    graphemes
+}
+
 impl<'ast> MdRender {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
     pub fn offset_to_byte(&self, i: Grapheme) -> Byte {

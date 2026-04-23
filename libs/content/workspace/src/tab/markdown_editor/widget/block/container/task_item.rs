@@ -1,7 +1,8 @@
-use comrak::nodes::{AstNode, NodeTaskItem};
+use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
 
@@ -204,13 +205,21 @@ impl<'ast> MdRender {
             // same contents and attributes."
             //
             // "If a line is empty, then it need not be indented."
+            //
+            // The threshold here is the *list's* content column (= the
+            // bullet marker `- ` width, typically 2), not the visual
+            // `- [ ] ` width. Comrak parses `- [ ] foo` as a `- ` bullet
+            // item whose content begins with the task syntax `[ ] `, so an
+            // indented code block inside the item begins at content_col + 4
+            // (= 6). Stripping the full visual `- [ ] ` here would consume
+            // the very indent the code block is defined by — and the
+            // code block's own 4-space strip would then leave it empty.
+            let parent_padding = match &node.parent().unwrap().data.borrow().value {
+                NodeValue::List(node_list) => node_list.padding,
+                _ => marker_width_including_spaces, // fallback, shouldn't happen
+            };
             let text = &self.buffer[node_line];
-            for i in 0..(marker_width_including_spaces + indentation) {
-                if text.starts_with(&" ".repeat(marker_width_including_spaces + indentation - i)) {
-                    result += marker_width_including_spaces + indentation - i;
-                    break;
-                }
-            }
+            result += consume_indent_columns(text, indentation + parent_padding);
         }
 
         Some(result)
