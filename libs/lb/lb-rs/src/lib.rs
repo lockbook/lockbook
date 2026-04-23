@@ -19,6 +19,8 @@
 extern crate tracing;
 
 pub mod blocking;
+#[cfg(not(target_family = "wasm"))]
+pub mod ipc;
 pub mod io;
 pub mod macros;
 pub mod model;
