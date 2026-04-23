@@ -99,7 +99,10 @@ impl MdRender {
     pub fn span_section(
         &self, wrap: &Wrap, range: (Grapheme, Grapheme), text_format: Format,
     ) -> f32 {
-        self.text_mid_span(wrap, 0., &self.buffer[range], text_format)
+        let pre_span = self.text_pre_span(wrap, &text_format);
+        let mid_span = self.text_mid_span(wrap, pre_span, &self.buffer[range], text_format.clone());
+        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
+        pre_span + mid_span + post_span
     }
 
     /// Show source text specified by the given range.
@@ -124,7 +127,10 @@ impl MdRender {
     /// source text in a wrap layout, which includes space added to the end of a
     /// row when text wraps.
     pub fn span_override_section(&self, wrap: &Wrap, text: &str, text_format: Format) -> f32 {
-        self.text_mid_span(wrap, 0., text, text_format)
+        let pre_span = self.text_pre_span(wrap, &text_format);
+        let mid_span = self.text_mid_span(wrap, pre_span, text, text_format.clone());
+        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
+        pre_span + mid_span + post_span
     }
 
     /// Splits text into rows. For override text all rows share `range`; for
@@ -149,6 +155,12 @@ impl MdRender {
             // below: in an RTL run the visually-last glyph is the
             // source-leftmost one, so `glyphs.last().end` would understate
             // the row's byte span. Take the max source byte over all glyphs.
+            //
+            // If the first run is empty (text starts with a BiDi paragraph
+            // separator like `\u{85}` or `\u{1c}`), fall through to 0 so the
+            // whole text goes into the second pass and gets split per
+            // separator. Otherwise we'd lump separators into one row whose
+            // re-shape produces a multi-row buffer and inflates the rect.
             tmp.layout_runs()
                 .next()
                 .filter(|run| !run.glyphs.is_empty())
@@ -157,7 +169,7 @@ impl MdRender {
                         .iter()
                         .fold(0usize, |hi, g| hi.max(g.start).max(g.end))
                 })
-                .unwrap_or(text.len())
+                .unwrap_or(0)
         };
 
         let first_row_str = text[..first_row_bytes].to_string();
@@ -170,8 +182,12 @@ impl MdRender {
             // `start + first_row_bytes` comes from cosmic-text glyph positions
             // which can land inside a grapheme cluster (an inserted combining
             // mark joining the preceding char). Snap the end up to the next
-            // boundary so we don't `range_to_char` a non-boundary byte.
-            self.range_to_char_ceil((start, start + first_row_bytes))
+            // boundary so we don't `range_to_char` a non-boundary byte. Clamp
+            // to `range.end()` so we don't extend past the section when the
+            // snap crosses the section boundary (e.g. section ends inside a
+            // cluster — the math closing `$` after a Hindi conjunct).
+            let r = self.range_to_char_ceil((start, start + first_row_bytes));
+            (r.0, r.1.min(range.end()))
         };
 
         let mut split = vec![SplitRow { text: first_row_str, range: first_row_range }];
@@ -253,11 +269,13 @@ impl MdRender {
                 let row_range = if is_override {
                     range
                 } else {
-                    // Same cluster-snap concern as the first-row branch above.
-                    self.range_to_char_ceil((
+                    // Same cluster-snap-and-clamp concern as the first-row
+                    // branch above.
+                    let r = self.range_to_char_ceil((
                         remaining_start_byte + text_start,
                         remaining_start_byte + end,
-                    ))
+                    ));
+                    (r.0, r.1.min(range.end()))
                 };
                 split.push(SplitRow {
                     text: remaining_str[text_start..end].to_string(),

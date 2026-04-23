@@ -1063,6 +1063,10 @@ impl Editor {
 
                             self.edit.renderer.top_left = ui.max_rect().min
                                 + (padding + self.edit.renderer.layout.margin) * Vec2::X;
+                            // Pre-subtract margin so height() and show see the same
+                            // renderer.width. Otherwise margin gets subtracted twice,
+                            // cell widths diverge, and cached heights go stale.
+                            self.edit.renderer.width -= 2. * self.edit.renderer.layout.margin;
                             let height = {
                                 let document_height = self.edit.renderer.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -1076,11 +1080,7 @@ impl Editor {
                             };
                             let rect = Rect::from_min_size(
                                 self.edit.renderer.top_left,
-                                Vec2::new(
-                                    self.edit.renderer.width
-                                        - 2. * self.edit.renderer.layout.margin,
-                                    height,
-                                ),
+                                Vec2::new(self.edit.renderer.width, height),
                             );
 
                             // delegate to MdEdit::show for parse, event processing,
