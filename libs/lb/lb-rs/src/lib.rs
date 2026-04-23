@@ -26,7 +26,7 @@ pub mod service;
 pub mod subscribers;
 
 #[derive(Clone)]
-pub struct Lb {
+pub struct LocalLb {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
     pub keychain: Keychain,
@@ -40,7 +40,7 @@ pub struct Lb {
     pub search: SearchIndex,
 }
 
-impl Lb {
+impl LocalLb {
     /// this is dumb lb that will make the library compile for wasm but doesn't include
     /// any of the expected functionality. your files wouldn't be saved, sync wouldn't
     /// work, etc. for now this is useful for unblocking workspace on wasm
@@ -73,7 +73,7 @@ impl Lb {
     }
 }
 
-impl Lb {
+impl LocalLb {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         logging::init(&config)?;
@@ -114,6 +114,57 @@ impl Lb {
         }
 
         Ok(result)
+    }
+}
+
+/// Public-facing handle to lb-rs.
+///
+/// Wraps an `LbInner` whose only variant today is `Local(LocalLb)` — the in-process
+/// implementation. A future `Remote` variant will forward calls over IPC to a host
+/// process when this client cannot acquire the db-rs filesystem lock.
+///
+/// Stage 1 leans on `Deref<Target = LocalLb>` so consumers see the same surface the
+/// pre-wrapper `Lb` had. When `Remote` lands, `Deref` is removed and every public
+/// method on `Lb` becomes an explicit forwarder that dispatches on `inner`.
+#[derive(Clone)]
+pub struct Lb {
+    inner: LbInner,
+}
+
+#[derive(Clone)]
+enum LbInner {
+    Local(LocalLb),
+}
+
+impl Lb {
+    pub async fn init(config: Config) -> LbResult<Self> {
+        let local = LocalLb::init(config).await?;
+        Ok(Lb { inner: LbInner::Local(local) })
+    }
+
+    /// see [`LocalLb::init_dummy`]
+    #[cfg(target_family = "wasm")]
+    pub fn init_dummy(config: Config) -> LbResult<Self> {
+        let local = LocalLb::init_dummy(config)?;
+        Ok(Lb { inner: LbInner::Local(local) })
+    }
+}
+
+impl std::ops::Deref for Lb {
+    type Target = LocalLb;
+
+    fn deref(&self) -> &LocalLb {
+        match &self.inner {
+            LbInner::Local(l) => l,
+        }
+    }
+}
+
+impl std::ops::DerefMut for Lb {
+    fn deref_mut(&mut self) -> &mut LocalLb {
+        match &mut self.inner {
+            LbInner::Local(l) => l,
+        }
     }
 }
 

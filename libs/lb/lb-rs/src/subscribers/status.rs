@@ -11,7 +11,7 @@ use crate::model::clock;
 use crate::model::errors::{LbErrKind, LbResult, Unexpected};
 use crate::service::events::{Event, SyncIncrement};
 use crate::service::usage::UsageMetrics;
-use crate::{Lb, tokio_spawn};
+use crate::{LocalLb, tokio_spawn};
 
 #[derive(Clone, Default)]
 pub struct StatusUpdater {
@@ -122,7 +122,7 @@ impl Status {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }

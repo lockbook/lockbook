@@ -2,7 +2,7 @@ pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
 
-use crate::{Lb, LbErrKind};
+use crate::{LbErrKind, LocalLb};
 
 #[derive(Clone)]
 pub struct EventSubs {
@@ -75,7 +75,7 @@ impl EventSubs {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub fn subscribe(&self) -> Receiver<Event> {
         self.events.tx.subscribe()
     }

@@ -2,7 +2,7 @@ use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::{Lb, tokio_spawn};
+use crate::{LocalLb, tokio_spawn};
 use serde::Serialize;
 use std::ops::Range;
 use std::sync::Arc;
@@ -39,7 +39,7 @@ pub enum SearchResult {
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
 }
 
-impl Lb {
+impl LocalLb {
     /// Lockbook's search implementation.
     ///
     /// Takes an input and a configuration. The configuration describes whether we are searching
@@ -345,7 +345,7 @@ pub struct SearchMetadata {
 }
 
 impl SearchMetadata {
-    async fn populate(lb: &Lb) -> LbResult<Self> {
+    async fn populate(lb: &LocalLb) -> LbResult<Self> {
         let files = lb.list_metadatas().await?;
         let paths = lb.list_paths_with_ids(None).await?;
         let suggested_docs = lb.suggested_docs(RankingWeights::default()).await?;

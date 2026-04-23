@@ -7,13 +7,13 @@ use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::meta::Meta;
 use crate::service::events::Actor;
-use crate::{DEFAULT_API_LOCATION, Lb};
+use crate::{DEFAULT_API_LOCATION, LocalLb};
 use libsecp256k1::SecretKey;
 use qrcode_generator::QrCodeEcc;
 
 use crate::io::network::ApiError;
 
-impl Lb {
+impl LocalLb {
     /// CoreError::AccountExists,
     /// CoreError::UsernameTaken,
     /// CoreError::UsernameInvalid,
