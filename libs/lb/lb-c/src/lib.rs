@@ -613,6 +613,39 @@ pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiEr
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_pin_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.pin_file(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_unpin_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.unpin_file(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_list_pinned(lb: *mut Lb) -> LbIdListRes {
+    let lb = rlb(lb);
+
+    match lb.list_pinned() {
+        Ok(ids) => {
+            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
+            LbIdListRes { err: null_mut(), ids, len }
+        }
+        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
+    }
+}
+
 #[repr(C)]
 pub struct LbUsageMetricsRes {
     err: *mut LbFfiErr,
