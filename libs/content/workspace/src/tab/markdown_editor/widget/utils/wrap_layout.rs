@@ -365,9 +365,16 @@ impl MdRender {
                 && shaped_w > sim.row_remaining() + 0.5
                 && shaped_w <= sim.width + 0.5
             {
-                let jump = sim.row_remaining();
+                // Snap to the next row's boundary explicitly. `sim.offset
+                // += sim.row_remaining()` would land us mathematically on
+                // the boundary, but f32 rounding can leave us a sub-pixel
+                // short — and then `sim.row_remaining()` below returns ~0
+                // instead of a full row, collapsing the next advance to
+                // zero and stacking placements at the same x.
+                let next_row_start = ((sim.offset / sim.width).floor() + 1.0) * sim.width;
+                let jump = next_row_start - sim.offset;
                 break_advance += jump;
-                sim.offset += jump;
+                sim.offset = next_row_start;
             }
             // Advance after placement: a full row for non-final rows; for
             // the final row, the natural width capped at `row_remaining`.
