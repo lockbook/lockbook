@@ -158,10 +158,18 @@ impl MdRender {
         // inside that grapheme and has no corresponding `Grapheme`.
         //
         // We can't go through `line_column_to_offset` here — it would panic
-        // on byte 2. Instead compute the source bytes directly and snap with
-        // explicit direction: floor the inclusive start, ceil the exclusive
-        // end, so the resulting grapheme range fully contains every byte the
-        // sourcepos covered.
+        // on byte 2. Snap both endpoints to ceil instead. Two nodes whose
+        // sourceposes meet at a mid-cluster byte (e.g. `**bold**\u{094D}` —
+        // Strong ends at byte 8, post-Strong text starts at byte 8, but
+        // byte 8 is mid-cluster because the virama fuses with the trailing
+        // `*`) would otherwise both claim the fused cluster: the earlier
+        // node would ceil its end past the cluster *and* the later node
+        // would floor its start back into it. Ceiling both makes the
+        // earlier node win — the cluster lives entirely in whichever
+        // node's source range ends crossing it. Visually that means a
+        // bold-close `**` whose second asterisk has the virama floating
+        // over it, which is what you'd expect: the virama belongs to the
+        // marker that contains it.
         let to_byte = |lc: LineColumn| -> Byte {
             let line_idx = lc.line.saturating_sub(1);
             let col_idx = lc.column - 1;
@@ -174,7 +182,7 @@ impl MdRender {
         };
         let segs = &self.buffer.current.segs;
         (
-            segs.byte_to_char_floor(to_byte(sourcepos.start)),
+            segs.byte_to_char_ceil(to_byte(sourcepos.start)),
             segs.byte_to_char_ceil(to_byte(sourcepos.end)),
         )
     }
