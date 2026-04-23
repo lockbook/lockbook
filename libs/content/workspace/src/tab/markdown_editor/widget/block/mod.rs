@@ -796,10 +796,17 @@ impl MdRender {
                 glyphon::Shaping::Advanced,
                 None,
             );
-            // Default `Wrap::None` never wraps. `Glyph` wraps reliably; `Word`
-            // and `WordOrGlyph` silently refuse on some bold mixed-script
-            // content (Latin + Arabic), letting it overflow the cell.
-            let wrap_mode = if wrap { glyphon::Wrap::Glyph } else { glyphon::Wrap::None };
+            // `WordOrGlyph` wraps at word boundaries when it can and at glyph
+            // boundaries for over-wide single tokens. `None` is for already-
+            // split text whose per-row layout we want stable (see
+            // `upsert_glyphon_buffer_unwrapped`).
+            //
+            // Cosmic-text occasionally refuses to wrap some bold mixed-script
+            // content (Latin + Arabic) at any boundary in `WordOrGlyph` mode;
+            // that surfaces here as a row whose natural width exceeds
+            // `row_remaining`, which `plan_section`'s section-break catches
+            // by jumping to a fresh row before placing it.
+            let wrap_mode = if wrap { glyphon::Wrap::WordOrGlyph } else { glyphon::Wrap::None };
             b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
             b
         })
