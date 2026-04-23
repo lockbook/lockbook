@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeTaskItem};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
@@ -133,8 +133,8 @@ impl<'ast> MdRender {
     }
 
     pub fn own_prefix_len_task_item(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
         let mut result = 0.into();
 
@@ -227,7 +227,7 @@ impl<'ast> MdRender {
         }
     }
 
-    fn check_offset(&self, node: &'ast AstNode<'ast>) -> DocCharOffset {
+    fn check_offset(&self, node: &'ast AstNode<'ast>) -> Grapheme {
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 

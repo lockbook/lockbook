@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeShortCode};
 use egui::{Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -12,7 +12,7 @@ impl<'ast> MdRender {
     }
 
     pub fn span_short_code(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
         node_short_code: &NodeShortCode,
     ) -> f32 {
         let reveal = self.node_revealed(node);
@@ -27,7 +27,7 @@ impl<'ast> MdRender {
 
     pub fn show_short_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), node_short_code: &NodeShortCode,
+        range: (Grapheme, Grapheme), node_short_code: &NodeShortCode,
     ) -> Response {
         let reveal = self.node_revealed(node);
         if reveal {

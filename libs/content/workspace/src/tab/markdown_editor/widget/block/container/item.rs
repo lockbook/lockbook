@@ -1,8 +1,6 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
-};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
@@ -149,11 +147,10 @@ impl<'ast> MdRender {
     }
 
     pub fn own_prefix_len_item(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        node_list: &NodeList,
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), node_list: &NodeList,
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
-        let mut result: RelCharOffset = 0.into();
+        let mut result: Graphemes = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -227,7 +224,7 @@ impl<'ast> MdRender {
 
     pub fn item_contents(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (DocCharOffset, DocCharOffset) {
+    ) -> (Grapheme, Grapheme) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
         let mut contents = if let Some(first_child) = node.children().next() {

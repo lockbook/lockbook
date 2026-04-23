@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -20,7 +20,7 @@ impl<'ast> MdRender {
     }
 
     pub fn span_code(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let node_range = self.node_range(node);
         let text_format = self.text_format(node);
@@ -58,7 +58,7 @@ impl<'ast> MdRender {
 
     pub fn show_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
 

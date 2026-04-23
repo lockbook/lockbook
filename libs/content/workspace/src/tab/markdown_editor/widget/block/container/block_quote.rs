@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeIterExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
@@ -98,8 +98,8 @@ impl<'ast> MdRender {
     // This implementation does benefit from the simplicity of the node - there
     // are only 8 cases.
     pub fn own_prefix_len_block_quote(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
         let mut result = 0.into();
 

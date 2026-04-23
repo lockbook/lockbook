@@ -1,6 +1,6 @@
 use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdEdit;
@@ -22,7 +22,7 @@ pub struct EmojiCompletions {
     /// The search term range in the document excluding the opening colon,
     /// e.g. `smil` in `:smil`. Set when active so show_text() can split
     /// rendering and draw the term in the accent color.
-    pub search_term_range: Option<(DocCharOffset, DocCharOffset)>,
+    pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// When Escape is pressed we store the current query string here.
     /// stays hidden while the live query equals this exactly. Typing more characters
     /// changes the query and un-suppresses automatically — no explicit clear needed.
@@ -142,13 +142,13 @@ impl EmojiCompletions {
     /// Shared between `handle_input` (Enter / number keys) and the click path
     /// in `show_emoji_completions`.
     pub fn apply_completion(
-        &mut self, events: &mut Vec<Event>, colon_offset: DocCharOffset,
-        replace_end: DocCharOffset, shortcode: &str,
+        &mut self, events: &mut Vec<Event>, colon_offset: Grapheme, replace_end: Grapheme,
+        shortcode: &str,
     ) {
         events.push(Event::Replace {
             region: Region::BetweenLocations {
-                start: Location::DocCharOffset(colon_offset),
-                end: Location::DocCharOffset(replace_end),
+                start: Location::Grapheme(colon_offset),
+                end: Location::Grapheme(replace_end),
             },
             text: format!(":{}:", shortcode),
             advance_cursor: true,
@@ -165,10 +165,10 @@ impl EmojiCompletions {
 /// get the search query.
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
-    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+    &buffer[(Grapheme(i), Grapheme(i + 1))]
 }
 
-fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
+fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
 
     // Only trigger for a collapsed cursor — an active selection means the user
@@ -237,10 +237,10 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         j += 1;
     }
 
-    Some((DocCharOffset(colon_idx), DocCharOffset(j)))
+    Some((Grapheme(colon_idx), Grapheme(j)))
 }
 
-fn query_from_range(buffer: &Buffer, range: (DocCharOffset, DocCharOffset)) -> Option<String> {
+fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
     let raw = &buffer[range];
     // Strip surrounding colons to get the bare shortcode name.
     let query = raw.trim_matches(':').to_string();

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
@@ -250,7 +250,7 @@ impl<'ast> MdRender {
 
     fn height_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset), synthetic: bool,
+        line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -327,7 +327,7 @@ impl<'ast> MdRender {
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset), synthetic: bool,
+        node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -422,7 +422,7 @@ impl<'ast> MdRender {
 
     fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset),
+        line: (Grapheme, Grapheme),
     ) -> bool {
         let NodeCodeBlock { fence_char, fence_length, .. } = node_code_block;
         let fence_char = *fence_char as char;
@@ -467,16 +467,16 @@ impl<'ast> MdRender {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 struct SyntaxCacheKey {
     text: String,
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
 }
 
 impl SyntaxCacheKey {
-    fn new(text: String, range: (DocCharOffset, DocCharOffset)) -> Self {
+    fn new(text: String, range: (Grapheme, Grapheme)) -> Self {
         Self { text, range }
     }
 }
 
-pub type SyntaxHighlightResult = Vec<(Style, (DocCharOffset, DocCharOffset))>;
+pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
 
 #[derive(Clone, Default)]
 pub struct SyntaxHighlightCache {
@@ -485,17 +485,13 @@ pub struct SyntaxHighlightCache {
 }
 
 impl SyntaxHighlightCache {
-    pub fn insert(
-        &self, text: String, range: (DocCharOffset, DocCharOffset), value: SyntaxHighlightResult,
-    ) {
+    pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
         let key = SyntaxCacheKey::new(text, range);
         self.used_this_frame.borrow_mut().insert(key.clone());
         self.map.borrow_mut().insert(key, value);
     }
 
-    pub fn get(
-        &self, text: &str, range: (DocCharOffset, DocCharOffset),
-    ) -> Option<SyntaxHighlightResult> {
+    pub fn get(&self, text: &str, range: (Grapheme, Grapheme)) -> Option<SyntaxHighlightResult> {
         let key = SyntaxCacheKey::new(text.to_string(), range);
         self.used_this_frame.borrow_mut().insert(key.clone());
         self.map.borrow().get(&key).cloned()

@@ -1,13 +1,13 @@
 use egui::{Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
 
 struct SplitRow {
     text: String,
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
 }
 use crate::tab::markdown_editor::bounds::Lines;
 use crate::tab::markdown_editor::galleys::GalleyInfo;
@@ -59,7 +59,7 @@ impl Wrap {
         num_rows as f32 * self.row_height + num_spacings as f32 * self.row_spacing
     }
 
-    pub fn add_range(&mut self, range: (DocCharOffset, DocCharOffset)) {
+    pub fn add_range(&mut self, range: (Grapheme, Grapheme)) {
         let row = self.row();
         if let Some(line) = self.row_ranges.get_mut(row) {
             line.0 = line.0.min(range.0);
@@ -88,7 +88,7 @@ impl MdRender {
 
     /// Returns the height of a single text section. Pass a fresh wrap initialized with the desired width.
     pub fn height_section(
-        &self, wrap: &mut Wrap, range: (DocCharOffset, DocCharOffset), text_format: Format,
+        &self, wrap: &mut Wrap, range: (Grapheme, Grapheme), text_format: Format,
     ) -> f32 {
         wrap.offset += self.span_section(wrap, range, text_format);
         wrap.height()
@@ -97,7 +97,7 @@ impl MdRender {
     /// Returns the span of a text section in a wrap layout, which includes
     /// space added to the end of a row when text wraps.
     pub fn span_section(
-        &self, wrap: &Wrap, range: (DocCharOffset, DocCharOffset), text_format: Format,
+        &self, wrap: &Wrap, range: (Grapheme, Grapheme), text_format: Format,
     ) -> f32 {
         self.text_mid_span(wrap, 0., &self.buffer[range], text_format)
     }
@@ -107,8 +107,8 @@ impl MdRender {
     /// The text must not contain newlines. It doesn't matter if it wraps. It
     /// doesn't have to be a whole line.
     pub fn show_section(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), text_format: Format,
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap, range: (Grapheme, Grapheme),
+        text_format: Format,
     ) -> Response {
         self.show_override_section(ui, top_left, wrap, range, text_format, None, Sense::hover())
     }
@@ -130,7 +130,7 @@ impl MdRender {
     /// Splits text into rows. For override text all rows share `range`; for
     /// source text each row gets its sub-range (cloned from the buffer).
     fn split_rows(
-        &self, override_text: Option<&str>, range: (DocCharOffset, DocCharOffset), font_size: f32,
+        &self, override_text: Option<&str>, range: (Grapheme, Grapheme), font_size: f32,
         wrap: &Wrap, text_format: &Format,
     ) -> Vec<SplitRow> {
         let text = override_text.unwrap_or(&self.buffer[range]);
@@ -276,9 +276,8 @@ impl MdRender {
     /// doesn't have to be a whole line.
     #[allow(clippy::too_many_arguments)]
     pub fn show_override_section(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset), text_format: Format, override_text: Option<&str>,
-        sense: Sense,
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap, range: (Grapheme, Grapheme),
+        text_format: Format, override_text: Option<&str>, sense: Sense,
     ) -> Response {
         let text = override_text.unwrap_or(&self.buffer[range]);
         let ppi = self.ctx.pixels_per_point();
@@ -312,7 +311,7 @@ impl MdRender {
             size: Vec2,
             pos: Pos2,
             rect: Rect,
-            range: (DocCharOffset, DocCharOffset),
+            range: (Grapheme, Grapheme),
         }
 
         // split

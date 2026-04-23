@@ -1,16 +1,16 @@
 use crate::tab::markdown_editor::MdRender;
 use comrak::nodes::{LineColumn, Sourcepos};
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt};
 use std::cmp::Ordering;
 use std::ops::Sub;
 use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::input::Bound;
 
-pub type SourceLines = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Words = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Lines = Vec<(DocCharOffset, DocCharOffset)>;
-pub type Paragraphs = Vec<(DocCharOffset, DocCharOffset)>;
+pub type SourceLines = Vec<(Grapheme, Grapheme)>;
+pub type Words = Vec<(Grapheme, Grapheme)>;
+pub type Lines = Vec<(Grapheme, Grapheme)>;
+pub type Paragraphs = Vec<(Grapheme, Grapheme)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are (inclusive, exclusive). Regions do not
 /// overlap, have region.0 <= region.1, and are sorted ascending.
@@ -76,19 +76,19 @@ impl MdRender {
         // (U+0600 ARABIC NUMBER SIGN is a Prepend codepoint.) The grapheme
         // boundaries are at byte 0 and byte 3 — the U+0600 + space is one
         // grapheme. The word boundaries include byte 2, between U+0600 and
-        // the space. Byte 2 has no corresponding `DocCharOffset`, so we snap
+        // the space. Byte 2 has no corresponding `Grapheme`, so we snap
         // down to the enclosing grapheme. Adjacent word boundaries that
         // collapse into the same grapheme produce zero-length word ranges
         // that the whitespace check below filters out.
         let segs = &self.buffer.current.segs;
-        let snap = |byte: usize| -> DocCharOffset {
-            match segs.grapheme_indexes.binary_search(&DocByteOffset(byte)) {
-                Ok(i) => DocCharOffset(i),
-                Err(i) => DocCharOffset(i.saturating_sub(1)),
+        let snap = |byte: usize| -> Grapheme {
+            match segs.grapheme_indexes.binary_search(&Byte(byte)) {
+                Ok(i) => Grapheme(i),
+                Err(i) => Grapheme(i.saturating_sub(1)),
             }
         };
 
-        let mut prev_char_offset = DocCharOffset(0);
+        let mut prev_char_offset = Grapheme(0);
         let mut prev_word = "";
         for (byte_offset, word) in
             (self.buffer.current.text.clone() + " ").split_word_bound_indices()
@@ -105,15 +105,15 @@ impl MdRender {
         }
     }
 
-    /// Translates a comrak::LineColumn into an lb_rs::DocCharOffset. Note that comrak's text ranges, represented using
+    /// Translates a comrak::LineColumn into an lb_rs::Grapheme. Note that comrak's text ranges, represented using
     /// comrak::Sourcepos, are inclusive/inclusive so just translating the start and end using this function is
     /// incorrect - use [`sourcepos_to_range`] instead.
-    pub fn line_column_to_offset(&self, line_column: LineColumn) -> DocCharOffset {
+    pub fn line_column_to_offset(&self, line_column: LineColumn) -> Grapheme {
         // convert cardinal to ordinal
         let line_column =
             LineColumn { line: line_column.line.saturating_sub(1), column: line_column.column - 1 };
 
-        let line: (DocCharOffset, DocCharOffset) = *self
+        let line: (Grapheme, Grapheme) = *self
             .bounds
             .source_lines
             .get(line_column.line)
@@ -123,7 +123,7 @@ impl MdRender {
         self.offset_to_char(line_column_byte)
     }
 
-    pub fn offset_to_line_column(&self, offset: DocCharOffset) -> LineColumn {
+    pub fn offset_to_line_column(&self, offset: Grapheme) -> LineColumn {
         let line_idx = self
             .bounds
             .source_lines
@@ -137,7 +137,7 @@ impl MdRender {
         LineColumn { line: line_idx + 1, column: line_column_byte.0 + 1 }
     }
 
-    pub fn sourcepos_to_range(&self, mut sourcepos: Sourcepos) -> (DocCharOffset, DocCharOffset) {
+    pub fn sourcepos_to_range(&self, mut sourcepos: Sourcepos) -> (Grapheme, Grapheme) {
         // convert (inc, inc) pair to (inc, exc) pair; this must be done before
         // line-column conversion because end columns can be 0 and the
         // line-column conversion subtracts by 1 to convert cardinal to ordinal,
@@ -155,14 +155,14 @@ impl MdRender {
         // emits a sourcepos for the `\!` escape covering bytes 0..2 — but `!`
         // is the base of the combining sequence, so `!\u{300}` is one
         // grapheme spanning bytes 1..4. Byte 2 (the exclusive end) sits
-        // inside that grapheme and has no corresponding `DocCharOffset`.
+        // inside that grapheme and has no corresponding `Grapheme`.
         //
         // We can't go through `line_column_to_offset` here — it would panic
         // on byte 2. Instead compute the source bytes directly and snap with
         // explicit direction: floor the inclusive start, ceil the exclusive
         // end, so the resulting grapheme range fully contains every byte the
         // sourcepos covered.
-        let to_byte = |lc: LineColumn| -> DocByteOffset {
+        let to_byte = |lc: LineColumn| -> Byte {
             let line_idx = lc.line.saturating_sub(1);
             let col_idx = lc.column - 1;
             let line = *self
@@ -179,7 +179,7 @@ impl MdRender {
         )
     }
 
-    pub fn range_to_sourcepos(&self, range: (DocCharOffset, DocCharOffset)) -> Sourcepos {
+    pub fn range_to_sourcepos(&self, range: (Grapheme, Grapheme)) -> Sourcepos {
         let start = self.offset_to_line_column(range.0);
         let mut end = self.offset_to_line_column(range.1);
 
@@ -197,9 +197,7 @@ impl MdRender {
 impl Bounds {
     /// Returns the last range with start < char_offset <= end, or None if there's no such range.
     // todo: binary search
-    fn range_before(
-        ranges: &[(DocCharOffset, DocCharOffset)], char_offset: DocCharOffset,
-    ) -> Option<usize> {
+    fn range_before(ranges: &[(Grapheme, Grapheme)], char_offset: Grapheme) -> Option<usize> {
         ranges
             .iter()
             .enumerate()
@@ -210,9 +208,7 @@ impl Bounds {
 
     /// Returns the first range with start <= char_offset < end, or None if there's no such range.
     // todo: binary search
-    fn range_after(
-        ranges: &[(DocCharOffset, DocCharOffset)], char_offset: DocCharOffset,
-    ) -> Option<usize> {
+    fn range_after(ranges: &[(Grapheme, Grapheme)], char_offset: Grapheme) -> Option<usize> {
         ranges
             .iter()
             .enumerate()
@@ -220,7 +216,7 @@ impl Bounds {
             .map(|(idx, _)| idx)
     }
 
-    // pub fn ast_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
+    // pub fn ast_ranges(&self) -> Vec<(Grapheme, Grapheme)> {
     //     self.ast.iter().map(|text_range| text_range.range).collect()
     // }
 }
@@ -236,61 +232,46 @@ pub enum BoundCase {
     /// are also described by this variant.
     ///
     /// |(range)
-    AtFirstRangeStart {
-        first_range: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
-    },
+    AtFirstRangeStart { first_range: (Grapheme, Grapheme), range_after: (Grapheme, Grapheme) },
     /// The position is at the end of the last range. This may or may not be the end of the document e.g. the last word
     /// in the document may be followed by whitespace.
     ///
     /// (range)|
-    AtLastRangeEnd {
-        last_range: (DocCharOffset, DocCharOffset),
-        range_before: (DocCharOffset, DocCharOffset),
-    },
+    AtLastRangeEnd { last_range: (Grapheme, Grapheme), range_before: (Grapheme, Grapheme) },
     /// The position is inside a range and not at its start or end. The range must have length at least 2.
     ///
     /// (ra|nge)
-    InsideRange { range: (DocCharOffset, DocCharOffset) },
+    InsideRange { range: (Grapheme, Grapheme) },
     /// The position is at the start/end of an empty range.
     ///
     /// (|)
     AtEmptyRange {
-        range: (DocCharOffset, DocCharOffset),
-        range_before: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
+        range_before: (Grapheme, Grapheme),
+        range_after: (Grapheme, Grapheme),
     },
     /// The position is between two ranges, both at the end of the range before and the start of the range after.
     ///
     /// (range1)|(range2)
     AtSharedBoundOfTouchingNonemptyRanges {
-        range_before: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
+        range_before: (Grapheme, Grapheme),
+        range_after: (Grapheme, Grapheme),
     },
     /// The position is at the end of a nonempty range with space between it and the range after. There is a range
     /// after: otherwise, the variant would be AtLastRangeEnd.
     ///
     /// (range1)| (range2)
-    AtEndOfNonemptyRange {
-        range_before: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
-    },
+    AtEndOfNonemptyRange { range_before: (Grapheme, Grapheme), range_after: (Grapheme, Grapheme) },
     /// The position is at the start of a nonempty range with space between it and the range before. There is a range
     /// before: otherwise, the variant would be AtFirstRangeStart.
     ///
     /// (range1) |(range2)
-    AtStartOfNonemptyRange {
-        range_before: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
-    },
+    AtStartOfNonemptyRange { range_before: (Grapheme, Grapheme), range_after: (Grapheme, Grapheme) },
     /// The position is between two ranges without being at the start/end of either range. It is inside the space
     /// between ranges.
     ///
     /// (range1) | (range2)
-    BetweenRanges {
-        range_before: (DocCharOffset, DocCharOffset),
-        range_after: (DocCharOffset, DocCharOffset),
-    },
+    BetweenRanges { range_before: (Grapheme, Grapheme), range_after: (Grapheme, Grapheme) },
 }
 
 pub trait BoundExt {
@@ -299,13 +280,13 @@ pub trait BoundExt {
     ) -> Option<(Self, Self)>
     where
         Self: Sized;
-    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase;
+    fn bound_case(self, ranges: &[(Grapheme, Grapheme)]) -> BoundCase;
     fn advance_bound(self, bound: Bound, backwards: bool, jump: bool, bounds: &Bounds) -> Self;
     fn advance_to_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
     fn advance_to_next_bound(self, bound: Bound, backwards: bool, bounds: &Bounds) -> Self;
 }
 
-impl BoundExt for DocCharOffset {
+impl BoundExt for Grapheme {
     /// Returns the range in the direction of `backwards` from offset `self`. `jump` is used to control behavior when
     /// `self` is at a boundary in the direction of `backwards`. When `backwards` and `jump` are false and `self` is at
     /// the end of a range, returns that range. When `backwards` is `false` but `jump` is true and `self` is at the end
@@ -328,12 +309,12 @@ impl BoundExt for DocCharOffset {
                         .source_lines
                         .first()
                         .map(|(start, _)| *start)
-                        .unwrap_or(DocCharOffset(0)),
+                        .unwrap_or(Grapheme(0)),
                     bounds
                         .source_lines
                         .last()
                         .map(|(_, end)| *end)
-                        .unwrap_or(DocCharOffset(0)),
+                        .unwrap_or(Grapheme(0)),
                 ));
             }
         };
@@ -383,7 +364,7 @@ impl BoundExt for DocCharOffset {
     }
 
     // todo: broken when first/last range are empty (did those ranges need to be differentiated anyway?)
-    fn bound_case(self, ranges: &[(DocCharOffset, DocCharOffset)]) -> BoundCase {
+    fn bound_case(self, ranges: &[(Grapheme, Grapheme)]) -> BoundCase {
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
         match (range_before, range_after) {
@@ -561,14 +542,14 @@ where
 }
 
 pub struct RangeJoinIter<'r, const N: usize> {
-    ranges: [&'r [(DocCharOffset, DocCharOffset)]; N],
+    ranges: [&'r [(Grapheme, Grapheme)]; N],
     in_range: [bool; N],
     current: [Option<usize>; N],
-    current_end: Option<DocCharOffset>,
+    current_end: Option<Grapheme>,
 }
 
 impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
-    type Item = ([Option<usize>; N], (DocCharOffset, DocCharOffset));
+    type Item = ([Option<usize>; N], (Grapheme, Grapheme));
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(current_end) = self.current_end {
@@ -616,7 +597,7 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
             };
 
             // determine the next end of a range
-            let mut next_end: Option<DocCharOffset> = None;
+            let mut next_end: Option<Grapheme> = None;
             for (idx, &in_range) in self.in_range.iter().enumerate() {
                 let next_range = if let Some(next) = self.current[idx] {
                     self.ranges[idx][next]
@@ -681,7 +662,7 @@ impl MdRender {
         println!("inline paragraphs: {:?}", self.ranges_text(&self.bounds.inline_paragraphs));
     }
 
-    pub fn ranges_text(&self, ranges: &[(DocCharOffset, DocCharOffset)]) -> Vec<String> {
+    pub fn ranges_text(&self, ranges: &[(Grapheme, Grapheme)]) -> Vec<String> {
         ranges
             .iter()
             .map(|&range| self.buffer[range].to_string())
@@ -692,7 +673,7 @@ impl MdRender {
 #[cfg(test)]
 mod test {
     use comrak::nodes::{LineColumn, Sourcepos};
-    use lb_rs::model::text::offset_types::DocCharOffset;
+    use lb_rs::model::text::offset_types::Grapheme;
 
     use super::Bounds;
     use crate::tab::markdown_editor::MdRender;
@@ -703,446 +684,446 @@ mod test {
     fn range_before_after_no_ranges() {
         let ranges = [];
 
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(0)), None);
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(0)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(0)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(0)), None);
     }
 
     #[test]
     fn range_before_after_disjoint() {
         let ranges = [(1, 3), (5, 7), (9, 11)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect::<Vec<_>>();
 
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(0)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(1)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(2)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(3)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(4)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(5)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(6)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(7)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(8)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(9)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(10)), Some(2));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(11)), Some(2));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(12)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(0)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(1)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(2)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(3)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(4)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(5)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(6)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(7)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(8)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(9)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(10)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(11)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(12)), Some(2));
 
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(0)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(1)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(2)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(3)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(4)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(5)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(6)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(7)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(8)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(9)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(10)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(11)), None);
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(12)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(0)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(1)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(2)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(3)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(4)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(5)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(6)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(7)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(8)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(9)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(10)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(11)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(12)), None);
     }
 
     #[test]
     fn range_before_after_contiguous() {
         let ranges = [(1, 3), (3, 5), (5, 7)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect::<Vec<_>>();
 
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(0)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(1)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(2)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(3)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(4)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(5)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(6)), Some(2));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(7)), Some(2));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(8)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(0)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(1)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(2)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(3)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(4)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(5)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(6)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(7)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(8)), Some(2));
 
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(0)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(1)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(2)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(3)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(4)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(5)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(6)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(7)), None);
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(8)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(0)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(1)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(2)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(3)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(4)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(5)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(6)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(7)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(8)), None);
     }
 
     #[test]
     fn range_before_after_empty_ranges() {
         let ranges = [(1, 1), (3, 3), (5, 5)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect::<Vec<_>>();
 
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(0)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(1)), None);
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(2)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(3)), Some(0));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(4)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(5)), Some(1));
-        assert_eq!(Bounds::range_before(&ranges, DocCharOffset(6)), Some(2));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(0)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(1)), None);
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(2)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(3)), Some(0));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(4)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(5)), Some(1));
+        assert_eq!(Bounds::range_before(&ranges, Grapheme(6)), Some(2));
 
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(0)), Some(0));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(1)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(2)), Some(1));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(3)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(4)), Some(2));
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(5)), None);
-        assert_eq!(Bounds::range_after(&ranges, DocCharOffset(6)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(0)), Some(0));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(1)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(2)), Some(1));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(3)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(4)), Some(2));
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(5)), None);
+        assert_eq!(Bounds::range_after(&ranges, Grapheme(6)), None);
     }
 
     #[test]
     fn range_bound_no_ranges() {
         let bounds = Bounds::default();
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, false, false, &bounds), None);
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, true, false, &bounds), None);
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, false, true, &bounds), None);
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, true, true, &bounds), None);
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, false, false, &bounds), None);
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, true, false, &bounds), None);
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, false, true, &bounds), None);
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, true, true, &bounds), None);
     }
 
     #[test]
     fn range_bound_disjoint() {
-        let words: Vec<(DocCharOffset, DocCharOffset)> = vec![(1, 3), (5, 7), (9, 11)]
+        let words: Vec<(Grapheme, Grapheme)> = vec![(1, 3), (5, 7), (9, 11)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect();
         let bounds = Bounds { words, ..Default::default() };
 
         assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(2).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(3).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
-        assert_eq!(DocCharOffset(4).range_bound(Bound::Word, false, false, &bounds), None);
+        assert_eq!(Grapheme(4).range_bound(Bound::Word, false, false, &bounds), None);
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(5).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(DocCharOffset(8).range_bound(Bound::Word, false, false, &bounds), None);
-        assert_eq!(
-            DocCharOffset(9).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(6).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(10).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(7).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(Grapheme(8).range_bound(Bound::Word, false, false, &bounds), None);
+        assert_eq!(
+            Grapheme(9).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(11).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(10).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(12).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-
-        assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(11).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(DocCharOffset(4).range_bound(Bound::Word, true, false, &bounds), None);
-        assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(DocCharOffset(8).range_bound(Bound::Word, true, false, &bounds), None);
-        assert_eq!(
-            DocCharOffset(9).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(10).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(11).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(12).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(12).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
 
         assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(2).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(3).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(Grapheme(4).range_bound(Bound::Word, true, false, &bounds), None);
+        assert_eq!(
+            Grapheme(5).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(6).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(7).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(Grapheme(8).range_bound(Bound::Word, true, false, &bounds), None);
+        assert_eq!(
+            Grapheme(9).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(10).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(11).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(12).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
-        assert_eq!(
-            DocCharOffset(9).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-        assert_eq!(
-            DocCharOffset(10).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
-        );
-        assert_eq!(DocCharOffset(11).range_bound(Bound::Word, false, true, &bounds), None);
-        assert_eq!(DocCharOffset(12).range_bound(Bound::Word, false, true, &bounds), None);
 
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, true, true, &bounds), None);
-        assert_eq!(DocCharOffset(1).range_bound(Bound::Word, true, true, &bounds), None);
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(2).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(3).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(4).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(5).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(6).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(9).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(7).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(10).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(8).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(11).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(9).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
         assert_eq!(
-            DocCharOffset(12).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(9), DocCharOffset(11)))
+            Grapheme(10).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
+        );
+        assert_eq!(Grapheme(11).range_bound(Bound::Word, false, true, &bounds), None);
+        assert_eq!(Grapheme(12).range_bound(Bound::Word, false, true, &bounds), None);
+
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, true, true, &bounds), None);
+        assert_eq!(Grapheme(1).range_bound(Bound::Word, true, true, &bounds), None);
+        assert_eq!(
+            Grapheme(2).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(3).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(4).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(5).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(6).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(7).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(8).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(9).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(10).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
+        );
+        assert_eq!(
+            Grapheme(11).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
+        );
+        assert_eq!(
+            Grapheme(12).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(9), Grapheme(11)))
         );
     }
 
     #[test]
     fn range_bound_contiguous() {
-        let words: Vec<(DocCharOffset, DocCharOffset)> = vec![(1, 3), (3, 5), (5, 7)]
+        let words: Vec<(Grapheme, Grapheme)> = vec![(1, 3), (3, 5), (5, 7)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect();
         let bounds = Bounds { words, ..Default::default() };
 
         assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(2).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(3).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(4).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(5).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(6).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(7).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, false, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-
-        assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
-        );
-        assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
-        );
-        assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
-        );
-        assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, true, false, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(8).range_bound(Bound::Word, false, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
 
         assert_eq!(
-            DocCharOffset(0).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(1).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(2).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(3).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(4).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(5).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, false, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(6).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
-        assert_eq!(DocCharOffset(7).range_bound(Bound::Word, false, true, &bounds), None);
-        assert_eq!(DocCharOffset(8).range_bound(Bound::Word, false, true, &bounds), None);
+        assert_eq!(
+            Grapheme(7).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(8).range_bound(Bound::Word, true, false, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
 
-        assert_eq!(DocCharOffset(0).range_bound(Bound::Word, true, true, &bounds), None);
-        assert_eq!(DocCharOffset(1).range_bound(Bound::Word, true, true, &bounds), None);
         assert_eq!(
-            DocCharOffset(2).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(0).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(3).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(1), DocCharOffset(3)))
+            Grapheme(1).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(4).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(2).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
         );
         assert_eq!(
-            DocCharOffset(5).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(3), DocCharOffset(5)))
+            Grapheme(3).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(6).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(4).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
         );
         assert_eq!(
-            DocCharOffset(7).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(5).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
         assert_eq!(
-            DocCharOffset(8).range_bound(Bound::Word, true, true, &bounds),
-            Some((DocCharOffset(5), DocCharOffset(7)))
+            Grapheme(6).range_bound(Bound::Word, false, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(Grapheme(7).range_bound(Bound::Word, false, true, &bounds), None);
+        assert_eq!(Grapheme(8).range_bound(Bound::Word, false, true, &bounds), None);
+
+        assert_eq!(Grapheme(0).range_bound(Bound::Word, true, true, &bounds), None);
+        assert_eq!(Grapheme(1).range_bound(Bound::Word, true, true, &bounds), None);
+        assert_eq!(
+            Grapheme(2).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(3).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(1), Grapheme(3)))
+        );
+        assert_eq!(
+            Grapheme(4).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
+        );
+        assert_eq!(
+            Grapheme(5).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(3), Grapheme(5)))
+        );
+        assert_eq!(
+            Grapheme(6).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(7).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
+        );
+        assert_eq!(
+            Grapheme(8).range_bound(Bound::Word, true, true, &bounds),
+            Some((Grapheme(5), Grapheme(7)))
         );
     }
 
@@ -1150,152 +1131,74 @@ mod test {
     fn advance_to_bound_no_ranges() {
         let bounds = Bounds { words: vec![], ..Default::default() };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(0)
-        );
-        assert_eq!(DocCharOffset(0).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(0));
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, false, &bounds), Grapheme(0));
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, true, &bounds), Grapheme(0));
     }
 
     #[test]
     fn advance_to_bound_disjoint() {
-        let words: Vec<(DocCharOffset, DocCharOffset)> = vec![(1, 3), (5, 7), (9, 11)]
+        let words: Vec<(Grapheme, Grapheme)> = vec![(1, 3), (5, 7), (9, 11)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect();
         let bounds = Bounds { words, ..Default::default() };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(4)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(8)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(1).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(2).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(3).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(4).advance_to_bound(Bound::Word, false, &bounds), Grapheme(4));
+        assert_eq!(Grapheme(5).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(6).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(7).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(8).advance_to_bound(Bound::Word, false, &bounds), Grapheme(8));
+        assert_eq!(Grapheme(9).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(10).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(11).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(12).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
 
-        assert_eq!(DocCharOffset(0).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(1).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(2).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(3).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(4).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(4));
-        assert_eq!(DocCharOffset(5).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(6).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(7).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(8).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(8));
-        assert_eq!(DocCharOffset(9).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(9));
-        assert_eq!(
-            DocCharOffset(10).advance_to_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(1).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(2).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(3).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(4).advance_to_bound(Bound::Word, true, &bounds), Grapheme(4));
+        assert_eq!(Grapheme(5).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(6).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(7).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(8).advance_to_bound(Bound::Word, true, &bounds), Grapheme(8));
+        assert_eq!(Grapheme(9).advance_to_bound(Bound::Word, true, &bounds), Grapheme(9));
+        assert_eq!(Grapheme(10).advance_to_bound(Bound::Word, true, &bounds), Grapheme(9));
+        assert_eq!(Grapheme(11).advance_to_bound(Bound::Word, true, &bounds), Grapheme(9));
+        assert_eq!(Grapheme(12).advance_to_bound(Bound::Word, true, &bounds), Grapheme(9));
     }
 
     #[test]
     fn advance_to_bound_contiguous() {
-        let words: Vec<(DocCharOffset, DocCharOffset)> = vec![(1, 3), (3, 5), (5, 7)]
+        let words: Vec<(Grapheme, Grapheme)> = vec![(1, 3), (3, 5), (5, 7)]
             .into_iter()
-            .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+            .map(|(start, end)| (Grapheme(start), Grapheme(end)))
             .collect();
         let bounds = Bounds { words, ..Default::default() };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(1).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(2).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(3).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(4).advance_to_bound(Bound::Word, false, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(5).advance_to_bound(Bound::Word, false, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(6).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(7).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(8).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
 
-        assert_eq!(DocCharOffset(0).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(1).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(2).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(1));
-        assert_eq!(DocCharOffset(3).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(3));
-        assert_eq!(DocCharOffset(4).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(3));
-        assert_eq!(DocCharOffset(5).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(6).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(7).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
-        assert_eq!(DocCharOffset(8).advance_to_bound(Bound::Word, true, &bounds), DocCharOffset(5));
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(1).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(2).advance_to_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(3).advance_to_bound(Bound::Word, true, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(4).advance_to_bound(Bound::Word, true, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(5).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(6).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(7).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(8).advance_to_bound(Bound::Word, true, &bounds), Grapheme(5));
     }
 
     #[test]
@@ -1303,77 +1206,32 @@ mod test {
         let bounds = Bounds {
             words: vec![(1, 3), (5, 5), (7, 7), (9, 11)]
                 .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+                .map(|(start, end)| (Grapheme(start), Grapheme(end)))
                 .collect(),
             ..Default::default()
         };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(4)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(6)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(8)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
+        assert_eq!(Grapheme(0).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(1).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(2).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(3).advance_to_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(4).advance_to_bound(Bound::Word, false, &bounds), Grapheme(4));
+        assert_eq!(Grapheme(5).advance_to_bound(Bound::Word, false, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(6).advance_to_bound(Bound::Word, false, &bounds), Grapheme(6));
+        assert_eq!(Grapheme(7).advance_to_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(8).advance_to_bound(Bound::Word, false, &bounds), Grapheme(8));
+        assert_eq!(Grapheme(9).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(10).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(11).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(12).advance_to_bound(Bound::Word, false, &bounds), Grapheme(11));
     }
 
     #[test]
     fn advance_to_next_bound_no_ranges() {
         let bounds = Bounds::default();
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(0)
-        );
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(0)
-        );
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(0));
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(0));
     }
 
     #[test]
@@ -1381,116 +1239,38 @@ mod test {
         let bounds = Bounds {
             words: vec![(1, 3), (5, 7), (9, 11)]
                 .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+                .map(|(start, end)| (Grapheme(start), Grapheme(end)))
                 .collect(),
             ..Default::default()
         };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(11)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(12)
-        );
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(1).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(2).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(3).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(4).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(5).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(6).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(7).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(8).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(9).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(10).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(11).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(11));
+        assert_eq!(Grapheme(12).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(12));
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(0)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(9).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(10).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(11).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
-        assert_eq!(
-            DocCharOffset(12).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(9)
-        );
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(0));
+        assert_eq!(Grapheme(1).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(2).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(3).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(4).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(5).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(6).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(7).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(8).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(9).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(10).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(9));
+        assert_eq!(Grapheme(11).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(9));
+        assert_eq!(Grapheme(12).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(9));
     }
 
     #[test]
@@ -1498,89 +1278,35 @@ mod test {
         let bounds = Bounds {
             words: vec![(1, 3), (3, 5), (5, 7)]
                 .into_iter()
-                .map(|(start, end)| (DocCharOffset(start), DocCharOffset(end)))
+                .map(|(start, end)| (Grapheme(start), Grapheme(end)))
                 .collect(),
             ..Default::default()
         };
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(7)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Word, false, &bounds),
-            DocCharOffset(8)
-        );
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(1).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(2).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(3).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(4).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(5).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(6).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(7).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(7));
+        assert_eq!(Grapheme(8).advance_to_next_bound(Bound::Word, false, &bounds), Grapheme(8));
 
-        assert_eq!(
-            DocCharOffset(0).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(0)
-        );
-        assert_eq!(
-            DocCharOffset(1).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(2).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(3).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(1)
-        );
-        assert_eq!(
-            DocCharOffset(4).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(5).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(3)
-        );
-        assert_eq!(
-            DocCharOffset(6).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(7).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
-        assert_eq!(
-            DocCharOffset(8).advance_to_next_bound(Bound::Word, true, &bounds),
-            DocCharOffset(5)
-        );
+        assert_eq!(Grapheme(0).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(0));
+        assert_eq!(Grapheme(1).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(2).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(3).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(1));
+        assert_eq!(Grapheme(4).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(5).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(3));
+        assert_eq!(Grapheme(6).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(7).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
+        assert_eq!(Grapheme(8).advance_to_next_bound(Bound::Word, true, &bounds), Grapheme(5));
     }
 
     #[test]
     fn find_containing() {
-        let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
+        let ranges: Vec<(Grapheme, Grapheme)> = vec![
             (1.into(), 3.into()),
             (5.into(), 6.into()),
             (6.into(), 6.into()),
@@ -1630,7 +1356,7 @@ mod test {
 
     #[test]
     fn find_intersecting_empty() {
-        let ranges: Vec<(DocCharOffset, DocCharOffset)> = vec![
+        let ranges: Vec<(Grapheme, Grapheme)> = vec![
             (1.into(), 3.into()),
             (5.into(), 6.into()),
             (6.into(), 6.into()),
@@ -1668,7 +1394,7 @@ mod test {
             start: LineColumn { line: 1, column: 1 },
             end: LineColumn { line: 3, column: 3 },
         };
-        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
+        let range: (Grapheme, Grapheme) = (0.into(), text.len().into());
 
         assert_eq!(md.sourcepos_to_range(sourcepos), range);
         assert_eq!(md.range_to_sourcepos(range), sourcepos);
@@ -1684,7 +1410,7 @@ mod test {
             start: LineColumn { line: 1, column: 1 },
             end: LineColumn { line: 2, column: 0 },
         };
-        let range: (DocCharOffset, DocCharOffset) = (0.into(), text.len().into());
+        let range: (Grapheme, Grapheme) = (0.into(), text.len().into());
 
         assert_eq!(md.sourcepos_to_range(sourcepos), range);
         assert_eq!(md.range_to_sourcepos(range), sourcepos);

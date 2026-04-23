@@ -1,5 +1,5 @@
 use egui::{Pos2, Rect};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
@@ -14,7 +14,7 @@ pub struct Galleys {
 #[derive(Debug)]
 pub struct GalleyInfo {
     pub is_override: bool,
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: (Grapheme, Grapheme),
     pub buffer: Arc<RwLock<glyphon::Buffer>>,
     pub rect: Rect,
     pub padded: bool,
@@ -41,7 +41,7 @@ impl Galleys {
         self.galleys.push(galley);
     }
 
-    pub fn galley_at_offset(&self, offset: DocCharOffset) -> Option<usize> {
+    pub fn galley_at_offset(&self, offset: Grapheme) -> Option<usize> {
         for i in (0..self.galleys.len()).rev() {
             let galley = &self.galleys[i];
             if galley.range.contains_inclusive(offset) {
@@ -57,9 +57,9 @@ impl MdRender {
     /// covering the selection ± 1 source line so that arrow-key navigation
     /// across the viewport edge has a galley to land on.
     pub fn galley_required_ranges(
-        &self, in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
-        find_match: Option<(DocCharOffset, DocCharOffset)>,
-    ) -> Vec<(DocCharOffset, DocCharOffset)> {
+        &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
+        find_match: Option<(Grapheme, Grapheme)>,
+    ) -> Vec<(Grapheme, Grapheme)> {
         if self.bounds.source_lines.is_empty() {
             return Vec::new();
         }
@@ -77,9 +77,7 @@ impl MdRender {
         ranges
     }
 
-    fn source_line_range(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+    fn source_line_range(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
         let first_line = self
             .bounds
             .source_lines
@@ -100,7 +98,7 @@ impl MdRender {
 
     /// Returns the x position of the offset, assuming the offset lies in this
     /// galley. For the y position, use self.rect.y_range().
-    pub fn galley_x(&self, galley: &GalleyInfo, offset: DocCharOffset) -> f32 {
+    pub fn galley_x(&self, galley: &GalleyInfo, offset: Grapheme) -> f32 {
         let buffer = galley.buffer.read().unwrap();
         let glyphs = buffer.layout_runs().next().unwrap().glyphs;
 
@@ -119,7 +117,7 @@ impl MdRender {
 
     /// Returns the offset closest to pos in this galley, excluding the offset
     /// after the last glyph.
-    pub fn galley_offset(&self, galley_idx: usize, pos: Pos2) -> DocCharOffset {
+    pub fn galley_offset(&self, galley_idx: usize, pos: Pos2) -> Grapheme {
         let galley = &self.galleys.galleys[galley_idx];
         let buffer = galley.buffer.read().unwrap();
         let layout_run = buffer.layout_runs().next().unwrap();
@@ -184,10 +182,10 @@ impl MdRender {
             // Codepoint boundaries are always valid byte boundaries (that's
             // the contract of `&str` slicing in Rust; UTF-8 is
             // self-synchronizing), but they aren't always *grapheme*
-            // boundaries. `DocCharOffset` is grapheme-indexed, so a byte
+            // boundaries. `Grapheme` is grapheme-indexed, so a byte
             // offset that lands inside a multi-codepoint cluster (e.g. between
             // a base character and a combining mark) has no corresponding
-            // `DocCharOffset` and the lookup crashes. The codepoint<->grapheme
+            // `Grapheme` and the lookup crashes. The codepoint<->grapheme
             // gap is exactly where most of our text-handling bugs live.
 
             // Graphemes are not the unit the font system works in. Instead, it

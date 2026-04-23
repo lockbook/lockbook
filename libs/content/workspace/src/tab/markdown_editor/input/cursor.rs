@@ -1,7 +1,7 @@
 use std::mem;
 
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdEdit;
 
@@ -20,15 +20,13 @@ pub struct CursorState {
 
 impl MdEdit {
     /// Highlights the provided range with a faded version of the provided accent color.
-    pub fn show_range(
-        &self, ui: &mut Ui, highlight_range: (DocCharOffset, DocCharOffset), color: Color32,
-    ) {
+    pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {
         for rect in self.range_rects(highlight_range) {
             ui.painter().rect_filled(rect, 2., color);
         }
     }
 
-    pub fn range_rects(&self, range: (DocCharOffset, DocCharOffset)) -> Vec<Rect> {
+    pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
         let mut result = Vec::new();
 
         // todo: binary search
@@ -60,7 +58,7 @@ impl MdEdit {
 
     /// Draws a cursor at the provided offset with the provided accent color.
     // todo: improve cursor rendering at the end of inline code segments and similar constructs
-    pub fn show_offset(&self, ui: &mut Ui, offset: DocCharOffset, accent: Color32) {
+    pub fn show_offset(&self, ui: &mut Ui, offset: Grapheme, accent: Color32) {
         if let Some([top, bot]) = self.cursor_line(offset) {
             ui.painter().clone().vline(
                 top.x,
@@ -154,7 +152,7 @@ impl MdEdit {
                     start: Location::Pos(
                         ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
                     ),
-                    end: Location::DocCharOffset(self.renderer.buffer.current.selection.1),
+                    end: Location::Grapheme(self.renderer.buffer.current.selection.1),
                 };
                 self.in_progress_selection = Some(self.region_to_range(region));
             }
@@ -178,7 +176,7 @@ impl MdEdit {
                 }
             } else if end_response.dragged() {
                 let region = Region::BetweenLocations {
-                    start: Location::DocCharOffset(self.renderer.buffer.current.selection.0),
+                    start: Location::Grapheme(self.renderer.buffer.current.selection.0),
                     end: Location::Pos(
                         ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
                     ),
@@ -199,7 +197,7 @@ impl MdEdit {
         }
     }
 
-    pub fn cursor_line(&self, offset: DocCharOffset) -> Option<[Pos2; 2]> {
+    pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {
         let galley_idx = self.renderer.galleys.galley_at_offset(offset)?;
         let galley = &self.renderer.galleys[galley_idx];
         let x = self.renderer.galley_x(galley, offset);

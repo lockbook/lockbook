@@ -1,6 +1,6 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -16,8 +16,7 @@ impl<'ast> MdRender {
     }
 
     pub fn span_footnote_reference(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32,
-        range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32, range: (Grapheme, Grapheme),
     ) -> f32 {
         let node_range = self.node_range(node);
 
@@ -53,7 +52,7 @@ impl<'ast> MdRender {
     // [^footnotereference]
     pub fn show_footnote_reference(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        ix: u32, range: (DocCharOffset, DocCharOffset),
+        ix: u32, range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
 

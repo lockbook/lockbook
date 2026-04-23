@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeValue};
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _, RangeIterExt};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
@@ -8,33 +8,29 @@ pub(crate) mod wrap_layout;
 
 impl<'ast> MdRender {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
-    pub fn offset_to_byte(&self, i: DocCharOffset) -> DocByteOffset {
+    pub fn offset_to_byte(&self, i: Grapheme) -> Byte {
         self.buffer.current.segs.offset_to_byte(i)
     }
 
-    pub fn range_to_byte(
-        &self, i: (DocCharOffset, DocCharOffset),
-    ) -> (DocByteOffset, DocByteOffset) {
+    pub fn range_to_byte(&self, i: (Grapheme, Grapheme)) -> (Byte, Byte) {
         self.buffer.current.segs.range_to_byte(i)
     }
 
-    pub fn offset_to_char(&self, i: DocByteOffset) -> DocCharOffset {
+    pub fn offset_to_char(&self, i: Byte) -> Grapheme {
         self.buffer.current.segs.offset_to_char(i)
     }
 
-    pub fn range_to_char(
-        &self, i: (DocByteOffset, DocByteOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+    pub fn range_to_char(&self, i: (Byte, Byte)) -> (Grapheme, Grapheme) {
         self.buffer.current.segs.range_to_char(i)
     }
 
     /// Byte→char conversion for byte offsets that may not land on a grapheme
     /// boundary. Snaps each endpoint up to the next boundary.
     ///
-    /// `DocCharOffset` indexes graphemes; the strict `range_to_char` panics on
+    /// `Grapheme` indexes graphemes; the strict `range_to_char` panics on
     /// any byte that isn't a grapheme start (no corresponding char). That's the
     /// right behavior when bytes come from the buffer's own segs or round-trip
-    /// through a `DocCharOffset` — a panic there is a real bug, not data we
+    /// through a `Grapheme` — a panic there is a real bug, not data we
     /// should paper over.
     ///
     /// Use this version *only* when the byte source promises codepoint
@@ -50,22 +46,18 @@ impl<'ast> MdRender {
     /// belongs to whichever row/section's *end* boundary crosses it, and the
     /// next row/section's *start* lands at or past the cluster's far edge — no
     /// double-counting, no gaps.
-    pub fn range_to_char_ceil(
-        &self, i: (DocByteOffset, DocByteOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+    pub fn range_to_char_ceil(&self, i: (Byte, Byte)) -> (Grapheme, Grapheme) {
         let segs = &self.buffer.current.segs;
         (segs.byte_to_char_ceil(i.0), segs.byte_to_char_ceil(i.1))
     }
 
-    pub fn last_cursor_position(&self) -> DocCharOffset {
+    pub fn last_cursor_position(&self) -> Grapheme {
         self.buffer.current.segs.last_cursor_position()
     }
 
     /// Returns a Vec of ranges that represent the given range split on newlines
     /// (based on source text). Behavior inspired by [`str::split`].
-    pub fn range_split_newlines(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> Vec<(DocCharOffset, DocCharOffset)> {
+    pub fn range_split_newlines(&self, range: (Grapheme, Grapheme)) -> Vec<(Grapheme, Grapheme)> {
         let text = &self.buffer[range];
         let byte_range = self.range_to_byte(range);
         let base_offset = byte_range.0;
@@ -120,7 +112,7 @@ impl<'ast> MdRender {
         result
     }
 
-    pub fn selection_offset(&self) -> Option<DocCharOffset> {
+    pub fn selection_offset(&self) -> Option<Grapheme> {
         if self.buffer.current.selection.is_empty() {
             Some(self.buffer.current.selection.0)
         } else {
@@ -130,7 +122,7 @@ impl<'ast> MdRender {
 
     /// Returns the deepest container block node containing the offset.
     pub fn deepest_container_block_at_offset(
-        &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
+        &self, node: &'ast AstNode<'ast>, offset: Grapheme,
     ) -> &'ast AstNode<'ast> {
         for child in node.children() {
             if !child.data.borrow().value.is_container_block() {
@@ -149,7 +141,7 @@ impl<'ast> MdRender {
 
     /// Returns the leaf block node containing the offset.
     pub fn leaf_block_at_offset(
-        &self, node: &'ast AstNode<'ast>, offset: DocCharOffset,
+        &self, node: &'ast AstNode<'ast>, offset: Grapheme,
     ) -> &'ast AstNode<'ast> {
         for child in node.children() {
             for line_idx in self.node_lines(child).iter() {
@@ -167,7 +159,7 @@ impl<'ast> MdRender {
         node
     }
 
-    pub fn line_at_offset(&self, offset: DocCharOffset) -> (DocCharOffset, DocCharOffset) {
+    pub fn line_at_offset(&self, offset: Grapheme) -> (Grapheme, Grapheme) {
         let (line_idx, _) = self.bounds.source_lines.find_containing(offset, true, true);
         self.bounds.source_lines[line_idx]
     }

@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, UiBuilder};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -19,7 +19,7 @@ pub(crate) mod utils;
 
 impl<'ast> MdRender {
     /// Returns the range for the node.
-    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // Check cache first
         if let Some(cached_range) = self.get_cached_node_range(node) {
             return cached_range;
@@ -129,7 +129,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns the lines spanned by the given range.
-    pub fn range_lines(&self, range: (DocCharOffset, DocCharOffset)) -> (usize, usize) {
+    pub fn range_lines(&self, range: (Grapheme, Grapheme)) -> (usize, usize) {
         let range_lines = self.range_split_newlines(range);
 
         let first_line = *range_lines.first().unwrap();

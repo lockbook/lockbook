@@ -8,7 +8,7 @@ use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
@@ -324,8 +324,8 @@ impl<'ast> MdRender {
     /// to [`line_own_prefix`] + [`line_content`]. For leaf blocks, which have
     /// no prefix, this is equivalent to [`line_content`].
     pub fn node_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line }; // document has no prefix
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
 
@@ -355,13 +355,13 @@ impl<'ast> MdRender {
 
     /// Returns the first line, the whole first line, and nothing but the first
     /// line of the given node.
-    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_first_line_idx(node)]
     }
 
     /// Returns the last line, the whole last line, and nothing but the last line
     /// of the given node.
-    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_last_line_idx(node)]
     }
 
@@ -442,8 +442,7 @@ impl<'ast> MdRender {
 
     #[allow(clippy::collapsible_else_if)]
     pub fn apply_fold(
-        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
-        unapply: bool,
+        &mut self, node: &'ast AstNode<'ast>, contents: (Grapheme, Grapheme), unapply: bool,
     ) {
         if unapply {
             if let Some(fold) = self.fold(node) {
@@ -558,7 +557,7 @@ impl<'ast> MdRender {
 
 #[derive(Default)]
 pub struct CacheEntry<T> {
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
     value: T,
 }
 
@@ -614,8 +613,8 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
 
 pub struct LinePrefixCacheEntry {
     node_key_hash: u64,
-    line: (DocCharOffset, DocCharOffset),
-    value: (RelCharOffset, bool),
+    line: (Grapheme, Grapheme),
+    value: (Graphemes, bool),
 }
 
 pub enum TitleState {
@@ -628,7 +627,7 @@ pub enum TitleState {
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
-    pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
+    pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
@@ -662,12 +661,12 @@ impl LayoutCache {
     /// movement or find match change). A node's height depends on its reveal
     /// state, so we evict nodes intersecting either range plus their ancestors.
     pub fn invalidate_reveal_change(
-        &self, old_range: (DocCharOffset, DocCharOffset), new_range: (DocCharOffset, DocCharOffset),
+        &self, old_range: (Grapheme, Grapheme), new_range: (Grapheme, Grapheme),
     ) {
         let mut cache = self.height.borrow_mut();
 
         // first pass: find ranges directly affected
-        let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
+        let mut invalidated: Vec<(Grapheme, Grapheme)> = Vec::new();
         for entry in cache.iter() {
             if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
             {
@@ -804,8 +803,8 @@ impl<'ast> MdRender {
     }
 
     pub fn get_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<(RelCharOffset, bool)> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<(Graphemes, bool)> {
         let node_key_hash = Self::pack_node_key(node);
         self.layout_cache
             .line_prefix_len
@@ -821,8 +820,7 @@ impl<'ast> MdRender {
     }
 
     pub fn set_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        value: (RelCharOffset, bool),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), value: (Graphemes, bool),
     ) {
         let node_key_hash = Self::pack_node_key(node);
         let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
@@ -838,9 +836,7 @@ impl<'ast> MdRender {
     }
 
     #[inline]
-    pub fn get_cached_node_range(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn get_cached_node_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range
@@ -850,9 +846,7 @@ impl<'ast> MdRender {
     }
 
     #[inline]
-    pub fn set_cached_node_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-    ) {
+    pub fn set_cached_node_range(&self, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme)) {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range

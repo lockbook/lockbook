@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
@@ -41,9 +41,7 @@ impl std::ops::BitOrAssign for Response {
 }
 
 impl<'ast> MdRender {
-    pub fn span(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
-    ) -> f32 {
+    pub fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme)) -> f32 {
         match &node.data.borrow().value {
             NodeValue::FrontMatter(_) => 0.,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
@@ -105,7 +103,7 @@ impl<'ast> MdRender {
 
     pub fn show_inline(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let ui = &mut self.node_ui(ui, node);
 
@@ -210,7 +208,7 @@ impl<'ast> MdRender {
     // the span of an inline that contains inlines is the sum of the spans of
     // the inlines
     pub fn inline_children_span(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         for child in node.children() {
@@ -222,7 +220,7 @@ impl<'ast> MdRender {
     // inlines are stacked horizontally and wrapped
     pub fn show_inline_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let mut response = Default::default();
         for child in node.children() {
@@ -233,9 +231,7 @@ impl<'ast> MdRender {
 
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.
-    pub fn prefix_range(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let range = self.node_range(node);
         let first_child = node.children().next()?;
         let first_child_range = self.node_range(first_child);
@@ -251,7 +247,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns the range of the leading syntax characters that define this node
-    pub fn head_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn head_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         if matches!(node.data.borrow().value, NodeValue::Code(_)) {
             let range = self.node_range(node);
             Some((range.start(), range.start() + 1)) // code has no children; contains text directly
@@ -262,9 +258,7 @@ impl<'ast> MdRender {
 
     /// Returns the range between the end of the node's last child if there is
     /// one, and the end of the node.
-    pub fn postfix_range(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn postfix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let range = self.node_range(node);
         let last_child = node.children().last()?;
         let last_child_range = self.node_range(last_child);
@@ -280,7 +274,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns the range of the trailing syntax characters that define this node
-    pub fn tail_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn tail_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         if matches!(node.data.borrow().value, NodeValue::Code(_)) {
             let range = self.node_range(node);
             Some((range.end() - 1, range.end())) // code has no children; contains text directly
@@ -292,7 +286,7 @@ impl<'ast> MdRender {
     /// Returns the range between the start of the node's first child and the
     /// end of it's last child, if there are any children. For many nodes, this
     /// is the content in the node.
-    pub fn infix_range(&self, node: &'ast AstNode<'ast>) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn infix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let first_child = node.children().next()?;
         let first_child_range = self.node_range(first_child);
         let last_child = node.children().last()?;
@@ -301,7 +295,7 @@ impl<'ast> MdRender {
     }
 
     pub fn circumfix_span(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
 
@@ -339,7 +333,7 @@ impl<'ast> MdRender {
 
     pub fn show_circumfix(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let mut response = Default::default();
         let any_children = node.children().next().is_some();
@@ -414,8 +408,7 @@ impl<'ast> MdRender {
     /// `wrap.height()` (offset-based) wouldn't count it and the parent
     /// block's height claim would underreport.
     fn show_empty_marker(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap, range: (Grapheme, Grapheme),
     ) -> Response {
         const EPS: f32 = 0.01;
         let on_boundary = wrap.row_offset() < EPS && wrap.row() > 0;
@@ -448,20 +441,19 @@ impl<'ast> MdRender {
         self.range_revealed(self.node_range(node), false)
     }
 
-    pub fn reveal_ranges(&self) -> impl Iterator<Item = (DocCharOffset, DocCharOffset)> + '_ {
+    pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
         self.reveal_ranges.iter().copied()
     }
 
     /// Returns true if `range` intersects any reveal range.
-    pub fn range_revealed(&self, range: (DocCharOffset, DocCharOffset), allow_empty: bool) -> bool {
+    pub fn range_revealed(&self, range: (Grapheme, Grapheme), allow_empty: bool) -> bool {
         self.reveal_ranges()
             .any(|rr| range.intersects(&rr, allow_empty))
     }
 
     /// Returns true if `range` contains any reveal range.
     pub fn range_contains_revealed(
-        &self, range: (DocCharOffset, DocCharOffset), allow_empty_range: bool,
-        allow_empty_selection: bool,
+        &self, range: (Grapheme, Grapheme), allow_empty_range: bool, allow_empty_selection: bool,
     ) -> bool {
         self.reveal_ranges()
             .any(|rr| range.contains_range(&rr, allow_empty_range, allow_empty_selection))
@@ -469,7 +461,7 @@ impl<'ast> MdRender {
 
     /// Returns true if any reveal range start or end falls within `range`.
     pub fn range_contains_reveal_endpoint(
-        &self, range: (DocCharOffset, DocCharOffset), start_inclusive: bool, end_inclusive: bool,
+        &self, range: (Grapheme, Grapheme), start_inclusive: bool, end_inclusive: bool,
     ) -> bool {
         self.reveal_ranges().any(|rr| {
             range.contains(rr.start(), start_inclusive, end_inclusive)
