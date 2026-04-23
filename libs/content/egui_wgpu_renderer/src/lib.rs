@@ -232,7 +232,7 @@ impl<'w> RendererState<'w> {
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: Self::text_alpha(&self.adapter, &self.surface),
                 view_formats: vec![],
-                desired_maximum_frame_latency: 2,
+                desired_maximum_frame_latency: 1,
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = self.screen.size_in_pixels[0];

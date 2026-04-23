@@ -122,6 +122,10 @@ class WorkspaceFragment : Fragment() {
             workspaceWrapper.workspaceView.createDocAt(it)
         }
 
+        model.fps.observe(viewLifecycleOwner){
+            updateToolbarOnTabChange(WorkspaceTabType.Markdown, null)
+        }
+
         model.closeFile.observe(viewLifecycleOwner) { id ->
             workspaceWrapper.workspaceView.closeDoc(id)
             workspaceWrapper.workspaceView.drawImmediately()
@@ -380,7 +384,8 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = true
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible =
                     true
-                binding.workspaceToolbar.setTitle(tabTitle)
+//                binding.workspaceToolbar.setTitle(tabTitle)
+                binding.workspaceToolbar.setTitle(model.fps.value.toString())
             }
         }
     }
@@ -651,8 +656,9 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             outAttrs.inputType =
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 
-            outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
-            outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
+            outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
+            outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart.get()
+            outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd.get()
         }
 
         return wsInputConnection

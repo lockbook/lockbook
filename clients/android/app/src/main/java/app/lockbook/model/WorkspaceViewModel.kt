@@ -68,6 +68,10 @@ class WorkspaceViewModel : ViewModel() {
     val _isRendering = MutableLiveData<Boolean>()
     val isRendering: LiveData<Boolean>
         get() = _isRendering
+
+    val _fps = MutableLiveData<Float>()
+    val fps: LiveData<Float>
+        get() = _fps
 }
 
 data class WorkspaceTab(

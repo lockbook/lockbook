@@ -86,7 +86,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
 
     data class WorkspaceTextState(
-        val selection: JTextRange,
         val textLength: Int,
         val buffer: String,
         val frameCount: Int
@@ -97,7 +96,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
      val pendingWorkspaceTextState = AtomicReference(
         WorkspaceTextState(
-            selection = JTextRange(none = true, start = 0, end = 0),
             textLength = 0,
             buffer = "",
             frameCount = 0
@@ -303,8 +301,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val timeSource = TimeSource.Monotonic
             // Move this OUTSIDE the while loop so it persists
             var fastModeDeadline = timeSource.markNow()
+
+            // FPS tracking
+            var frameCount = 0
+            var fpsWindowStart = timeSource.markNow()
+            var currentFps = 0f
+
             while (isActive) {
                 val delayTime = drawWorkspace()
+
+                frameCount++
+                val elapsed = (fpsWindowStart.elapsedNow()).inWholeMilliseconds
+                if (elapsed >= 1000L) {
+                    currentFps = frameCount * 1000f / elapsed
+                    model._fps.postValue(currentFps)
+                    frameCount = 0
+                    fpsWindowStart = timeSource.markNow()
+                }
 
                 // 2. Determine if we are currently in the "sticky" window
                 val isSticky = fastModeDeadline.hasNotPassedNow()
@@ -531,10 +544,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             val res = Workspace.enterFrame(WGPU_OBJ)
-            logger.d("${"-".repeat(10)}\nENDF")
+            logger.w("ENDF")
             lastFrameDirty = thisFrameDirty
-            // you get the update here
-            updateWorkspaceState(containsNotify)
+            updateWorkspaceState()
 
             res
         }
@@ -580,9 +592,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         contextMenu?.finish()
                     }
 
-//                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount.get() == 0) {
-//                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
-//                    }
+                    if (response.selectionUpdated && textMutations.get().isEmpty()) {
+                        textMutations.get().add(WsTextMutation.NotifySelectionUpdate to pendingWorkspaceTextState.get())
+                    }
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =
@@ -606,14 +618,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
 
-    private fun updateWorkspaceState(containsNotify: Boolean) {
-        val start = System.currentTimeMillis()
-
-        val selection: JTextRange = Workspace.getSelection(WGPU_OBJ)
-
+    private fun updateWorkspaceState() {
         pendingWorkspaceTextState.set(
             WorkspaceTextState(
-                selection = JTextRange(selection.none, selection.start, selection.end),
                 textLength = Workspace.getTextLength(WorkspaceView.WGPU_OBJ),
                 buffer = Workspace.getBuffer(WGPU_OBJ),
                 frameCount = pendingWorkspaceTextState.get().frameCount + 1
@@ -622,13 +629,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                if (containsNotify && textMutations.get().isEmpty()) {
-                    textInputWrapper.wsInputConnection.applySelectionNotification()
-                }
+                val selection: JTextRange = Workspace.getSelection(WGPU_OBJ)
+                textInputWrapper.wsInputConnection.wsEditable.selectionStart.set(selection.start)
+                textInputWrapper.wsInputConnection.wsEditable.selectionEnd.set(selection.end)
+                textInputWrapper.wsInputConnection.applySelectionNotification()
             }
         }
 
-        logger.d("WS UPDATE  ${System.currentTimeMillis() - start}ms")
     }
 
     fun drawImmediately() {
@@ -847,7 +854,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-            if (!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
+
+            val emptySelection = textInputWrapper.wsInputConnection.wsEditable.selectionEnd.get() ==
+                    textInputWrapper.wsInputConnection.wsEditable.selectionStart.get()
+            if (!emptySelection) {
                 menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
                     .setAlphabeticShortcut('x')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)

@@ -5,13 +5,18 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.text.Editable
+import android.text.Selection
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.ExtractedText
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.TextAttribute
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import java.util.concurrent.atomic.AtomicReference
+
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
 
@@ -36,13 +41,12 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         workspaceView.textMutations.get().add(event to workspaceView.pendingWorkspaceTextState.get())
     }
     fun applySelectionNotification(isImmediate: Boolean = false) {
-        logger.i("APPLY SEL")
-        val selection = wsEditable.getSelection()
+//        logger.i("APPLY SEL")
 
         getInputMethodManager().updateSelection(
             textInputWrapper,
-            selection.start,
-            selection.end,
+            wsEditable.selectionStart.get(),
+            wsEditable.selectionEnd.get(),
             wsEditable.composingStart,
             wsEditable.composingEnd
         )
@@ -134,6 +138,19 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     @Synchronized
+    override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText {
+        val et = ExtractedText()
+        val text: CharSequence = wsEditable
+        et.text = text
+        et.selectionStart = wsEditable.selectionStart.get()
+        et.selectionEnd = wsEditable.selectionEnd.get()
+        et.startOffset = 0
+        et.partialStartOffset = -1
+        et.partialEndOffset = -1
+        return et
+    }
+
+    @Synchronized
     override fun beginBatchEdit(): Boolean {
         logger.i("START BATCH" + batchEditCount.get())
 
@@ -158,4 +175,35 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun getEditable(): Editable {
         return wsEditable
     }
+
+    override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+        if (wsEditable.selectionEnd.get() != wsEditable.selectionStart.get() && wsEditable.selectionEnd.get() - wsEditable.selectionStart.get() == beforeLength - afterLength){
+            logger.d("DEL SURROUNDING a: ${beforeLength} ${afterLength}")
+            wsEditable.replace(wsEditable.selectionStart.get(), wsEditable.selectionEnd.get(), "")
+            return true
+        }
+        logger.d("DEL SURROUNDING b: ${beforeLength} ${afterLength}")
+        return super.deleteSurroundingText(beforeLength, afterLength)
+    }
+
+    override fun commitText(
+        text: CharSequence,
+        newCursorPosition: Int,
+        textAttribute: TextAttribute?
+    ): Boolean {
+        logger.i("COMMIT TEXT ${text} ${newCursorPosition} ${textAttribute}")
+        return super.commitText(text, newCursorPosition, textAttribute)
+    }
+
+    override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+        logger.i("COMMIT TEXT ${text} ${newCursorPosition}")
+        return super.commitText(text, newCursorPosition)
+    }
+    /**
+     * REPL 1235 1235 d
+     * --
+     * REPLACE 1237 1237 o
+     * DELETE 1235 1237
+     * REPLACE 1237 1237 so
+     */
 }
