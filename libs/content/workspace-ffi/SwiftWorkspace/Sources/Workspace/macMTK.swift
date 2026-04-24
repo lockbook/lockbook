@@ -212,8 +212,8 @@
         }
 
         func importFromPasteboard(_ pasteBoard: NSPasteboard, isPaste: Bool) -> Bool {
-            if let data = pasteBoard.data(forType: .png) {
-                sendImage(img: data, isPaste: isPaste)
+            if let img = pasteboardImageData(pasteBoard) {
+                sendImage(img: img, isPaste: isPaste)
                 return true
             } else if let data = pasteBoard.data(forType: .string) {
                 if let text = String(data: data, encoding: .utf8) {
@@ -242,6 +242,31 @@
             }
 
             return true
+        }
+
+        func pasteboardImageData(_ pasteBoard: NSPasteboard) -> Data? {
+            // Prefer images over text, like iOS's `UIPasteboard.general.image`.
+            if let data = pasteBoard.data(forType: .png) {
+                return data
+            }
+
+            if let data = pasteBoard.data(forType: .tiff) {
+                // Normalize TIFF to PNG so rust can infer format/extension and the
+                // rest of the pipeline stays consistent.
+                if let img = NSImage(data: data), let png = img.lb_pngData() {
+                    return png
+                }
+                return data
+            }
+
+            if let images = pasteBoard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage],
+               let img = images.first,
+               let png = img.lb_pngData()
+            {
+                return png
+            }
+
+            return nil
         }
 
         func sendImage(img: Data, isPaste: Bool) {

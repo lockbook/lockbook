@@ -11,6 +11,7 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicReference
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
@@ -72,8 +73,19 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             android.R.id.cut -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCut to -1)
             android.R.id.copy -> workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardCopy to -1)
             android.R.id.paste -> {
-                getClipboardManager().primaryClip?.getItemAt(0)?.text.let { clipboardText ->
-                    workspaceView.textMutations.get().add(WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText.toString()) to -1)
+                val imageBytes = readClipboardImageBytes()
+                if (imageBytes != null) {
+                    workspaceView.textMutations.get().add(
+                        WorkspaceView.WsTextMutation.ClipboardPasteImage(imageBytes, true) to -1
+                    )
+                } else {
+                    val clip = getClipboardManager().primaryClip
+                    val clipboardText = clip?.getItemAt(0)?.coerceToText(App.applicationContext())?.toString()
+                    if (clipboardText != null) {
+                        workspaceView.textMutations.get().add(
+                            WorkspaceView.WsTextMutation.ClipboardPaste(clipboardText) to -1
+                        )
+                    }
                 }
             }
             android.R.id.copyUrl,
@@ -86,6 +98,48 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         workspaceView.drawImmediately()
 
         return true
+    }
+
+    private fun readClipboardImageBytes(): ByteArray? {
+        val clip = getClipboardManager().primaryClip ?: return null
+        if (clip.itemCount < 1) return null
+
+        val description = clip.description
+        val item = clip.getItemAt(0)
+        val uri = item.uri ?: return null
+
+        // Prefer uris that are actually images; many clipboard entries are plain files/links.
+        val resolver = App.applicationContext().contentResolver
+        val mimeFromResolver = try { resolver.getType(uri) } catch (_: Exception) { null }
+        val looksLikeImage =
+            (mimeFromResolver?.startsWith("image/") == true) ||
+                (description?.hasMimeType("image/*") == true) ||
+                (description?.hasMimeType("image/png") == true) ||
+                (description?.hasMimeType("image/jpeg") == true) ||
+                (description?.hasMimeType("image/webp") == true) ||
+                (description?.hasMimeType("image/gif") == true)
+
+        if (!looksLikeImage) return null
+
+        // Guard against enormous clipboard images to reduce OOM risk.
+        val maxBytes = 25 * 1024 * 1024
+        return try {
+            resolver.openInputStream(uri)?.use { input ->
+                val out = ByteArrayOutputStream()
+                val buffer = ByteArray(16 * 1024)
+                var total = 0
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read <= 0) break
+                    total += read
+                    if (total > maxBytes) return null
+                    out.write(buffer, 0, read)
+                }
+                out.toByteArray()
+            }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {

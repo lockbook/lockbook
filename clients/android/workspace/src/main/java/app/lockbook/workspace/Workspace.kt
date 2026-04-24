@@ -132,6 +132,7 @@ object Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
+    external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }

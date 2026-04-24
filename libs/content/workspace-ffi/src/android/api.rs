@@ -1,13 +1,13 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
+use jni::objects::{JByteArray, JClass, JObject, JPrimitiveArray, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
-use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
+use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
@@ -695,6 +695,31 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         .raw_input
         .events
         .push(egui::Event::Paste(content));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardSendImage(
+    env: JNIEnv, _: JClass, obj: jlong, content: JByteArray, is_paste: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let img = match env.convert_byte_array(&content) {
+        Ok(bytes) => bytes,
+        Err(_) => return,
+    };
+
+    let content = vec![ClipContent::Image(img)];
+    let position = egui::Pos2::ZERO; // todo: cursor position
+
+    if is_paste == 1 {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Paste { content, position });
+    } else {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Drop { content, position });
+    }
 }
 
 #[no_mangle]

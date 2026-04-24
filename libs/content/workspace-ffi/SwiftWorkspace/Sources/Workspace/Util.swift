@@ -24,6 +24,18 @@ import Foundation
             }
         }
     }
+
+    extension NSImage {
+        /// Best-effort conversion to PNG bytes for sending through the workspace FFI.
+        func lb_pngData() -> Data? {
+            if let tiff = tiffRepresentation,
+               let bitmap = NSBitmapImageRep(data: tiff)
+            {
+                return bitmap.representation(using: .png, properties: [:])
+            }
+            return nil
+        }
+    }
 #endif
 
 #if os(iOS)

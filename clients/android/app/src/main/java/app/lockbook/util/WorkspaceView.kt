@@ -109,6 +109,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val text: String
         ) : WsTextMutation()
 
+        data class ClipboardPasteImage(
+            val bytes: ByteArray,
+            val isPaste: Boolean,
+        ) : WsTextMutation()
+
         data class SendKeyEvent(
             val keyCode: Int,
             val content: String,
@@ -461,6 +466,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     }
                     is WsTextMutation.ClipboardPaste -> {
                         Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
+                    }
+                    is WsTextMutation.ClipboardPasteImage -> {
+                        Workspace.clipboardSendImage(WGPU_OBJ, mutation.bytes, mutation.isPaste)
                     }
                     is WsTextMutation.SendKeyEvent -> {
 
