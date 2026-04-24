@@ -4,8 +4,8 @@ use lb_rs::get_code_version;
 use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use lb_rs::model::clock::{Timestamp, get_time};
-use test_utils::{assert_matches, test_core_with_account};
 use test_utils::local;
+use test_utils::{assert_matches, test_core_with_account};
 
 static CODE_VERSION: fn() -> &'static str = || "0.0.0";
 

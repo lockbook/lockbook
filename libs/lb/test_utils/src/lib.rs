@@ -1,9 +1,9 @@
 pub mod assert;
 
-use lb_rs::{Lb, LocalLb};
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::{Lb, LocalLb};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;

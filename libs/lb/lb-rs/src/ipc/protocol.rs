@@ -82,7 +82,10 @@ pub enum Request {
         account: Account,
     },
     ImportAccountPhrase {
-        phrase: [String; 24],
+        /// The BIP39 word list (24 words). Typed as `Vec` rather than
+        /// `[String; 24]` so it doesn't blow up the enum's largest-variant
+        /// size; validated back to 24 on the host.
+        phrase: Vec<String>,
         api_url: String,
     },
     DeleteAccount,

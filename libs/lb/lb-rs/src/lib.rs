@@ -126,13 +126,20 @@ impl LocalLb {
 /// spawning the IPC listener) and returning `Lb::Local`; failure means
 /// connecting to the socket as a Guest and returning `Lb::Remote`.
 #[derive(Clone)]
+// `Local(LocalLb)` is inline (LocalLb is itself a struct full of `Arc`s,
+// not huge but bigger than a pointer); `Remote(Arc<RemoteLb>)` is a single
+// pointer. Clippy flags the disparity. We accept it: every consumer
+// either constructs an `Lb` and threads it around (one allocation either
+// way) or matches on it without caring about variant size. Boxing
+// `LocalLb` to balance the variants would add an indirection on every
+// host-side call for no real gain.
 pub enum Lb {
-    Local(LocalLb),
+    Local(Arc<LocalLb>),
     /// Only constructed on platforms where the guest can actually reach the
     /// host over UDS (see `Lb::init`'s `cfg(unix)` guest branch). On other
     /// platforms the variant exists but is never populated, so the forwarder
     /// arms below compile cleanly without per-arm cfgs.
-    Remote(RemoteLb),
+    Remote(Arc<RemoteLb>),
 }
 
 impl Lb {
@@ -168,7 +175,7 @@ impl Lb {
                         }
                     }
                 }
-                return Ok(Lb::Local(local));
+                return Ok(Lb::Local(Arc::new(local)));
             }
             Err(err) => err,
         };
@@ -272,7 +279,7 @@ impl Lb {
         match self {
             Lb::Local(l) => l.import_account_phrase(phrase, api_url).await,
             Lb::Remote(r) => {
-                let phrase: [String; 24] = std::array::from_fn(|i| phrase[i].to_string());
+                let phrase: Vec<String> = phrase.iter().map(|s| s.to_string()).collect();
                 let account = r
                     .call::<Account>(Request::ImportAccountPhrase {
                         phrase,
@@ -845,7 +852,7 @@ impl Lb {
 #[cfg(unix)]
 async fn connect_guest_with_retry(
     socket: &std::path::Path, config: &Config,
-) -> std::io::Result<ipc::client::RemoteLb> {
+) -> std::io::Result<Arc<ipc::client::RemoteLb>> {
     let mut attempts: u32 = 0;
     let mut delay = std::time::Duration::from_millis(10);
     loop {

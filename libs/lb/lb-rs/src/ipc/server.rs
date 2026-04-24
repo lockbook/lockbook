@@ -172,8 +172,19 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
             enc(lb.import_account_private_key_v1(account).await)
         }
         Request::ImportAccountPhrase { phrase, api_url } => {
-            let refs: [&str; 24] = std::array::from_fn(|i| phrase[i].as_str());
-            enc(lb.import_account_phrase(refs, &api_url).await)
+            match <[String; 24]>::try_from(phrase) {
+                Ok(owned) => {
+                    let refs: [&str; 24] = std::array::from_fn(|i| owned[i].as_str());
+                    enc(lb.import_account_phrase(refs, &api_url).await)
+                }
+                Err(v) => enc::<crate::model::account::Account>(Err(
+                    crate::model::errors::LbErrKind::Unexpected(format!(
+                        "ipc: import_account_phrase expected 24 words, got {}",
+                        v.len()
+                    ))
+                    .into(),
+                )),
+            }
         }
         Request::DeleteAccount => enc(lb.delete_account().await),
         Request::GetAccount => enc(lb.get_account().cloned()),

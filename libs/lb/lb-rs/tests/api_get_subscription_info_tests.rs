@@ -1,6 +1,6 @@
 use lb_rs::model::api::{GetSubscriptionInfoRequest, UpgradeAccountStripeRequest};
-use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 use test_utils::local;
+use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 
 #[tokio::test]
 #[ignore]

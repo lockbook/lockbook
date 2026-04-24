@@ -57,13 +57,11 @@ type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Vec<u8>>>>>;
 /// resync.
 const EVENT_CHANNEL_CAPACITY: usize = 10_000;
 
-/// Guest-side handle. Cloning is cheap — all live state is behind `Arc`.
-#[derive(Clone)]
+/// Guest-side state. Held inside `Lb::Remote` as `Arc<RemoteLb>` so
+/// cloning the `Lb` enum is cheap. The struct itself isn't `Clone` — it
+/// owns non-cloneable resources (the writer mutex, the in-flight oneshot
+/// map, the reader task handle) directly.
 pub struct RemoteLb {
-    inner: Arc<Inner>,
-}
-
-struct Inner {
     /// Held for callers that still need access to the original `Config`
     /// (e.g., `writeable_path` for log paths). The host owns the actual db.
     config: Config,
@@ -77,21 +75,19 @@ struct Inner {
     /// subscribe pay nothing — no channel buffer, no wire traffic.
     events: Arc<OnceLock<broadcast::Sender<Event>>>,
     #[cfg(unix)]
-    unix: UnixInner,
-}
-
-#[cfg(unix)]
-struct UnixInner {
     writer: Mutex<OwnedWriteHalf>,
+    #[cfg(unix)]
     seq: AtomicU64,
+    #[cfg(unix)]
     in_flight: InFlight,
     /// Background reader task. Aborted on drop so the connection cleans up
     /// even if the host disappears.
+    #[cfg(unix)]
     reader_task: JoinHandle<()>,
 }
 
 #[cfg(unix)]
-impl Drop for UnixInner {
+impl Drop for RemoteLb {
     fn drop(&mut self) {
         self.reader_task.abort();
     }
@@ -101,7 +97,7 @@ impl RemoteLb {
     /// Connect to a host. Only meaningful on Unix; other platforms don't
     /// reach this path because `Lb::init`'s guest fallback is `cfg(unix)`.
     #[cfg(unix)]
-    pub async fn connect(socket: &Path, config: Config) -> io::Result<Self> {
+    pub async fn connect(socket: &Path, config: Config) -> io::Result<Arc<Self>> {
         let stream = crate::ipc::transport::connect(socket).await?;
         let me = Self::from_stream(stream, config)?;
         // Best-effort: seed the account cache so `get_account()` works
@@ -115,31 +111,27 @@ impl RemoteLb {
     }
 
     #[cfg(unix)]
-    fn from_stream(stream: UnixStream, config: Config) -> io::Result<Self> {
+    fn from_stream(stream: UnixStream, config: Config) -> io::Result<Arc<Self>> {
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
         let events: Arc<OnceLock<broadcast::Sender<Event>>> = Arc::new(OnceLock::new());
         let reader_task =
             tokio::spawn(reader_loop(read_half, Arc::clone(&in_flight), Arc::clone(&events)));
 
-        Ok(Self {
-            inner: Arc::new(Inner {
-                config,
-                account: OnceLock::new(),
-                events,
-                unix: UnixInner {
-                    writer: Mutex::new(write_half),
-                    seq: AtomicU64::new(0),
-                    in_flight,
-                    reader_task,
-                },
-            }),
-        })
+        Ok(Arc::new(Self {
+            config,
+            account: OnceLock::new(),
+            events,
+            writer: Mutex::new(write_half),
+            seq: AtomicU64::new(0),
+            in_flight,
+            reader_task,
+        }))
     }
 
     /// Configuration the guest was constructed with.
     pub fn config(&self) -> &Config {
-        &self.inner.config
+        &self.config
     }
 
     /// Return the cached `Account` if the guest has one (set at connect
@@ -147,8 +139,7 @@ impl RemoteLb {
     /// `LbErrKind::AccountNonexistent` otherwise — same surface as
     /// `LocalLb::get_account`.
     pub fn get_account(&self) -> LbResult<&Account> {
-        self.inner
-            .account
+        self.account
             .get()
             .ok_or_else(|| LbErrKind::AccountNonexistent.into())
     }
@@ -157,7 +148,7 @@ impl RemoteLb {
     /// calls return it. Idempotent — second `set` is a no-op since the
     /// account is invariant for a session.
     pub fn cache_account(&self, account: Account) {
-        let _ = self.inner.account.set(account);
+        let _ = self.account.set(account);
     }
 
     /// Subscribe to the relayed event stream.
@@ -167,13 +158,16 @@ impl RemoteLb {
     /// `Request::Subscribe` to the host. Subsequent callers just get more
     /// receivers from the same channel — still one subscription on the
     /// host side. Guests that never call this pay nothing.
-    pub fn subscribe(&self) -> broadcast::Receiver<Event> {
-        let tx = self.inner.events.get_or_init(|| {
+    ///
+    /// Takes `&Arc<Self>` so the spawned host-Subscribe task can hold its
+    /// own ref to the connection without needing the type to be `Clone`.
+    pub fn subscribe(self: &Arc<Self>) -> broadcast::Receiver<Event> {
+        let tx = self.events.get_or_init(|| {
             let (tx, _) = broadcast::channel::<Event>(EVENT_CHANNEL_CAPACITY);
 
             // Kick off the host-side subscription. Failure is logged, not
             // fatal — the guest still has a working (empty) receiver.
-            let me = self.clone();
+            let me = Arc::clone(self);
             tokio::spawn(async move {
                 if let Err(err) = me.call::<()>(Request::Subscribe).await {
                     tracing::warn!(?err, "ipc: Subscribe failed; events won't be relayed");
@@ -197,17 +191,16 @@ impl RemoteLb {
     where
         Out: DeserializeOwned,
     {
-        let u = &self.inner.unix;
-        let seq = u.seq.fetch_add(1, Ordering::Relaxed);
+        let seq = self.seq.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        u.in_flight.lock().await.insert(seq, tx);
+        self.in_flight.lock().await.insert(seq, tx);
 
         let frame = Frame::Request { seq, body: req };
         let bytes = bincode::serialize(&frame)
             .map_err(|e| LbErrKind::Unexpected(format!("ipc: serialize request: {e}")))?;
 
         {
-            let mut writer = u.writer.lock().await;
+            let mut writer = self.writer.lock().await;
             write_frame(&mut *writer, &bytes)
                 .await
                 .map_err(|e| LbErrKind::Unexpected(format!("ipc: write request: {e}")))?;
@@ -227,8 +220,8 @@ impl RemoteLb {
     }
 
     /// Non-Unix stub: `Lb::init` never constructs a Remote on these
-    /// platforms, so this is unreachable — kept only so `LbInner::Remote`
-    /// can be an unconditional variant and the forwarders stay cfg-free.
+    /// platforms, so this is unreachable — kept only so `Lb::Remote` can
+    /// be an unconditional variant and the forwarders stay cfg-free.
     #[cfg(not(unix))]
     pub async fn call<Out>(&self, _req: Request) -> LbResult<Out>
     where
