@@ -45,6 +45,9 @@ public data class AndroidResponse(
     @SerialName("url_opened")
     val urlOpened: String,
 
+    @SerialName("virtual_keyboard_shown")
+    val virtualKeyboardShown: Boolean?,
+
     // widget response
     @SerialName("selected_file")
     val selectedFile: String,

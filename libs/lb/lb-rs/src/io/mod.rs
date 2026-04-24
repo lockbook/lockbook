@@ -40,6 +40,7 @@ pub struct CoreV4 {
 
     pub doc_events: List<DocEvent>,
     pub id: Single<LbID>,
+    pub pinned_files: List<Uuid>,
 }
 
 pub struct LbRO<'a> {

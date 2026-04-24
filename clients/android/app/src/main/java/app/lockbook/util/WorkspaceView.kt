@@ -566,6 +566,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
 //                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
 //                    }
+                    response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =
