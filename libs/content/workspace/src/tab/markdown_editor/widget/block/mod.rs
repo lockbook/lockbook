@@ -157,9 +157,15 @@ impl<'ast> MdRender {
                 let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
                 rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
             }
-            // leaf blocks already cheap to compute precisely — just delegate
-            NodeValue::CodeBlock(b) => self.height_code_block(node, b),
-            NodeValue::HtmlBlock(_) => self.height_html_block(node),
+            // code & html blocks: line-count × row_height (no shape).
+            // The precise impl shapes per line for syntax highlighting,
+            // which is real cost we want to skip for off-screen content.
+            NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
+                let row_height = self.row_height(node);
+                let n = (self.node_last_line_idx(node) - self.node_first_line_idx(node) + 1)
+                    as f32;
+                n * row_height + (n - 1.0).max(0.0) * self.layout.row_spacing
+            }
             NodeValue::ThematicBreak => self.height_thematic_break(),
             NodeValue::FrontMatter(_) => self.height_front_matter(node),
             // inline / unsupported — caller shouldn't ask for block height here
