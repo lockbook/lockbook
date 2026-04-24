@@ -154,7 +154,6 @@ impl<'ast> MdRender {
             | NodeValue::WikiLink(_)
             | NodeValue::FootnoteReference(_)
             | NodeValue::SoftBreak
-            | NodeValue::LineBreak
             | NodeValue::Escaped
             | NodeValue::EscapedTag(_)
             | NodeValue::Subtext => {
