@@ -25,7 +25,13 @@ impl<'ast> MdRender {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
         let parent_indent = || self.indent(parent());
-        let indented_width = || parent_width() - parent_indent();
+        // `parent_width - parent_indent` can go negative for deeply
+        // nested containers at narrow doc widths (e.g. a table cell
+        // inside three blockquotes at ~200px). Clamp to 0 so child
+        // computations don't propagate nonsense; `show_block` /
+        // `height` separately bail when width falls below the
+        // "can't fit anything" threshold.
+        let indented_width = || (parent_width() - parent_indent()).max(0.0);
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
@@ -86,6 +92,14 @@ impl<'ast> MdRender {
     pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
+        }
+
+        // Block too narrow to fit anything meaningful: render nothing.
+        // `show_block` short-circuits on the same condition, so this
+        // matches what gets painted.
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height(node, 0.0);
+            return 0.0;
         }
 
         // container blocks: if revealed, show source lines instead
@@ -188,6 +202,12 @@ impl<'ast> MdRender {
         siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
+
+        // Block too narrow to fit anything meaningful: skip. `height`
+        // returns 0 for the same condition so the layout stays aligned.
+        if self.width(node) < self.layout.row_height {
+            return;
+        }
 
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()

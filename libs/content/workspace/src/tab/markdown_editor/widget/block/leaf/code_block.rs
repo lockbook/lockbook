@@ -290,18 +290,20 @@ impl<'ast> MdRender {
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
-            } else {
-                // new regions
+        let regions = highlighter.as_mut().and_then(|h| {
+            self.syntax.get(code_line_text, code_line).or_else(|| {
+                // Some bundled grammars (e.g. JavaScript (Babel)) have
+                // regex constructs fancy-regex can't compile and panic
+                // *inside* `highlight_line` on first use. Catch the
+                // panic and fall back to no highlighting for this line.
+                let line_start = self.offset_to_byte(code_line.start());
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    h.highlight_line(code_line_text, syntax_set()).ok()
+                }));
+                let highlighted = result.ok().flatten()?;
                 let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
+                let mut region_start = line_start;
+                for (style, region_str) in highlighted {
                     let region_end = region_start + region_str.len();
                     let region = self.range_to_char((region_start, region_end));
                     regions.push((style, region));
@@ -309,9 +311,11 @@ impl<'ast> MdRender {
                 }
                 self.syntax
                     .insert(code_line_text.into(), code_line, regions.clone());
-                regions
-            };
+                Some(regions)
+            })
+        });
 
+        if let Some(regions) = regions {
             let text_format = self.text_format(node);
             for (_, region) in regions {
                 // color doesn't matter for layout, just how the regions are divided
@@ -367,18 +371,17 @@ impl<'ast> MdRender {
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
-            } else {
-                // new regions
+        let regions = highlighter.as_mut().and_then(|h| {
+            self.syntax.get(code_line_text, code_line).or_else(|| {
+                // See `height_code_block_line` for why we catch panics here.
+                let line_start = self.offset_to_byte(code_line.start());
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    h.highlight_line(code_line_text, syntax_set()).ok()
+                }));
+                let highlighted = result.ok().flatten()?;
                 let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
+                let mut region_start = line_start;
+                for (style, region_str) in highlighted {
                     let region_end = region_start + region_str.len();
                     let region = self.range_to_char((region_start, region_end));
                     regions.push((style, region));
@@ -386,9 +389,11 @@ impl<'ast> MdRender {
                 }
                 self.syntax
                     .insert(code_line_text.into(), code_line, regions.clone());
-                regions
-            };
+                Some(regions)
+            })
+        });
 
+        if let Some(regions) = regions {
             let mut text_format = self.text_format(node);
             if regions.is_empty() {
                 self.show_section(

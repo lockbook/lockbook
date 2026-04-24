@@ -251,8 +251,9 @@ impl MdRender {
                 let mut line_base: usize = 0;
                 let mut line_text_len: usize = 0;
                 let mut prev_line_i: Option<usize> = None;
+                let mut prev_end: Option<usize> = None;
                 tmp.layout_runs()
-                    .map(|run| {
+                    .filter_map(|run| {
                         if prev_line_i != Some(run.line_i) {
                             let search_start = match prev_line_i {
                                 Some(_) => line_base + line_text_len,
@@ -284,7 +285,24 @@ impl MdRender {
                             });
                         let (start, end) =
                             if run.glyphs.is_empty() { (0, 0) } else { (start, end) };
-                        (line_base + start, line_base + end)
+                        let mut range = (line_base + start, line_base + end);
+                        // Cosmic-text wrapping a complex script (e.g. Devanagari
+                        // `धन्यवाद`) sometimes emits adjacent layout runs that
+                        // share the cluster *at* the wrap point: a run ends
+                        // with cluster X and the next run starts with cluster
+                        // X. Snap each run's start up to the previous run's
+                        // end so the two galleys don't claim the same source
+                        // bytes.
+                        if let Some(prev) = prev_end {
+                            range.0 = range.0.max(prev);
+                        }
+                        if range.0 >= range.1 {
+                            // Snap collapsed the run to empty — skip it
+                            // rather than emit a zero-length galley.
+                            return None;
+                        }
+                        prev_end = Some(range.1);
+                        Some(range)
                     })
                     .collect()
             };
@@ -407,12 +425,23 @@ impl MdRender {
             // The cap means an over-wide last row leaves the wrap cursor at
             // the row end — the galley extends past visually, but
             // `wrap.height()` doesn't over-count rows.
+            //
+            // Non-final rows snap `sim.offset` to the exact next-row
+            // boundary rather than incrementing by `row_remaining()` —
+            // repeated additions of `width` accumulate f32 drift, and
+            // even one ULP below `N * width` collapses the next
+            // `row_remaining()` to ~0 and stacks subsequent placements
+            // at the same x.
             let mut advance = if i < split_len - 1 {
-                sim.row_remaining()
+                let next_row_start = ((sim.offset / sim.width).floor() + 1.0) * sim.width;
+                let a = next_row_start - sim.offset;
+                sim.offset = next_row_start;
+                a
             } else {
-                shaped_w.min(sim.row_remaining())
+                let a = shaped_w.min(sim.row_remaining());
+                sim.offset += a;
+                a
             };
-            sim.offset += advance;
             // Post-padding on the final row of a padded section: same role
             // as `pre_pad`, on the right side.
             if i == split_len - 1 && padded {

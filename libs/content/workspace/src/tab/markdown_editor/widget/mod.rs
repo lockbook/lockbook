@@ -98,6 +98,24 @@ impl<'ast> MdRender {
                 range.1 = self.node_range(last_child).1;
             }
 
+            // hack: comrak misreports the end column of an HtmlBlock that
+            // sits inside a `>\t`-prefixed blockquote — it overshoots by
+            // the tab's expanded-vs-source width (e.g. for `>\t<div>foo
+            // </div>` it reports end col 18 instead of 16). The over-
+            // wide end leaks the range onto the next line and causes the
+            // following block's first line to be re-rendered as part of
+            // the HtmlBlock. Confirmed in `probe_sourcepos_column_semantics`
+            // that this misreport is unique to this combination — every
+            // other tab-blockquote shape (paragraph, code span, list-item
+            // child) reports source-aligned columns. Clamp to the end of
+            // the sourcepos's last line.
+            NodeValue::HtmlBlock(_) => {
+                let last_line_idx = node_data.sourcepos.end.line.saturating_sub(1);
+                if let Some(line) = self.bounds.source_lines.get(last_line_idx) {
+                    range.1 = range.1.min(line.end());
+                }
+            }
+
             _ => {}
         }
 
