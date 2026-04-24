@@ -155,9 +155,9 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::UpgradeAccountStripe { account_tier } => {
             enc(lb.upgrade_account_stripe(account_tier).await)
         }
-        Request::UpgradeAccountGooglePlay { purchase_token, account_id } => {
-            enc(lb.upgrade_account_google_play(&purchase_token, &account_id).await)
-        }
+        Request::UpgradeAccountGooglePlay { purchase_token, account_id } => enc(lb
+            .upgrade_account_google_play(&purchase_token, &account_id)
+            .await),
         Request::UpgradeAccountAppStore { original_transaction_id, app_account_token } => enc(lb
             .upgrade_account_app_store(original_transaction_id, app_account_token)
             .await),
@@ -211,9 +211,7 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::ListPaths { filter } => enc(lb.list_paths(filter).await),
         Request::ListPathsWithIds { filter } => enc(lb.list_paths_with_ids(filter).await),
 
-        Request::ShareFile { id, username, mode } => {
-            enc(lb.share_file(id, &username, mode).await)
-        }
+        Request::ShareFile { id, username, mode } => enc(lb.share_file(id, &username, mode).await),
         Request::GetPendingShares => enc(lb.get_pending_shares().await),
         Request::GetPendingShareFiles => enc(lb.get_pending_share_files().await),
         Request::KnownUsernames => enc(lb.known_usernames().await),

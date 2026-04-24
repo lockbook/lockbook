@@ -18,12 +18,8 @@ use crate::service::events::Event;
 
 #[cfg(unix)]
 use {
-    crate::ipc::protocol::Frame,
-    std::io,
-    std::path::Path,
-    std::sync::atomic::Ordering,
-    tokio::net::UnixStream,
-    tokio::net::unix::OwnedWriteHalf,
+    crate::ipc::protocol::Frame, std::io, std::path::Path, std::sync::atomic::Ordering,
+    tokio::net::UnixStream, tokio::net::unix::OwnedWriteHalf,
 };
 
 type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Vec<u8>>>>>;
@@ -80,7 +76,9 @@ impl RemoteLb {
     }
 
     pub fn get_account(&self) -> LbResult<&Account> {
-        self.account.get().ok_or_else(|| LbErrKind::AccountNonexistent.into())
+        self.account
+            .get()
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
     }
 
     pub fn cache_account(&self, account: Account) {

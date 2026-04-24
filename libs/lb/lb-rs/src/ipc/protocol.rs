@@ -35,8 +35,8 @@ impl Frame {
     }
 
     pub async fn write<W: AsyncWrite + Unpin>(&self, w: &mut W) -> io::Result<()> {
-        let bytes = bincode::serialize(self)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let bytes =
+            bincode::serialize(self).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let len: u32 = bytes.len().try_into().map_err(|_| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -51,72 +51,173 @@ impl Frame {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Request {
-    CreateAccount { username: String, api_url: String, welcome_doc: bool },
-    ImportAccount { key: String, api_url: Option<String> },
-    ImportAccountPrivateKeyV1 { account: Account },
-    ImportAccountPhrase { phrase: Vec<String>, api_url: String },
+    CreateAccount {
+        username: String,
+        api_url: String,
+        welcome_doc: bool,
+    },
+    ImportAccount {
+        key: String,
+        api_url: Option<String>,
+    },
+    ImportAccountPrivateKeyV1 {
+        account: Account,
+    },
+    ImportAccountPhrase {
+        phrase: Vec<String>,
+        api_url: String,
+    },
     DeleteAccount,
     GetAccount,
 
-    SuggestedDocs { settings: RankingWeights },
+    SuggestedDocs {
+        settings: RankingWeights,
+    },
     ClearSuggested,
-    ClearSuggestedId { id: Uuid },
+    ClearSuggestedId {
+        id: Uuid,
+    },
     AppForegrounded,
 
-    DisappearAccount { username: String },
-    DisappearFile { id: Uuid },
-    ListUsers { filter: Option<AccountFilter> },
-    GetAccountInfo { identifier: AccountIdentifier },
-    AdminValidateAccount { username: String },
+    DisappearAccount {
+        username: String,
+    },
+    DisappearFile {
+        id: Uuid,
+    },
+    ListUsers {
+        filter: Option<AccountFilter>,
+    },
+    GetAccountInfo {
+        identifier: AccountIdentifier,
+    },
+    AdminValidateAccount {
+        username: String,
+    },
     AdminValidateServer,
-    AdminFileInfo { id: Uuid },
-    RebuildIndex { index: ServerIndex },
-    SetUserTier { username: String, info: AdminSetUserTierInfo },
+    AdminFileInfo {
+        id: Uuid,
+    },
+    RebuildIndex {
+        index: ServerIndex,
+    },
+    SetUserTier {
+        username: String,
+        info: AdminSetUserTierInfo,
+    },
 
-    UpgradeAccountStripe { account_tier: StripeAccountTier },
-    UpgradeAccountGooglePlay { purchase_token: String, account_id: String },
-    UpgradeAccountAppStore { original_transaction_id: String, app_account_token: String },
+    UpgradeAccountStripe {
+        account_tier: StripeAccountTier,
+    },
+    UpgradeAccountGooglePlay {
+        purchase_token: String,
+        account_id: String,
+    },
+    UpgradeAccountAppStore {
+        original_transaction_id: String,
+        app_account_token: String,
+    },
     CancelSubscription,
     GetSubscriptionInfo,
 
     #[cfg(not(target_family = "wasm"))]
     RecentPanic,
     #[cfg(not(target_family = "wasm"))]
-    WritePanicToFile { error_header: String, bt: String },
+    WritePanicToFile {
+        error_header: String,
+        bt: String,
+    },
     #[cfg(not(target_family = "wasm"))]
-    DebugInfo { os_info: String, check_docs: bool },
+    DebugInfo {
+        os_info: String,
+        check_docs: bool,
+    },
 
-    ReadDocument { id: Uuid, user_activity: bool },
-    WriteDocument { id: Uuid, content: Vec<u8> },
-    ReadDocumentWithHmac { id: Uuid, user_activity: bool },
-    SafeWrite { id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8> },
+    ReadDocument {
+        id: Uuid,
+        user_activity: bool,
+    },
+    WriteDocument {
+        id: Uuid,
+        content: Vec<u8>,
+    },
+    ReadDocumentWithHmac {
+        id: Uuid,
+        user_activity: bool,
+    },
+    SafeWrite {
+        id: Uuid,
+        old_hmac: Option<DocumentHmac>,
+        content: Vec<u8>,
+    },
 
-    CreateFile { name: String, parent: Uuid, file_type: FileType },
-    RenameFile { id: Uuid, new_name: String },
-    MoveFile { id: Uuid, new_parent: Uuid },
-    Delete { id: Uuid },
+    CreateFile {
+        name: String,
+        parent: Uuid,
+        file_type: FileType,
+    },
+    RenameFile {
+        id: Uuid,
+        new_name: String,
+    },
+    MoveFile {
+        id: Uuid,
+        new_parent: Uuid,
+    },
+    Delete {
+        id: Uuid,
+    },
     Root,
     ListMetadatas,
-    GetChildren { id: Uuid },
-    GetAndGetChildrenRecursively { id: Uuid },
-    GetFileById { id: Uuid },
-    GetFileLinkUrl { id: Uuid },
+    GetChildren {
+        id: Uuid,
+    },
+    GetAndGetChildrenRecursively {
+        id: Uuid,
+    },
+    GetFileById {
+        id: Uuid,
+    },
+    GetFileLinkUrl {
+        id: Uuid,
+    },
     LocalChanges,
 
-    TestRepoIntegrity { check_docs: bool },
+    TestRepoIntegrity {
+        check_docs: bool,
+    },
 
-    CreateLinkAtPath { path: String, target_id: Uuid },
-    CreateAtPath { path: String },
-    GetByPath { path: String },
-    GetPathById { id: Uuid },
-    ListPaths { filter: Option<Filter> },
-    ListPathsWithIds { filter: Option<Filter> },
+    CreateLinkAtPath {
+        path: String,
+        target_id: Uuid,
+    },
+    CreateAtPath {
+        path: String,
+    },
+    GetByPath {
+        path: String,
+    },
+    GetPathById {
+        id: Uuid,
+    },
+    ListPaths {
+        filter: Option<Filter>,
+    },
+    ListPathsWithIds {
+        filter: Option<Filter>,
+    },
 
-    ShareFile { id: Uuid, username: String, mode: ShareMode },
+    ShareFile {
+        id: Uuid,
+        username: String,
+        mode: ShareMode,
+    },
     GetPendingShares,
     GetPendingShareFiles,
     KnownUsernames,
-    RejectShare { id: Uuid },
+    RejectShare {
+        id: Uuid,
+    },
 
     GetUsage,
 
@@ -130,7 +231,10 @@ pub enum Request {
     #[cfg(not(target_family = "wasm"))]
     ReloadSearchIndex,
     #[cfg(not(target_family = "wasm"))]
-    Search { input: String, cfg: SearchConfig },
+    Search {
+        input: String,
+        cfg: SearchConfig,
+    },
 }
 
 #[cfg(test)]

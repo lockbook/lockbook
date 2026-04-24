@@ -91,10 +91,7 @@ async fn guest_write_visible_to_host() {
 
     let guest = Lb::init(config.clone()).await.unwrap();
     let file = guest.create_at_path("guest.md").await.unwrap();
-    guest
-        .write_document(file.id, b"guest data")
-        .await
-        .unwrap();
+    guest.write_document(file.id, b"guest data").await.unwrap();
 
     let content = host.read_document(file.id, false).await.unwrap();
     assert_eq!(content.as_slice(), b"guest data");
@@ -175,10 +172,9 @@ async fn guest_receives_document_written_event() {
 
     host.write_document(file.id, b"payload").await.unwrap();
 
-    let evt = await_event(&mut events, |e| {
-        matches!(e, Event::DocumentWritten(id, _) if *id == file.id)
-    })
-    .await;
+    let evt =
+        await_event(&mut events, |e| matches!(e, Event::DocumentWritten(id, _) if *id == file.id))
+            .await;
     assert!(evt.is_some(), "guest did not receive DocumentWritten for {}", file.id);
 }
 
@@ -267,14 +263,12 @@ async fn guest_receives_sequence_of_events() {
     host.write_document(f1.id, b"one").await.unwrap();
     host.write_document(f2.id, b"two").await.unwrap();
 
-    let dw_f1 = await_event(&mut events, |e| {
-        matches!(e, Event::DocumentWritten(id, _) if *id == f1.id)
-    })
-    .await;
-    let dw_f2 = await_event(&mut events, |e| {
-        matches!(e, Event::DocumentWritten(id, _) if *id == f2.id)
-    })
-    .await;
+    let dw_f1 =
+        await_event(&mut events, |e| matches!(e, Event::DocumentWritten(id, _) if *id == f1.id))
+            .await;
+    let dw_f2 =
+        await_event(&mut events, |e| matches!(e, Event::DocumentWritten(id, _) if *id == f2.id))
+            .await;
     assert!(dw_f1.is_some(), "missed DocumentWritten for f1");
     assert!(dw_f2.is_some(), "missed DocumentWritten for f2");
 }
