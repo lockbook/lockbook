@@ -147,7 +147,7 @@ enum LbInner {
     /// host over UDS (see `Lb::init`'s `cfg(unix)` guest branch). On other
     /// platforms the variant exists but is never populated, so the forwarder
     /// arms below compile cleanly without per-arm cfgs.
-    Remote(ipc::client::RemoteLb),
+    Remote(RemoteLb),
 }
 
 impl Lb {
@@ -229,8 +229,6 @@ impl Lb {
 //     `export_account_qr` — sync, return values that need the in-memory
 //     account. A future pass should cache the account on the Guest at
 //     connect time so these can stay sync without IPC.
-//   - `subscribe` — long-lived event stream, deferred along with the
-//     subscriber API redesign described in `ipc/mod.rs`.
 
 impl Lb {
     // -- account ----------------------------------------------------------
@@ -769,6 +767,20 @@ impl Lb {
         }
     }
 
+    /// Subscribe to lb-rs events.
+    ///
+    /// Local: hands back a receiver from the in-process broadcast.
+    /// Remote: hands back a receiver from the guest's relay broadcast,
+    /// which the reader task populates from `Frame::Event` frames.
+    /// `RemoteLb::connect` sends the host-side Subscribe eagerly, so by
+    /// the time anyone calls this method the relay is already running.
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<service::events::Event> {
+        match &self.inner {
+            LbInner::Local(l) => l.subscribe(),
+            LbInner::Remote(r) => r.subscribe(),
+        }
+    }
+
     /// Pure formatting — no IPC. Identical impl to `LocalLb`.
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
         use basic_human_duration::ChronoHumanDuration;
@@ -814,11 +826,11 @@ async fn connect_guest_with_retry(
 }
 
 // `Deref<Target = LocalLb>` is retained as a shim for the methods that
-// don't yet have explicit forwarders — `get_account`, `export_account_*`,
-// and `subscribe`. These are sync, return values, and need either a
-// Guest-side cache (the export/get-account family) or a separate streaming
-// design (`subscribe`). In Local mode the shim is transparent; in Remote
-// mode it panics with a pointer to the deferred work.
+// don't yet have explicit forwarders — `get_account` and the
+// `export_account_*` family. These are sync, return values, and need a
+// Guest-side account cache to work without IPC. In Local mode the shim is
+// transparent; in Remote mode it panics with a pointer to the deferred
+// work.
 impl std::ops::Deref for Lb {
     type Target = LocalLb;
 
@@ -829,8 +841,8 @@ impl std::ops::Deref for Lb {
             LbInner::Remote(_) => panic!(
                 "Lb::deref invoked in Remote (guest) mode; the called method is \
                  one of the deferred sync methods (get_account / \
-                 export_account_* / subscribe). These need a Guest-side account \
-                 cache or the subscriber API to land before they work over IPC."
+                 export_account_*). These need a Guest-side account cache to \
+                 land before they work over IPC."
             ),
         }
     }
@@ -858,6 +870,7 @@ pub static DEFAULT_API_LOCATION: &str = "https://app.lockbook.net";
 pub static CORE_CODE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use crate::io::CoreDb;
+use crate::ipc::client::RemoteLb;
 use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
 #[cfg(not(target_family = "wasm"))]

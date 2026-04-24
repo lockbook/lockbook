@@ -7,13 +7,22 @@
 //! Responses are type-erased: each arm encodes either an `LbResult<Out>`
 //! (for methods whose `LocalLb` impl returns a Result) or `Ok(value)` (for
 //! plain-return methods like `status`) into bincode bytes.
+//!
+//! [`Request::Subscribe`] is special: instead of going through `dispatch`
+//! it spawns a background task that reads from `lb.subscribe()` and pushes
+//! [`Frame::Event`] frames over the same connection until either the
+//! broadcast closes or the write fails. The task and the request loop both
+//! write through an `Arc<Mutex<OwnedWriteHalf>>` so writes can't interleave.
 
 use std::io;
 use std::sync::Arc;
 
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
+use tokio::net::unix::OwnedWriteHalf;
 use tokio::net::{UnixListener, UnixStream};
+use tokio::sync::Mutex;
+use tokio::sync::broadcast::error::RecvError;
 
 use crate::LocalLb;
 use crate::ipc::frame::{read_frame, write_frame};
@@ -45,28 +54,95 @@ pub async fn serve(listener: UnixListener, lb: Arc<LocalLb>) {
     }
 }
 
-async fn handle_conn(mut stream: UnixStream, lb: Arc<LocalLb>) -> io::Result<()> {
-    let (mut r, mut w) = stream.split();
+async fn handle_conn(stream: UnixStream, lb: Arc<LocalLb>) -> io::Result<()> {
+    let (mut reader, write_half) = stream.into_split();
+    let writer = Arc::new(Mutex::new(write_half));
+
     loop {
-        let frame_bytes = read_frame(&mut r).await?;
+        let frame_bytes = read_frame(&mut reader).await?;
         let frame: Frame = bincode::deserialize(&frame_bytes)
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         match frame {
+            Frame::Request { seq, body: Request::Subscribe } => {
+                // Start the event forwarder on a background task — it
+                // shares the connection's writer so its `Frame::Event`
+                // pushes interleave safely with the request loop's
+                // `Frame::Response`s.
+                let lb_for_task = Arc::clone(&lb);
+                let writer_for_task = Arc::clone(&writer);
+                tokio::spawn(forward_events(lb_for_task, writer_for_task, seq));
+                // Ack the Subscribe so the guest's `call(Request::Subscribe)`
+                // returns and they know the stream is live.
+                send_response(&writer, seq, enc_plain(())).await?;
+            }
             Frame::Request { seq, body } => {
                 let output = dispatch(&lb, body).await;
-                let response = Frame::Response { seq, output };
-                let bytes = bincode::serialize(&response)
-                    .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                write_frame(&mut w, &bytes).await?;
-                w.flush().await?;
+                send_response(&writer, seq, output).await?;
             }
-            Frame::Response { .. } => {
+            Frame::Response { .. } | Frame::Event { .. } | Frame::EventEnd { .. } => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     "guest sent a host-only frame",
                 ));
             }
         }
+    }
+}
+
+async fn send_response(
+    writer: &Arc<Mutex<OwnedWriteHalf>>, seq: u64, output: Vec<u8>,
+) -> io::Result<()> {
+    let response = Frame::Response { seq, output };
+    let bytes = bincode::serialize(&response)
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let mut w = writer.lock().await;
+    write_frame(&mut *w, &bytes).await?;
+    w.flush().await
+}
+
+/// Drain `lb.subscribe()` and push each event over `writer` until the
+/// broadcast closes or the write fails. Sends a final
+/// [`Frame::EventEnd`] as a courtesy when the loop exits cleanly.
+async fn forward_events(
+    lb: Arc<LocalLb>, writer: Arc<Mutex<OwnedWriteHalf>>, stream_seq: u64,
+) {
+    let mut rx = lb.subscribe();
+    loop {
+        match rx.recv().await {
+            Ok(event) => {
+                let frame = Frame::Event { stream_seq, body: event };
+                let bytes = match bincode::serialize(&frame) {
+                    Ok(b) => b,
+                    Err(err) => {
+                        tracing::warn!(?err, "ipc: serialize event failed");
+                        break;
+                    }
+                };
+                let mut w = writer.lock().await;
+                if let Err(err) = write_frame(&mut *w, &bytes).await {
+                    tracing::debug!(?err, "ipc: event forward write failed");
+                    return;
+                }
+                if let Err(err) = w.flush().await {
+                    tracing::debug!(?err, "ipc: event forward flush failed");
+                    return;
+                }
+            }
+            Err(RecvError::Lagged(n)) => {
+                tracing::warn!(skipped = n, "ipc: event subscriber lagged");
+                continue;
+            }
+            Err(RecvError::Closed) => break,
+        }
+    }
+
+    // Best-effort EventEnd. If the connection's already gone these writes
+    // just fail silently.
+    let frame = Frame::EventEnd { stream_seq };
+    if let Ok(bytes) = bincode::serialize(&frame) {
+        let mut w = writer.lock().await;
+        let _ = write_frame(&mut *w, &bytes).await;
+        let _ = w.flush().await;
     }
 }
 
@@ -204,6 +280,9 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::Sync => enc(lb.sync().await),
         Request::Status => enc_plain(lb.status().await),
         Request::GetLastSyncedHuman => enc(lb.get_last_synced_human().await),
+        // Subscribe is handled in `handle_conn` (it needs the connection's
+        // writer to push `Frame::Event` frames asynchronously).
+        Request::Subscribe => unreachable!("handle_conn special-cases Subscribe"),
         #[cfg(not(target_family = "wasm"))]
         Request::Search { input, cfg } => enc(lb.search(&input, cfg).await),
     }

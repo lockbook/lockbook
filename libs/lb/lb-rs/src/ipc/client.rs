@@ -6,14 +6,32 @@
 //! implementation is `#[cfg(unix)]`; on other platforms the `call` method
 //! returns an "ipc not supported" error and the Guest variant is never
 //! constructed in the first place (see `Lb::init`).
+//!
+//! # Subscriber relay (lazy)
+//!
+//! A guest that never subscribes pays nothing for the subscription path:
+//! no `Request::Subscribe` on the wire, no broadcast channel allocation,
+//! no event traffic. The relay is set up on the *first* call to
+//! [`RemoteLb::subscribe`]: that call wins a `OnceLock` init race, spawns
+//! a task that sends `Request::Subscribe` to the host, and creates the
+//! local broadcast. Subsequent `subscribe()` calls just hand out more
+//! receivers from the same channel — still one host-side subscription.
+//!
+//! The reader task checks the `OnceLock` on every `Frame::Event`; if the
+//! channel hasn't been initialized the event is dropped. This is a cheap
+//! atomic load per event and keeps the reader path branch-free when no
+//! subscribers exist.
 
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use serde::de::DeserializeOwned;
+use tokio::sync::broadcast;
 
 use crate::ipc::protocol::Request;
 use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
+use crate::service::events::Event;
 
 #[cfg(unix)]
 use {
@@ -33,6 +51,11 @@ use {
 #[cfg(unix)]
 type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Vec<u8>>>>>;
 
+/// Bound on the local event broadcast — matches the host-side
+/// `EventSubs` capacity. Lagged receivers see `RecvError::Lagged` and can
+/// resync.
+const EVENT_CHANNEL_CAPACITY: usize = 10_000;
+
 /// Guest-side handle. Cloning is cheap — all live state is behind `Arc`.
 #[derive(Clone)]
 pub struct RemoteLb {
@@ -43,6 +66,10 @@ struct Inner {
     /// Held for callers that still need access to the original `Config`
     /// (e.g., `writeable_path` for log paths). The host owns the actual db.
     config: Config,
+    /// Lazy local broadcast. Initialized on first `subscribe()` call along
+    /// with the host-side `Request::Subscribe`. Guests that never
+    /// subscribe pay nothing — no channel buffer, no wire traffic.
+    events: Arc<OnceLock<broadcast::Sender<Event>>>,
     #[cfg(unix)]
     unix: UnixInner,
 }
@@ -77,11 +104,17 @@ impl RemoteLb {
     fn from_stream(stream: UnixStream, config: Config) -> io::Result<Self> {
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
-        let reader_task = tokio::spawn(reader_loop(read_half, Arc::clone(&in_flight)));
+        let events: Arc<OnceLock<broadcast::Sender<Event>>> = Arc::new(OnceLock::new());
+        let reader_task = tokio::spawn(reader_loop(
+            read_half,
+            Arc::clone(&in_flight),
+            Arc::clone(&events),
+        ));
 
         Ok(Self {
             inner: Arc::new(Inner {
                 config,
+                events,
                 unix: UnixInner {
                     writer: Mutex::new(write_half),
                     seq: AtomicU64::new(0),
@@ -95,6 +128,31 @@ impl RemoteLb {
     /// Configuration the guest was constructed with.
     pub fn config(&self) -> &Config {
         &self.inner.config
+    }
+
+    /// Subscribe to the relayed event stream.
+    ///
+    /// The first caller wins the `OnceLock` init race: that call allocates
+    /// the broadcast channel *and* spawns a task that sends
+    /// `Request::Subscribe` to the host. Subsequent callers just get more
+    /// receivers from the same channel — still one subscription on the
+    /// host side. Guests that never call this pay nothing.
+    pub fn subscribe(&self) -> broadcast::Receiver<Event> {
+        let tx = self.inner.events.get_or_init(|| {
+            let (tx, _) = broadcast::channel::<Event>(EVENT_CHANNEL_CAPACITY);
+
+            // Kick off the host-side subscription. Failure is logged, not
+            // fatal — the guest still has a working (empty) receiver.
+            let me = self.clone();
+            tokio::spawn(async move {
+                if let Err(err) = me.call::<()>(Request::Subscribe).await {
+                    tracing::warn!(?err, "ipc: Subscribe failed; events won't be relayed");
+                }
+            });
+
+            tx
+        });
+        tx.subscribe()
     }
 
     /// Invoke a method on the host.
@@ -151,7 +209,11 @@ impl RemoteLb {
 }
 
 #[cfg(unix)]
-async fn reader_loop(mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InFlight) {
+async fn reader_loop(
+    mut reader: tokio::net::unix::OwnedReadHalf,
+    in_flight: InFlight,
+    events: Arc<OnceLock<broadcast::Sender<Event>>>,
+) {
     loop {
         let frame_bytes = match read_frame(&mut reader).await {
             Ok(b) => b,
@@ -176,6 +238,21 @@ async fn reader_loop(mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InF
                 } else {
                     tracing::warn!(seq, "ipc reader: response for unknown seq");
                 }
+            }
+            Frame::Event { stream_seq: _, body } => {
+                // If no one has called `subscribe()` yet the channel isn't
+                // initialized and the event is dropped — which is correct:
+                // the host shouldn't be sending us Events before we sent
+                // Subscribe, and we only send Subscribe during channel init.
+                if let Some(tx) = events.get() {
+                    let _ = tx.send(body);
+                }
+            }
+            Frame::EventEnd { stream_seq } => {
+                tracing::debug!(stream_seq, "ipc: host closed event stream");
+                // We don't terminate on EventEnd — the request/response
+                // channel is still useful even after the subscription
+                // ends. Receivers will simply stop seeing events.
             }
             Frame::Request { .. } => {
                 tracing::warn!("ipc reader: host sent a Request frame; protocol violation");

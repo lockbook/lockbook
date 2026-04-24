@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 pub use tokio::sync::broadcast::{self, Receiver, Sender};
 use tracing::*;
 use uuid::Uuid;
@@ -9,7 +10,7 @@ pub struct EventSubs {
     tx: Sender<Event>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum Event {
     /// A metadata for a given id or it's descendants changed. The id returned
     /// may be deleted. Updates to document contents will not cause this
@@ -29,7 +30,7 @@ pub enum Event {
     UserSignedIn,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Actor {
     User,
     Sync,
@@ -81,7 +82,7 @@ impl LocalLb {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SyncIncrement {
     SyncStarted,
     PullingDocument(Uuid, bool),

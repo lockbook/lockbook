@@ -19,11 +19,15 @@
 //! `Response` carries the same `seq`, so calls multiplex over one
 //! connection without enforcing lock-step ordering.
 //!
-//! # Subscriber API (deferred)
+//! # Subscriber API
 //!
-//! `Lb::subscribe` returns a `Receiver<Event>` and doesn't fit the
-//! request/response shape — long-lived event streams get their own
-//! treatment in a follow-up.
+//! `Lb::subscribe` returns a `Receiver<Event>` — a long-lived stream of
+//! host-pushed events. The wire shape: a guest sends `Request::Subscribe`,
+//! the host acks with the standard `Response`, and then asynchronously
+//! pushes [`Frame::Event`] messages tagged with `stream_seq` (matching the
+//! Subscribe request's seq for future multi-stream support). When the
+//! host's subscription closes (host shutdown, channel error) it sends
+//! [`Frame::EventEnd`] as a courtesy.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -36,6 +40,7 @@ use crate::model::file::ShareMode;
 use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
+use crate::service::events::Event;
 #[cfg(not(target_family = "wasm"))]
 use crate::subscribers::search::SearchConfig;
 
@@ -47,6 +52,15 @@ pub enum Frame {
     /// Host → guest: bincode-encoded `LbResult<Out>` where `Out` is whatever
     /// the originating call asked for. Type-erased on the wire by design.
     Response { seq: u64, output: Vec<u8> },
+    /// Host → guest: one event from a previously-opened subscription.
+    /// `stream_seq` matches the originating `Request::Subscribe`'s seq, so
+    /// future multi-stream multiplexing on a single connection is possible
+    /// without changing the wire shape.
+    Event { stream_seq: u64, body: Event },
+    /// Host → guest: the subscription is over (host shutting down, the
+    /// underlying broadcast errored, etc.). After this no more
+    /// `Frame::Event` will arrive for `stream_seq`.
+    EventEnd { stream_seq: u64 },
 }
 
 /// One variant per ported `LocalLb` method. Adding a method means one
@@ -140,6 +154,10 @@ pub enum Request {
     Sync,
     Status,
     GetLastSyncedHuman,
+    /// Open a long-lived event stream on this connection. The host acks
+    /// with `Response { seq, output: Ok(()) }` and starts pushing
+    /// `Frame::Event { stream_seq: seq, .. }` until the broadcast closes.
+    Subscribe,
     #[cfg(not(target_family = "wasm"))]
     Search { input: String, cfg: SearchConfig },
     // get_timestamp_human_string is pure formatting and runs locally on the
