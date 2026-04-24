@@ -643,6 +643,27 @@ impl Lb {
         }
     }
 
+    pub async fn pin_file(&self, id: Uuid) -> LbResult<()> {
+        match self {
+            Lb::Local(l) => l.pin_file(id).await,
+            Lb::Remote(r) => r.call(Request::PinFile { id }).await,
+        }
+    }
+
+    pub async fn unpin_file(&self, id: Uuid) -> LbResult<()> {
+        match self {
+            Lb::Local(l) => l.unpin_file(id).await,
+            Lb::Remote(r) => r.call(Request::UnpinFile { id }).await,
+        }
+    }
+
+    pub async fn list_pinned(&self) -> LbResult<Vec<Uuid>> {
+        match self {
+            Lb::Local(l) => l.list_pinned().await,
+            Lb::Remote(r) => r.call(Request::ListPinned).await,
+        }
+    }
+
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         match self {
             Lb::Local(l) => l.get_usage().await,

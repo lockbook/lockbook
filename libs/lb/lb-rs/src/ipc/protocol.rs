@@ -219,6 +219,14 @@ pub enum Request {
         id: Uuid,
     },
 
+    PinFile {
+        id: Uuid,
+    },
+    UnpinFile {
+        id: Uuid,
+    },
+    ListPinned,
+
     GetUsage,
 
     Sync,

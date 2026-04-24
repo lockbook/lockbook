@@ -217,6 +217,10 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::KnownUsernames => enc(lb.known_usernames().await),
         Request::RejectShare { id } => enc(lb.reject_share(&id).await),
 
+        Request::PinFile { id } => enc(lb.pin_file(id).await),
+        Request::UnpinFile { id } => enc(lb.unpin_file(id).await),
+        Request::ListPinned => enc(lb.list_pinned().await),
+
         Request::GetUsage => enc(lb.get_usage().await),
 
         Request::Sync => enc(lb.sync().await),
