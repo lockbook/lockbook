@@ -1,11 +1,11 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
-};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -149,11 +149,10 @@ impl<'ast> MdRender {
     }
 
     pub fn own_prefix_len_item(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        node_list: &NodeList,
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), node_list: &NodeList,
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
-        let mut result: RelCharOffset = 0.into();
+        let mut result: Graphemes = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -199,12 +198,42 @@ impl<'ast> MdRender {
             // same contents and attributes."
             //
             // "If a line is empty, then it need not be indented."
-            let text = &self.buffer[node_line];
-            for i in 0..(indentation + marker_width_including_spaces) {
-                if text.starts_with(&" ".repeat(indentation + marker_width_including_spaces - i)) {
-                    result += indentation + marker_width_including_spaces - i;
-                    break;
+            //
+            // Two regimes. If this line contains an indented `CodeBlock`
+            // child (non-fenced), we're in code-block territory — defer
+            // all stripping to `code_block.rs`, which does a combined
+            // (item.padding + 4) column-aware strip. A tab straddling
+            // the item/code-block boundary would otherwise get
+            // attributed to one side, making tab and 4sp forms render
+            // differently. Otherwise it's paragraph continuation —
+            // strip all leading ws so tab and space forms parse-
+            // equivalently. Scan children via sourcepos (cheap) rather
+            // than `node_range` (expensive recursion).
+            // Our current line number (1-based). `line.start()` is a
+            // `Grapheme` boundary into `source_lines` — use
+            // `find_containing` to locate its index, then convert to
+            // 1-based.
+            let line_1_based = self
+                .bounds
+                .source_lines
+                .find_containing(line.start(), true, false)
+                .start()
+                + 1;
+            let line_has_code_block_child = node.children().any(|c| match &c.data.borrow().value {
+                NodeValue::CodeBlock(b) if !b.fenced => {
+                    let sp = c.data.borrow().sourcepos;
+                    sp.start.line <= line_1_based && line_1_based <= sp.end.line
                 }
+                _ => false,
+            });
+            let text = &self.buffer[node_line];
+            if line_has_code_block_child {
+                // Indented code block line — leave stripping to
+                // `code_block.rs`.
+            } else {
+                // Paragraph (or other non-code) continuation — strip
+                // all leading whitespace.
+                result += consume_indent_columns(text, usize::MAX);
             }
         }
 
@@ -227,7 +256,7 @@ impl<'ast> MdRender {
 
     pub fn item_contents(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (DocCharOffset, DocCharOffset) {
+    ) -> (Grapheme, Grapheme) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
         let mut contents = if let Some(first_child) = node.children().next() {

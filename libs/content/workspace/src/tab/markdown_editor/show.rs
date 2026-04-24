@@ -18,7 +18,7 @@ use egui::{
     Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::ScrollTarget;
@@ -439,7 +439,7 @@ impl MdEdit {
 
     /// Center-top of the first wrap line of the given range — where a
     /// context menu should anchor. Android uses this on tap-in-selection.
-    pub fn context_menu_pos(&self, range: (DocCharOffset, DocCharOffset)) -> Option<Pos2> {
+    pub fn context_menu_pos(&self, range: (Grapheme, Grapheme)) -> Option<Pos2> {
         let lines = self
             .renderer
             .bounds

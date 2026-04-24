@@ -2,22 +2,20 @@ use std::ops::Range;
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 
 impl<'ast> MdRender {
     /// Converts an optional source line index range to a doc char offset range.
-    pub fn spacing_range(
-        &self, line_range: &Option<Range<usize>>,
-    ) -> (DocCharOffset, DocCharOffset) {
+    pub fn spacing_range(&self, line_range: &Option<Range<usize>>) -> (Grapheme, Grapheme) {
         match line_range {
             Some(r) if !r.is_empty() => {
                 let start = self.bounds.source_lines[r.start].start();
                 let end = self.bounds.source_lines[r.end - 1].end();
                 (start, end)
             }
-            _ => (DocCharOffset(usize::MAX), DocCharOffset(0)),
+            _ => (Grapheme(usize::MAX), Grapheme(0)),
         }
     }
 

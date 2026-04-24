@@ -4,12 +4,10 @@ use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Advance, Increment};
 use egui::Pos2;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 impl MdEdit {
-    pub fn advance(
-        &mut self, offset: DocCharOffset, advance: Advance, backwards: bool,
-    ) -> DocCharOffset {
+    pub fn advance(&mut self, offset: Grapheme, advance: Advance, backwards: bool) -> Grapheme {
         let maybe_x_target_value = mem::take(&mut self.cursor.x_target);
         match advance {
             Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.renderer.bounds),
@@ -47,16 +45,14 @@ impl MdEdit {
         }
     }
 
-    fn advance_by_line(
-        &self, offset: DocCharOffset, x_target: f32, backwards: bool,
-    ) -> DocCharOffset {
+    fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {
         let Some(cur_galley_idx) = self.renderer.galleys.galley_at_offset(offset) else {
             return offset;
         };
         let cur_galley = &self.renderer.galleys[cur_galley_idx];
         if backwards {
             // jump to the closest galley above that's not above another galley that's above
-            let mut closest_offset: Option<DocCharOffset> = None;
+            let mut closest_offset: Option<Grapheme> = None;
             let mut closest_distance = f32::INFINITY;
             let mut row_above_top: Option<f32> = None;
             for new_galley_idx in (0..cur_galley_idx).rev() {
@@ -96,7 +92,7 @@ impl MdEdit {
             closest_offset.unwrap_or(offset)
         } else {
             // jump to the closest galley below that's not below another galley that's below
-            let mut closest_offset: Option<DocCharOffset> = None;
+            let mut closest_offset: Option<Grapheme> = None;
             let mut closest_distance = f32::INFINITY;
             let mut row_below_bottom: Option<f32> = None;
             for new_galley_idx in cur_galley_idx + 1..self.renderer.galleys.len() {
@@ -152,7 +148,7 @@ impl MdEdit {
     }
 
     /// returns the x coordinate of the absolute position of `self` in `galley`
-    fn x(&self, offset: DocCharOffset) -> Option<f32> {
+    fn x(&self, offset: Grapheme) -> Option<f32> {
         let cur_galley_idx = self.renderer.galleys.galley_at_offset(offset)?;
         let cur_galley = &self.renderer.galleys[cur_galley_idx];
         Some(self.renderer.galley_x(cur_galley, offset))

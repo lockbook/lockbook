@@ -1,5 +1,5 @@
 use comrak::nodes::AstNode;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 
@@ -16,13 +16,13 @@ impl<'ast> MdRender {
     /// inter-children section, post-last-child section, and post-node range.
     #[allow(clippy::type_complexity)]
     pub fn split_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) -> Option<(
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
     )> {
         let node_range = self.node_range(node);
 

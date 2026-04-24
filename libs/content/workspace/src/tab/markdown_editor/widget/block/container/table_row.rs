@@ -124,7 +124,13 @@ impl<'ast> MdRender {
             };
 
             let between_range = (cell_range.end(), row_range.end());
-            if between_range.contains_range(&selection, false, true) {
+            // end_inclusive=false: a cursor AT row.end sits on the
+            // boundary with whatever follows the row (the trailing
+            // newline / the next block). Treating it as "inside the
+            // row" spuriously reveals the row when the user has just
+            // walked past it. The post-row area has its own reveal
+            // handling.
+            if between_range.contains_range(&selection, false, false) {
                 return true;
             }
         }

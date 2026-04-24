@@ -1,7 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::MdRender;
@@ -101,11 +101,11 @@ impl<'ast> MdRender {
         let viewport = ui.clip_rect();
         let buffer = viewport.height();
 
-        let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
+        let intersects_any_required = |range: &(Grapheme, Grapheme)| -> bool {
             required_ranges.iter().any(|rr| range.intersects(rr, true))
         };
         let past_all_required =
-            |offset: DocCharOffset| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
+            |offset: Grapheme| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
         for child in &children {
             let child_range = self.node_range(child);
@@ -203,8 +203,8 @@ impl<'ast> MdRender {
     //
     // https://github.github.com/gfm/#list-items
     pub fn line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (RelCharOffset, bool) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Graphemes, bool) {
         if let Some(cached) = self.get_cached_line_prefix_len(node, line) {
             return cached;
         }
@@ -303,8 +303,8 @@ impl<'ast> MdRender {
     ///   * the line own prefix is "`> `"
     ///   * the line content is "`* quoted list item`"
     pub fn line_ancestors_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no ancestors
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
         (line.start(), line.start() + parent_prefix_len)
@@ -316,8 +316,8 @@ impl<'ast> MdRender {
     ///
     /// See [`line_ancestors_prefix`] for an example.
     pub fn line_own_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no prefix
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
         let (prefix_len, _) = self.line_prefix_len(node, line);
@@ -331,8 +331,8 @@ impl<'ast> MdRender {
     ///
     /// See [`line_ancestors_prefix`] for an example.
     pub fn line_content(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let (prefix_len, _) = self.line_prefix_len(node, line);
         (line.start() + prefix_len, line.end())
     }
@@ -341,8 +341,8 @@ impl<'ast> MdRender {
     /// [`node_content`]. Equivalent to [`line_ancestors_prefix`] +
     /// [`line_own_prefix`]. Always has length == [`line_prefix_len`].
     pub fn line_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let (prefix_len, _) = self.line_prefix_len(node, line);
         (line.start(), line.start() + prefix_len)
     }
@@ -554,7 +554,7 @@ impl<'ast> MdRender {
 
     /// Returns whether the given line is one of the source lines of the given node
     pub fn node_contains_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> bool {
         let first_line = self.node_first_line(node);
         let last_line = self.node_last_line(node);
@@ -565,7 +565,7 @@ impl<'ast> MdRender {
     /// Returns the row height of a line in the given node, even if that node is
     /// a container block.
     pub fn node_line_row_height(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> f32 {
         // leaf blocks and inlines
         if node.data.borrow().value.contains_inlines() || !node.data.borrow().value.block() {

@@ -3,7 +3,7 @@ use jni::JNIEnv;
 use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
 use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::DocCharOffset;
+use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
@@ -460,8 +460,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
     });
 }
@@ -500,8 +500,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(
                 markdown
                     .edit
                     .renderer
@@ -529,8 +529,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
         text,
         advance_cursor: true,
@@ -548,7 +548,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
+    let loc = Location::Grapheme(Grapheme(index as usize));
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -573,7 +573,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(
+    let loc = Location::Grapheme(
         markdown
             .edit
             .renderer
@@ -606,7 +606,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
         }
     };
 
-    let selection = (DocCharOffset(start as usize), DocCharOffset(end as usize));
+    let selection = (Grapheme(start as usize), Grapheme(end as usize));
     env.new_string(&markdown.edit.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
@@ -629,7 +629,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
     };
 
     let selection = (
-        DocCharOffset(0),
+        Grapheme(0),
         markdown
             .edit
             .renderer
@@ -658,8 +658,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(segs.last_cursor_position()),
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(segs.last_cursor_position()),
         },
     });
 }

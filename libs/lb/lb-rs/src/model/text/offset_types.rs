@@ -7,25 +7,25 @@ use serde::{Deserialize, Serialize};
 /// A byte position in a buffer
 #[repr(transparent)]
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
-pub struct DocByteOffset(pub usize);
+pub struct Byte(pub usize);
 
 /// A byte offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
-pub struct RelByteOffset(pub usize);
+pub struct Bytes(pub usize);
 
 /// A character position in a buffer
 #[repr(transparent)]
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
-pub struct DocCharOffset(pub usize);
+pub struct Grapheme(pub usize);
 
 /// A character offset from a position in a buffer or a distance between two positions
 #[repr(transparent)]
 #[derive(Default, Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Hash, Serialize, Deserialize)]
-pub struct RelCharOffset(pub usize);
+pub struct Graphemes(pub usize);
 
 // rel +/- rel = rel, doc +/- rel = doc, doc - doc = rel
-impl Add<RelByteOffset> for RelByteOffset {
+impl Add<Bytes> for Bytes {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -33,7 +33,7 @@ impl Add<RelByteOffset> for RelByteOffset {
     }
 }
 
-impl Sub<RelByteOffset> for RelByteOffset {
+impl Sub<Bytes> for Bytes {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -41,54 +41,54 @@ impl Sub<RelByteOffset> for RelByteOffset {
     }
 }
 
-impl AddAssign<RelByteOffset> for RelByteOffset {
+impl AddAssign<Bytes> for Bytes {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0
     }
 }
 
-impl SubAssign<RelByteOffset> for RelByteOffset {
+impl SubAssign<Bytes> for Bytes {
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0
     }
 }
-impl Add<RelByteOffset> for DocByteOffset {
+impl Add<Bytes> for Byte {
     type Output = Self;
 
-    fn add(self, rhs: RelByteOffset) -> Self::Output {
+    fn add(self, rhs: Bytes) -> Self::Output {
         Self(self.0 + rhs.0)
     }
 }
 
-impl Sub<RelByteOffset> for DocByteOffset {
+impl Sub<Bytes> for Byte {
     type Output = Self;
 
-    fn sub(self, rhs: RelByteOffset) -> Self::Output {
+    fn sub(self, rhs: Bytes) -> Self::Output {
         Self(self.0.saturating_sub(rhs.0))
     }
 }
 
-impl AddAssign<RelByteOffset> for DocByteOffset {
-    fn add_assign(&mut self, rhs: RelByteOffset) {
+impl AddAssign<Bytes> for Byte {
+    fn add_assign(&mut self, rhs: Bytes) {
         self.0 += rhs.0
     }
 }
 
-impl SubAssign<RelByteOffset> for DocByteOffset {
-    fn sub_assign(&mut self, rhs: RelByteOffset) {
+impl SubAssign<Bytes> for Byte {
+    fn sub_assign(&mut self, rhs: Bytes) {
         self.0 -= rhs.0
     }
 }
 
-impl Sub<DocByteOffset> for DocByteOffset {
-    type Output = RelByteOffset;
+impl Sub<Byte> for Byte {
+    type Output = Bytes;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        RelByteOffset(self.0.saturating_sub(rhs.0))
+        Bytes(self.0.saturating_sub(rhs.0))
     }
 }
 
-impl Add<RelCharOffset> for RelCharOffset {
+impl Add<Graphemes> for Graphemes {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -96,7 +96,7 @@ impl Add<RelCharOffset> for RelCharOffset {
     }
 }
 
-impl Sub<RelCharOffset> for RelCharOffset {
+impl Sub<Graphemes> for Graphemes {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -104,85 +104,85 @@ impl Sub<RelCharOffset> for RelCharOffset {
     }
 }
 
-impl AddAssign<RelCharOffset> for RelCharOffset {
+impl AddAssign<Graphemes> for Graphemes {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.0
     }
 }
 
-impl SubAssign<RelCharOffset> for RelCharOffset {
+impl SubAssign<Graphemes> for Graphemes {
     fn sub_assign(&mut self, rhs: Self) {
         self.0 -= rhs.0
     }
 }
-impl Add<RelCharOffset> for DocCharOffset {
+impl Add<Graphemes> for Grapheme {
     type Output = Self;
 
-    fn add(self, rhs: RelCharOffset) -> Self::Output {
+    fn add(self, rhs: Graphemes) -> Self::Output {
         Self(self.0 + rhs.0)
     }
 }
 
-impl Sub<RelCharOffset> for DocCharOffset {
+impl Sub<Graphemes> for Grapheme {
     type Output = Self;
 
-    fn sub(self, rhs: RelCharOffset) -> Self::Output {
+    fn sub(self, rhs: Graphemes) -> Self::Output {
         Self(self.0.saturating_sub(rhs.0))
     }
 }
 
-impl AddAssign<RelCharOffset> for DocCharOffset {
-    fn add_assign(&mut self, rhs: RelCharOffset) {
+impl AddAssign<Graphemes> for Grapheme {
+    fn add_assign(&mut self, rhs: Graphemes) {
         self.0 += rhs.0
     }
 }
 
-impl SubAssign<RelCharOffset> for DocCharOffset {
-    fn sub_assign(&mut self, rhs: RelCharOffset) {
+impl SubAssign<Graphemes> for Grapheme {
+    fn sub_assign(&mut self, rhs: Graphemes) {
         self.0 -= rhs.0
     }
 }
 
-impl Sub<DocCharOffset> for DocCharOffset {
-    type Output = RelCharOffset;
+impl Sub<Grapheme> for Grapheme {
+    type Output = Graphemes;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        RelCharOffset(self.0.saturating_sub(rhs.0))
+        Graphemes(self.0.saturating_sub(rhs.0))
     }
 }
 
 // all offset types impl From<usize>, PartialEq<usize>, PartialOrd<usize>, Add<usize>, Sub<usize>, AddAssign<usize>, SubAssign<usize>
-impl From<usize> for DocByteOffset {
+impl From<usize> for Byte {
     fn from(value: usize) -> Self {
         Self(value)
     }
 }
 
-impl PartialEq<usize> for DocByteOffset {
+impl PartialEq<usize> for Byte {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
     }
 }
 
-impl PartialOrd<usize> for DocByteOffset {
+impl PartialOrd<usize> for Byte {
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
         self.0.partial_cmp(other)
     }
 }
 
-impl PartialEq<DocByteOffset> for usize {
-    fn eq(&self, other: &DocByteOffset) -> bool {
+impl PartialEq<Byte> for usize {
+    fn eq(&self, other: &Byte) -> bool {
         self == &other.0
     }
 }
 
-impl PartialOrd<DocByteOffset> for usize {
-    fn partial_cmp(&self, other: &DocByteOffset) -> Option<Ordering> {
+impl PartialOrd<Byte> for usize {
+    fn partial_cmp(&self, other: &Byte) -> Option<Ordering> {
         self.partial_cmp(&other.0)
     }
 }
 
-impl Add<usize> for DocByteOffset {
+impl Add<usize> for Byte {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -191,7 +191,7 @@ impl Add<usize> for DocByteOffset {
     }
 }
 
-impl Sub<usize> for DocByteOffset {
+impl Sub<usize> for Byte {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -200,49 +200,49 @@ impl Sub<usize> for DocByteOffset {
     }
 }
 
-impl AddAssign<usize> for DocByteOffset {
+impl AddAssign<usize> for Byte {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs
     }
 }
 
-impl SubAssign<usize> for DocByteOffset {
+impl SubAssign<usize> for Byte {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs
     }
 }
 
-impl From<usize> for RelByteOffset {
+impl From<usize> for Bytes {
     fn from(value: usize) -> Self {
         Self(value)
     }
 }
 
-impl PartialEq<usize> for RelByteOffset {
+impl PartialEq<usize> for Bytes {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
     }
 }
 
-impl PartialOrd<usize> for RelByteOffset {
+impl PartialOrd<usize> for Bytes {
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
         self.0.partial_cmp(other)
     }
 }
 
-impl PartialEq<RelByteOffset> for usize {
-    fn eq(&self, other: &RelByteOffset) -> bool {
+impl PartialEq<Bytes> for usize {
+    fn eq(&self, other: &Bytes) -> bool {
         self == &other.0
     }
 }
 
-impl PartialOrd<RelByteOffset> for usize {
-    fn partial_cmp(&self, other: &RelByteOffset) -> Option<Ordering> {
+impl PartialOrd<Bytes> for usize {
+    fn partial_cmp(&self, other: &Bytes) -> Option<Ordering> {
         self.partial_cmp(&other.0)
     }
 }
 
-impl Add<usize> for RelByteOffset {
+impl Add<usize> for Bytes {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -251,7 +251,7 @@ impl Add<usize> for RelByteOffset {
     }
 }
 
-impl Sub<usize> for RelByteOffset {
+impl Sub<usize> for Bytes {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -260,49 +260,49 @@ impl Sub<usize> for RelByteOffset {
     }
 }
 
-impl AddAssign<usize> for RelByteOffset {
+impl AddAssign<usize> for Bytes {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs
     }
 }
 
-impl SubAssign<usize> for RelByteOffset {
+impl SubAssign<usize> for Bytes {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs
     }
 }
 
-impl From<usize> for DocCharOffset {
+impl From<usize> for Grapheme {
     fn from(value: usize) -> Self {
         Self(value)
     }
 }
 
-impl PartialEq<usize> for DocCharOffset {
+impl PartialEq<usize> for Grapheme {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
     }
 }
 
-impl PartialOrd<usize> for DocCharOffset {
+impl PartialOrd<usize> for Grapheme {
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
         self.0.partial_cmp(other)
     }
 }
 
-impl PartialEq<DocCharOffset> for usize {
-    fn eq(&self, other: &DocCharOffset) -> bool {
+impl PartialEq<Grapheme> for usize {
+    fn eq(&self, other: &Grapheme) -> bool {
         self == &other.0
     }
 }
 
-impl PartialOrd<DocCharOffset> for usize {
-    fn partial_cmp(&self, other: &DocCharOffset) -> Option<Ordering> {
+impl PartialOrd<Grapheme> for usize {
+    fn partial_cmp(&self, other: &Grapheme) -> Option<Ordering> {
         self.partial_cmp(&other.0)
     }
 }
 
-impl Add<usize> for DocCharOffset {
+impl Add<usize> for Grapheme {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -311,7 +311,7 @@ impl Add<usize> for DocCharOffset {
     }
 }
 
-impl Sub<usize> for DocCharOffset {
+impl Sub<usize> for Grapheme {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -320,49 +320,49 @@ impl Sub<usize> for DocCharOffset {
     }
 }
 
-impl AddAssign<usize> for DocCharOffset {
+impl AddAssign<usize> for Grapheme {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs
     }
 }
 
-impl SubAssign<usize> for DocCharOffset {
+impl SubAssign<usize> for Grapheme {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs
     }
 }
 
-impl From<usize> for RelCharOffset {
+impl From<usize> for Graphemes {
     fn from(value: usize) -> Self {
         Self(value)
     }
 }
 
-impl PartialEq<usize> for RelCharOffset {
+impl PartialEq<usize> for Graphemes {
     fn eq(&self, other: &usize) -> bool {
         &self.0 == other
     }
 }
 
-impl PartialOrd<usize> for RelCharOffset {
+impl PartialOrd<usize> for Graphemes {
     fn partial_cmp(&self, other: &usize) -> Option<Ordering> {
         self.0.partial_cmp(other)
     }
 }
 
-impl PartialEq<RelCharOffset> for usize {
-    fn eq(&self, other: &RelCharOffset) -> bool {
+impl PartialEq<Graphemes> for usize {
+    fn eq(&self, other: &Graphemes) -> bool {
         self == &other.0
     }
 }
 
-impl PartialOrd<RelCharOffset> for usize {
-    fn partial_cmp(&self, other: &RelCharOffset) -> Option<Ordering> {
+impl PartialOrd<Graphemes> for usize {
+    fn partial_cmp(&self, other: &Graphemes) -> Option<Ordering> {
         self.partial_cmp(&other.0)
     }
 }
 
-impl Add<usize> for RelCharOffset {
+impl Add<usize> for Graphemes {
     type Output = Self;
 
     fn add(self, rhs: usize) -> Self::Output {
@@ -371,7 +371,7 @@ impl Add<usize> for RelCharOffset {
     }
 }
 
-impl Sub<usize> for RelCharOffset {
+impl Sub<usize> for Graphemes {
     type Output = Self;
 
     fn sub(self, rhs: usize) -> Self::Output {
@@ -380,37 +380,37 @@ impl Sub<usize> for RelCharOffset {
     }
 }
 
-impl AddAssign<usize> for RelCharOffset {
+impl AddAssign<usize> for Graphemes {
     fn add_assign(&mut self, rhs: usize) {
         self.0 += rhs
     }
 }
 
-impl SubAssign<usize> for RelCharOffset {
+impl SubAssign<usize> for Graphemes {
     fn sub_assign(&mut self, rhs: usize) {
         self.0 -= rhs
     }
 }
 
-impl Debug for DocByteOffset {
+impl Debug for Byte {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl Debug for RelByteOffset {
+impl Debug for Bytes {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl Debug for DocCharOffset {
+impl Debug for Grapheme {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
 }
 
-impl Debug for RelCharOffset {
+impl Debug for Graphemes {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
     }
