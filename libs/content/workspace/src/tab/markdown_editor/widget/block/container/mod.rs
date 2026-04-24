@@ -113,7 +113,7 @@ impl<'ast> MdRender {
             let post_lines = self.post_spacing_lines(child, &children);
 
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing_height(child, &children);
+            let pre_spacing = self.block_pre_spacing_height_approx(child, &children);
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
@@ -123,38 +123,37 @@ impl<'ast> MdRender {
             }
             top_left.y += pre_spacing;
 
-            // add block
-            let child_height = self.height(child, &children);
-
-            if self.debug {
-                self.show_debug_block_highlight(
-                    ui,
-                    child,
-                    top_left,
-                    self.width(child),
-                    child_height,
-                );
-            }
-
+            // Decide visibility from the cheap approximation first; only
+            // pay precise `height` when we're going to paint. Off-screen
+            // content uses the approximate height for positioning — its
+            // precision doesn't affect what the user sees, only the
+            // scrollbar (Obsidian-style imprecision).
+            let approx_height = self.height_approx(child, &children);
             let block_below_viewport = viewport.max.y < top_left.y;
-            let block_above_viewport = viewport.min.y > top_left.y + child_height;
+            let block_above_viewport = viewport.min.y > top_left.y + approx_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
             let block_needed = intersects_any_required(&child_range);
-            if block_visible || block_needed {
+            let child_height = if block_visible || block_needed {
+                let h = self.height(child, &children);
+                if self.debug {
+                    self.show_debug_block_highlight(ui, child, top_left, self.width(child), h);
+                }
                 self.show_block(ui, child, top_left, &children);
+                h
             } else {
-                let in_buffer = top_left.y + child_height > viewport.min.y - buffer
+                let in_buffer = top_left.y + approx_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
                 if in_buffer {
                     // walks all descendants, not just those within the buffer —
                     // a tall container may warm images beyond the zone
                     self.warm_images(child);
                 }
-            }
+                approx_height
+            };
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing_height(child, &children);
+            let post_spacing = self.block_post_spacing_height_approx(child, &children);
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;

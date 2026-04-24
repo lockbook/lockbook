@@ -326,7 +326,11 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 
-        let height = self.renderer.height(root, &[root]);
+        // Use approximate height for the scroll-area extent — show
+        // paints at precise positions per visible block, and the gap
+        // between approx total and precise painted total is the
+        // accepted scrollbar imprecision (Obsidian-style).
+        let height = self.renderer.height_approx(root, &[root]);
         let render_rect = Rect::from_min_size(rect.min, Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             self.renderer.show_block(ui, root, rect.min, &[root]);

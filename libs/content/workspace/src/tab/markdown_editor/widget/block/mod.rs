@@ -89,6 +89,86 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Cheap height estimate. Walks the AST inline (no delegation to
+    /// per-block-type `height_*` functions), summing approximate
+    /// heights of leaf blocks. The approximation: count visible chars
+    /// in each leaf's descendants, treat them as monospace at
+    /// `row_height * 0.5` per char, char-wrap to `width(leaf)`. Same
+    /// shape as [`Self::width`]: a single recursive function that
+    /// produces the answer on demand.
+    ///
+    /// Heights drift from precise layout — different per-glyph widths,
+    /// reveal markup, soft breaks, etc. are averaged out — so this is
+    /// only safe for callers that can tolerate row-count drift (e.g.
+    /// scrollbar sizing for off-screen content). Visible content must
+    /// be measured via [`Self::height`], which this function does NOT
+    /// call into.
+    pub fn height_approx(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+        if let Some(cached) = self.get_cached_node_height_approx(node) {
+            return cached;
+        }
+        if self.hidden_by_fold(node, siblings) {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        let value = &node.data.borrow().value;
+        let height = match value {
+            // containers — sum approx heights of children plus spacing
+            NodeValue::Document
+            | NodeValue::List(_)
+            | NodeValue::BlockQuote
+            | NodeValue::Item(_)
+            | NodeValue::TaskItem(_)
+            | NodeValue::Alert(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::FootnoteDefinition(_) => {
+                let children = self.sorted_children(node);
+                let mut total = 0.;
+                for child in &children {
+                    total += self.block_pre_spacing_height_approx(child, &children);
+                    total += self.height_approx(child, &children);
+                    total += self.block_post_spacing_height_approx(child, &children);
+                }
+                total
+            }
+            // leaf blocks whose precise height calls cosmic-text shape —
+            // the path we actually want to skip on off-screen content.
+            NodeValue::Paragraph | NodeValue::Heading(_) | NodeValue::TableCell => {
+                let row_height = self.row_height(node);
+                let width = self.width(node).max(row_height);
+                let mut chars = 0usize;
+                for d in node.descendants() {
+                    match &d.data.borrow().value {
+                        NodeValue::Text(t) => chars += t.chars().count(),
+                        NodeValue::Code(c) => chars += c.literal.chars().count(),
+                        NodeValue::HtmlInline(s) => chars += s.chars().count(),
+                        NodeValue::Math(m) => chars += m.literal.chars().count(),
+                        NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
+                        _ => {}
+                    }
+                }
+                let char_width = row_height * 0.5;
+                let chars_per_row = (width / char_width).floor().max(1.0) as usize;
+                let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
+                rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
+            }
+            // leaf blocks already cheap to compute precisely — just delegate
+            NodeValue::CodeBlock(b) => self.height_code_block(node, b),
+            NodeValue::HtmlBlock(_) => self.height_html_block(node),
+            NodeValue::ThematicBreak => self.height_thematic_break(),
+            NodeValue::FrontMatter(_) => self.height_front_matter(node),
+            // inline / unsupported — caller shouldn't ask for block height here
+            _ => 0.,
+        };
+        self.set_cached_node_height_approx(node, height);
+        height
+    }
+
     pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
@@ -646,6 +726,7 @@ pub enum TitleState {
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
+    pub height_approx: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
@@ -662,6 +743,7 @@ impl LayoutCache {
     /// Full clear for width/resize changes where everything must be recomputed.
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
@@ -677,6 +759,7 @@ impl LayoutCache {
     /// Glyphon buffers are content-addressed and survive.
     pub fn invalidate_text_change(&self) {
         self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
@@ -911,6 +994,25 @@ impl<'ast> MdRender {
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
         let mut cache = self.layout_cache.height.borrow_mut();
+        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
+            Ok(i) => cache[i].value = height,
+            Err(i) => cache.insert(i, CacheEntry { range, value: height }),
+        }
+    }
+
+    pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
+        let range = self.node_range(node);
+        self.layout_cache
+            .height_approx
+            .borrow()
+            .binary_search_by(|entry| entry.range.cmp(&range))
+            .ok()
+            .map(|i| self.layout_cache.height_approx.borrow()[i].value)
+    }
+
+    pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
+        let range = self.node_range(node);
+        let mut cache = self.layout_cache.height_approx.borrow_mut();
         match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
             Ok(i) => cache[i].value = height,
             Err(i) => cache.insert(i, CacheEntry { range, value: height }),
