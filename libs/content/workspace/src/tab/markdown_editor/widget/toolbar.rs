@@ -82,7 +82,6 @@ impl<'ast> Editor {
 
         let persistence = self.persistence.get_markdown().toolbar;
         let is_default = persistence == Default::default();
-        let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
         let is_ios = cfg!(target_os = "ios");
 
         // width of a group of n buttons with intra-group spacing + trailing separator
@@ -94,7 +93,7 @@ impl<'ast> Editor {
 
         let mut w = 2. * margin;
 
-        if is_mobile {
+        if is_ios {
             let mut n = 0;
             if self.virtual_keyboard_shown {
                 n += 1;
@@ -167,7 +166,7 @@ impl<'ast> Editor {
 
                     let mut events = Vec::new();
 
-                    if is_mobile {
+                    if is_ios {
                         let mut any_util = false;
                         if self.virtual_keyboard_shown {
                             if IconButton::new(Icon::KEYBOARD_HIDE.size(ICON_SIZE))
@@ -582,6 +581,7 @@ impl<'ast> Editor {
                             ui.visuals_mut().widgets.active.bg_fill =
                                 self.edit.renderer.ctx.get_lb_theme().fg().blue;
 
+                            let is_android = cfg!(target_os = "android");
                             let is_ios = cfg!(target_os = "ios");
 
                             let persistence = self.persistence.get_markdown().toolbar;
@@ -624,27 +624,29 @@ impl<'ast> Editor {
                             ui.add_space(MENU_SPACE);
                             top_left.y += MENU_SPACE;
 
-                            // search
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
-                                    "Search",
-                                    IconButton::new(Icon::SEARCH.size(ICON_SIZE))
-                                        .colored(persistence.search),
-                                )
-                                .clicked()
-                            {
-                                let mut persistence = self.persistence.data.write().unwrap();
-                                let persistence = &mut persistence.markdown.toolbar;
-                                persistence.search ^= true;
-                                self.persistence.write_to_file();
-                            }
-                            top_left.y += self.menu_toggle_height("Search");
+                            if !is_android {
+                                // search
+                                if self
+                                    .menu_toggle(
+                                        ui,
+                                        top_left,
+                                        md_width,
+                                        "Search",
+                                        IconButton::new(Icon::SEARCH.size(ICON_SIZE))
+                                            .colored(persistence.search),
+                                    )
+                                    .clicked()
+                                {
+                                    let mut persistence = self.persistence.data.write().unwrap();
+                                    let persistence = &mut persistence.markdown.toolbar;
+                                    persistence.search ^= true;
+                                    self.persistence.write_to_file();
+                                }
+                                top_left.y += self.menu_toggle_height("Search");
 
-                            Separator::default().spacing(MENU_SPACE).ui(ui);
-                            top_left.y += MENU_SPACE;
+                                Separator::default().spacing(MENU_SPACE).ui(ui);
+                                top_left.y += MENU_SPACE;
+                            }
 
                             // undo / redo
                             if self
