@@ -118,113 +118,40 @@ impl LocalLb {
     }
 }
 
-/// Public-facing handle to lb-rs. Either an in-process [`LocalLb`] that
-/// holds the db-rs filesystem lock, or a [`RemoteLb`] IPC client forwarding
-/// calls to whichever process does.
-///
-/// `Lb::init` races for the lock: success means becoming a Host (and
-/// spawning the IPC listener) and returning `Lb::Local`; failure means
-/// connecting to the socket as a Guest and returning `Lb::Remote`.
 #[derive(Clone)]
-// `Local(LocalLb)` is inline (LocalLb is itself a struct full of `Arc`s,
-// not huge but bigger than a pointer); `Remote(Arc<RemoteLb>)` is a single
-// pointer. Clippy flags the disparity. We accept it: every consumer
-// either constructs an `Lb` and threads it around (one allocation either
-// way) or matches on it without caring about variant size. Boxing
-// `LocalLb` to balance the variants would add an indirection on every
-// host-side call for no real gain.
 pub enum Lb {
     Local(Arc<LocalLb>),
-    /// Only constructed on platforms where the guest can actually reach the
-    /// host over UDS (see `Lb::init`'s `cfg(unix)` guest branch). On other
-    /// platforms the variant exists but is never populated, so the forwarder
-    /// arms below compile cleanly without per-arm cfgs.
     Remote(Arc<RemoteLb>),
 }
 
 impl Lb {
-    /// Construct an `Lb`, racing the db-rs filesystem lock.
-    ///
-    /// Strategy:
-    /// 1. Try `LocalLb::init`. If that succeeds we hold the lock — spawn
-    ///    the IPC listener and return `Local`.
-    /// 2. If `LocalLb::init` fails **and** a socket already exists in the
-    ///    db folder (suggesting another process is the host), retry a
-    ///    short handful of connects as a Guest.
-    /// 3. On all-fails, surface the original `LocalLb::init` error so a
-    ///    genuinely corrupt / missing folder doesn't get masked as "can't
-    ///    connect".
     pub async fn init(config: Config) -> LbResult<Self> {
         let init_err = match LocalLb::init(config.clone()).await {
             Ok(local) => {
+                let local = Arc::new(local);
                 #[cfg(unix)]
-                {
-                    let socket = ipc::socket_path(&local.config.writeable_path);
-                    match ipc::transport::listen(&socket).await {
-                        Ok(listener) => {
-                            let lb_for_server = Arc::new(local.clone());
-                            tokio::spawn(ipc::server::serve(listener, lb_for_server));
-                        }
-                        Err(err) => {
-                            // Not fatal — the host still works, guests just
-                            // can't attach until the socket is available.
-                            tracing::warn!(
-                                ?err,
-                                "failed to bind ipc listener; guests cannot attach"
-                            );
-                        }
-                    }
-                }
-                return Ok(Lb::Local(Arc::new(local)));
+                ipc::spawn_host(Arc::clone(&local));
+                return Ok(Lb::Local(local));
             }
             Err(err) => err,
         };
 
         #[cfg(unix)]
-        {
-            let socket = ipc::socket_path(&config.writeable_path);
-            if socket.exists() {
-                if let Ok(remote) = connect_guest_with_retry(&socket, &config).await {
-                    return Ok(Lb::Remote(remote));
-                }
-            }
+        if let Some(remote) = ipc::connect_guest(&config).await {
+            return Ok(Lb::Remote(remote));
         }
 
         Err(init_err)
     }
 
-    /// see [`LocalLb::init_dummy`]
     #[cfg(target_family = "wasm")]
     pub fn init_dummy(config: Config) -> LbResult<Self> {
         let local = LocalLb::init_dummy(config)?;
-        Ok(Lb::Local(local))
+        Ok(Lb::Local(Arc::new(local)))
     }
 }
 
-// ---- Explicit forwarders for the public Lb surface ----------------------
-//
-// Each forwarder dispatches on `inner`: Local runs in-process; Remote sends
-// a typed [`Request`] variant over IPC via `RemoteLb::call::<Out>(req)`.
-// The `Request` enum's discriminant picks the host-side method to invoke
-// and carries its arguments; the response comes back as a bincode-encoded
-// `LbResult<Out>`. If the server wrote a different `Out` than the caller
-// expects, bincode fails and the error surfaces as `LbErrKind::Unexpected`.
-//
-// `Lb::Remote` is only constructed on `cfg(unix)` inside `Lb::init`,
-// so on non-Unix platforms the Remote arms below are statically unreachable
-// — `RemoteLb::call` has a stub impl on those targets for completeness.
-//
-// The following methods are *not* forwarded explicitly and remain
-// reachable only through the `Deref` shim (Local-only; Remote panics):
-//
-//   - `get_account`, `export_account_private_key`, `export_account_phrase`,
-//     `export_account_qr` — sync, return values that need the in-memory
-//     account. A future pass should cache the account on the Guest at
-//     connect time so these can stay sync without IPC.
-
 impl Lb {
-    // -- account ----------------------------------------------------------
-
     pub async fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
@@ -299,20 +226,12 @@ impl Lb {
         }
     }
 
-    /// Return the active account.
-    ///
-    /// Local: reads from the in-memory keychain.
-    /// Remote: reads from the guest's account cache, populated at connect
-    /// time and refreshed by successful create/import calls. No IPC on
-    /// the hot path.
     pub fn get_account(&self) -> LbResult<&Account> {
         match self {
             Lb::Local(l) => l.get_account(),
             Lb::Remote(r) => r.get_account(),
         }
     }
-
-    // -- activity ---------------------------------------------------------
 
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         match self {
@@ -335,8 +254,6 @@ impl Lb {
         }
     }
 
-    /// Hint the host that the user is around. Sync — fire-and-forget for
-    /// guests so the existing sync caller surface doesn't change.
     pub fn app_foregrounded(&self) {
         match self {
             Lb::Local(l) => l.app_foregrounded(),
@@ -348,8 +265,6 @@ impl Lb {
             }
         }
     }
-
-    // -- admin ------------------------------------------------------------
 
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {
         match self {
@@ -423,8 +338,6 @@ impl Lb {
         }
     }
 
-    // -- billing ----------------------------------------------------------
-
     pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         match self {
             Lb::Local(l) => l.upgrade_account_stripe(account_tier).await,
@@ -482,8 +395,6 @@ impl Lb {
         }
     }
 
-    // -- debug (cfg!=wasm) -----------------------------------------------
-
     #[cfg(not(target_family = "wasm"))]
     pub async fn recent_panic(&self) -> LbResult<bool> {
         match self {
@@ -507,8 +418,6 @@ impl Lb {
             Lb::Remote(r) => r.call(Request::DebugInfo { os_info, check_docs }).await,
         }
     }
-
-    // -- documents --------------------------------------------------------
 
     pub async fn read_document(
         &self, id: Uuid, user_activity: bool,
@@ -549,8 +458,6 @@ impl Lb {
             Lb::Remote(r) => r.call(Request::SafeWrite { id, old_hmac, content }).await,
         }
     }
-
-    // -- file -------------------------------------------------------------
 
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
@@ -643,16 +550,12 @@ impl Lb {
         }
     }
 
-    // -- integrity --------------------------------------------------------
-
     pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         match self {
             Lb::Local(l) => l.test_repo_integrity(check_docs).await,
             Lb::Remote(r) => r.call(Request::TestRepoIntegrity { check_docs }).await,
         }
     }
-
-    // -- path -------------------------------------------------------------
 
     pub async fn create_link_at_path(&self, path: &str, target_id: Uuid) -> LbResult<File> {
         match self {
@@ -704,8 +607,6 @@ impl Lb {
         }
     }
 
-    // -- share ------------------------------------------------------------
-
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
         match self {
             Lb::Local(l) => l.share_file(id, username, mode).await,
@@ -744,16 +645,12 @@ impl Lb {
         }
     }
 
-    // -- usage ------------------------------------------------------------
-
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         match self {
             Lb::Local(l) => l.get_usage().await,
             Lb::Remote(r) => r.call(Request::GetUsage).await,
         }
     }
-
-    // -- subscribers ------------------------------------------------------
 
     pub async fn sync(&self) -> LbResult<()> {
         match self {
@@ -783,8 +680,6 @@ impl Lb {
         }
     }
 
-    /// Configuration the wrapper was constructed with (or, on a Guest,
-    /// the config that connect was given). The host owns the actual db.
     pub fn config(&self) -> &Config {
         match self {
             Lb::Local(l) => &l.config,
@@ -792,13 +687,6 @@ impl Lb {
         }
     }
 
-    /// Subscribe to lb-rs events.
-    ///
-    /// Local: hands back a receiver from the in-process broadcast.
-    /// Remote: hands back a receiver from the guest's relay broadcast,
-    /// which the reader task populates from `Frame::Event` frames.
-    /// `RemoteLb::connect` sends the host-side Subscribe eagerly, so by
-    /// the time anyone calls this method the relay is already running.
     pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<service::events::Event> {
         match self {
             Lb::Local(l) => l.subscribe(),
@@ -806,7 +694,6 @@ impl Lb {
         }
     }
 
-    /// Pure formatting — no IPC. Identical impl to `LocalLb`.
     pub fn get_timestamp_human_string(&self, timestamp: i64) -> String {
         use basic_human_duration::ChronoHumanDuration;
         if timestamp != 0 {
@@ -829,8 +716,6 @@ impl Lb {
         }
     }
 
-    /// Rebuild the full-text search index from the current document set.
-    /// Called by background workers and by the CLI's search command.
     #[cfg(not(target_family = "wasm"))]
     pub async fn build_index(&self) -> LbResult<()> {
         match self {
@@ -839,7 +724,6 @@ impl Lb {
         }
     }
 
-    /// Make freshly-committed search-index writes visible to readers.
     #[cfg(not(target_family = "wasm"))]
     pub async fn reload_search_index(&self) -> LbResult<()> {
         match self {
@@ -848,33 +732,6 @@ impl Lb {
         }
     }
 }
-
-#[cfg(unix)]
-async fn connect_guest_with_retry(
-    socket: &std::path::Path, config: &Config,
-) -> std::io::Result<Arc<ipc::client::RemoteLb>> {
-    let mut attempts: u32 = 0;
-    let mut delay = std::time::Duration::from_millis(10);
-    loop {
-        match ipc::client::RemoteLb::connect(socket, config.clone()).await {
-            Ok(c) => return Ok(c),
-            Err(e) if attempts < 10 => {
-                attempts += 1;
-                tokio::time::sleep(delay).await;
-                delay = std::cmp::min(delay * 2, std::time::Duration::from_millis(500));
-                let _ = e;
-            }
-            Err(e) => return Err(e),
-        }
-    }
-}
-
-// `Lb` intentionally does not expose a "get the underlying LocalLb" method.
-// Tests that need raw in-process state go through `test_utils::local`, a
-// free function that matches on the public variants. That keeps the "this
-// code assumes we're in-process" assumption visible at every call site and
-// prevents production code from ever reaching for it.
-
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }

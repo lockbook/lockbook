@@ -149,9 +149,6 @@ impl LocalLb {
         matches
     }
 
-    /// Make freshly-committed index writes visible to readers. Tantivy's
-    /// `IndexReader::reload` is sync; the `LbResult` wrapping is for IPC
-    /// uniformity.
     pub fn reload_search_index(&self) -> LbResult<()> {
         self.search
             .tantivy_reader

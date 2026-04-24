@@ -12,10 +12,6 @@ use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-/// Test-only escape hatch: borrow the underlying [`LocalLb`] from an
-/// [`Lb`]. Panics if `lb` is a Remote (guest) wrapper — tests run
-/// in-process and should never hit that path. Production code can't reach
-/// for this because the function lives in `test_utils`, not `lb-rs`.
 pub fn local(lb: &Lb) -> &LocalLb {
     match lb {
         Lb::Local(l) => l,

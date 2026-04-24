@@ -392,9 +392,6 @@ ___
 "#;
 }
 
-// These are pure formatting on top of the cached `Account` — no LocalLb
-// internals required. Living on `Lb` directly means a Guest serves them
-// from its account cache without an IPC round-trip.
 impl crate::Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub fn export_account_private_key(&self) -> LbResult<String> {
