@@ -1,29 +1,37 @@
 //! Guest-side IPC client.
 //!
-//! `RemoteLb` holds one persistent UDS connection to the host and demuxes
-//! responses by their request `seq`. Construction spawns a background
-//! reader task that drains `Frame::Response`s from the socket and dispatches
-//! each into a per-request `oneshot` channel. Per-method forwarders live on
-//! [`crate::Lb`] and call into [`RemoteLb::call`].
+//! `RemoteLb` is defined on every platform so `LbInner::Remote` can be an
+//! unconditional enum variant — that's what lets the forwarders on
+//! [`crate::Lb`] dispatch with cfg-free match arms. The real persistent-UDS
+//! implementation is `#[cfg(unix)]`; on other platforms the `call` method
+//! returns an "ipc not supported" error and the Guest variant is never
+//! constructed in the first place (see `Lb::init`).
 
-use std::collections::HashMap;
-use std::io;
-use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-use tokio::io::AsyncWriteExt;
-use tokio::net::UnixStream;
-use tokio::net::unix::OwnedWriteHalf;
-use tokio::sync::{Mutex, oneshot};
-use tokio::task::JoinHandle;
+use serde::de::DeserializeOwned;
 
-use crate::ipc::frame::{read_frame, write_frame};
-use crate::ipc::protocol::{Frame, Request, Response};
+use crate::ipc::protocol::Request;
 use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
 
-type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Response>>>>;
+#[cfg(unix)]
+use {
+    crate::ipc::frame::{read_frame, write_frame},
+    crate::ipc::protocol::Frame,
+    std::collections::HashMap,
+    std::io,
+    std::path::Path,
+    std::sync::atomic::{AtomicU64, Ordering},
+    tokio::io::AsyncWriteExt,
+    tokio::net::UnixStream,
+    tokio::net::unix::OwnedWriteHalf,
+    tokio::sync::{Mutex, oneshot},
+    tokio::task::JoinHandle,
+};
+
+#[cfg(unix)]
+type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Vec<u8>>>>>;
 
 /// Guest-side handle. Cloning is cheap — all live state is behind `Arc`.
 #[derive(Clone)]
@@ -35,6 +43,12 @@ struct Inner {
     /// Held for callers that still need access to the original `Config`
     /// (e.g., `writeable_path` for log paths). The host owns the actual db.
     config: Config,
+    #[cfg(unix)]
+    unix: UnixInner,
+}
+
+#[cfg(unix)]
+struct UnixInner {
     writer: Mutex<OwnedWriteHalf>,
     seq: AtomicU64,
     in_flight: InFlight,
@@ -43,18 +57,23 @@ struct Inner {
     reader_task: JoinHandle<()>,
 }
 
-impl Drop for Inner {
+#[cfg(unix)]
+impl Drop for UnixInner {
     fn drop(&mut self) {
         self.reader_task.abort();
     }
 }
 
 impl RemoteLb {
+    /// Connect to a host. Only meaningful on Unix; other platforms don't
+    /// reach this path because `Lb::init`'s guest fallback is `cfg(unix)`.
+    #[cfg(unix)]
     pub async fn connect(socket: &Path, config: Config) -> io::Result<Self> {
         let stream = crate::ipc::transport::connect(socket).await?;
         Self::from_stream(stream, config)
     }
 
+    #[cfg(unix)]
     fn from_stream(stream: UnixStream, config: Config) -> io::Result<Self> {
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
@@ -63,52 +82,75 @@ impl RemoteLb {
         Ok(Self {
             inner: Arc::new(Inner {
                 config,
-                writer: Mutex::new(write_half),
-                seq: AtomicU64::new(0),
-                in_flight,
-                reader_task,
+                unix: UnixInner {
+                    writer: Mutex::new(write_half),
+                    seq: AtomicU64::new(0),
+                    in_flight,
+                    reader_task,
+                },
             }),
         })
     }
 
-    /// Configuration the guest was constructed with. Mirrors the host's
-    /// `LocalLb::config` for the small number of callers (debug output,
-    /// log paths) that read it without an RPC.
+    /// Configuration the guest was constructed with.
     pub fn config(&self) -> &Config {
         &self.inner.config
     }
 
-    /// Send `body`, await the matching response. The seq is allocated
-    /// inside this method so callers don't need to think about it.
-    pub async fn call(&self, body: Request) -> LbResult<Response> {
-        let seq = self.inner.seq.fetch_add(1, Ordering::Relaxed);
+    /// Invoke a method on the host.
+    ///
+    /// `req` is a typed [`Request`] variant — its discriminant tells the
+    /// host which method to dispatch and carries that method's arguments.
+    /// The host writes back a bincode-encoded `LbResult<Out>`; if the
+    /// caller's `Out` disagrees with what the host wrote, bincode fails
+    /// and the error surfaces as `LbErrKind::Unexpected`.
+    #[cfg(unix)]
+    pub async fn call<Out>(&self, req: Request) -> LbResult<Out>
+    where
+        Out: DeserializeOwned,
+    {
+        let u = &self.inner.unix;
+        let seq = u.seq.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = oneshot::channel();
-        self.inner.in_flight.lock().await.insert(seq, tx);
+        u.in_flight.lock().await.insert(seq, tx);
 
-        let frame = Frame::Request { seq, body };
-        let bytes = bincode::serialize(&frame).map_err(|e| {
-            LbErrKind::Unexpected(format!("serialize ipc request: {e}"))
-        })?;
+        let frame = Frame::Request { seq, body: req };
+        let bytes = bincode::serialize(&frame)
+            .map_err(|e| LbErrKind::Unexpected(format!("ipc: serialize request: {e}")))?;
 
         {
-            let mut writer = self.inner.writer.lock().await;
-            write_frame(&mut *writer, &bytes).await.map_err(|e| {
-                LbErrKind::Unexpected(format!("write ipc request: {e}"))
-            })?;
-            writer.flush().await.map_err(|e| {
-                LbErrKind::Unexpected(format!("flush ipc request: {e}"))
-            })?;
+            let mut writer = u.writer.lock().await;
+            write_frame(&mut *writer, &bytes)
+                .await
+                .map_err(|e| LbErrKind::Unexpected(format!("ipc: write request: {e}")))?;
+            writer
+                .flush()
+                .await
+                .map_err(|e| LbErrKind::Unexpected(format!("ipc: flush request: {e}")))?;
         }
 
-        rx.await.map_err(|_| {
-            // The reader task either errored or was dropped — either way the
-            // host is gone or the connection is broken. Per the plan this is
-            // a fail-fast error; the caller can re-`init` to retry.
-            LbErrKind::Unexpected("ipc host disconnected before response".into()).into()
-        })
+        let output_bytes = rx.await.map_err(|_| {
+            LbErrKind::Unexpected("ipc: host disconnected before response".into())
+        })?;
+
+        let result: LbResult<Out> = bincode::deserialize(&output_bytes)
+            .map_err(|e| LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")))?;
+        result
+    }
+
+    /// Non-Unix stub: `Lb::init` never constructs a Remote on these
+    /// platforms, so this is unreachable — kept only so `LbInner::Remote`
+    /// can be an unconditional variant and the forwarders stay cfg-free.
+    #[cfg(not(unix))]
+    pub async fn call<Out>(&self, _req: Request) -> LbResult<Out>
+    where
+        Out: DeserializeOwned,
+    {
+        Err(LbErrKind::Unexpected("ipc not supported on this platform".into()).into())
     }
 }
 
+#[cfg(unix)]
 async fn reader_loop(mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InFlight) {
     loop {
         let frame_bytes = match read_frame(&mut reader).await {
@@ -128,9 +170,9 @@ async fn reader_loop(mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InF
             }
         };
         match frame {
-            Frame::Response { seq, body } => {
+            Frame::Response { seq, output } => {
                 if let Some(tx) = in_flight.lock().await.remove(&seq) {
-                    let _ = tx.send(body);
+                    let _ = tx.send(output);
                 } else {
                     tracing::warn!(seq, "ipc reader: response for unknown seq");
                 }

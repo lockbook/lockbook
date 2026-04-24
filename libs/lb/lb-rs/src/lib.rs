@@ -19,7 +19,6 @@
 extern crate tracing;
 
 pub mod blocking;
-#[cfg(not(target_family = "wasm"))]
 pub mod ipc;
 pub mod io;
 pub mod macros;
@@ -144,7 +143,10 @@ pub struct Lb {
 #[derive(Clone)]
 enum LbInner {
     Local(LocalLb),
-    #[cfg(unix)]
+    /// Only constructed on platforms where the guest can actually reach the
+    /// host over UDS (see `Lb::init`'s `cfg(unix)` guest branch). On other
+    /// platforms the variant exists but is never populated, so the forwarder
+    /// arms below compile cleanly without per-arm cfgs.
     Remote(ipc::client::RemoteLb),
 }
 
@@ -209,10 +211,16 @@ impl Lb {
 
 // ---- Explicit forwarders for the public Lb surface ----------------------
 //
-// One forwarder per ported `LocalLb` method: dispatches on `inner` to
-// either run locally or send over IPC. Adding a new method means adding a
-// `Request`/`Response` variant pair, a `match` arm in
-// `ipc::server::dispatch`, and a forwarder here.
+// Each forwarder dispatches on `inner`: Local runs in-process; Remote sends
+// a typed [`Request`] variant over IPC via `RemoteLb::call::<Out>(req)`.
+// The `Request` enum's discriminant picks the host-side method to invoke
+// and carries its arguments; the response comes back as a bincode-encoded
+// `LbResult<Out>`. If the server wrote a different `Out` than the caller
+// expects, bincode fails and the error surfaces as `LbErrKind::Unexpected`.
+//
+// `LbInner::Remote` is only constructed on `cfg(unix)` inside `Lb::init`,
+// so on non-Unix platforms the Remote arms below are statically unreachable
+// — `RemoteLb::call` has a stub impl on those targets for completeness.
 //
 // The following methods are *not* forwarded explicitly and remain
 // reachable only through the `Deref` shim (Local-only; Remote panics):
@@ -232,18 +240,14 @@ impl Lb {
     ) -> LbResult<Account> {
         match &self.inner {
             LbInner::Local(l) => l.create_account(username, api_url, welcome_doc).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::CreateAccount {
+            LbInner::Remote(r) => {
+                r.call(Request::CreateAccount {
                     username: username.to_string(),
                     api_url: api_url.to_string(),
                     welcome_doc,
                 })
-                .await?
-            {
-                Response::CreateAccount(res) => res,
-                _ => Err(ipc_response_mismatch("CreateAccount")),
-            },
+                .await
+            }
         }
     }
 
@@ -252,33 +256,20 @@ impl Lb {
     ) -> LbResult<Account> {
         match &self.inner {
             LbInner::Local(l) => l.import_account(key, api_url).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ImportAccount {
+            LbInner::Remote(r) => {
+                r.call(Request::ImportAccount {
                     key: key.to_string(),
                     api_url: api_url.map(|s| s.to_string()),
                 })
-                .await?
-            {
-                Response::ImportAccount(res) => res,
-                _ => Err(ipc_response_mismatch("ImportAccount")),
-            },
+                .await
+            }
         }
     }
 
-    pub async fn import_account_private_key_v1(
-        &self, account: Account,
-    ) -> LbResult<Account> {
+    pub async fn import_account_private_key_v1(&self, account: Account) -> LbResult<Account> {
         match &self.inner {
             LbInner::Local(l) => l.import_account_private_key_v1(account).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ImportAccountPrivateKeyV1 { account })
-                .await?
-            {
-                Response::ImportAccountPrivateKeyV1(res) => res,
-                _ => Err(ipc_response_mismatch("ImportAccountPrivateKeyV1")),
-            },
+            LbInner::Remote(r) => r.call(Request::ImportAccountPrivateKeyV1 { account }).await,
         }
     }
 
@@ -287,19 +278,10 @@ impl Lb {
     ) -> LbResult<Account> {
         match &self.inner {
             LbInner::Local(l) => l.import_account_phrase(phrase, api_url).await,
-            #[cfg(unix)]
             LbInner::Remote(r) => {
                 let phrase: [String; 24] = std::array::from_fn(|i| phrase[i].to_string());
-                match r
-                    .call(Request::ImportAccountPhrase {
-                        phrase,
-                        api_url: api_url.to_string(),
-                    })
-                    .await?
-                {
-                    Response::ImportAccountPhrase(res) => res,
-                    _ => Err(ipc_response_mismatch("ImportAccountPhrase")),
-                }
+                r.call(Request::ImportAccountPhrase { phrase, api_url: api_url.to_string() })
+                    .await
             }
         }
     }
@@ -307,54 +289,30 @@ impl Lb {
     pub async fn delete_account(&self) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.delete_account().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::DeleteAccount).await? {
-                Response::DeleteAccount(res) => res,
-                _ => Err(ipc_response_mismatch("DeleteAccount")),
-            },
+            LbInner::Remote(r) => r.call(Request::DeleteAccount).await,
         }
     }
 
     // -- activity ---------------------------------------------------------
 
-    pub async fn suggested_docs(
-        &self, settings: RankingWeights,
-    ) -> LbResult<Vec<Uuid>> {
+    pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         match &self.inner {
             LbInner::Local(l) => l.suggested_docs(settings).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::SuggestedDocs { settings })
-                .await?
-            {
-                Response::SuggestedDocs(res) => res,
-                _ => Err(ipc_response_mismatch("SuggestedDocs")),
-            },
+            LbInner::Remote(r) => r.call(Request::SuggestedDocs { settings }).await,
         }
     }
 
     pub async fn clear_suggested(&self) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.clear_suggested().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::ClearSuggested).await? {
-                Response::ClearSuggested(res) => res,
-                _ => Err(ipc_response_mismatch("ClearSuggested")),
-            },
+            LbInner::Remote(r) => r.call(Request::ClearSuggested).await,
         }
     }
 
     pub async fn clear_suggested_id(&self, id: Uuid) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.clear_suggested_id(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ClearSuggestedId { id })
-                .await?
-            {
-                Response::ClearSuggestedId(res) => res,
-                _ => Err(ipc_response_mismatch("ClearSuggestedId")),
-            },
+            LbInner::Remote(r) => r.call(Request::ClearSuggestedId { id }).await,
         }
     }
 
@@ -363,11 +321,10 @@ impl Lb {
     pub fn app_foregrounded(&self) {
         match &self.inner {
             LbInner::Local(l) => l.app_foregrounded(),
-            #[cfg(unix)]
             LbInner::Remote(r) => {
                 let r = r.clone();
                 tokio::spawn(async move {
-                    let _ = r.call(Request::AppForegrounded).await;
+                    let _: LbResult<()> = r.call(Request::AppForegrounded).await;
                 });
             }
         }
@@ -378,28 +335,16 @@ impl Lb {
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.disappear_account(username).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::DisappearAccount { username: username.to_string() })
-                .await?
-            {
-                Response::DisappearAccount(res) => res,
-                _ => Err(ipc_response_mismatch("DisappearAccount")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::DisappearAccount { username: username.to_string() }).await
+            }
         }
     }
 
     pub async fn disappear_file(&self, id: Uuid) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.disappear_file(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::DisappearFile { id })
-                .await?
-            {
-                Response::DisappearFile(res) => res,
-                _ => Err(ipc_response_mismatch("DisappearFile")),
-            },
+            LbInner::Remote(r) => r.call(Request::DisappearFile { id }).await,
         }
     }
 
@@ -408,14 +353,7 @@ impl Lb {
     ) -> LbResult<Vec<Username>> {
         match &self.inner {
             LbInner::Local(l) => l.list_users(filter).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ListUsers { filter })
-                .await?
-            {
-                Response::ListUsers(res) => res,
-                _ => Err(ipc_response_mismatch("ListUsers")),
-            },
+            LbInner::Remote(r) => r.call(Request::ListUsers { filter }).await,
         }
     }
 
@@ -424,74 +362,38 @@ impl Lb {
     ) -> LbResult<AccountInfo> {
         match &self.inner {
             LbInner::Local(l) => l.get_account_info(identifier).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetAccountInfo { identifier })
-                .await?
-            {
-                Response::GetAccountInfo(res) => res,
-                _ => Err(ipc_response_mismatch("GetAccountInfo")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetAccountInfo { identifier }).await,
         }
     }
 
-    pub async fn validate_account(
-        &self, username: &str,
-    ) -> LbResult<AdminValidateAccount> {
+    pub async fn validate_account(&self, username: &str) -> LbResult<AdminValidateAccount> {
         match &self.inner {
             LbInner::Local(l) => l.validate_account(username).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::AdminValidateAccount {
-                    username: username.to_string(),
-                })
-                .await?
-            {
-                Response::AdminValidateAccount(res) => res,
-                _ => Err(ipc_response_mismatch("AdminValidateAccount")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::AdminValidateAccount { username: username.to_string() })
+                    .await
+            }
         }
     }
 
     pub async fn validate_server(&self) -> LbResult<AdminValidateServer> {
         match &self.inner {
             LbInner::Local(l) => l.validate_server().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::AdminValidateServer)
-                .await?
-            {
-                Response::AdminValidateServer(res) => res,
-                _ => Err(ipc_response_mismatch("AdminValidateServer")),
-            },
+            LbInner::Remote(r) => r.call(Request::AdminValidateServer).await,
         }
     }
 
     pub async fn file_info(&self, id: Uuid) -> LbResult<AdminFileInfoResponse> {
         match &self.inner {
             LbInner::Local(l) => l.file_info(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::AdminFileInfo { id })
-                .await?
-            {
-                Response::AdminFileInfo(res) => res,
-                _ => Err(ipc_response_mismatch("AdminFileInfo")),
-            },
+            LbInner::Remote(r) => r.call(Request::AdminFileInfo { id }).await,
         }
     }
 
     pub async fn rebuild_index(&self, index: ServerIndex) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.rebuild_index(index).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::RebuildIndex { index })
-                .await?
-            {
-                Response::RebuildIndex(res) => res,
-                _ => Err(ipc_response_mismatch("RebuildIndex")),
-            },
+            LbInner::Remote(r) => r.call(Request::RebuildIndex { index }).await,
         }
     }
 
@@ -500,17 +402,9 @@ impl Lb {
     ) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.set_user_tier(username, info).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::SetUserTier {
-                    username: username.to_string(),
-                    info,
-                })
-                .await?
-            {
-                Response::SetUserTier(res) => res,
-                _ => Err(ipc_response_mismatch("SetUserTier")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::SetUserTier { username: username.to_string(), info }).await
+            }
         }
     }
 
@@ -521,14 +415,7 @@ impl Lb {
     ) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.upgrade_account_stripe(account_tier).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::UpgradeAccountStripe { account_tier })
-                .await?
-            {
-                Response::UpgradeAccountStripe(res) => res,
-                _ => Err(ipc_response_mismatch("UpgradeAccountStripe")),
-            },
+            LbInner::Remote(r) => r.call(Request::UpgradeAccountStripe { account_tier }).await,
         }
     }
 
@@ -536,18 +423,16 @@ impl Lb {
         &self, purchase_token: &str, account_id: &str,
     ) -> LbResult<()> {
         match &self.inner {
-            LbInner::Local(l) => l.upgrade_account_google_play(purchase_token, account_id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::UpgradeAccountGooglePlay {
+            LbInner::Local(l) => {
+                l.upgrade_account_google_play(purchase_token, account_id).await
+            }
+            LbInner::Remote(r) => {
+                r.call(Request::UpgradeAccountGooglePlay {
                     purchase_token: purchase_token.to_string(),
                     account_id: account_id.to_string(),
                 })
-                .await?
-            {
-                Response::UpgradeAccountGooglePlay(res) => res,
-                _ => Err(ipc_response_mismatch("UpgradeAccountGooglePlay")),
-            },
+                .await
+            }
         }
     }
 
@@ -559,47 +444,27 @@ impl Lb {
                 l.upgrade_account_app_store(original_transaction_id, app_account_token)
                     .await
             }
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::UpgradeAccountAppStore {
+            LbInner::Remote(r) => {
+                r.call(Request::UpgradeAccountAppStore {
                     original_transaction_id,
                     app_account_token,
                 })
-                .await?
-            {
-                Response::UpgradeAccountAppStore(res) => res,
-                _ => Err(ipc_response_mismatch("UpgradeAccountAppStore")),
-            },
+                .await
+            }
         }
     }
 
     pub async fn cancel_subscription(&self) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.cancel_subscription().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::CancelSubscription)
-                .await?
-            {
-                Response::CancelSubscription(res) => res,
-                _ => Err(ipc_response_mismatch("CancelSubscription")),
-            },
+            LbInner::Remote(r) => r.call(Request::CancelSubscription).await,
         }
     }
 
-    pub async fn get_subscription_info(
-        &self,
-    ) -> LbResult<Option<SubscriptionInfo>> {
+    pub async fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
         match &self.inner {
             LbInner::Local(l) => l.get_subscription_info().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetSubscriptionInfo)
-                .await?
-            {
-                Response::GetSubscriptionInfo(res) => res,
-                _ => Err(ipc_response_mismatch("GetSubscriptionInfo")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetSubscriptionInfo).await,
         }
     }
 
@@ -609,11 +474,7 @@ impl Lb {
     pub async fn recent_panic(&self) -> LbResult<bool> {
         match &self.inner {
             LbInner::Local(l) => l.recent_panic().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::RecentPanic).await? {
-                Response::RecentPanic(res) => res,
-                _ => Err(ipc_response_mismatch("RecentPanic")),
-            },
+            LbInner::Remote(r) => r.call(Request::RecentPanic).await,
         }
     }
 
@@ -623,14 +484,9 @@ impl Lb {
     ) -> LbResult<String> {
         match &self.inner {
             LbInner::Local(l) => l.write_panic_to_file(error_header, bt).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::WritePanicToFile { error_header, bt })
-                .await?
-            {
-                Response::WritePanicToFile(res) => res,
-                _ => Err(ipc_response_mismatch("WritePanicToFile")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::WritePanicToFile { error_header, bt }).await
+            }
         }
     }
 
@@ -640,14 +496,7 @@ impl Lb {
     ) -> LbResult<DebugInfo> {
         match &self.inner {
             LbInner::Local(l) => l.debug_info(os_info, check_docs).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::DebugInfo { os_info, check_docs })
-                .await?
-            {
-                Response::DebugInfo(res) => res,
-                _ => Err(ipc_response_mismatch("DebugInfo")),
-            },
+            LbInner::Remote(r) => r.call(Request::DebugInfo { os_info, check_docs }).await,
         }
     }
 
@@ -658,45 +507,27 @@ impl Lb {
     ) -> LbResult<DecryptedDocument> {
         match &self.inner {
             LbInner::Local(l) => l.read_document(id, user_activity).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ReadDocument { id, user_activity })
-                .await?
-            {
-                Response::ReadDocument(res) => res,
-                _ => Err(ipc_response_mismatch("ReadDocument")),
-            },
+            LbInner::Remote(r) => r.call(Request::ReadDocument { id, user_activity }).await,
         }
     }
 
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.write_document(id, content).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::WriteDocument { id, content: content.to_vec() })
-                .await?
-            {
-                Response::WriteDocument(res) => res,
-                _ => Err(ipc_response_mismatch("WriteDocument")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::WriteDocument { id, content: content.to_vec() }).await
+            }
         }
     }
 
     pub async fn read_document_with_hmac(
         &self, id: Uuid, user_activity: bool,
-    ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)>
-    {
+    ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
         match &self.inner {
             LbInner::Local(l) => l.read_document_with_hmac(id, user_activity).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ReadDocumentWithHmac { id, user_activity })
-                .await?
-            {
-                Response::ReadDocumentWithHmac(res) => res,
-                _ => Err(ipc_response_mismatch("ReadDocumentWithHmac")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::ReadDocumentWithHmac { id, user_activity }).await
+            }
         }
     }
 
@@ -705,14 +536,7 @@ impl Lb {
     ) -> LbResult<DocumentHmac> {
         match &self.inner {
             LbInner::Local(l) => l.safe_write(id, old_hmac, content).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::SafeWrite { id, old_hmac, content })
-                .await?
-            {
-                Response::SafeWrite(res) => res,
-                _ => Err(ipc_response_mismatch("SafeWrite")),
-            },
+            LbInner::Remote(r) => r.call(Request::SafeWrite { id, old_hmac, content }).await,
         }
     }
 
@@ -723,99 +547,60 @@ impl Lb {
     ) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.create_file(name, parent, file_type).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::CreateFile {
+            LbInner::Remote(r) => {
+                r.call(Request::CreateFile {
                     name: name.to_string(),
                     parent: *parent,
                     file_type,
                 })
-                .await?
-            {
-                Response::CreateFile(res) => res,
-                _ => Err(ipc_response_mismatch("CreateFile")),
-            },
+                .await
+            }
         }
     }
 
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.rename_file(id, new_name).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::RenameFile {
-                    id: *id,
-                    new_name: new_name.to_string(),
-                })
-                .await?
-            {
-                Response::RenameFile(res) => res,
-                _ => Err(ipc_response_mismatch("RenameFile")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::RenameFile { id: *id, new_name: new_name.to_string() }).await
+            }
         }
     }
 
     pub async fn move_file(&self, id: &Uuid, new_parent: &Uuid) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.move_file(id, new_parent).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::MoveFile { id: *id, new_parent: *new_parent })
-                .await?
-            {
-                Response::MoveFile(res) => res,
-                _ => Err(ipc_response_mismatch("MoveFile")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::MoveFile { id: *id, new_parent: *new_parent }).await
+            }
         }
     }
 
     pub async fn delete(&self, id: &Uuid) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.delete(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::Delete { id: *id })
-                .await?
-            {
-                Response::Delete(res) => res,
-                _ => Err(ipc_response_mismatch("Delete")),
-            },
+            LbInner::Remote(r) => r.call(Request::Delete { id: *id }).await,
         }
     }
 
     pub async fn root(&self) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.root().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::Root).await? {
-                Response::Root(res) => res,
-                _ => Err(ipc_response_mismatch("Root")),
-            },
+            LbInner::Remote(r) => r.call(Request::Root).await,
         }
     }
 
     pub async fn list_metadatas(&self) -> LbResult<Vec<File>> {
         match &self.inner {
             LbInner::Local(l) => l.list_metadatas().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::ListMetadatas).await? {
-                Response::ListMetadatas(res) => res,
-                _ => Err(ipc_response_mismatch("ListMetadatas")),
-            },
+            LbInner::Remote(r) => r.call(Request::ListMetadatas).await,
         }
     }
 
     pub async fn get_children(&self, id: &Uuid) -> LbResult<Vec<File>> {
         match &self.inner {
             LbInner::Local(l) => l.get_children(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetChildren { id: *id })
-                .await?
-            {
-                Response::GetChildren(res) => res,
-                _ => Err(ipc_response_mismatch("GetChildren")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetChildren { id: *id }).await,
         }
     }
 
@@ -824,74 +609,39 @@ impl Lb {
     ) -> LbResult<Vec<File>> {
         match &self.inner {
             LbInner::Local(l) => l.get_and_get_children_recursively(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetAndGetChildrenRecursively { id: *id })
-                .await?
-            {
-                Response::GetAndGetChildrenRecursively(res) => res,
-                _ => Err(ipc_response_mismatch("GetAndGetChildrenRecursively")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::GetAndGetChildrenRecursively { id: *id }).await
+            }
         }
     }
 
     pub async fn get_file_by_id(&self, id: Uuid) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.get_file_by_id(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetFileById { id })
-                .await?
-            {
-                Response::GetFileById(res) => res,
-                _ => Err(ipc_response_mismatch("GetFileById")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetFileById { id }).await,
         }
     }
 
     pub async fn get_file_link_url(&self, id: Uuid) -> LbResult<String> {
         match &self.inner {
             LbInner::Local(l) => l.get_file_link_url(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetFileLinkUrl { id })
-                .await?
-            {
-                Response::GetFileLinkUrl(res) => res,
-                _ => Err(ipc_response_mismatch("GetFileLinkUrl")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetFileLinkUrl { id }).await,
         }
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {
         match &self.inner {
             LbInner::Local(l) => l.local_changes().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::LocalChanges).await {
-                Ok(Response::LocalChanges(v)) => v,
-                _ => {
-                    tracing::warn!("ipc LocalChanges call failed; returning empty");
-                    Vec::new()
-                }
-            },
+            LbInner::Remote(r) => r.call(Request::LocalChanges).await.unwrap_or_default(),
         }
     }
 
     // -- integrity --------------------------------------------------------
 
-    pub async fn test_repo_integrity(
-        &self, check_docs: bool,
-    ) -> LbResult<Vec<Warning>> {
+    pub async fn test_repo_integrity(&self, check_docs: bool) -> LbResult<Vec<Warning>> {
         match &self.inner {
             LbInner::Local(l) => l.test_repo_integrity(check_docs).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::TestRepoIntegrity { check_docs })
-                .await?
-            {
-                Response::TestRepoIntegrity(res) => res,
-                _ => Err(ipc_response_mismatch("TestRepoIntegrity")),
-            },
+            LbInner::Remote(r) => r.call(Request::TestRepoIntegrity { check_docs }).await,
         }
     }
 
@@ -902,75 +652,38 @@ impl Lb {
     ) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.create_link_at_path(path, target_id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::CreateLinkAtPath {
-                    path: path.to_string(),
-                    target_id,
-                })
-                .await?
-            {
-                Response::CreateLinkAtPath(res) => res,
-                _ => Err(ipc_response_mismatch("CreateLinkAtPath")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::CreateLinkAtPath { path: path.to_string(), target_id })
+                    .await
+            }
         }
     }
 
     pub async fn create_at_path(&self, path: &str) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.create_at_path(path).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::CreateAtPath { path: path.to_string() })
-                .await?
-            {
-                Response::CreateAtPath(res) => res,
-                _ => Err(ipc_response_mismatch("CreateAtPath")),
-            },
+            LbInner::Remote(r) => r.call(Request::CreateAtPath { path: path.to_string() }).await,
         }
     }
 
     pub async fn get_by_path(&self, path: &str) -> LbResult<File> {
         match &self.inner {
             LbInner::Local(l) => l.get_by_path(path).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetByPath { path: path.to_string() })
-                .await?
-            {
-                Response::GetByPath(res) => res,
-                _ => Err(ipc_response_mismatch("GetByPath")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetByPath { path: path.to_string() }).await,
         }
     }
 
     pub async fn get_path_by_id(&self, id: Uuid) -> LbResult<String> {
         match &self.inner {
             LbInner::Local(l) => l.get_path_by_id(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetPathById { id })
-                .await?
-            {
-                Response::GetPathById(res) => res,
-                _ => Err(ipc_response_mismatch("GetPathById")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetPathById { id }).await,
         }
     }
 
-    pub async fn list_paths(
-        &self, filter: Option<Filter>,
-    ) -> LbResult<Vec<String>> {
+    pub async fn list_paths(&self, filter: Option<Filter>) -> LbResult<Vec<String>> {
         match &self.inner {
             LbInner::Local(l) => l.list_paths(filter).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ListPaths { filter })
-                .await?
-            {
-                Response::ListPaths(res) => res,
-                _ => Err(ipc_response_mismatch("ListPaths")),
-            },
+            LbInner::Remote(r) => r.call(Request::ListPaths { filter }).await,
         }
     }
 
@@ -979,14 +692,7 @@ impl Lb {
     ) -> LbResult<Vec<(Uuid, String)>> {
         match &self.inner {
             LbInner::Local(l) => l.list_paths_with_ids(filter).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ListPathsWithIds { filter })
-                .await?
-            {
-                Response::ListPathsWithIds(res) => res,
-                _ => Err(ipc_response_mismatch("ListPathsWithIds")),
-            },
+            LbInner::Remote(r) => r.call(Request::ListPathsWithIds { filter }).await,
         }
     }
 
@@ -997,68 +703,37 @@ impl Lb {
     ) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.share_file(id, username, mode).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::ShareFile {
-                    id,
-                    username: username.to_string(),
-                    mode,
-                })
-                .await?
-            {
-                Response::ShareFile(res) => res,
-                _ => Err(ipc_response_mismatch("ShareFile")),
-            },
+            LbInner::Remote(r) => {
+                r.call(Request::ShareFile { id, username: username.to_string(), mode }).await
+            }
         }
     }
 
     pub async fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         match &self.inner {
             LbInner::Local(l) => l.get_pending_shares().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::GetPendingShares).await? {
-                Response::GetPendingShares(res) => res,
-                _ => Err(ipc_response_mismatch("GetPendingShares")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetPendingShares).await,
         }
     }
 
     pub async fn get_pending_share_files(&self) -> LbResult<Vec<File>> {
         match &self.inner {
             LbInner::Local(l) => l.get_pending_share_files().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetPendingShareFiles)
-                .await?
-            {
-                Response::GetPendingShareFiles(res) => res,
-                _ => Err(ipc_response_mismatch("GetPendingShareFiles")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetPendingShareFiles).await,
         }
     }
 
     pub async fn known_usernames(&self) -> LbResult<Vec<String>> {
         match &self.inner {
             LbInner::Local(l) => l.known_usernames().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::KnownUsernames).await? {
-                Response::KnownUsernames(res) => res,
-                _ => Err(ipc_response_mismatch("KnownUsernames")),
-            },
+            LbInner::Remote(r) => r.call(Request::KnownUsernames).await,
         }
     }
 
     pub async fn reject_share(&self, id: &Uuid) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.reject_share(id).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::RejectShare { id: *id })
-                .await?
-            {
-                Response::RejectShare(res) => res,
-                _ => Err(ipc_response_mismatch("RejectShare")),
-            },
+            LbInner::Remote(r) => r.call(Request::RejectShare { id: *id }).await,
         }
     }
 
@@ -1067,11 +742,7 @@ impl Lb {
     pub async fn get_usage(&self) -> LbResult<UsageMetrics> {
         match &self.inner {
             LbInner::Local(l) => l.get_usage().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::GetUsage).await? {
-                Response::GetUsage(res) => res,
-                _ => Err(ipc_response_mismatch("GetUsage")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetUsage).await,
         }
     }
 
@@ -1080,39 +751,21 @@ impl Lb {
     pub async fn sync(&self) -> LbResult<()> {
         match &self.inner {
             LbInner::Local(l) => l.sync().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::Sync).await? {
-                Response::Sync(res) => res,
-                _ => Err(ipc_response_mismatch("Sync")),
-            },
+            LbInner::Remote(r) => r.call(Request::Sync).await,
         }
     }
 
     pub async fn status(&self) -> Status {
         match &self.inner {
             LbInner::Local(l) => l.status().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r.call(Request::Status).await {
-                Ok(Response::Status(s)) => s,
-                _ => {
-                    tracing::warn!("ipc Status call failed; returning default");
-                    Status::default()
-                }
-            },
+            LbInner::Remote(r) => r.call(Request::Status).await.unwrap_or_default(),
         }
     }
 
     pub async fn get_last_synced_human(&self) -> LbResult<String> {
         match &self.inner {
             LbInner::Local(l) => l.get_last_synced_human().await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::GetLastSyncedHuman)
-                .await?
-            {
-                Response::GetLastSyncedHuman(res) => res,
-                _ => Err(ipc_response_mismatch("GetLastSyncedHuman")),
-            },
+            LbInner::Remote(r) => r.call(Request::GetLastSyncedHuman).await,
         }
     }
 
@@ -1134,21 +787,9 @@ impl Lb {
     ) -> LbResult<Vec<SearchResult>> {
         match &self.inner {
             LbInner::Local(l) => l.search(input, cfg).await,
-            #[cfg(unix)]
-            LbInner::Remote(r) => match r
-                .call(Request::Search { input: input.to_string(), cfg })
-                .await?
-            {
-                Response::Search(res) => res,
-                _ => Err(ipc_response_mismatch("Search")),
-            },
+            LbInner::Remote(r) => r.call(Request::Search { input: input.to_string(), cfg }).await,
         }
     }
-}
-
-fn ipc_response_mismatch(expected: &'static str) -> model::errors::LbErr {
-    LbErrKind::Unexpected(format!("ipc: expected Response::{expected}, got different variant"))
-        .into()
 }
 
 #[cfg(unix)]
@@ -1237,10 +878,10 @@ pub use uuid::Uuid;
 use web_time::Instant;
 
 // Surface types referenced by the `Lb` forwarders. Hoisting them here
-// keeps each forwarder body to its essential shape (one Request variant in,
-// one Response variant out) instead of repeating fully-qualified paths.
-#[cfg(unix)]
-use crate::ipc::protocol::{Request, Response};
+// keeps each forwarder body to its essential shape (a typed `Request`
+// variant in, an `LbResult<Out>` out) instead of repeating fully-qualified
+// paths.
+use crate::ipc::protocol::Request;
 use crate::model::account::{Account, Username};
 use crate::model::api::{
     AccountFilter, AccountIdentifier, AccountInfo, AdminFileInfoResponse,

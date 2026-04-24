@@ -35,7 +35,6 @@
 //! is required. Until then, on Windows the second process simply fails to
 //! acquire the db-rs lock as it does today.
 
-#[cfg(unix)]
 pub mod client;
 pub mod frame;
 pub mod protocol;
