@@ -52,7 +52,14 @@ impl Wrap {
 
     /// The index of the current row
     pub fn row(&self) -> usize {
-        (self.offset / self.width) as _
+        // Nudge by a half-pixel before dividing — repeated `offset +=
+        // width` accumulates f32 drift, so an offset that should sit
+        // exactly at `N * width` can land one ULP below, giving row
+        // `N-1` and collapsing `row_remaining` / `row_start` / any
+        // y-from-row math to the wrong visual row. Consumers like
+        // `show_override_section`'s `pos.y = row() * (row_height +
+        // spacing)` then paint two rows of content at the same y.
+        ((self.offset + 0.001) / self.width) as _
     }
 
     /// The start of the current row
@@ -77,7 +84,12 @@ impl Wrap {
 
     /// The height of the wrapped text; always at least [`Self::row_height`]
     pub fn height(&self) -> f32 {
-        let num_rows = ((self.offset / self.width).ceil() as usize).max(1);
+        // Same `+0.5` epsilon as `row()` — accumulated `offset +=
+        // width` drift can push the ratio a half-pixel above a whole
+        // number, making `ceil` over-count by one row. Subtract the
+        // epsilon from `offset` before `ceil` so a clean `N * width`
+        // offset (and any value within ~0.5px of it) returns N rows.
+        let num_rows = (((self.offset - 0.001) / self.width).ceil() as usize).max(1);
         let num_spacings = num_rows.saturating_sub(1);
         num_rows as f32 * self.row_height + num_spacings as f32 * self.row_spacing
     }
@@ -170,7 +182,21 @@ impl MdRender {
         &self, override_text: Option<&str>, range: (Grapheme, Grapheme), font_size: f32,
         wrap: &Wrap, text_format: &Format, glyph_wrap: bool,
     ) -> Vec<SplitRow> {
-        let text = override_text.unwrap_or(&self.buffer[range]);
+        let raw_text = override_text.unwrap_or(&self.buffer[range]);
+        // Replace inline tabs with regular spaces before shaping.
+        // cosmic-text doesn't treat `\t` as a word-break opportunity and
+        // emits it as a single glyph that advances to the font's tab
+        // stop — so `foo\thello` inside a narrow table cell shapes as
+        // one unbreakable run that overflows the cell. Tab and space
+        // are both 1-byte ASCII, so source byte/grapheme positions are
+        // unchanged; only the visual width and wrap behaviour differ.
+        let replaced;
+        let text: &str = if raw_text.contains('\t') {
+            replaced = raw_text.replace('\t', " ");
+            &replaced
+        } else {
+            raw_text
+        };
         let is_override = override_text.is_some();
         let shape = |s: &str, w: f32| {
             if glyph_wrap {
@@ -409,13 +435,14 @@ impl MdRender {
                 && shaped_w > sim.row_remaining() + 0.5
                 && shaped_w <= sim.width + 0.5
             {
-                // Snap to the next row's boundary explicitly. `sim.offset
-                // += sim.row_remaining()` would land us mathematically on
-                // the boundary, but f32 rounding can leave us a sub-pixel
-                // short — and then `sim.row_remaining()` below returns ~0
-                // instead of a full row, collapsing the next advance to
-                // zero and stacking placements at the same x.
-                let next_row_start = ((sim.offset / sim.width).floor() + 1.0) * sim.width;
+                // Snap to the next row's boundary explicitly. `+0.5`
+                // before dividing nudges an offset that landed a
+                // single ULP below `N * width` (repeated `+= width`
+                // drift) up to `N`, so the next row is `N+1`. Without
+                // it, `floor(N - ulp)` = `N-1` → target ends up equal
+                // to the current offset → zero advance → placements
+                // stack at the same x.
+                let next_row_start = (((sim.offset + 0.001) / sim.width).floor() + 1.0) * sim.width;
                 let jump = next_row_start - sim.offset;
                 break_advance += jump;
                 sim.offset = next_row_start;
@@ -433,7 +460,15 @@ impl MdRender {
             // `row_remaining()` to ~0 and stacks subsequent placements
             // at the same x.
             let mut advance = if i < split_len - 1 {
-                let next_row_start = ((sim.offset / sim.width).floor() + 1.0) * sim.width;
+                // Same `+0.5` nudge as in the section-break branch
+                // above — without it, an offset sitting one ULP below
+                // `N * width` collapses the next advance to 0 and all
+                // subsequent non-final placements pile up at the same
+                // x (observed with `foo foo foo foo foo` in a narrow
+                // table cell — after 3 successful row advances, f32
+                // drift put offset just below `3 * width` and the
+                // remaining 7 placements got advance 0).
+                let next_row_start = (((sim.offset + 0.001) / sim.width).floor() + 1.0) * sim.width;
                 let a = next_row_start - sim.offset;
                 sim.offset = next_row_start;
                 a
@@ -555,9 +590,15 @@ impl MdRender {
                 padded,
             });
             if ui.clip_rect().intersects(row.rect) {
+                // Shift the painting `left` so glyphs land within the
+                // galley rect even for RTL runs (cosmic-text right-aligns
+                // an RTL paragraph to the buffer width, leaving glyphs at
+                // x ∈ [W-V, W] instead of [0, V]).
+                let shaped_left = row.buffer.read().unwrap().shaped_left(ppi);
+                let paint_rect = row.rect.translate(Vec2::new(-shaped_left, 0.0));
                 self.text_areas.push(TextBufferArea::new(
                     row.buffer,
-                    row.rect,
+                    paint_rect,
                     color,
                     ui.ctx(),
                     ui.clip_rect(),
@@ -616,18 +657,45 @@ impl MdRender {
 
 pub trait BufferExt {
     fn shaped_size(&self, ppi: f32) -> Vec2;
+    fn shaped_left(&self, ppi: f32) -> f32;
 }
 
 impl BufferExt for glyphon::Buffer {
     fn shaped_size(&self, ppi: f32) -> Vec2 {
+        // Visual extent = max(g.x + g.w) - min(g.x) across glyphs. For LTR
+        // runs glyphs span [0, V] so this equals V; for RTL runs cosmic-text
+        // right-aligns to the buffer width, so glyphs span [W-V, W] and the
+        // raw `last.x + last.w` would track buffer width rather than the
+        // text's own extent.
         let mut result = Vec2::ZERO;
         for run in self.layout_runs() {
             result.y += self.metrics().line_height;
-            if let Some(last_glyph) = run.glyphs.last() {
-                result.x = result.x.max(last_glyph.x + last_glyph.w)
+            let mut min_x = f32::INFINITY;
+            let mut max_x = f32::NEG_INFINITY;
+            for g in run.glyphs.iter() {
+                min_x = min_x.min(g.x);
+                max_x = max_x.max(g.x + g.w);
+            }
+            if min_x.is_finite() {
+                result.x = result.x.max(max_x - min_x);
             }
         }
         result / ppi
+    }
+
+    /// Smallest glyph x in the buffer. Zero for LTR; positive for an
+    /// RTL-paragraph run (cosmic-text right-aligns it to the buffer
+    /// width). Subtract from the painting `left` so glyphs land within
+    /// `[pos.x, pos.x + shaped_size.x]` instead of at their raw
+    /// buffer-relative positions.
+    fn shaped_left(&self, ppi: f32) -> f32 {
+        let mut min_x = f32::INFINITY;
+        for run in self.layout_runs() {
+            for g in run.glyphs.iter() {
+                min_x = min_x.min(g.x);
+            }
+        }
+        if min_x.is_finite() { min_x / ppi } else { 0.0 }
     }
 }
 

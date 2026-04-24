@@ -28,7 +28,16 @@ pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
                 graphemes += 1;
             }
             '\t' => {
-                cols = (cols / 4 + 1) * 4;
+                let new_cols = (cols / 4 + 1) * 4;
+                // Don't consume the tab if its column span straddles
+                // the target — the remaining virtual columns belong to
+                // whatever strip runs next (per CommonMark §2.2). A
+                // tab stripped whole would over-consume and leave less
+                // content indent than the spec requires.
+                if new_cols > target_columns {
+                    break;
+                }
+                cols = new_cols;
                 graphemes += 1;
             }
             _ => break,

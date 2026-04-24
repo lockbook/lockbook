@@ -8,10 +8,30 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _, Ra
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
+use comrak::nodes::NodeValue;
+
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use crate::theme::palette_v2::ThemeExt as _;
+
+/// Language tokens whose bundled syntect grammar panics inside
+/// `highlight_line` (lazy regex compile failures with fancy-regex).
+/// Skip highlighting upfront — there's no per-line panic safety net,
+/// so an unlisted bad grammar will crash the renderer.
+const SKIP_HIGHLIGHT_TOKENS: &[&str] = &[
+    // "JavaScript (Babel)" uses `\g` regex backref that fancy-regex
+    // can't compile. Panics with `ParseError(InvalidEscape("\\g"))`.
+    "js",
+    "javascript",
+];
+
+fn should_skip_highlight(info: &str) -> bool {
+    SKIP_HIGHLIGHT_TOKENS
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(info))
+}
 
 impl<'ast> MdRender {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
@@ -277,30 +297,47 @@ impl<'ast> MdRender {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
+            //
+            // Strip column-aware. If the code block is inside a list
+            // item, combine its 4-col strip with the item's padding —
+            // `item.rs` defers to us for code-block lines so a tab
+            // straddling the item/code-block boundary doesn't get
+            // attributed entirely to one side (which would make tab
+            // and 4-space forms render differently).
+            let target_cols = if synthetic {
+                0
+            } else {
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
+            };
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
+        let mut highlighter = if should_skip_highlight(info) {
+            None
+        } else {
+            syntax_set()
+                .find_syntax_by_token(info)
+                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
+        };
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         let regions = highlighter.as_mut().and_then(|h| {
             self.syntax.get(code_line_text, code_line).or_else(|| {
-                // Some bundled grammars (e.g. JavaScript (Babel)) have
-                // regex constructs fancy-regex can't compile and panic
-                // *inside* `highlight_line` on first use. Catch the
-                // panic and fall back to no highlighting for this line.
                 let line_start = self.offset_to_byte(code_line.start());
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    h.highlight_line(code_line_text, syntax_set()).ok()
-                }));
-                let highlighted = result.ok().flatten()?;
+                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
                 let mut regions = Vec::new();
                 let mut region_start = line_start;
                 for (style, region_str) in highlighted {
@@ -358,27 +395,47 @@ impl<'ast> MdRender {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
+            //
+            // Strip column-aware. If the code block is inside a list
+            // item, combine its 4-col strip with the item's padding —
+            // `item.rs` defers to us for code-block lines so a tab
+            // straddling the item/code-block boundary doesn't get
+            // attributed entirely to one side (which would make tab
+            // and 4-space forms render differently).
+            let target_cols = if synthetic {
+                0
+            } else {
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
+            };
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
+        let mut highlighter = if should_skip_highlight(info) {
+            None
+        } else {
+            syntax_set()
+                .find_syntax_by_token(info)
+                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
+        };
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
         let regions = highlighter.as_mut().and_then(|h| {
             self.syntax.get(code_line_text, code_line).or_else(|| {
-                // See `height_code_block_line` for why we catch panics here.
                 let line_start = self.offset_to_byte(code_line.start());
-                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    h.highlight_line(code_line_text, syntax_set()).ok()
-                }));
-                let highlighted = result.ok().flatten()?;
+                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
                 let mut regions = Vec::new();
                 let mut region_start = line_start;
                 for (style, region_str) in highlighted {
