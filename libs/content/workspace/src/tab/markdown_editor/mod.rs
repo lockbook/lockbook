@@ -67,6 +67,15 @@ pub mod show;
 mod theme;
 mod widget;
 
+#[cfg(test)]
+mod edit_prop_tests;
+#[cfg(test)]
+mod markdown_doc_gen;
+#[cfg(test)]
+mod render_prop_tests;
+#[cfg(test)]
+mod test_harness;
+
 pub use input::Event;
 pub use md_label::MdLabel;
 
@@ -384,6 +393,15 @@ impl MdRender {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
+        Self::test_with_client(md, Default::default())
+    }
+
+    /// Like [`Self::test`] but the caller provides the `HttpClient`. Lets
+    /// hot test paths share a cached client and skip per-call
+    /// `reqwest::blocking::Client` construction (which spins up a tokio
+    /// runtime + worker thread).
+    #[cfg(test)]
+    pub(crate) fn test_with_client(md: &str, client: HttpClient) -> Self {
         let ctx = Context::default();
         Self {
             ctx,
@@ -406,7 +424,7 @@ impl MdRender {
             plaintext: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
-            client: Default::default(),
+            client,
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
             syntax: Default::default(),

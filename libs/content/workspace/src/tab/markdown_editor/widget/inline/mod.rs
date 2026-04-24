@@ -217,6 +217,39 @@ impl<'ast> MdRender {
         tmp_wrap.offset - wrap.offset
     }
 
+    /// Cheap height-only approximation of [`Self::inline_children_span`].
+    /// Counts visible chars in all descendants and returns
+    /// `chars * char_width` (with `char_width = wrap.row_height * 0.5`).
+    /// `wrap.height()` then computes the row count via `ceil(offset /
+    /// width)` — composes correctly with any preceding `span_section`
+    /// calls in the same `wrap`, since their advances are already in
+    /// `wrap.offset`. Returning `rows * wrap.width` instead would round
+    /// up to whole-row boundaries and over-count when chained after a
+    /// non-zero starting offset (e.g. heading reveal: prefix span +
+    /// approx + postfix span all in one wrap).
+    ///
+    /// Skips cosmic-text shaping entirely. ~50-100× cheaper than the
+    /// real path. Heights drift from precise layout — proportional
+    /// fonts, complex scripts, emoji, code spans (Mono) are averaged
+    /// out. Intended for callers that can tolerate approximate row
+    /// counts (e.g. scrollbar sizing); not safe for callers that need
+    /// exact rect positioning.
+    pub fn inline_children_span_approx(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
+        let mut chars = 0usize;
+        for descendant in node.descendants() {
+            match &descendant.data.borrow().value {
+                NodeValue::Text(t) => chars += t.chars().count(),
+                NodeValue::Code(c) => chars += c.literal.chars().count(),
+                NodeValue::HtmlInline(s) => chars += s.chars().count(),
+                NodeValue::Math(m) => chars += m.literal.chars().count(),
+                NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
+                _ => {}
+            }
+        }
+        let char_width = wrap.row_height * 0.5;
+        chars as f32 * char_width
+    }
+
     // inlines are stacked horizontally and wrapped
     pub fn show_inline_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,

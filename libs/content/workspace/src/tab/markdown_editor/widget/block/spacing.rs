@@ -22,15 +22,19 @@ impl<'ast> MdRender {
     /// Returns the source line index range for the pre-spacing of `node`, i.e.
     /// the empty lines between the previous sibling (or parent start) and this
     /// node. Returns `None` when there is no pre-spacing (document root, table
-    /// rows, folded nodes).
+    /// rows). Pure function of AST shape — does NOT consider fold state.
+    /// Callers that gate rendering / height on visibility (i.e.
+    /// `block_pre_spacing_height`, `show_block_pre_spacing`) check
+    /// `hidden_by_fold` themselves before consuming the result.
+    /// `compute_bounds_block_pre_spacing` deliberately does not, so the
+    /// per-node init-time pass through `compute_bounds` doesn't pay
+    /// `hidden_by_fold`'s cost — folded content's spacing still appears
+    /// in `inline_paragraphs` but is not rendered.
     pub fn pre_spacing_lines(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
     ) -> Option<Range<usize>> {
         let parent = node.parent()?;
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
-            return None;
-        }
-        if self.hidden_by_fold(node, siblings) {
             return None;
         }
 
@@ -72,6 +76,9 @@ impl<'ast> MdRender {
     pub fn block_pre_spacing_height(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
     ) -> f32 {
+        if self.hidden_by_fold(node, siblings) {
+            return 0.;
+        }
         let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
             return 0.;
         };
@@ -103,6 +110,9 @@ impl<'ast> MdRender {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         siblings: &[&'ast AstNode<'ast>],
     ) {
+        if self.hidden_by_fold(node, siblings) {
+            return;
+        }
         let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
             return;
         };

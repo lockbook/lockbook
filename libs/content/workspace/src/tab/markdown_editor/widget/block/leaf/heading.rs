@@ -473,34 +473,62 @@ impl<'ast> MdRender {
     pub fn heading_contents(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
     ) -> (Grapheme, Grapheme) {
-        let NodeValue::Heading(heading) = &node.data.borrow().value else {
-            panic!("heading_contents() invoked for non-heading")
+        let key = Self::pack_node_key(node);
+        if let Some(cached) = self.layout_cache.heading_contents.borrow().get(&key) {
+            return *cached;
+        }
+        // Cache miss → fill the cache for every heading sharing this node's
+        // parent in a single O(siblings) sweep with a level stack. Each
+        // heading is pushed when first seen and popped when a subsequent
+        // sibling Heading at level ≤ its own arrives (its contents end at
+        // that sibling's first-line start − 1). Headings still on the stack
+        // at the end of siblings extend to the parent's range end.
+        self.populate_heading_contents(siblings);
+        *self
+            .layout_cache
+            .heading_contents
+            .borrow()
+            .get(&key)
+            .expect("populate_heading_contents must have inserted this heading")
+    }
+
+    fn populate_heading_contents(&self, siblings: &[&'ast AstNode<'ast>]) {
+        let parent = match siblings.first().and_then(|s| s.parent()) {
+            Some(p) => p,
+            None => return,
         };
-
-        let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-        let mut concluded_by_subsequent_heading = false;
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
-                    let last_line = sibling_first_line - 1;
-                    contents.1 = self.bounds.source_lines[last_line].end();
-                    concluded_by_subsequent_heading = true;
-
+        let parent_end = self.node_range(parent).end();
+        let mut stack: Vec<(usize, u8)> = Vec::new();
+        let mut cache = self.layout_cache.heading_contents.borrow_mut();
+        for (i, sibling) in siblings.iter().enumerate() {
+            let NodeValue::Heading(h) = &sibling.data.borrow().value else {
+                continue;
+            };
+            let first_line_idx = self.node_first_line_idx(sibling);
+            let close_to = if first_line_idx == 0 {
+                self.bounds.source_lines[0].start()
+            } else {
+                self.bounds.source_lines[first_line_idx - 1].end()
+            };
+            while let Some(&(open_idx, open_level)) = stack.last() {
+                if open_level >= h.level {
+                    let opened = siblings[open_idx];
+                    let mut contents = self.node_range(opened).end().into_range();
+                    contents.1 = close_to;
+                    cache.insert(Self::pack_node_key(opened), contents);
+                    stack.pop();
+                } else {
                     break;
                 }
             }
+            stack.push((i, h.level));
         }
-        if !concluded_by_subsequent_heading {
-            // absent an equal or more significant subsequent
-            // heading, we contain the remaining content of the
-            // parent
-            contents.1 = self.node_range(node.parent().unwrap()).end();
+        for (open_idx, _) in stack {
+            let opened = siblings[open_idx];
+            let mut contents = self.node_range(opened).end().into_range();
+            contents.1 = parent_end;
+            cache.insert(Self::pack_node_key(opened), contents);
         }
-
-        contents
     }
 
     pub fn fold_button_size_icon_size_space(

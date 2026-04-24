@@ -649,6 +649,12 @@ pub struct LayoutCache {
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
+    /// Per-heading content range. Pure function of AST shape (heading
+    /// levels of siblings + parent's range), so survives reveal/fold
+    /// state changes. First miss for any heading under a parent
+    /// triggers a single O(siblings) sweep that fills the cache for
+    /// every heading sharing that parent.
+    pub heading_contents: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
 
@@ -659,6 +665,7 @@ impl LayoutCache {
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
+        self.heading_contents.borrow_mut().clear();
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
@@ -673,6 +680,7 @@ impl LayoutCache {
         self.hidden_by_fold.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+        self.heading_contents.borrow_mut().clear();
 
         // glyphon_buffers: content-addressed, preserved across text changes
     }
@@ -837,29 +845,53 @@ impl MdRender {
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
             let metrics = glyphon::Metrics::new(font_size, line_height);
-            let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
-            b.set_size(&mut fs.lock().unwrap(), Some(width), None);
-            let emoji_attrs =
-                glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
-            let text = text.to_string();
-            let spans = text.graphemes(true).map(|g| {
-                let is_emoji = g.chars().any(|c| {
-                    matches!(
-                        c as u32,
-                        0xFE0F  // variation selector-16: emoji presentation
-                    | 0x1F000.. // supplementary multilingual plane: core emoji blocks
-                    )
-                });
-                (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+            // Fast path triggers when text is uniform-attrs without
+            // emoji or BiDi separators. Bail to `set_rich_text` if:
+            // - emoji present (cosmic-text's font fallback walks fontdb
+            //   per-glyph looking for one with emoji coverage; we pre-tag
+            //   emoji graphemes with Twemoji attrs so resolution is
+            //   direct — measured ~2× faster than fallback search).
+            // - any Unicode BiDi paragraph separator present. `set_text`
+            //   only splits on `\n`/`\r`; cosmic-text's shaping then
+            //   asserts all paragraphs in a "line" share an RTL level.
+            let has_emoji = text.chars().any(|c| {
+                matches!(
+                    c as u32,
+                    0xFE0F | 0x1F000..
+                )
             });
-            b.set_rich_text(
-                &mut fs.lock().unwrap(),
-                spans,
-                &attrs,
-                glyphon::Shaping::Advanced,
-                None,
-            );
-            b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
+            let has_bidi_sep = text
+                .chars()
+                .any(|c| matches!(c, '\u{85}' | '\u{1c}'..='\u{1e}' | '\u{2029}'));
+            let needs_rich = has_emoji || has_bidi_sep;
+            // Hold the FontSystem lock once across all four setters
+            // (Buffer::new, set_size, set_text/set_rich_text, set_wrap).
+            // Each lock+unlock has real cost — under multi-threaded test
+            // runs threads contend on it, and even single-threaded
+            // there's wasted work.
+            let mut fs_guard = fs.lock().unwrap();
+            let mut b = glyphon::Buffer::new(&mut fs_guard, metrics);
+            b.set_size(&mut fs_guard, Some(width), None);
+            // Set wrap on the empty buffer — relayout-on-empty is free.
+            // Doing it after `set_text` triggers a full relayout of the
+            // shaped content.
+            b.set_wrap(&mut fs_guard, wrap_mode);
+            if needs_rich {
+                let emoji_attrs =
+                    glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
+                let spans = text.graphemes(true).map(|g| {
+                    let is_emoji = g.chars().any(|c| {
+                        matches!(
+                            c as u32,
+                            0xFE0F | 0x1F000..
+                        )
+                    });
+                    (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+                });
+                b.set_rich_text(&mut fs_guard, spans, &attrs, glyphon::Shaping::Advanced, None);
+            } else {
+                b.set_text(&mut fs_guard, text, &attrs, glyphon::Shaping::Advanced);
+            }
             b
         })
     }
