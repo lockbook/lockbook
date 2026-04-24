@@ -129,14 +129,12 @@ impl Lb {
         let init_err = match LocalLb::init(config.clone()).await {
             Ok(local) => {
                 let local = Arc::new(local);
-                #[cfg(unix)]
                 ipc::spawn_host(Arc::clone(&local));
                 return Ok(Lb::Local(local));
             }
             Err(err) => err,
         };
 
-        #[cfg(unix)]
         if let Some(remote) = ipc::connect_guest(&config).await {
             return Ok(Lb::Remote(remote));
         }

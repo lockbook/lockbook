@@ -1,8 +1,14 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::OnceLock;
+use std::sync::atomic::AtomicU64;
 
 use serde::de::DeserializeOwned;
+#[cfg(unix)]
+use tokio::net::unix;
 use tokio::sync::broadcast;
+use tokio::sync::{Mutex, oneshot};
+use tokio::task::JoinHandle;
 
 use crate::ipc::protocol::Request;
 use crate::model::account::Account;
@@ -13,36 +19,29 @@ use crate::service::events::Event;
 #[cfg(unix)]
 use {
     crate::ipc::protocol::Frame,
-    std::collections::HashMap,
     std::io,
     std::path::Path,
-    std::sync::atomic::{AtomicU64, Ordering},
+    std::sync::atomic::Ordering,
     tokio::net::UnixStream,
     tokio::net::unix::OwnedWriteHalf,
-    tokio::sync::{Mutex, oneshot},
-    tokio::task::JoinHandle,
 };
 
-#[cfg(unix)]
 type InFlight = Arc<Mutex<HashMap<u64, oneshot::Sender<Vec<u8>>>>>;
 
 const EVENT_CHANNEL_CAPACITY: usize = 10_000;
 
+#[cfg_attr(not(unix), allow(dead_code))]
 pub struct RemoteLb {
     config: Config,
     account: OnceLock<Account>,
     events: Arc<OnceLock<broadcast::Sender<Event>>>,
     #[cfg(unix)]
     writer: Mutex<OwnedWriteHalf>,
-    #[cfg(unix)]
     seq: AtomicU64,
-    #[cfg(unix)]
     in_flight: InFlight,
-    #[cfg(unix)]
     reader_task: JoinHandle<()>,
 }
 
-#[cfg(unix)]
 impl Drop for RemoteLb {
     fn drop(&mut self) {
         self.reader_task.abort();
@@ -53,22 +52,13 @@ impl RemoteLb {
     #[cfg(unix)]
     pub async fn connect(socket: &Path, config: Config) -> io::Result<Arc<Self>> {
         let stream = UnixStream::connect(socket).await?;
-        let me = Self::from_stream(stream, config)?;
-        if let Ok(account) = me.call::<Account>(Request::GetAccount).await {
-            me.cache_account(account);
-        }
-        Ok(me)
-    }
-
-    #[cfg(unix)]
-    fn from_stream(stream: UnixStream, config: Config) -> io::Result<Arc<Self>> {
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
         let events: Arc<OnceLock<broadcast::Sender<Event>>> = Arc::new(OnceLock::new());
         let reader_task =
             tokio::spawn(reader_loop(read_half, Arc::clone(&in_flight), Arc::clone(&events)));
 
-        Ok(Arc::new(Self {
+        let me = Arc::new(Self {
             config,
             account: OnceLock::new(),
             events,
@@ -76,7 +66,13 @@ impl RemoteLb {
             seq: AtomicU64::new(0),
             in_flight,
             reader_task,
-        }))
+        });
+
+        if let Ok(account) = me.call::<Account>(Request::GetAccount).await {
+            me.cache_account(account);
+        }
+
+        Ok(me)
     }
 
     pub fn config(&self) -> &Config {
@@ -105,45 +101,44 @@ impl RemoteLb {
         tx.subscribe()
     }
 
-    #[cfg(unix)]
     pub async fn call<Out>(&self, req: Request) -> LbResult<Out>
     where
         Out: DeserializeOwned,
     {
-        let seq = self.seq.fetch_add(1, Ordering::Relaxed);
-        let (tx, rx) = oneshot::channel();
-        self.in_flight.lock().await.insert(seq, tx);
-
-        let frame = Frame::Request { seq, body: req };
+        #[cfg(not(unix))]
         {
-            let mut writer = self.writer.lock().await;
-            frame
-                .write(&mut *writer)
-                .await
-                .map_err(|e| LbErrKind::Unexpected(format!("ipc: write request: {e}")))?;
+            let _ = req;
+            unreachable!("RemoteLb cannot be constructed on non-unix targets")
         }
+        #[cfg(unix)]
+        {
+            let seq = self.seq.fetch_add(1, Ordering::Relaxed);
+            let (tx, rx) = oneshot::channel();
+            self.in_flight.lock().await.insert(seq, tx);
 
-        let output_bytes = rx
-            .await
-            .map_err(|_| LbErrKind::Unexpected("ipc: host disconnected before response".into()))?;
+            let frame = Frame::Request { seq, body: req };
+            {
+                let mut writer = self.writer.lock().await;
+                frame
+                    .write(&mut *writer)
+                    .await
+                    .map_err(|e| LbErrKind::Unexpected(format!("ipc: write request: {e}")))?;
+            }
 
-        let result: LbResult<Out> = bincode::deserialize(&output_bytes)
-            .map_err(|e| LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")))?;
-        result
-    }
+            let output_bytes = rx.await.map_err(|_| {
+                LbErrKind::Unexpected("ipc: host disconnected before response".into())
+            })?;
 
-    #[cfg(not(unix))]
-    pub async fn call<Out>(&self, _req: Request) -> LbResult<Out>
-    where
-        Out: DeserializeOwned,
-    {
-        Err(LbErrKind::Unexpected("ipc not supported on this platform".into()).into())
+            let result: LbResult<Out> = bincode::deserialize(&output_bytes)
+                .map_err(|e| LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")))?;
+            result
+        }
     }
 }
 
 #[cfg(unix)]
 async fn reader_loop(
-    mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InFlight,
+    mut reader: unix::OwnedReadHalf, in_flight: InFlight,
     events: Arc<OnceLock<broadcast::Sender<Event>>>,
 ) {
     loop {
