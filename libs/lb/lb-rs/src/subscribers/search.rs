@@ -149,6 +149,16 @@ impl LocalLb {
         matches
     }
 
+    /// Make freshly-committed index writes visible to readers. Tantivy's
+    /// `IndexReader::reload` is sync; the `LbResult` wrapping is for IPC
+    /// uniformity.
+    pub fn reload_search_index(&self) -> LbResult<()> {
+        self.search
+            .tantivy_reader
+            .reload()
+            .map_err(|e| crate::LbErrKind::Unexpected(format!("tantivy reload: {e}")).into())
+    }
+
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn build_index(&self) -> LbResult<()> {
         // if we haven't signed in yet, we'll leave our index entry and our event subscriber will

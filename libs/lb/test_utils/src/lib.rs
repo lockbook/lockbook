@@ -1,6 +1,6 @@
 pub mod assert;
 
-use lb_rs::Lb;
+use lb_rs::{Lb, LocalLb};
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
 use lb_rs::model::crypto::EncryptedDocument;
@@ -11,6 +11,17 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
+
+/// Test-only escape hatch: borrow the underlying [`LocalLb`] from an
+/// [`Lb`]. Panics if `lb` is a Remote (guest) wrapper — tests run
+/// in-process and should never hit that path. Production code can't reach
+/// for this because the function lives in `test_utils`, not `lb-rs`.
+pub fn local(lb: &Lb) -> &LocalLb {
+    match lb {
+        Lb::Local(l) => l,
+        Lb::Remote(_) => panic!("test_utils::local() called on a Remote (guest) wrapper"),
+    }
+}
 
 pub fn test_config() -> Config {
     Config {
@@ -97,9 +108,10 @@ fn err_to_string<E: Debug>(e: E) -> String {
 
 pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
     if server {
-        lb.server_dirty_ids().await.unwrap()
+        local(&lb).server_dirty_ids().await.unwrap()
     } else {
-        lb.db
+        local(&lb)
+            .db
             .read()
             .await
             .local_metadata
@@ -111,8 +123,8 @@ pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
-    let mut left_tx = left.begin_tx().await;
-    let mut right_tx = right.begin_tx().await;
+    let mut left_tx = local(&left).begin_tx().await;
+    let mut right_tx = local(&right).begin_tx().await;
 
     right_tx.db().account.get() == left_tx.db().account.get()
         && right_tx.db().root.get() == left_tx.db().root.get()
@@ -121,8 +133,8 @@ pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
 }
 
 pub async fn assert_dbs_equal(left: &Lb, right: &Lb) {
-    let mut left_tx = left.begin_tx().await;
-    let mut right_tx = right.begin_tx().await;
+    let mut left_tx = local(&left).begin_tx().await;
+    let mut right_tx = local(&right).begin_tx().await;
 
     assert_eq!(left_tx.db().account.get(), right_tx.db().account.get());
     assert_eq!(left_tx.db().root.get(), right_tx.db().root.get());

@@ -12,7 +12,7 @@ async fn get_document() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").await.unwrap().id;
     core.sync().await.unwrap();
-    let old = core
+    let old = local(&core)
         .begin_tx()
         .await
         .db()
@@ -27,7 +27,8 @@ async fn get_document() {
         .set_hmac_and_size(Some([0; 32]), Some(1));
 
     // update document content
-    core.client
+    local(&core)
+        .client
         .request(
             account,
             ChangeDocRequestV2 {
@@ -43,7 +44,7 @@ async fn get_document() {
         .unwrap();
 
     // get document
-    let result = core
+    let result = local(&core)
         .client
         .request(account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
         .await
@@ -60,7 +61,7 @@ async fn get_document_not_found() {
     let account = core.get_account().unwrap();
     let id = core.create_at_path("test.md").await.unwrap().id;
     core.sync().await.unwrap();
-    let mut old = core
+    let mut old = local(&core)
         .begin_tx()
         .await
         .db()
@@ -76,7 +77,7 @@ async fn get_document_not_found() {
         .set_hmac_and_size(Some([0; 32]), Some(0));
 
     // get document we never created
-    let result = core
+    let result = local(&core)
         .client
         .request(account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
         .await;

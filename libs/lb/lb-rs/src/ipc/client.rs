@@ -119,11 +119,8 @@ impl RemoteLb {
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
         let events: Arc<OnceLock<broadcast::Sender<Event>>> = Arc::new(OnceLock::new());
-        let reader_task = tokio::spawn(reader_loop(
-            read_half,
-            Arc::clone(&in_flight),
-            Arc::clone(&events),
-        ));
+        let reader_task =
+            tokio::spawn(reader_loop(read_half, Arc::clone(&in_flight), Arc::clone(&events)));
 
         Ok(Self {
             inner: Arc::new(Inner {
@@ -220,9 +217,9 @@ impl RemoteLb {
                 .map_err(|e| LbErrKind::Unexpected(format!("ipc: flush request: {e}")))?;
         }
 
-        let output_bytes = rx.await.map_err(|_| {
-            LbErrKind::Unexpected("ipc: host disconnected before response".into())
-        })?;
+        let output_bytes = rx
+            .await
+            .map_err(|_| LbErrKind::Unexpected("ipc: host disconnected before response".into()))?;
 
         let result: LbResult<Out> = bincode::deserialize(&output_bytes)
             .map_err(|e| LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")))?;
@@ -243,8 +240,7 @@ impl RemoteLb {
 
 #[cfg(unix)]
 async fn reader_loop(
-    mut reader: tokio::net::unix::OwnedReadHalf,
-    in_flight: InFlight,
+    mut reader: tokio::net::unix::OwnedReadHalf, in_flight: InFlight,
     events: Arc<OnceLock<broadcast::Sender<Event>>>,
 ) {
     loop {

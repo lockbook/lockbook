@@ -1,5 +1,6 @@
 use lb_rs::model::api::{GetSubscriptionInfoRequest, UpgradeAccountStripeRequest};
 use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
+use test_utils::local;
 
 #[tokio::test]
 #[ignore]
@@ -8,7 +9,8 @@ async fn get_subscription_info() {
     let account = core.get_account().unwrap();
 
     assert!(
-        core.client
+        local(&core)
+            .client
             .request(account, GetSubscriptionInfoRequest {})
             .await
             .unwrap()
@@ -16,7 +18,8 @@ async fn get_subscription_info() {
             .is_none()
     );
 
-    core.client
+    local(&core)
+        .client
         .request(
             account,
             UpgradeAccountStripeRequest {
@@ -32,7 +35,8 @@ async fn get_subscription_info() {
         .unwrap();
 
     assert!(
-        core.client
+        local(&core)
+            .client
             .request(account, GetSubscriptionInfoRequest {})
             .await
             .unwrap()

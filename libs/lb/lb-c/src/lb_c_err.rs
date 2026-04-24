@@ -80,11 +80,8 @@ impl From<LbErr> for LbFfiErr {
         let msg = value.to_string();
         let msg = CString::new(msg).unwrap().into_raw();
 
-        let trace = if value.backtrace.is_empty() {
-            ptr::null_mut()
-        } else {
-            cstring(value.backtrace)
-        };
+        let trace =
+            if value.backtrace.is_empty() { ptr::null_mut() } else { cstring(value.backtrace) };
 
         Self { code, msg, trace }
     }

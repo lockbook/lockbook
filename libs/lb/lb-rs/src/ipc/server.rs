@@ -93,8 +93,8 @@ async fn send_response(
     writer: &Arc<Mutex<OwnedWriteHalf>>, seq: u64, output: Vec<u8>,
 ) -> io::Result<()> {
     let response = Frame::Response { seq, output };
-    let bytes = bincode::serialize(&response)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+    let bytes =
+        bincode::serialize(&response).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
     let mut w = writer.lock().await;
     write_frame(&mut *w, &bytes).await?;
     w.flush().await
@@ -103,9 +103,7 @@ async fn send_response(
 /// Drain `lb.subscribe()` and push each event over `writer` until the
 /// broadcast closes or the write fails. Sends a final
 /// [`Frame::EventEnd`] as a courtesy when the loop exits cleanly.
-async fn forward_events(
-    lb: Arc<LocalLb>, writer: Arc<Mutex<OwnedWriteHalf>>, stream_seq: u64,
-) {
+async fn forward_events(lb: Arc<LocalLb>, writer: Arc<Mutex<OwnedWriteHalf>>, stream_seq: u64) {
     let mut rx = lb.subscribe();
     loop {
         match rx.recv().await {
@@ -204,9 +202,9 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::UpgradeAccountStripe { account_tier } => {
             enc(lb.upgrade_account_stripe(account_tier).await)
         }
-        Request::UpgradeAccountGooglePlay { purchase_token, account_id } => {
-            enc(lb.upgrade_account_google_play(&purchase_token, &account_id).await)
-        }
+        Request::UpgradeAccountGooglePlay { purchase_token, account_id } => enc(lb
+            .upgrade_account_google_play(&purchase_token, &account_id)
+            .await),
         Request::UpgradeAccountAppStore { original_transaction_id, app_account_token } => enc(lb
             .upgrade_account_app_store(original_transaction_id, app_account_token)
             .await),
@@ -266,9 +264,7 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::ListPathsWithIds { filter } => enc(lb.list_paths_with_ids(filter).await),
 
         // -- share --------------------------------------------------------
-        Request::ShareFile { id, username, mode } => {
-            enc(lb.share_file(id, &username, mode).await)
-        }
+        Request::ShareFile { id, username, mode } => enc(lb.share_file(id, &username, mode).await),
         Request::GetPendingShares => enc(lb.get_pending_shares().await),
         Request::GetPendingShareFiles => enc(lb.get_pending_share_files().await),
         Request::KnownUsernames => enc(lb.known_usernames().await),
@@ -287,5 +283,9 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::Subscribe => unreachable!("handle_conn special-cases Subscribe"),
         #[cfg(not(target_family = "wasm"))]
         Request::Search { input, cfg } => enc(lb.search(&input, cfg).await),
+        #[cfg(not(target_family = "wasm"))]
+        Request::BuildIndex => enc(lb.build_index().await),
+        #[cfg(not(target_family = "wasm"))]
+        Request::ReloadSearchIndex => enc(lb.reload_search_index()),
     }
 }
