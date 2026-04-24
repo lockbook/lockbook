@@ -162,11 +162,14 @@ impl LocalLb {
         Ok(())
     }
 
-    pub async fn get_last_synced_human(&self) -> LbResult<String> {
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
         let tx = self.ro_tx().await;
         let db = tx.db();
-        let last_synced = db.last_synced.get().copied().unwrap_or(0);
+        Ok(db.last_synced.get().copied().unwrap_or(0))
+    }
 
+    pub async fn get_last_synced_human(&self) -> LbResult<String> {
+        let last_synced = self.get_last_synced().await?;
         Ok(self.get_timestamp_human_string(last_synced))
     }
 

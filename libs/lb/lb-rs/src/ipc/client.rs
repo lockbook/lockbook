@@ -29,6 +29,7 @@ use serde::de::DeserializeOwned;
 use tokio::sync::broadcast;
 
 use crate::ipc::protocol::Request;
+use crate::model::account::Account;
 use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::service::events::Event;
@@ -66,6 +67,11 @@ struct Inner {
     /// Held for callers that still need access to the original `Config`
     /// (e.g., `writeable_path` for log paths). The host owns the actual db.
     config: Config,
+    /// Account cache. Seeded at connect time and refreshed when a
+    /// successful `create_account` / `import_account*` call returns from
+    /// the host. Lets `get_account()` return `&Account` synchronously
+    /// without an IPC round-trip on the hot path.
+    account: OnceLock<Account>,
     /// Lazy local broadcast. Initialized on first `subscribe()` call along
     /// with the host-side `Request::Subscribe`. Guests that never
     /// subscribe pay nothing — no channel buffer, no wire traffic.
@@ -97,7 +103,15 @@ impl RemoteLb {
     #[cfg(unix)]
     pub async fn connect(socket: &Path, config: Config) -> io::Result<Self> {
         let stream = crate::ipc::transport::connect(socket).await?;
-        Self::from_stream(stream, config)
+        let me = Self::from_stream(stream, config)?;
+        // Best-effort: seed the account cache so `get_account()` works
+        // synchronously. A fresh install with no signed-in account returns
+        // `AccountNonexistent` here — fine, the cache stays empty until
+        // `create_account` / `import_account*` populates it.
+        if let Ok(account) = me.call::<Account>(Request::GetAccount).await {
+            me.cache_account(account);
+        }
+        Ok(me)
     }
 
     #[cfg(unix)]
@@ -114,6 +128,7 @@ impl RemoteLb {
         Ok(Self {
             inner: Arc::new(Inner {
                 config,
+                account: OnceLock::new(),
                 events,
                 unix: UnixInner {
                     writer: Mutex::new(write_half),
@@ -128,6 +143,24 @@ impl RemoteLb {
     /// Configuration the guest was constructed with.
     pub fn config(&self) -> &Config {
         &self.inner.config
+    }
+
+    /// Return the cached `Account` if the guest has one (set at connect
+    /// time or after a successful create/import call). Returns
+    /// `LbErrKind::AccountNonexistent` otherwise — same surface as
+    /// `LocalLb::get_account`.
+    pub fn get_account(&self) -> LbResult<&Account> {
+        self.inner
+            .account
+            .get()
+            .ok_or_else(|| LbErrKind::AccountNonexistent.into())
+    }
+
+    /// Stash an `Account` in the local cache so subsequent `get_account()`
+    /// calls return it. Idempotent — second `set` is a no-op since the
+    /// account is invariant for a session.
+    pub fn cache_account(&self, account: Account) {
+        let _ = self.inner.account.set(account);
     }
 
     /// Subscribe to the relayed event stream.

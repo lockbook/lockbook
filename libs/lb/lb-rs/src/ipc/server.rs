@@ -178,6 +178,7 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
             enc(lb.import_account_phrase(refs, &api_url).await)
         }
         Request::DeleteAccount => enc(lb.delete_account().await),
+        Request::GetAccount => enc(lb.get_account().cloned()),
 
         // -- activity -----------------------------------------------------
         Request::SuggestedDocs { settings } => enc(lb.suggested_docs(settings).await),
@@ -279,6 +280,7 @@ async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         // -- subscribers --------------------------------------------------
         Request::Sync => enc(lb.sync().await),
         Request::Status => enc_plain(lb.status().await),
+        Request::GetLastSynced => enc(lb.get_last_synced().await),
         Request::GetLastSyncedHuman => enc(lb.get_last_synced_human().await),
         // Subscribe is handled in `handle_conn` (it needs the connection's
         // writer to push `Frame::Event` frames asynchronously).

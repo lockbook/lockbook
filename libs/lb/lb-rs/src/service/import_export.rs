@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::ValidationFailure;
 use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::File;
@@ -17,7 +17,13 @@ pub enum ImportStatus {
     FinishedItem(File),
 }
 
-impl LocalLb {
+// These methods compose pure public Lb API (`get_file_by_id`,
+// `create_file`, `write_document`, `read_document`, `get_children`,
+// `get_path_by_id`) — they don't reach into LocalLb internals. Living on
+// `Lb` directly means a Guest's recursive import fans out via IPC at the
+// leaf-call level, with progress callbacks staying on the Guest side
+// (no need to ferry closures across the wire).
+impl Lb {
     #[instrument(level = "debug", skip(self, update_status), err(Debug))]
     pub async fn import_files<F: Fn(ImportStatus)>(
         &self, sources: &[PathBuf], dest: Uuid, update_status: &F,

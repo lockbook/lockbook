@@ -153,34 +153,6 @@ impl LocalLb {
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
-    pub fn export_account_private_key(&self) -> LbResult<String> {
-        self.export_account_private_key_v2()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn export_account_private_key_v1(&self) -> LbResult<String> {
-        let account = self.get_account()?;
-        let encoded: Vec<u8> = bincode::serialize(account).map_err(core_err_unexpected)?;
-        Ok(base64::encode(encoded))
-    }
-
-    pub(crate) fn export_account_private_key_v2(&self) -> LbResult<String> {
-        let account = self.get_account()?;
-        Ok(base64::encode(account.private_key.serialize()))
-    }
-
-    pub fn export_account_phrase(&self) -> LbResult<String> {
-        let account = self.get_account()?;
-        Ok(account.get_phrase()?.join(" "))
-    }
-
-    pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
-        let acct_secret = self.export_account_private_key_v2()?;
-        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
-            .map_err(|err| core_err_unexpected(err).into())
-    }
-
-    #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn delete_account(&self) -> LbResult<()> {
         let account = self.get_account()?;
 
@@ -418,4 +390,26 @@ ___
 > ---
 > ___
 "#;
+}
+
+// These are pure formatting on top of the cached `Account` — no LocalLb
+// internals required. Living on `Lb` directly means a Guest serves them
+// from its account cache without an IPC round-trip.
+impl crate::Lb {
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub fn export_account_private_key(&self) -> LbResult<String> {
+        let account = self.get_account()?;
+        Ok(base64::encode(account.private_key.serialize()))
+    }
+
+    pub fn export_account_phrase(&self) -> LbResult<String> {
+        let account = self.get_account()?;
+        Ok(account.get_phrase()?.join(" "))
+    }
+
+    pub fn export_account_qr(&self) -> LbResult<Vec<u8>> {
+        let acct_secret = self.export_account_private_key()?;
+        qrcode_generator::to_png_to_vec(acct_secret, QrCodeEcc::Low, 1024)
+            .map_err(|err| core_err_unexpected(err).into())
+    }
 }

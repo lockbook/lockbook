@@ -94,7 +94,7 @@ impl Lb {
     }
 
     pub fn get_config(&self) -> Config {
-        self.lb.config.clone()
+        self.lb.config().clone()
     }
 
     pub fn create_file(&self, name: &str, parent: &Uuid, file_type: FileType) -> LbResult<File> {
@@ -198,11 +198,7 @@ impl Lb {
     }
 
     pub fn get_last_synced(&self) -> LbResult<i64> {
-        self.block_on(async {
-            let tx = self.lb.ro_tx().await;
-            let db = tx.db();
-            Ok(db.last_synced.get().copied().unwrap_or(0))
-        })
+        self.block_on(self.lb.get_last_synced())
     }
 
     pub fn get_last_synced_human_string(&self) -> LbResult<String> {

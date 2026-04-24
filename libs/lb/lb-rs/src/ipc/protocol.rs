@@ -74,9 +74,13 @@ pub enum Request {
     ImportAccountPrivateKeyV1 { account: Account },
     ImportAccountPhrase { phrase: [String; 24], api_url: String },
     DeleteAccount,
-    // export_account_{private_key,phrase,qr} are sync, return values, and
-    // need the Account locally — deferred until the Guest can cache the
-    // account at connect time.
+    /// Fetch the host's current Account, if any. The guest calls this once
+    /// at connect time to seed its sync `get_account()` cache, and again
+    /// implicitly after each successful create/import on the wrapper.
+    GetAccount,
+    // export_account_{private_key,phrase,qr} are still served by the
+    // Deref shim — they're pure compute on the cached Account and could
+    // move onto the Lb wrapper directly in a future pass.
 
     // activity
     SuggestedDocs { settings: RankingWeights },
@@ -153,6 +157,7 @@ pub enum Request {
     // subscribers
     Sync,
     Status,
+    GetLastSynced,
     GetLastSyncedHuman,
     /// Open a long-lived event stream on this connection. The host acks
     /// with `Response { seq, output: Ok(()) }` and starts pushing

@@ -239,12 +239,15 @@ impl Lb {
         match &self.inner {
             LbInner::Local(l) => l.create_account(username, api_url, welcome_doc).await,
             LbInner::Remote(r) => {
-                r.call(Request::CreateAccount {
-                    username: username.to_string(),
-                    api_url: api_url.to_string(),
-                    welcome_doc,
-                })
-                .await
+                let account = r
+                    .call::<Account>(Request::CreateAccount {
+                        username: username.to_string(),
+                        api_url: api_url.to_string(),
+                        welcome_doc,
+                    })
+                    .await?;
+                r.cache_account(account.clone());
+                Ok(account)
             }
         }
     }
@@ -255,11 +258,14 @@ impl Lb {
         match &self.inner {
             LbInner::Local(l) => l.import_account(key, api_url).await,
             LbInner::Remote(r) => {
-                r.call(Request::ImportAccount {
-                    key: key.to_string(),
-                    api_url: api_url.map(|s| s.to_string()),
-                })
-                .await
+                let account = r
+                    .call::<Account>(Request::ImportAccount {
+                        key: key.to_string(),
+                        api_url: api_url.map(|s| s.to_string()),
+                    })
+                    .await?;
+                r.cache_account(account.clone());
+                Ok(account)
             }
         }
     }
@@ -267,7 +273,13 @@ impl Lb {
     pub async fn import_account_private_key_v1(&self, account: Account) -> LbResult<Account> {
         match &self.inner {
             LbInner::Local(l) => l.import_account_private_key_v1(account).await,
-            LbInner::Remote(r) => r.call(Request::ImportAccountPrivateKeyV1 { account }).await,
+            LbInner::Remote(r) => {
+                let account = r
+                    .call::<Account>(Request::ImportAccountPrivateKeyV1 { account })
+                    .await?;
+                r.cache_account(account.clone());
+                Ok(account)
+            }
         }
     }
 
@@ -278,8 +290,14 @@ impl Lb {
             LbInner::Local(l) => l.import_account_phrase(phrase, api_url).await,
             LbInner::Remote(r) => {
                 let phrase: [String; 24] = std::array::from_fn(|i| phrase[i].to_string());
-                r.call(Request::ImportAccountPhrase { phrase, api_url: api_url.to_string() })
-                    .await
+                let account = r
+                    .call::<Account>(Request::ImportAccountPhrase {
+                        phrase,
+                        api_url: api_url.to_string(),
+                    })
+                    .await?;
+                r.cache_account(account.clone());
+                Ok(account)
             }
         }
     }
@@ -288,6 +306,19 @@ impl Lb {
         match &self.inner {
             LbInner::Local(l) => l.delete_account().await,
             LbInner::Remote(r) => r.call(Request::DeleteAccount).await,
+        }
+    }
+
+    /// Return the active account.
+    ///
+    /// Local: reads from the in-memory keychain.
+    /// Remote: reads from the guest's account cache, populated at connect
+    /// time and refreshed by successful create/import calls. No IPC on
+    /// the hot path.
+    pub fn get_account(&self) -> LbResult<&Account> {
+        match &self.inner {
+            LbInner::Local(l) => l.get_account(),
+            LbInner::Remote(r) => r.get_account(),
         }
     }
 
@@ -760,10 +791,26 @@ impl Lb {
         }
     }
 
+    pub async fn get_last_synced(&self) -> LbResult<i64> {
+        match &self.inner {
+            LbInner::Local(l) => l.get_last_synced().await,
+            LbInner::Remote(r) => r.call(Request::GetLastSynced).await,
+        }
+    }
+
     pub async fn get_last_synced_human(&self) -> LbResult<String> {
         match &self.inner {
             LbInner::Local(l) => l.get_last_synced_human().await,
             LbInner::Remote(r) => r.call(Request::GetLastSyncedHuman).await,
+        }
+    }
+
+    /// Configuration the wrapper was constructed with (or, on a Guest,
+    /// the config that connect was given). The host owns the actual db.
+    pub fn config(&self) -> &Config {
+        match &self.inner {
+            LbInner::Local(l) => &l.config,
+            LbInner::Remote(r) => r.config(),
         }
     }
 
@@ -825,12 +872,12 @@ async fn connect_guest_with_retry(
     }
 }
 
-// `Deref<Target = LocalLb>` is retained as a shim for the methods that
-// don't yet have explicit forwarders — `get_account` and the
-// `export_account_*` family. These are sync, return values, and need a
-// Guest-side account cache to work without IPC. In Local mode the shim is
-// transparent; in Remote mode it panics with a pointer to the deferred
-// work.
+// Deref to `LocalLb` is kept as an escape hatch for callers that need the
+// raw in-process state — `db`, `keychain`, `ro_tx`/`begin_tx`,
+// `server_dirty_ids`, search internals — not part of the public `Lb`
+// surface. In practice that's `test_utils` and a couple of CLI inspection
+// commands. Production callers should never need it; in Remote (guest)
+// mode it panics on purpose.
 impl std::ops::Deref for Lb {
     type Target = LocalLb;
 
@@ -839,10 +886,10 @@ impl std::ops::Deref for Lb {
             LbInner::Local(l) => l,
             #[cfg(unix)]
             LbInner::Remote(_) => panic!(
-                "Lb::deref invoked in Remote (guest) mode; the called method is \
-                 one of the deferred sync methods (get_account / \
-                 export_account_*). These need a Guest-side account cache to \
-                 land before they work over IPC."
+                "Lb::deref invoked in Remote (guest) mode; the called method or \
+                 field access only makes sense for the in-process LocalLb. If \
+                 you hit this from production code, add an explicit forwarder on \
+                 Lb instead of reaching through Deref."
             ),
         }
     }
@@ -854,9 +901,8 @@ impl std::ops::DerefMut for Lb {
             LbInner::Local(l) => l,
             #[cfg(unix)]
             LbInner::Remote(_) => panic!(
-                "Lb::deref_mut invoked in Remote (guest) mode; the called method \
-                 is one of the deferred sync methods. See the Deref impl for \
-                 details."
+                "Lb::deref_mut invoked in Remote (guest) mode; see the Deref \
+                 impl for context."
             ),
         }
     }
