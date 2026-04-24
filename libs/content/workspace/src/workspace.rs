@@ -370,6 +370,16 @@ impl Workspace {
 
         self.current_tab = Some(dest);
         self.current_tab_changed = true;
+
+        // Inform platform wrappers (Android/iOS) that the active destination changed so they can
+        // update toolbars / wrappers. Desktop clients read directly from the workspace, but
+        // mobile clients mirror this via the serialized response.
+        self.out.selected_file = Some(id);
+        self.out.tabs_changed = true;
+        if let Some(tab) = self.current_tab() {
+            self.ctx
+                .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
+        }
     }
 
     pub fn back(&mut self) {
@@ -536,6 +546,21 @@ impl Workspace {
                 match clip {
                     crate::tab::ClipContent::Image(data) => {
                         let file = crate::tab::import_image(&self.core, file_id, &data);
+
+                        // Update the in-memory file cache immediately so link resolution /
+                        // inline image rendering can resolve the new file in the same frame.
+                        {
+                            let mut guard = self.files.write().unwrap();
+                            // is imports folder in the file cache?
+                            if guard.get_by_id(file.parent).is_none() {
+                                if let Ok(folder) = self.core.get_file_by_id(file.parent) {
+                                    guard.files.push(folder);
+                                }
+                            }
+                            if guard.get_by_id(file.id).is_none() {
+                                guard.files.push(file.clone());
+                            }
+                        }
 
                         let rel_path = {
                             let guard = self.files.read().unwrap();

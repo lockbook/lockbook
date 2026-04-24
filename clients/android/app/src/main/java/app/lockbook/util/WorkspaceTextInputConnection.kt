@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
 
-private const val MAX_PASTE_SIZE = 25 * 1024 * 1024
+const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
 
 @SuppressLint("SoonBlockedPrivateApi")
 class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
@@ -153,8 +153,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             description.hasMimeType("image/gif")
     }
 
-    private fun readAllBytesCapped(uri: Uri?): ByteArray? {
-        if (uri == null) return null
+    fun readAllBytesCapped(uri: Uri, maxBytes: Int = MAX_CONTENT_SIZE): ByteArray? {
         val resolver = App.applicationContext().contentResolver
 
         // Best-effort size detection: if we know the size, we can allocate once and avoid
@@ -184,7 +183,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             }
         }
 
-        if (expectedSize != null && expectedSize > MAX_PASTE_SIZE) throw Exception("Copied image too large")
+        if (expectedSize != null && expectedSize > maxBytes) throw Exception("Copied image too large")
 
         resolver.openInputStream(uri)?.use { input ->
             if (expectedSize != null && expectedSize != 0) {
@@ -205,13 +204,18 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                 val read = input.read(buffer)
                 if (read <= 0) break
                 total += read
-                if (total > MAX_PASTE_SIZE) return null
+                if (total > maxBytes) return null
                 out.write(buffer, 0, read)
             }
             return out.toByteArray()
         }
 
         return null
+    }
+
+    private fun readAllBytesCapped(uri: Uri?): ByteArray? {
+        if (uri == null) return null
+        return readAllBytesCapped(uri, MAX_CONTENT_SIZE)
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {

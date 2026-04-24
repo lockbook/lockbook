@@ -18,6 +18,10 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import android.widget.Toast
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -26,9 +30,11 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
+import app.lockbook.model.AlertModel
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
 import app.lockbook.model.StateViewModel
@@ -38,13 +44,19 @@ import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.HorizontalTabItemHolder
+import app.lockbook.util.MAX_CONTENT_SIZE
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
 import app.lockbook.util.getIconResource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
+import net.lockbook.LbError
+import java.lang.ref.WeakReference
 import kotlin.math.abs
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
@@ -130,6 +142,10 @@ class WorkspaceFragment : Fragment() {
         model.currentTab.observe(viewLifecycleOwner) { tab ->
             updateCurrentTab(workspaceWrapper, tab)
             binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
+        }
+
+        model.refreshFilesRequested.observe(viewLifecycleOwner) {
+            filesListModel.reloadFiles()
         }
 
         model.bottomInset.observe(viewLifecycleOwner) {
@@ -341,14 +357,19 @@ class WorkspaceFragment : Fragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
-        val tabFile = filesListModel.fileModel.idsAndFiles[newTab.id]
-        if (tabFile == null) {
-            model.tabs.set(emptyList())
-            binding.tabsList.adapter?.notifyDataSetChanged()
+        var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+
+        if (tabTitle == null && newTab.type != WorkspaceTabType.Welcome) {
+            filesListModel.fileModel.refreshFiles()
+            tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        }
+
+        if (tabTitle == null){
+            Toast.makeText(context, "Could not find file", Toast.LENGTH_SHORT).show()
             return
         }
 
-        updateToolbarOnTabChange(newTab.type, tabFile.name)
+        updateToolbarOnTabChange(newTab.type, tabTitle)
 
         val openTabs = workspaceWrapper.workspaceView.getTabs()
             .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] }
@@ -361,6 +382,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
+        model.keyboardVisible
         when (newTab) {
             WorkspaceTabType.Welcome,
             WorkspaceTabType.Loading,
@@ -651,10 +673,72 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             outAttrs.inputType =
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 
+            EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+
             outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
         }
 
-        return wsInputConnection
+        if (outAttrs == null) {
+            return wsInputConnection
+        }
+
+        // Handle `commitContent` from IMEs (e.g. Gboard clipboard images).
+        return InputConnectionCompat.createWrapper(wsInputConnection, outAttrs) { inputContentInfo, flags, _ ->
+            handleCommitContent(inputContentInfo, flags)
+        }
+    }
+
+    private fun handleCommitContent(inputContentInfo: InputContentInfoCompat, flags: Int): Boolean {
+        val isImage = inputContentInfo.description.hasMimeType("image/*")
+        if (!isImage) {
+            Toast
+                .makeText(context, "Clipboard content not supported", Toast.LENGTH_SHORT)
+                .show()
+            return false
+        }
+
+        val needsPermission =
+            (flags and InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION) != 0
+        if (needsPermission) {
+            try {
+                inputContentInfo.requestPermission()
+            } catch (_: Exception) {
+                Toast
+                    .makeText(context, "Could not read pasted content", Toast.LENGTH_SHORT)
+                    .show()
+                return false
+            }
+        }
+
+        val uri = inputContentInfo.contentUri
+        val appContext = context.applicationContext
+        workspaceView.launchIo {
+            val bytes = try {
+                wsInputConnection.readAllBytesCapped(uri, MAX_CONTENT_SIZE)
+            } catch (_: Exception) {
+                null
+            } finally {
+                if (needsPermission) {
+                    try {
+                        inputContentInfo.releasePermission()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+
+            if (bytes != null) {
+                workspaceView.textMutations.get().add(
+                    WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to -1
+                )
+                workspaceView.drawImmediately()
+            } else {
+                Toast
+                    .makeText(appContext, "Clipboard image too large or unreadable", Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+
+        return true
     }
 }

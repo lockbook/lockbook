@@ -410,6 +410,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private suspend fun drawWorkspace(): Long {
         var containsNotify = false
+        var pastedImageThisFrame = false
         val responseJson = nativeLock.withLock {
             if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
                 return 0
@@ -471,6 +472,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
                     }
                     is WsTextMutation.ClipboardPasteImage -> {
+                        pastedImageThisFrame = true
                         Workspace.clipboardSendImage(WGPU_OBJ, mutation.bytes, mutation.isPaste)
                     }
                     is WsTextMutation.SendKeyEvent -> {
@@ -542,6 +544,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             if (!response.docCreated.isNullUUID()) {
                 model._openFile.postValue(response.docCreated to true)
+            }
+
+            if (pastedImageThisFrame) {
+                // The rust side has now processed the paste event during `enterFrame()`,
+                // so the imported file should exist and a file tree refresh will pick it up.
+                model._refreshFilesRequested.postValue(Unit)
             }
 
             if (response.tabTitleClicked) {

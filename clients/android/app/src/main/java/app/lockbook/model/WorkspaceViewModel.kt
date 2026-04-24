@@ -51,6 +51,10 @@ class WorkspaceViewModel : ViewModel() {
     val tabTitleClicked: LiveData<Unit>
         get() = _tabTitleClicked
 
+    val _refreshFilesRequested = SingleMutableLiveData<Unit>()
+    val refreshFilesRequested: LiveData<Unit>
+        get() = _refreshFilesRequested
+
     var tabs = emptyDataSourceTyped<File>()
 
     val _keyboardVisible = MutableLiveData<Boolean>()
