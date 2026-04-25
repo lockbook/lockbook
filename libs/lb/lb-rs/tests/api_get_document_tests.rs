@@ -30,7 +30,7 @@ async fn get_document() {
     local(&core)
         .client
         .request(
-            account,
+            &account,
             ChangeDocRequestV2 {
                 diff: FileDiff::edit(old, new.clone()),
                 new_content: AESEncrypted {
@@ -46,7 +46,7 @@ async fn get_document() {
     // get document
     let result = local(&core)
         .client
-        .request(account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
+        .request(&account, GetDocRequest { id, hmac: *new.document_hmac().unwrap() })
         .await
         .unwrap();
     assert_eq!(
@@ -79,7 +79,7 @@ async fn get_document_not_found() {
     // get document we never created
     let result = local(&core)
         .client
-        .request(account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
+        .request(&account, GetDocRequest { id: *new.id(), hmac: *new.document_hmac().unwrap() })
         .await;
     assert_matches!(
         result,

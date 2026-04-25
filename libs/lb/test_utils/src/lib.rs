@@ -12,11 +12,9 @@ use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-pub fn local(lb: &Lb) -> &LocalLb {
-    match lb {
-        Lb::Local(l) => l,
-        Lb::Remote(_) => panic!("test_utils::local() called on a Remote (guest) wrapper"),
-    }
+pub fn local(lb: &Lb) -> LocalLb {
+    lb.try_local()
+        .expect("test_utils::local() called on a Remote (guest) wrapper")
 }
 
 pub fn test_config() -> Config {
@@ -119,8 +117,10 @@ pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
-    let mut left_tx = local(left).begin_tx().await;
-    let mut right_tx = local(right).begin_tx().await;
+    let left_lb = local(left);
+    let right_lb = local(right);
+    let mut left_tx = left_lb.begin_tx().await;
+    let mut right_tx = right_lb.begin_tx().await;
 
     right_tx.db().account.get() == left_tx.db().account.get()
         && right_tx.db().root.get() == left_tx.db().root.get()
@@ -129,8 +129,10 @@ pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
 }
 
 pub async fn assert_dbs_equal(left: &Lb, right: &Lb) {
-    let mut left_tx = local(left).begin_tx().await;
-    let mut right_tx = local(right).begin_tx().await;
+    let left_lb = local(left);
+    let right_lb = local(right);
+    let mut left_tx = left_lb.begin_tx().await;
+    let mut right_tx = right_lb.begin_tx().await;
 
     assert_eq!(left_tx.db().account.get(), right_tx.db().account.get());
     assert_eq!(left_tx.db().root.get(), right_tx.db().root.get());

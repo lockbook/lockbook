@@ -104,7 +104,7 @@ impl Workspace {
             tab_strip: Vec::new(),
             current_tab: None,
             landing_page: cfg.get_landing_page(),
-            account: core.get_account().cloned().expect("failed to get account"),
+            account: core.get_account().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,

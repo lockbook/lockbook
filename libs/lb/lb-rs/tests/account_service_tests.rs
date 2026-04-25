@@ -171,7 +171,8 @@ async fn import_account_nonexistent() {
     let account =
         Account { api_url: url(), username: random_name(), private_key: pubkey::generate_key() };
 
-    let mut tx = local(&core2).begin_tx().await;
+    let core2_lb = local(&core2);
+    let mut tx = core2_lb.begin_tx().await;
     tx.db().account.insert(account.clone()).unwrap();
     local(&core2).keychain.cache_account(account).await.unwrap();
 

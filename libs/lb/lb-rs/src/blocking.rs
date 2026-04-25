@@ -89,7 +89,7 @@ impl Lb {
         self.lb.export_account_qr()
     }
 
-    pub fn get_account(&self) -> LbResult<&Account> {
+    pub fn get_account(&self) -> LbResult<Account> {
         self.lb.get_account()
     }
 

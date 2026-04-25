@@ -14,7 +14,8 @@ async fn move_document() {
     let folder = core.create_at_path("folder/").await.unwrap().id;
     core.sync().await.unwrap();
 
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let doc1 = tx.db().base_metadata.get().get(&doc).unwrap().clone();
 
     // move document
@@ -22,7 +23,7 @@ async fn move_document() {
     doc2.timestamped_value.value.set_parent(folder);
     local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
         .await
         .unwrap();
 }
@@ -36,7 +37,8 @@ async fn move_document_parent_not_found() {
     let doc = core.create_at_path("folder/doc.md").await.unwrap().id;
     core.sync().await.unwrap();
 
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let doc1 = tx.db().base_metadata.get().get(&doc).unwrap().clone();
 
     // move document
@@ -45,7 +47,7 @@ async fn move_document_parent_not_found() {
 
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
         .await;
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }
@@ -58,14 +60,15 @@ async fn move_document_deleted() {
     let doc = core.create_at_path("doc.md").await.unwrap().id;
     let folder = core.create_at_path("folder/").await.unwrap().id;
 
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let doc1 = tx.db().local_metadata.get().get(&doc).unwrap().clone();
     let folder = tx.db().local_metadata.get().get(&folder).unwrap().clone();
 
     local(&core)
         .client
         .request(
-            account,
+            &account,
             UpsertRequestV2 {
                 updates: vec![FileDiff::new(doc1.clone()), FileDiff::new(folder.clone())],
             },
@@ -79,7 +82,7 @@ async fn move_document_deleted() {
     doc2.timestamped_value.value.set_parent(*folder.id());
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc1, doc2)] })
         .await;
     assert_matches!(
         result,
@@ -131,7 +134,7 @@ async fn move_document_path_taken() {
     local(&core)
         .client
         .request(
-            account,
+            &account,
             UpsertRequestV2 {
                 updates: vec![
                     FileDiff::new(doc.clone()),
@@ -151,7 +154,7 @@ async fn move_document_path_taken() {
 
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc2, new)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc2, new)] })
         .await;
 
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
@@ -175,7 +178,7 @@ async fn move_folder_into_itself() {
 
     local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(folder.clone())] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::new(folder.clone())] })
         .await
         .unwrap();
 
@@ -184,7 +187,7 @@ async fn move_folder_into_itself() {
 
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(folder, new)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(folder, new)] })
         .await;
     assert_matches!(
         result,
@@ -224,7 +227,7 @@ async fn move_folder_into_descendants() {
     local(&core)
         .client
         .request(
-            account,
+            &account,
             UpsertRequestV2 {
                 updates: vec![FileDiff::new(folder.clone()), FileDiff::new(folder2.clone())],
             },
@@ -236,7 +239,7 @@ async fn move_folder_into_descendants() {
     folder_new.timestamped_value.value.set_parent(*folder2.id());
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(folder, folder_new)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(folder, folder_new)] })
         .await;
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }
@@ -272,7 +275,7 @@ async fn move_document_into_document() {
     local(&core)
         .client
         .request(
-            account,
+            &account,
             UpsertRequestV2 {
                 updates: vec![FileDiff::new(doc.clone()), FileDiff::new(doc2.clone())],
             },
@@ -285,7 +288,7 @@ async fn move_document_into_document() {
     new.timestamped_value.value.set_parent(*doc2.id());
     let result = local(&core)
         .client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc, new)] })
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::edit(doc, new)] })
         .await;
     assert_matches!(result, Err(ApiError::<UpsertError>::Endpoint(UpsertError::Validation(_))));
 }

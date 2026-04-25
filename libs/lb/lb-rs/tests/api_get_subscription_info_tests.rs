@@ -11,7 +11,7 @@ async fn get_subscription_info() {
     assert!(
         local(&core)
             .client
-            .request(account, GetSubscriptionInfoRequest {})
+            .request(&account, GetSubscriptionInfoRequest {})
             .await
             .unwrap()
             .subscription_info
@@ -21,7 +21,7 @@ async fn get_subscription_info() {
     local(&core)
         .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -37,7 +37,7 @@ async fn get_subscription_info() {
     assert!(
         local(&core)
             .client
-            .request(account, GetSubscriptionInfoRequest {})
+            .request(&account, GetSubscriptionInfoRequest {})
             .await
             .unwrap()
             .subscription_info

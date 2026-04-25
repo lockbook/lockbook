@@ -26,8 +26,10 @@ pub async fn cores_equal(left: &Lb, right: &Lb) {
     assert_eq!(&left.get_account().unwrap(), &right.get_account().unwrap());
     assert_eq!(&left.root().await.unwrap(), &right.root().await.unwrap());
 
-    let mut left_tx = local(left).begin_tx().await;
-    let mut right_tx = local(right).begin_tx().await;
+    let left_lb = local(left);
+    let right_lb = local(right);
+    let mut left_tx = left_lb.begin_tx().await;
+    let mut right_tx = right_lb.begin_tx().await;
 
     assert_eq!(&left_tx.db().local_metadata.get(), &right_tx.db().local_metadata.get());
     assert_eq!(&left_tx.db().base_metadata.get(), &right_tx.db().base_metadata.get());
@@ -36,7 +38,8 @@ pub async fn cores_equal(left: &Lb, right: &Lb) {
 pub async fn new_synced_client_core_equal(lb: &Lb) {
     let new_client = test_core_from(lb).await;
 
-    let tx = local(lb).ro_tx().await;
+    let lb_local = local(lb);
+    let tx = lb_local.ro_tx().await;
     let db = tx.db();
 
     let account = db.account.get().unwrap().clone();
@@ -174,7 +177,8 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     let dirty = get_dirty_ids(lb, false).await;
     let mut expected_paths = expected_paths.to_vec();
 
-    let tx = local(lb).ro_tx().await;
+    let lb_local = local(lb);
+    let tx = lb_local.ro_tx().await;
     let db = tx.db();
 
     let mut tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
@@ -201,11 +205,12 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
 pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
 
-    let tx = local(core).ro_tx().await;
+    let lb_local = local(core);
+    let tx = lb_local.ro_tx().await;
     let db = tx.db();
 
     let account = db.account.get().unwrap();
-    let remote_changes = local(core)
+    let remote_changes = lb_local
         .client
         .request(
             account,
@@ -233,7 +238,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .filter(|id| !remote.in_pending_share(id).unwrap())
         .collect::<Vec<_>>()
         .iter()
-        .map(|id| remote.id_to_path(id, &local(core).keychain))
+        .map(|id| remote.id_to_path(id, &lb_local.keychain))
         .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();

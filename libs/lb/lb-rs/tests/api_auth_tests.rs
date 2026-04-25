@@ -57,7 +57,7 @@ async fn upsert_id_takeover_change_parent() {
         core1.sync().await.unwrap();
         local(&core1)
             .client
-            .request(account1, GetUpdatesRequestV2 { since_metadata_version: 0 })
+            .request(&account1, GetUpdatesRequestV2 { since_metadata_version: 0 })
             .await
             .unwrap()
             .file_metadata
@@ -70,7 +70,7 @@ async fn upsert_id_takeover_change_parent() {
     // If this succeeded account2 would be able to control file1
     let result = local(&core2)
         .client
-        .request(account2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
+        .request(&account2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
@@ -87,7 +87,8 @@ async fn change_document_content() {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
         core1.sync().await.unwrap();
 
-        let mut tx = local(&core1).begin_tx().await;
+        let core1_lb = local(&core1);
+        let mut tx = core1_lb.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()
     };
 
@@ -128,7 +129,8 @@ async fn get_someone_else_document() {
         core1.write_document(id, &[1, 2, 3]).await.unwrap();
         core1.sync().await.unwrap();
 
-        let mut tx = local(&core1).begin_tx().await;
+        let core1_lb = local(&core1);
+        let mut tx = core1_lb.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()
     };
 

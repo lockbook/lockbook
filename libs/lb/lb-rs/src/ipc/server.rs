@@ -11,11 +11,11 @@ use crate::LocalLb;
 use crate::ipc::protocol::{Frame, Request};
 use crate::model::errors::LbResult;
 
-pub async fn serve(listener: UnixListener, lb: Arc<LocalLb>) {
+pub async fn serve(listener: UnixListener, lb: LocalLb) {
     loop {
         match listener.accept().await {
             Ok((stream, _addr)) => {
-                let lb = Arc::clone(&lb);
+                let lb = lb.clone();
                 tokio::spawn(async move {
                     if let Err(err) = handle_conn(stream, lb).await {
                         if err.kind() == io::ErrorKind::UnexpectedEof {
@@ -34,7 +34,7 @@ pub async fn serve(listener: UnixListener, lb: Arc<LocalLb>) {
     }
 }
 
-async fn handle_conn(stream: UnixStream, lb: Arc<LocalLb>) -> io::Result<()> {
+async fn handle_conn(stream: UnixStream, lb: LocalLb) -> io::Result<()> {
     let (mut reader, write_half) = stream.into_split();
     let writer = Arc::new(Mutex::new(write_half));
 
@@ -42,7 +42,7 @@ async fn handle_conn(stream: UnixStream, lb: Arc<LocalLb>) -> io::Result<()> {
         let frame = Frame::read(&mut reader).await?;
         match frame {
             Frame::Request { seq, body: Request::Subscribe } => {
-                let lb_for_task = Arc::clone(&lb);
+                let lb_for_task = lb.clone();
                 let writer_for_task = Arc::clone(&writer);
                 tokio::spawn(forward_events(lb_for_task, writer_for_task, seq));
                 send_response(&writer, seq, enc_plain(())).await?;
@@ -69,7 +69,7 @@ async fn send_response(
     response.write(&mut *w).await
 }
 
-async fn forward_events(lb: Arc<LocalLb>, writer: Arc<Mutex<OwnedWriteHalf>>, stream_seq: u64) {
+async fn forward_events(lb: LocalLb, writer: Arc<Mutex<OwnedWriteHalf>>, stream_seq: u64) {
     let mut rx = lb.subscribe();
     loop {
         match rx.recv().await {
@@ -105,7 +105,7 @@ fn enc_plain<Out: Serialize>(value: Out) -> Vec<u8> {
     enc::<Out>(Ok(value))
 }
 
-async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
+pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
     match req {
         Request::CreateAccount { username, api_url, welcome_doc } => {
             enc(lb.create_account(&username, &api_url, welcome_doc).await)

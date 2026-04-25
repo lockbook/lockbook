@@ -1,21 +1,12 @@
-//! Integration tests for the host/guest IPC fallback. When a second `Lb::init`
-//! hits the same `writeable_path`, it loses the db-rs lock and should transparently
-//! become a `Lb::Remote` that forwards calls to the host over UDS.
-//!
-//! These tests are unix-only: Windows/WASM don't spawn the listener.
-
 #![cfg(unix)]
 
-use lb_rs::Lb;
 use lb_rs::service::events::Event;
+use lb_rs::Lb;
 use std::time::Duration;
 use test_utils::{random_name, test_config, url};
 use tokio::sync::broadcast::Receiver;
 use tokio::time::timeout;
 
-/// Drain the receiver until an event matching `pred` arrives, or time out.
-/// Used by subscription tests to tolerate unrelated events (status updates,
-/// sync ticks) that may precede the one under test.
 async fn await_event<F: Fn(&Event) -> bool>(rx: &mut Receiver<Event>, pred: F) -> Option<Event> {
     timeout(Duration::from_secs(5), async {
         loop {
@@ -35,7 +26,7 @@ async fn await_event<F: Fn(&Event) -> bool>(rx: &mut Receiver<Event>, pred: F) -
 async fn solo_init_is_local() {
     let config = test_config();
     let lb = Lb::init(config).await.unwrap();
-    assert!(matches!(lb, Lb::Local(_)), "first init with fresh dir should be Local");
+    assert!(lb.is_local(), "first init with fresh dir should be Local");
 }
 
 #[tokio::test]
@@ -43,10 +34,10 @@ async fn second_init_becomes_remote() {
     let config = test_config();
 
     let host = Lb::init(config.clone()).await.unwrap();
-    assert!(matches!(host, Lb::Local(_)));
+    assert!(host.is_local());
 
     let guest = Lb::init(config.clone()).await.unwrap();
-    assert!(matches!(guest, Lb::Remote(_)), "second init on same path should be Remote");
+    assert!(!guest.is_local(), "second init on same path should be Remote");
 }
 
 #[tokio::test]
@@ -59,11 +50,10 @@ async fn guest_inherits_host_account() {
         .unwrap();
 
     let guest = Lb::init(config.clone()).await.unwrap();
-    assert!(matches!(guest, Lb::Remote(_)));
+    assert!(!guest.is_local());
 
-    // `get_account` on the guest reads from the cache populated at connect().
     let guest_account = guest.get_account().unwrap();
-    assert_eq!(guest_account, &account);
+    assert_eq!(guest_account, account);
 }
 
 #[tokio::test]
@@ -107,10 +97,9 @@ async fn two_guests_share_host() {
 
     let guest1 = Lb::init(config.clone()).await.unwrap();
     let guest2 = Lb::init(config.clone()).await.unwrap();
-    assert!(matches!(guest1, Lb::Remote(_)));
-    assert!(matches!(guest2, Lb::Remote(_)));
+    assert!(!guest1.is_local());
+    assert!(!guest2.is_local());
 
-    // guest1 creates; guest2 should see the file via the host.
     let file = guest1.create_at_path("shared.md").await.unwrap();
     let seen = guest2.get_file_by_id(file.id).await.unwrap();
     assert_eq!(seen.name, "shared.md");
@@ -145,12 +134,8 @@ async fn guest_receives_event_from_host() {
     let guest = Lb::init(config.clone()).await.unwrap();
     let mut events = guest.subscribe();
 
-    // `subscribe` spawns the Subscribe request; give it a beat to land on the
-    // host before we emit an event.
     tokio::time::sleep(Duration::from_millis(100)).await;
 
-    // `create_at_path` on the host should emit a MetadataChanged event that
-    // the server forwards to the guest over Frame::Event.
     host.create_at_path("event-fodder.md").await.unwrap();
 
     let evt = await_event(&mut events, |e| matches!(e, Event::MetadataChanged(_))).await;
@@ -180,8 +165,6 @@ async fn guest_receives_document_written_event() {
 
 #[tokio::test]
 async fn guest_own_write_fires_event_on_guest() {
-    // Guest-initiated write: the guest ships the request to the host, the host
-    // emits the event, and the event must travel back to the guest's subscriber.
     let config = test_config();
     let host = Lb::init(config.clone()).await.unwrap();
     host.create_account(&random_name(), &url(), false)
@@ -200,8 +183,6 @@ async fn guest_own_write_fires_event_on_guest() {
 
 #[tokio::test]
 async fn multiple_subscribers_on_one_guest() {
-    // Both receivers share the single IPC Subscribe (OnceLock-gated), so one
-    // host event should fan out to every receiver on the guest.
     let config = test_config();
     let host = Lb::init(config.clone()).await.unwrap();
     host.create_account(&random_name(), &url(), false)
@@ -223,7 +204,6 @@ async fn multiple_subscribers_on_one_guest() {
 
 #[tokio::test]
 async fn two_guests_each_get_their_own_stream() {
-    // Each guest opens its own Subscribe request; each should see the host's event.
     let config = test_config();
     let host = Lb::init(config.clone()).await.unwrap();
     host.create_account(&random_name(), &url(), false)
@@ -246,8 +226,6 @@ async fn two_guests_each_get_their_own_stream() {
 
 #[tokio::test]
 async fn guest_receives_sequence_of_events() {
-    // A burst of host-side operations: the guest must receive all of them, in
-    // enough order to associate them with the right ids.
     let config = test_config();
     let host = Lb::init(config.clone()).await.unwrap();
     host.create_account(&random_name(), &url(), false)
@@ -271,4 +249,104 @@ async fn guest_receives_sequence_of_events() {
             .await;
     assert!(dw_f1.is_some(), "missed DocumentWritten for f1");
     assert!(dw_f2.is_some(), "missed DocumentWritten for f2");
+}
+
+#[tokio::test]
+async fn guest_call_recovers_when_host_dies() {
+    let config = test_config();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel::<()>();
+
+    let host_config = config.clone();
+    let host_thread = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+
+        let host = rt.block_on(async {
+            let h = Lb::init(host_config).await.unwrap();
+            h.create_account(&random_name(), &url(), false)
+                .await
+                .unwrap();
+            h
+        });
+
+        ready_tx.send(()).unwrap();
+        shutdown_rx.recv().unwrap();
+
+        drop(host);
+        drop(rt);
+    });
+
+    ready_rx.recv().unwrap();
+
+    let guest = Lb::init(config).await.unwrap();
+    assert!(!guest.is_local());
+    guest.list_metadatas().await.unwrap();
+
+    shutdown_tx.send(()).unwrap();
+    host_thread.join().unwrap();
+
+    let metas = timeout(Duration::from_secs(5), guest.list_metadatas())
+        .await
+        .expect("guest call hung after host death")
+        .expect("guest call should auto-recover after host death");
+    assert!(!metas.is_empty(), "expected at least the root file");
+    assert!(guest.is_local(), "guest should have promoted itself to Local during recovery");
+}
+
+#[tokio::test]
+async fn create_file_recovers_after_host_death() {
+    let config = test_config();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+    let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel::<()>();
+
+    let host_config = config.clone();
+    let host_thread = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let host = rt.block_on(async {
+            let h = Lb::init(host_config).await.unwrap();
+            h.create_account(&random_name(), &url(), false)
+                .await
+                .unwrap();
+            h
+        });
+        ready_tx.send(()).unwrap();
+        shutdown_rx.recv().unwrap();
+        drop(host);
+        drop(rt);
+    });
+
+    ready_rx.recv().unwrap();
+
+    let guest = Lb::init(config).await.unwrap();
+    assert!(!guest.is_local());
+
+    let root = guest.root().await.unwrap();
+    let alive = guest
+        .create_file("alive.md", &root.id, lb_rs::model::file_metadata::FileType::Document)
+        .await
+        .unwrap();
+    assert_eq!(alive.name, "alive.md");
+
+    shutdown_tx.send(()).unwrap();
+    host_thread.join().unwrap();
+
+    let f = guest
+        .create_file(
+            "post-recovery.md",
+            &root.id,
+            lb_rs::model::file_metadata::FileType::Document,
+        )
+        .await
+        .expect("create_file should succeed after recovery");
+    assert_eq!(f.name, "post-recovery.md");
+    assert!(
+        guest.is_local(),
+        "guest should have promoted itself to Local during recovery"
+    );
 }

@@ -103,6 +103,19 @@ impl RemoteLb {
     where
         Out: DeserializeOwned,
     {
+        match self.try_call(req).await {
+            Ok(v) => Ok(v),
+            Err(RemoteCallError::HostUnavailable) => {
+                Err(LbErrKind::Unexpected("ipc: host disconnected".into()).into())
+            }
+            Err(RemoteCallError::Other(e)) => Err(e),
+        }
+    }
+
+    pub(crate) async fn try_call<Out>(&self, req: Request) -> Result<Out, RemoteCallError>
+    where
+        Out: DeserializeOwned,
+    {
         #[cfg(not(unix))]
         {
             let _ = req;
@@ -120,18 +133,24 @@ impl RemoteLb {
                 frame
                     .write(&mut *writer)
                     .await
-                    .map_err(|e| LbErrKind::Unexpected(format!("ipc: write request: {e}")))?;
+                    .map_err(|_| RemoteCallError::HostUnavailable)?;
             }
 
-            let output_bytes = rx.await.map_err(|_| {
-                LbErrKind::Unexpected("ipc: host disconnected before response".into())
-            })?;
+            let output_bytes = rx.await.map_err(|_| RemoteCallError::HostUnavailable)?;
 
-            let result: LbResult<Out> = bincode::deserialize(&output_bytes)
-                .map_err(|e| LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")))?;
-            result
+            let result: LbResult<Out> = bincode::deserialize(&output_bytes).map_err(|e| {
+                RemoteCallError::Other(
+                    LbErrKind::Unexpected(format!("ipc: deserialize response: {e}")).into(),
+                )
+            })?;
+            result.map_err(RemoteCallError::Other)
         }
     }
+}
+
+pub(crate) enum RemoteCallError {
+    HostUnavailable,
+    Other(crate::model::errors::LbErr),
 }
 
 #[cfg(unix)]

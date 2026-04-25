@@ -209,7 +209,7 @@ where
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,

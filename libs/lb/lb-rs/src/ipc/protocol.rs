@@ -49,7 +49,7 @@ impl Frame {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Request {
     CreateAccount {
         username: String,

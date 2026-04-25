@@ -33,7 +33,8 @@ async fn test_no_account() {
 #[tokio::test]
 async fn test_no_root() {
     let core = test_core_with_account().await;
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     tx.db().base_metadata.clear().unwrap();
     tx.db().root.clear().unwrap();
     tx.end();
@@ -70,7 +71,8 @@ async fn test_orphaned_children() {
 async fn test_invalid_file_name_slash() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
     let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
@@ -94,7 +96,8 @@ async fn test_invalid_file_name_slash() {
 async fn empty_filename() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
     let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
@@ -188,7 +191,8 @@ async fn test_name_conflict() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
     core.create_at_path("document2.md").await.unwrap();
-    let mut tx = local(&core).begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
     let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
