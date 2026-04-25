@@ -323,15 +323,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
-    _env: JNIEnv, _: JClass, obj: jlong, show: jboolean,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    obj.workspace.show_tabs = show == 1;
-}
-
-#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_back(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jboolean {

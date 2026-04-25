@@ -741,14 +741,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return WorkspaceTabType.fromInt(tab)
     }
 
-    fun showTabs(show: Boolean) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.showTabs(WGPU_OBJ, show)
-    }
-
     fun back(): Boolean {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return false
