@@ -8,7 +8,7 @@ use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
@@ -25,7 +25,13 @@ impl<'ast> MdRender {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
         let parent_indent = || self.indent(parent());
-        let indented_width = || parent_width() - parent_indent();
+        // `parent_width - parent_indent` can go negative for deeply
+        // nested containers at narrow doc widths (e.g. a table cell
+        // inside three blockquotes at ~200px). Clamp to 0 so child
+        // computations don't propagate nonsense; `show_block` /
+        // `height` separately bail when width falls below the
+        // "can't fit anything" threshold.
+        let indented_width = || (parent_width() - parent_indent()).max(0.0);
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
@@ -86,6 +92,14 @@ impl<'ast> MdRender {
     pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
+        }
+
+        // Block too narrow to fit anything meaningful: render nothing.
+        // `show_block` short-circuits on the same condition, so this
+        // matches what gets painted.
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height(node, 0.0);
+            return 0.0;
         }
 
         // container blocks: if revealed, show source lines instead
@@ -188,6 +202,12 @@ impl<'ast> MdRender {
         siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
+
+        // Block too narrow to fit anything meaningful: skip. `height`
+        // returns 0 for the same condition so the layout stays aligned.
+        if self.width(node) < self.layout.row_height {
+            return;
+        }
 
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
@@ -324,8 +344,8 @@ impl<'ast> MdRender {
     /// to [`line_own_prefix`] + [`line_content`]. For leaf blocks, which have
     /// no prefix, this is equivalent to [`line_content`].
     pub fn node_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line }; // document has no prefix
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
 
@@ -355,13 +375,13 @@ impl<'ast> MdRender {
 
     /// Returns the first line, the whole first line, and nothing but the first
     /// line of the given node.
-    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_first_line_idx(node)]
     }
 
     /// Returns the last line, the whole last line, and nothing but the last line
     /// of the given node.
-    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_last_line_idx(node)]
     }
 
@@ -442,8 +462,7 @@ impl<'ast> MdRender {
 
     #[allow(clippy::collapsible_else_if)]
     pub fn apply_fold(
-        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
-        unapply: bool,
+        &mut self, node: &'ast AstNode<'ast>, contents: (Grapheme, Grapheme), unapply: bool,
     ) {
         if unapply {
             if let Some(fold) = self.fold(node) {
@@ -558,7 +577,7 @@ impl<'ast> MdRender {
 
 #[derive(Default)]
 pub struct CacheEntry<T> {
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
     value: T,
 }
 
@@ -614,8 +633,8 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
 
 pub struct LinePrefixCacheEntry {
     node_key_hash: u64,
-    line: (DocCharOffset, DocCharOffset),
-    value: (RelCharOffset, bool),
+    line: (Grapheme, Grapheme),
+    value: (Graphemes, bool),
 }
 
 pub enum TitleState {
@@ -628,7 +647,7 @@ pub enum TitleState {
 pub struct LayoutCache {
     pub height: RefCell<Vec<CacheEntry<f32>>>,
     pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
-    pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
+    pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
@@ -662,12 +681,12 @@ impl LayoutCache {
     /// movement or find match change). A node's height depends on its reveal
     /// state, so we evict nodes intersecting either range plus their ancestors.
     pub fn invalidate_reveal_change(
-        &self, old_range: (DocCharOffset, DocCharOffset), new_range: (DocCharOffset, DocCharOffset),
+        &self, old_range: (Grapheme, Grapheme), new_range: (Grapheme, Grapheme),
     ) {
         let mut cache = self.height.borrow_mut();
 
         // first pass: find ranges directly affected
-        let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
+        let mut invalidated: Vec<(Grapheme, Grapheme)> = Vec::new();
         for entry in cache.iter() {
             if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
             {
@@ -706,8 +725,61 @@ impl MdRender {
     /// across frames (and across widgets). The editor-specific concern here is
     /// emoji: graphemes containing emoji codepoints get the Twemoji font family
     /// while everything else uses the format's font family.
+    /// Default wrap mode: word boundaries preferred, glyph boundaries as a
+    /// fallback for over-wide single tokens. This is what `split_rows` reaches
+    /// for first when discovering row breaks.
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::WordOrGlyph,
+        )
+    }
+
+    /// Glyph-level wrap. Used as a fallback by `split_rows` when
+    /// `WordOrGlyph` produces a layout run wider than the wrap width — a
+    /// known cosmic-text quirk on some bold mixed-script content. Glyph
+    /// mode breaks at any glyph boundary, which means mid-word splits, but
+    /// that's better than overflowing a cell.
+    pub fn upsert_glyphon_buffer_glyph(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::Glyph,
+        )
+    }
+
+    /// Like [`Self::upsert_glyphon_buffer`] but with `Wrap::None`. Use for
+    /// already-split text when you want a stable single-row shape; the
+    /// wrapped variant's break-point decisions vary subtly with input
+    /// context (a known cosmic-text quirk), so a piece chosen by one call
+    /// may re-wrap differently on a second call at the same width.
+    pub fn upsert_glyphon_buffer_unwrapped(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::None,
+        )
+    }
+
+    fn upsert_glyphon_buffer_inner(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+        wrap_mode: glyphon::Wrap,
     ) -> Arc<RwLock<glyphon::Buffer>> {
         let font_system = self
             .ctx
@@ -728,6 +800,16 @@ impl MdRender {
         let width = width * ppi;
 
         use crate::widgets::glyphon_cache::*;
+        // Fold wrap mode into the cache key via low-bit nudges to width.
+        // Three modes need three distinct keys — a sub-ULP perturbation of
+        // an already-quantized pixel value, harmless to layout but enough
+        // to separate cache entries.
+        let width_bits = match wrap_mode {
+            glyphon::Wrap::WordOrGlyph => width.to_bits(),
+            glyphon::Wrap::None => width.to_bits() ^ 1,
+            glyphon::Wrap::Glyph => width.to_bits() ^ 2,
+            _ => width.to_bits() ^ 3,
+        };
         let key = GlyphonCacheKey::single(
             text,
             match format.family {
@@ -740,7 +822,7 @@ impl MdRender {
             Some(format.color.to_array()),
             font_size.to_bits(),
             line_height.to_bits(),
-            width.to_bits(),
+            width_bits,
         );
 
         let fs = Arc::clone(&font_system);
@@ -777,7 +859,7 @@ impl MdRender {
                 glyphon::Shaping::Advanced,
                 None,
             );
-            b.shape_until_scroll(&mut fs.lock().unwrap(), false);
+            b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
             b
         })
     }
@@ -804,8 +886,8 @@ impl<'ast> MdRender {
     }
 
     pub fn get_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<(RelCharOffset, bool)> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<(Graphemes, bool)> {
         let node_key_hash = Self::pack_node_key(node);
         self.layout_cache
             .line_prefix_len
@@ -821,8 +903,7 @@ impl<'ast> MdRender {
     }
 
     pub fn set_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        value: (RelCharOffset, bool),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), value: (Graphemes, bool),
     ) {
         let node_key_hash = Self::pack_node_key(node);
         let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
@@ -838,9 +919,7 @@ impl<'ast> MdRender {
     }
 
     #[inline]
-    pub fn get_cached_node_range(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn get_cached_node_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range
@@ -850,9 +929,7 @@ impl<'ast> MdRender {
     }
 
     #[inline]
-    pub fn set_cached_node_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-    ) {
+    pub fn set_cached_node_range(&self, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme)) {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range

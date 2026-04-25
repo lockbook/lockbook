@@ -10,8 +10,7 @@ use comrak::nodes::{
 use egui::{Pos2, Rangef};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, RelCharOffset,
-    ToRangeExt as _,
+    Bytes, Grapheme, Graphemes, IntoRangeExt, RangeExt as _, RangeIterExt, ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
@@ -114,7 +113,7 @@ impl<'ast> MdEdit {
                     // code block auto-indentation
                     if in_code_block {
                         let line_content_start = self.renderer.offset_to_byte(line_content.start());
-                        let indentation_len = RelByteOffset(
+                        let indentation_len = Bytes(
                             self.renderer.buffer[line_content].len()
                                 - self.renderer.buffer[line_content].trim_start().len(),
                         );
@@ -449,7 +448,7 @@ impl<'ast> MdEdit {
 
     fn toggle_style(
         &mut self, root: &'ast AstNode<'ast>, region: Region, style: NodeValue,
-        current_selection: (DocCharOffset, DocCharOffset), operations: &mut Vec<Operation>,
+        current_selection: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) {
         let range = self.region_to_range(region);
 
@@ -507,7 +506,7 @@ impl<'ast> MdEdit {
                                         // remove heading
                                         let mut range = (
                                             node_line.start(),
-                                            node_line.start() + RelCharOffset(node_level as _),
+                                            node_line.start() + Graphemes(node_level as _),
                                         );
                                         if self.renderer.buffer.current.segs.last_cursor_position()
                                             > range.end()
@@ -526,8 +525,7 @@ impl<'ast> MdEdit {
                                         operations.push(Operation::Replace(Replace {
                                             range: (
                                                 node_line.start(),
-                                                node_line.start()
-                                                    + RelCharOffset(remove_levels as _),
+                                                node_line.start() + Graphemes(remove_levels as _),
                                             ),
                                             text: "".into(),
                                         }));
@@ -709,7 +707,7 @@ impl<'ast> MdEdit {
 
     /// Returns true if all text in the given range has style `style`
     pub fn inline_styled(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
         for node in root.descendants() {
             if &node.node_type() == style
@@ -727,7 +725,7 @@ impl<'ast> MdEdit {
 
     /// Returns true if an inline style would be unapplied instead of applied
     pub fn unapply_inline(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
         let mut unapply = false;
         for inline_paragraph in &self.renderer.bounds.inline_paragraphs {
@@ -797,15 +795,14 @@ impl<'ast> MdEdit {
 
     #[allow(clippy::collapsible_else_if)]
     pub fn apply_fold(
-        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
-        unapply: bool,
+        &mut self, node: &'ast AstNode<'ast>, contents: (Grapheme, Grapheme), unapply: bool,
     ) {
         self.renderer.apply_fold(node, contents, unapply);
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_inline_style(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: NodeValue,
         unapply: bool, operations: &mut Vec<Operation>,
     ) {
         let selection = self.renderer.buffer.current.selection;
@@ -921,7 +918,7 @@ impl<'ast> MdEdit {
     }
 
     // todo: self by shared reference
-    pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
+    pub fn region_to_range(&mut self, region: Region) -> (Grapheme, Grapheme) {
         let mut current_selection = self.renderer.buffer.current.selection;
         match region {
             Region::Location(location) => self.location_to_range(location),
@@ -972,19 +969,19 @@ impl<'ast> MdEdit {
         }
     }
 
-    pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
+    pub fn location_to_range(&self, location: Location) -> (Grapheme, Grapheme) {
         match location {
             Location::CurrentCursor => self.renderer.buffer.current.selection,
-            Location::DocCharOffset(o) => o.into_range(),
+            Location::Grapheme(o) => o.into_range(),
             Location::Pos(pos) => self.pos_to_range(pos),
         }
     }
 
-    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+    pub fn location_to_char_offset(&self, location: Location) -> Grapheme {
         self.location_to_range(location).0
     }
 
-    fn clipboard_current_line(&self) -> (DocCharOffset, DocCharOffset) {
+    fn clipboard_current_line(&self) -> (Grapheme, Grapheme) {
         let current_selection = self.renderer.buffer.current.selection;
         let paragraph_idx = self
             .renderer
@@ -1012,7 +1009,7 @@ impl<'ast> MdEdit {
     }
 
     // todo: find a better home
-    pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
+    pub fn pos_to_range(&self, pos: Pos2) -> (Grapheme, Grapheme) {
         let galleys = &self.renderer.galleys;
         let galley_idx = pos_to_galley(pos, galleys);
         let galley = &galleys[galley_idx];
@@ -1041,7 +1038,7 @@ impl<'ast> MdEdit {
         }
     }
 
-    pub fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+    pub fn pos_to_char_offset(&self, pos: Pos2) -> Grapheme {
         self.pos_to_range(pos).0
     }
 }
@@ -1095,7 +1092,7 @@ impl<'ast> MdEdit {
         }
     }
 
-    fn adjust_for_whitespace(&self, mut offset: DocCharOffset, tail: bool) -> DocCharOffset {
+    fn adjust_for_whitespace(&self, mut offset: Grapheme, tail: bool) -> Grapheme {
         loop {
             let c = if tail {
                 if offset == 0 {
@@ -1117,16 +1114,12 @@ impl<'ast> MdEdit {
         offset
     }
 
-    fn insert_head(
-        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
-    ) {
+    fn insert_head(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().head().to_string();
         operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
     }
 
-    fn insert_tail(
-        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
-    ) {
+    fn insert_tail(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().tail().to_string();
         if let NodeValue::Link(link) = style {
             let NodeLink { url, .. } = *link;

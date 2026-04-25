@@ -4,14 +4,34 @@ use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
+use comrak::nodes::NodeValue;
+
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
 use crate::theme::palette_v2::ThemeExt as _;
+
+/// Language tokens whose bundled syntect grammar panics inside
+/// `highlight_line` (lazy regex compile failures with fancy-regex).
+/// Skip highlighting upfront — there's no per-line panic safety net,
+/// so an unlisted bad grammar will crash the renderer.
+const SKIP_HIGHLIGHT_TOKENS: &[&str] = &[
+    // "JavaScript (Babel)" uses `\g` regex backref that fancy-regex
+    // can't compile. Panics with `ParseError(InvalidEscape("\\g"))`.
+    "js",
+    "javascript",
+];
+
+fn should_skip_highlight(info: &str) -> bool {
+    SKIP_HIGHLIGHT_TOKENS
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(info))
+}
 
 impl<'ast> MdRender {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
@@ -250,7 +270,7 @@ impl<'ast> MdRender {
 
     fn height_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset), synthetic: bool,
+        line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -277,31 +297,50 @@ impl<'ast> MdRender {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
+            //
+            // Strip column-aware. If the code block is inside a list
+            // item, combine its 4-col strip with the item's padding —
+            // `item.rs` defers to us for code-block lines so a tab
+            // straddling the item/code-block boundary doesn't get
+            // attributed entirely to one side (which would make tab
+            // and 4-space forms render differently).
+            let target_cols = if synthetic {
+                0
+            } else {
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
+            };
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
+        let mut highlighter = if should_skip_highlight(info) {
+            None
+        } else {
+            syntax_set()
+                .find_syntax_by_token(info)
+                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
+        };
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
-            } else {
-                // new regions
+        let regions = highlighter.as_mut().and_then(|h| {
+            self.syntax.get(code_line_text, code_line).or_else(|| {
+                let line_start = self.offset_to_byte(code_line.start());
+                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
                 let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
+                let mut region_start = line_start;
+                for (style, region_str) in highlighted {
                     let region_end = region_start + region_str.len();
                     let region = self.range_to_char((region_start, region_end));
                     regions.push((style, region));
@@ -309,9 +348,11 @@ impl<'ast> MdRender {
                 }
                 self.syntax
                     .insert(code_line_text.into(), code_line, regions.clone());
-                regions
-            };
+                Some(regions)
+            })
+        });
 
+        if let Some(regions) = regions {
             let text_format = self.text_format(node);
             for (_, region) in regions {
                 // color doesn't matter for layout, just how the regions are divided
@@ -327,7 +368,7 @@ impl<'ast> MdRender {
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset), synthetic: bool,
+        node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
 
@@ -354,31 +395,50 @@ impl<'ast> MdRender {
             // the code block are the literal contents of the lines, including
             // trailing line endings, minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
+            //
+            // Strip column-aware. If the code block is inside a list
+            // item, combine its 4-col strip with the item's padding —
+            // `item.rs` defers to us for code-block lines so a tab
+            // straddling the item/code-block boundary doesn't get
+            // attributed entirely to one side (which would make tab
+            // and 4-space forms render differently).
+            let target_cols = if synthetic {
+                0
+            } else {
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
+            };
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
             (chunk_start, node_line.end())
         };
         let code_line_text = &self.buffer[code_line];
 
         // syntax highlighting
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
+        let mut highlighter = if should_skip_highlight(info) {
+            None
+        } else {
+            syntax_set()
+                .find_syntax_by_token(info)
+                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
+        };
 
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
 
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
-            } else {
-                // new regions
+        let regions = highlighter.as_mut().and_then(|h| {
+            self.syntax.get(code_line_text, code_line).or_else(|| {
+                let line_start = self.offset_to_byte(code_line.start());
+                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
                 let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
+                let mut region_start = line_start;
+                for (style, region_str) in highlighted {
                     let region_end = region_start + region_str.len();
                     let region = self.range_to_char((region_start, region_end));
                     regions.push((style, region));
@@ -386,9 +446,11 @@ impl<'ast> MdRender {
                 }
                 self.syntax
                     .insert(code_line_text.into(), code_line, regions.clone());
-                regions
-            };
+                Some(regions)
+            })
+        });
 
+        if let Some(regions) = regions {
             let mut text_format = self.text_format(node);
             if regions.is_empty() {
                 self.show_section(
@@ -422,7 +484,7 @@ impl<'ast> MdRender {
 
     fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset),
+        line: (Grapheme, Grapheme),
     ) -> bool {
         let NodeCodeBlock { fence_char, fence_length, .. } = node_code_block;
         let fence_char = *fence_char as char;
@@ -467,16 +529,16 @@ impl<'ast> MdRender {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 struct SyntaxCacheKey {
     text: String,
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
 }
 
 impl SyntaxCacheKey {
-    fn new(text: String, range: (DocCharOffset, DocCharOffset)) -> Self {
+    fn new(text: String, range: (Grapheme, Grapheme)) -> Self {
         Self { text, range }
     }
 }
 
-pub type SyntaxHighlightResult = Vec<(Style, (DocCharOffset, DocCharOffset))>;
+pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
 
 #[derive(Clone, Default)]
 pub struct SyntaxHighlightCache {
@@ -485,17 +547,13 @@ pub struct SyntaxHighlightCache {
 }
 
 impl SyntaxHighlightCache {
-    pub fn insert(
-        &self, text: String, range: (DocCharOffset, DocCharOffset), value: SyntaxHighlightResult,
-    ) {
+    pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
         let key = SyntaxCacheKey::new(text, range);
         self.used_this_frame.borrow_mut().insert(key.clone());
         self.map.borrow_mut().insert(key, value);
     }
 
-    pub fn get(
-        &self, text: &str, range: (DocCharOffset, DocCharOffset),
-    ) -> Option<SyntaxHighlightResult> {
+    pub fn get(&self, text: &str, range: (Grapheme, Grapheme)) -> Option<SyntaxHighlightResult> {
         let key = SyntaxCacheKey::new(text.to_string(), range);
         self.used_this_frame.borrow_mut().insert(key.clone());
         self.map.borrow().get(&key).cloned()

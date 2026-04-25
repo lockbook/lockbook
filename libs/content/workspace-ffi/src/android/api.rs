@@ -1,13 +1,13 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
+use jni::objects::{JByteArray, JClass, JObject, JPrimitiveArray, JString, JValue};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jobjectArray, jstring};
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::DocCharOffset;
+use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
-use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
+use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
@@ -308,10 +308,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         .position(|s| s.dest.id() == id)
     {
         obj.workspace.close_tab(tab_id);
-    } else {
-        while !obj.workspace.tab_strip.is_empty() {
-            obj.workspace.close_tab(0);
-        }
     }
 }
 
@@ -390,11 +386,29 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) -> jint {
+    mut _env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    get_current_tab(obj)
+    let tab_type = get_current_tab(obj);
+    let id = obj
+        .workspace
+        .current_tab_id()
+        .unwrap_or_default()
+        .to_string();
+
+    let cls = _env
+        .find_class("app/lockbook/workspace/NativeWorkspaceTab")
+        .expect("find NativeWorkspaceTab class");
+    let id = _env.new_string(id).expect("create tab id string");
+
+    _env.new_object(
+        cls,
+        "(Ljava/lang/String;I)V",
+        &[JValue::Object(&JObject::from(id)), JValue::Int(tab_type)],
+    )
+    .expect("create NativeWorkspaceTab")
+    .into_raw()
 }
 
 fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
@@ -490,8 +504,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
     });
 }
@@ -530,8 +544,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(
                 markdown
                     .edit
                     .renderer
@@ -559,8 +573,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
         text,
         advance_cursor: true,
@@ -578,7 +592,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
+    let loc = Location::Grapheme(Grapheme(index as usize));
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -603,7 +617,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(
+    let loc = Location::Grapheme(
         markdown
             .edit
             .renderer
@@ -636,7 +650,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
         }
     };
 
-    let selection = (DocCharOffset(start as usize), DocCharOffset(end as usize));
+    let selection = (Grapheme(start as usize), Grapheme(end as usize));
     env.new_string(&markdown.edit.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
@@ -659,7 +673,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
     };
 
     let selection = (
-        DocCharOffset(0),
+        Grapheme(0),
         markdown
             .edit
             .renderer
@@ -688,8 +702,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(segs.last_cursor_position()),
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(segs.last_cursor_position()),
         },
     });
 }
@@ -725,6 +739,31 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         .raw_input
         .events
         .push(egui::Event::Paste(content));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardSendImage(
+    env: JNIEnv, _: JClass, obj: jlong, content: JByteArray, is_paste: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let img = match env.convert_byte_array(&content) {
+        Ok(bytes) => bytes,
+        Err(_) => return,
+    };
+
+    let content = vec![ClipContent::Image(img)];
+    let position = egui::Pos2::ZERO; // todo: cursor position
+
+    if is_paste == 1 {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Paste { content, position });
+    } else {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Drop { content, position });
+    }
 }
 
 #[no_mangle]

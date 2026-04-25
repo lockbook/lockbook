@@ -2,7 +2,7 @@ use std::f32;
 
 use comrak::nodes::{AstNode, NodeLink};
 use egui::{self, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
 
@@ -23,14 +23,14 @@ impl MdRender {
 
 impl<'ast> MdRender {
     pub fn span_image(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         self.circumfix_span(node, wrap, range)
     }
 
     pub fn show_image(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
+        node_link: &NodeLink, range: (Grapheme, Grapheme),
     ) -> Response {
         self.show_link(ui, node, top_left, wrap, node_link, range)
     }

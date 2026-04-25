@@ -1,7 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::text::LayoutJob;
 use egui::{FontFamily, FontId, Pos2, Rect, TextFormat, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RelCharOffset};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
@@ -68,8 +68,8 @@ impl<'ast> MdRender {
     // node (e.g. they don't affect indentation requirements for nested list
     // items)
     pub fn own_prefix_len_footnote_definition(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         // todo: change paramater type of `line` to `usize` (index instead of
         // value) here and elsewhere
         // todo: unsure of lazy continuation line behavior in footnote
@@ -77,7 +77,7 @@ impl<'ast> MdRender {
         Some(if line == self.node_first_line(node) {
             self.prefix_range(node).unwrap().len()
         } else {
-            RelCharOffset(2).min(line.len())
+            Graphemes(2).min(line.len())
         })
     }
 

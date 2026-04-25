@@ -1,7 +1,7 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::MdRender;
@@ -63,7 +63,7 @@ impl<'ast> MdRender {
     }
 
     pub fn height_setext_heading_line(
-        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset), reveal: bool,
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);
@@ -234,7 +234,7 @@ impl<'ast> MdRender {
     #[allow(clippy::too_many_arguments)]
     fn show_setext_heading_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_line: (DocCharOffset, DocCharOffset), reveal: bool,
+        node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Response {
         let mut resp = Default::default();
 
@@ -375,7 +375,7 @@ impl<'ast> MdRender {
     }
 
     fn compute_bounds_setext_heading_line(
-        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), reveal: bool,
+        &mut self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), reveal: bool,
     ) {
         let node_line = self.node_line(node, line);
 
@@ -472,7 +472,7 @@ impl<'ast> MdRender {
 
     pub fn heading_contents(
         &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (DocCharOffset, DocCharOffset) {
+    ) -> (Grapheme, Grapheme) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
@@ -517,7 +517,7 @@ impl<'ast> MdRender {
 
     pub fn show_fold_button(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, size_icon_size_space: (f32, f32, Rect),
-        contents: (DocCharOffset, DocCharOffset), fold_reveal: bool,
+        contents: (Grapheme, Grapheme), fold_reveal: bool,
     ) {
         let (size, icon_size, space) = size_icon_size_space;
         self.touch_consuming_rects.push(space);

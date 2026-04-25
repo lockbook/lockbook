@@ -25,7 +25,7 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::Grapheme;
 use serde::{Deserialize, Serialize};
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -106,8 +106,8 @@ pub struct MdRender {
     pub touch_consuming_rects: Vec<Rect>,
 
     // render input
-    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
-    pub find_current_match: Option<(DocCharOffset, DocCharOffset)>,
+    pub in_progress_selection: Option<(Grapheme, Grapheme)>,
+    pub find_current_match: Option<(Grapheme, Grapheme)>,
     /// Gates fold UI. Stays true in readonly — fold is the one mutation
     /// allowed there (saves are gated separately).
     pub interactive: bool,
@@ -118,8 +118,8 @@ pub struct MdRender {
     /// parsing, no fold UI, no completion popups. Set at construction from
     /// the non-`md` ext check; callers may also flip it directly.
     pub plaintext: bool,
-    pub reveal_ranges: Vec<(DocCharOffset, DocCharOffset)>,
-    pub text_highlight_range: Option<(DocCharOffset, DocCharOffset)>,
+    pub reveal_ranges: Vec<(Grapheme, Grapheme)>,
+    pub text_highlight_range: Option<(Grapheme, Grapheme)>,
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -165,7 +165,7 @@ pub struct MdEdit {
     /// Transient drag selection — `Some` while a drag is in progress; the
     /// rendered cursor/selection falls back to the buffer's own selection
     /// when `None`.
-    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
+    pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
@@ -257,7 +257,7 @@ impl MdPersistence {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
     scroll_offset: f32,
-    selection: (DocCharOffset, DocCharOffset),
+    selection: (Grapheme, Grapheme),
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
 }
@@ -1054,6 +1054,10 @@ impl Editor {
 
                             self.edit.renderer.top_left = ui.max_rect().min
                                 + (padding + self.edit.renderer.layout.margin) * Vec2::X;
+                            // Pre-subtract margin so height() and show see the same
+                            // renderer.width. Otherwise margin gets subtracted twice,
+                            // cell widths diverge, and cached heights go stale.
+                            self.edit.renderer.width -= 2. * self.edit.renderer.layout.margin;
                             let height = {
                                 let document_height = self.edit.renderer.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -1067,11 +1071,7 @@ impl Editor {
                             };
                             let rect = Rect::from_min_size(
                                 self.edit.renderer.top_left,
-                                Vec2::new(
-                                    self.edit.renderer.width
-                                        - 2. * self.edit.renderer.layout.margin,
-                                    height,
-                                ),
+                                Vec2::new(self.edit.renderer.width, height),
                             );
 
                             // delegate to MdEdit::show for parse, event processing,
@@ -1438,7 +1438,7 @@ mod test {
     use crate::theme::palette_v2::{Mode, Theme};
     use egui::RawInput;
     use input::{Event, Location, Region};
-    use lb_rs::model::text::offset_types::DocCharOffset;
+    use lb_rs::model::text::offset_types::Grapheme;
 
     struct TestEditor {
         editor: Editor,
@@ -1456,8 +1456,8 @@ mod test {
         fn replace(&mut self, start: usize, end: usize, text: &str) {
             self.pending.push(Event::Replace {
                 region: Region::BetweenLocations {
-                    start: Location::DocCharOffset(DocCharOffset(start)),
-                    end: Location::DocCharOffset(DocCharOffset(end)),
+                    start: Location::Grapheme(Grapheme(start)),
+                    end: Location::Grapheme(Grapheme(end)),
                 },
                 text: text.to_string(),
                 advance_cursor: true,

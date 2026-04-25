@@ -208,7 +208,7 @@ impl Workspace {
         }
         if make_current {
             self.current_tab = Some(dest);
-            self.current_tab_changed = true;
+            self.mark_current_tab_changed();
         }
     }
 
@@ -236,6 +236,11 @@ impl Workspace {
 
     pub fn current_tab_id(&self) -> Option<Uuid> {
         self.current_tab().and_then(|tab| tab.id())
+    }
+
+    fn mark_current_tab_changed(&mut self) {
+        self.current_tab_changed = true;
+        self.out.selected_file = self.current_tab_id();
     }
 
     pub fn current_tab_title(&self) -> Option<String> {
@@ -267,9 +272,8 @@ impl Workspace {
             return false;
         };
         self.current_tab = Some(dest.clone());
-        self.current_tab_changed = true;
+        self.mark_current_tab_changed();
         let tab = self.tabs.get(&dest).unwrap();
-        self.out.selected_file = tab.id();
         self.ctx
             .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
 
@@ -369,7 +373,7 @@ impl Workspace {
         self.open_dest(&dest);
 
         self.current_tab = Some(dest);
-        self.current_tab_changed = true;
+        self.mark_current_tab_changed();
     }
 
     pub fn back(&mut self) {
@@ -385,7 +389,7 @@ impl Workspace {
 
         self.open_dest(&new_dest);
         self.current_tab = Some(new_dest);
-        self.current_tab_changed = true;
+        self.mark_current_tab_changed();
     }
 
     pub fn can_back(&self) -> bool {
@@ -410,7 +414,7 @@ impl Workspace {
 
         self.open_dest(&new_dest);
         self.current_tab = Some(new_dest);
-        self.current_tab_changed = true;
+        self.mark_current_tab_changed();
     }
 
     pub fn can_forward(&self) -> bool {
@@ -454,7 +458,7 @@ impl Workspace {
                 self.current_tab = Some(self.tab_strip[new_idx].dest.clone());
             }
         }
-        self.current_tab_changed = true;
+        self.mark_current_tab_changed();
     }
 
     #[instrument(level = "trace", skip_all)]
