@@ -767,6 +767,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         return didNavigate
     }
 
+    fun canForward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        return Workspace.canForward(WGPU_OBJ)
+    }
+
     fun isPenOnlyDraw(): Boolean {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return false

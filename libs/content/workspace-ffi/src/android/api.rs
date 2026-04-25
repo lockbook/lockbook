@@ -353,6 +353,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_forward(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canForward(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.can_forward().into()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
     mut env: JNIEnv, _: JClass, obj: jlong,
 ) -> jobjectArray {

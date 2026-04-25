@@ -107,6 +107,7 @@ class WorkspaceFragment : Fragment() {
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
             updateCurrentTab(workspaceWrapper, tab)
+            updateForwardButtonState(workspaceWrapper)
         }
 
         model.refreshFilesRequested.observe(viewLifecycleOwner) {
@@ -245,6 +246,11 @@ class WorkspaceFragment : Fragment() {
 
         animateBottomSheetHeight(newHeight) {
             binding.expandList.visibility = if (binding.expandList.isVisible) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+            binding.forwardWs.visibility = if (binding.forwardWs.isVisible) {
                 View.GONE
             } else {
                 View.VISIBLE
@@ -470,12 +476,20 @@ class WorkspaceFragment : Fragment() {
             model._tabListExpanded.value = !(model.tabListExpanded.value ?: false)
         }
 
+        binding.forwardWs.setOnClickListener {
+            workspaceWrapper.workspaceView.forward()
+        }
+
         binding.closeAllTabs.setOnClickListener {
             workspaceWrapper.workspaceView.closeAllTabs()
             workspaceWrapper.workspaceView.drawImmediately()
             model._tabListExpanded.postValue(false)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
+    }
+
+    private fun updateForwardButtonState(workspaceWrapper: WorkspaceWrapperView) {
+        binding.forwardWs.isEnabled = workspaceWrapper.workspaceView.canForward()
     }
     @SuppressLint("NotifyDataSetChanged")
     private fun setupTabList() {
