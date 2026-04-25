@@ -447,6 +447,8 @@ impl Workspace {
             }
         }
         self.current_tab_changed = true;
+
+        self.out.selected_file = self.current_tab_id();
     }
 
     #[instrument(level = "trace", skip_all)]

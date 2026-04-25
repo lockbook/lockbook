@@ -25,7 +25,6 @@ import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import app.lockbook.App
-import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -33,6 +32,7 @@ import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
+import app.lockbook.workspace.toModelTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -564,16 +564,17 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             if (response.tabsChanged) {
-                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
-
-                if (tab != null) {
-                    model._currentTab.value = model.currentTab.value?.copy(type = tab)
+                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
+                if (model._currentTab.value != newTab) {
+                    model._currentTab.value = newTab
                 }
             }
 
             if (!response.selectedFile.isNullUUID()) {
-                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
-                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile, type = tab ?: WorkspaceTabType.Welcome)
+                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
+                if (model._currentTab.value != newTab) {
+                    model._currentTab.value = newTab
+                }
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {

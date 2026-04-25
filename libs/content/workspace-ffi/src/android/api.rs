@@ -1,7 +1,7 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JByteArray, JClass, JObject, JPrimitiveArray, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
+use jni::objects::{JByteArray, JClass, JObject, JPrimitiveArray, JString, JValue};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jobjectArray, jstring};
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::DocCharOffset;
 use serde::Serialize;
@@ -360,11 +360,25 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) -> jint {
+    mut _env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    get_current_tab(obj)
+    let tab_type = get_current_tab(obj);
+    let id = obj.workspace.current_tab_id().unwrap_or_default().to_string();
+
+    let cls = _env
+        .find_class("app/lockbook/workspace/NativeWorkspaceTab")
+        .expect("find NativeWorkspaceTab class");
+    let id = _env.new_string(id).expect("create tab id string");
+
+    _env.new_object(
+        cls,
+        "(Ljava/lang/String;I)V",
+        &[JValue::Object(&JObject::from(id)), JValue::Int(tab_type)],
+    )
+    .expect("create NativeWorkspaceTab")
+    .into_raw()
 }
 
 fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {

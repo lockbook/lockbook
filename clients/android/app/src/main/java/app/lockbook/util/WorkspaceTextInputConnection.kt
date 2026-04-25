@@ -14,10 +14,10 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
-import java.io.ByteArrayOutputStream
-import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.atomic.AtomicReference
 
 data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
 
@@ -100,7 +100,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                         val bytes = try {
                             readAllBytesCapped(uri)
                         } catch (err: Exception) {
-                            withContext(Dispatchers.Main){
+                            withContext(Dispatchers.Main) {
                                 Toast
                                     .makeText(App.applicationContext(), err.message, Toast.LENGTH_SHORT)
                                     .show()
@@ -142,7 +142,7 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         if (uri == null) return false
         val resolver = App.applicationContext().contentResolver
         val mime = resolver.getType(uri)
-        if (mime != null){
+        if (mime != null) {
             if (mime.startsWith("image")) return true
         }
         if (description == null) return false

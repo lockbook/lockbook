@@ -19,12 +19,12 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.Toast
-import androidx.core.view.inputmethod.EditorInfoCompat
-import androidx.core.view.inputmethod.InputConnectionCompat
-import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -363,16 +363,13 @@ class WorkspaceFragment : Fragment() {
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-        println("ad-tra: getting tab title: $tabTitle")
 
         if (tabTitle == null && newTab.type != WorkspaceTabType.Welcome) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-            println("ad-tra: refresh files and getting tab title: $tabTitle")
-
         }
 
-        if (tabTitle == null){
+        if (tabTitle == null) {
             Toast.makeText(context, "Could not find file", Toast.LENGTH_SHORT).show()
             return
         }
@@ -448,6 +445,7 @@ class WorkspaceFragment : Fragment() {
         return filesListModel.fileModel.idsAndFiles[currentTab.id]
     }
 
+    @SuppressLint("NotifyDataSetChanged")
     private fun setupTabList() {
         binding.tabsList.setup {
             withDataSource(model.tabs)
@@ -475,7 +473,7 @@ class WorkspaceFragment : Fragment() {
                         closeButton.isChecked = isSelected
                         closeButton.setOnClickListener {
                             model._closeFile.value = item.id
-                            binding.tabsList.adapter?.notifyItemRemoved(i)
+                            binding.tabsList.adapter?.notifyDataSetChanged()
                         }
 
                         name.setOnClickListener {
@@ -505,7 +503,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     var currentTab = WorkspaceTabType.Welcome
 
     var currentWrapper: View? = null
-
 
     companion object {
         const val TAB_BAR_HEIGHT = 50
@@ -549,14 +546,12 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
     private fun detachWrapperIfPresent() {
         val wrapper = currentWrapper ?: return
-        println("ad-tra: removing wrapper a")
 
         // Clear the link from the native view immediately to avoid stale references.
         workspaceView.wrapperView = null
         currentWrapper = null
 
         if (wrapper is WorkspaceTextInputWrapper) {
-            println("ad-tra: removing wrapper b")
             wrapper.wsInputConnection.closeConnection()
             wrapper.clearFocus()
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -565,19 +560,15 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
                 {
                     if (wrapper.parent === this) {
                         removeView(wrapper)
-                        println("ad-tra: removing wrapper c ")
                     }
                 },
                 200
             )
         }
-
-
     }
 
     private fun attachWrapperIfNeeded(newTab: WorkspaceTabType) {
         if (!newTab.isTextEdit()) {
-            println("ad-tra: attach wrapper x")
             return
         }
 
@@ -586,7 +577,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
         addView(wrapper, textWrapperLayoutParams(topInsetPx))
-        println("ad-tra: attach wrapper a")
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -644,8 +634,8 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                 val bottomSheetExpanded = workspaceView.model.bottomSheetExpanded.value ?: false
 
                 val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
-                val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold
-                        && abs(event.y - touchStartY).toInt() < slopTouchThreshold
+                val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
+                    abs(event.y - touchStartY).toInt() < slopTouchThreshold
 
                 if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
