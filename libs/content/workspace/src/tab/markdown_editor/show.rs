@@ -336,15 +336,22 @@ impl MdEdit {
         // doc's top-level blocks to the scroll area's content trait.
         self.renderer.viewport.set(ui.clip_rect());
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+            let touch_scroll = self.renderer.touch_mode;
             let mut content =
                 crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                     &mut self.renderer,
                     root,
                 );
-            let mut scroll = crate::widgets::affine_scroll::AffineScrollArea::new(id);
+            let mut scroll = crate::widgets::affine_scroll::AffineScrollArea::new(id)
+                .touch_scroll(touch_scroll);
             scroll.show(ui, &mut content);
         });
         self.renderer.galleys.galleys.sort_by_key(|g| g.range);
+
+        // Constrain subsequent painting (selection, cursor, find
+        // highlights) to the scroll area's rect so it doesn't bleed
+        // over the toolbar / sidebars.
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {

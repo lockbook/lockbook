@@ -274,7 +274,13 @@ impl MdPersistence {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
-    scroll_offset: f32,
+    /// Width-independent scroll position: `(anchor_block_idx,
+    /// intra_offset_approx)`. On load, the editor converts this to an
+    /// approx scroll offset for the current width via
+    /// `anchor_to_offset`. Out-of-bounds indices clamp to the last
+    /// block.
+    #[serde(default)]
+    anchor: Option<(usize, f32)>,
     selection: (Grapheme, Grapheme),
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
@@ -778,16 +784,18 @@ impl Editor {
                                     // reads last-frame galleys) sees nothing.
                                     self.edit.renderer.touch_consuming_rects.clear();
 
-                                    // show editor
-                                    let scroll_area_id =
-                                        ui.id().with(egui::Id::new(self.edit.file_id));
+                                    let scroll_id = self.id();
+                                    let scroll =
+                                        crate::widgets::affine_scroll::AffineScrollArea::new(
+                                            scroll_id,
+                                        );
+                                    let prev_offset = scroll.offset(ui.ctx());
                                     self.show_scrollable_editor(ui, root);
-                                    // TODO: restore scroll persistence + velocity
-                                    // wired through `AffineScrollArea`.
-                                    self.next_resp.scroll_updated = false;
-                                    self.edit.scroll_area_velocity = Vec2::ZERO;
+                                    let new_offset = scroll.offset(ui.ctx());
+                                    self.next_resp.scroll_updated = new_offset != prev_offset;
+                                    self.edit.scroll_area_velocity = scroll.velocity(ui.ctx());
 
-                                    Some(scroll_area_id)
+                                    Some(scroll_id)
                                 } else {
                                     // show toolbar settings
                                     self.show_toolbar_menu(ui);
@@ -811,7 +819,7 @@ impl Editor {
 
                     scroll_area_id
                 } else {
-                    let scroll_area_id = ui.id().with(egui::Id::new(self.edit.file_id));
+                    let scroll_id = self.id();
 
                     if !self.edit.renderer.readonly {
                         self.show_toolbar(root, ui);
@@ -823,14 +831,15 @@ impl Editor {
                     // reads last-frame galleys) sees nothing.
                     self.edit.renderer.touch_consuming_rects.clear();
 
-                    // ...then show editor content
+                    let scroll =
+                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+                    let prev_offset = scroll.offset(ui.ctx());
                     self.show_scrollable_editor(ui, root);
-                    // TODO: restore scroll persistence + velocity wired
-                    // through `AffineScrollArea`.
-                    self.next_resp.scroll_updated = false;
+                    let new_offset = scroll.offset(ui.ctx());
+                    self.next_resp.scroll_updated = new_offset != prev_offset;
                     self.edit.scroll_area_velocity = Vec2::ZERO;
 
-                    Some(scroll_area_id)
+                    Some(scroll_id)
                 };
 
                 // persistence: read
@@ -842,14 +851,20 @@ impl Editor {
                         .get(&self.edit.file_id)
                         .cloned()
                         .unwrap_or_default();
-                    if let Some(scroll_area_id) = scroll_area_id {
-                        ui.data_mut(|d| {
-                            let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
-                            if let Some(mut state) = state {
-                                state.offset.y = persisted.scroll_offset;
-                                d.insert_temp(scroll_area_id, state);
-                            }
-                        });
+                    if let (Some(scroll_id), Some((anchor_idx, intra))) =
+                        (scroll_area_id, persisted.anchor)
+                    {
+                        let mut content =
+                            crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
+                                &mut self.edit.renderer,
+                                root,
+                            );
+                        let offset = crate::widgets::affine_scroll::anchor_to_offset(
+                            &content, anchor_idx, intra,
+                        );
+                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
+                            .set_offset(ui.ctx(), offset);
+                        let _ = content; // release the borrow
                     }
                     // set the selection using low-level API; using internal
                     // events causes touch devices to scroll to cursor on 2nd
@@ -971,7 +986,7 @@ impl Editor {
                 .entry(self.edit.file_id)
                 .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
                 .or_insert(MdFilePersistence {
-                    scroll_offset: Default::default(),
+                    anchor: None,
                     selection: self.edit.renderer.buffer.current.selection,
                     image_dims: Default::default(),
                 });
@@ -981,9 +996,22 @@ impl Editor {
         let mut scroll_end_processed = false;
         if let Some(unprocessed_scroll) = self.unprocessed_scroll {
             if unprocessed_scroll.elapsed() > Duration::from_millis(100) {
-                if let Some(scroll_area_id) = scroll_area_id {
-                    let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
-                    let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+                if let Some(scroll_id) = scroll_area_id {
+                    // Need a fresh parse to convert offset back to anchor
+                    // (the parsed root from above may have been dropped).
+                    let arena = Arena::new();
+                    let root = self.edit.renderer.reparse(&arena);
+                    let scroll =
+                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+                    let offset = scroll.offset(ui.ctx());
+                    let content =
+                        crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
+                            &mut self.edit.renderer,
+                            root,
+                        );
+                    let anchor =
+                        crate::widgets::affine_scroll::offset_to_anchor(&content, offset);
+                    let _ = content;
 
                     let image_dims = self.edit.renderer.embeds.image_dims();
                     let mut persistence = self.persistence.data.write().unwrap();
@@ -992,11 +1020,11 @@ impl Editor {
                         .file
                         .entry(self.edit.file_id)
                         .and_modify(|f| {
-                            f.scroll_offset = scroll_offset;
+                            f.anchor = Some(anchor);
                             f.image_dims = image_dims.clone();
                         })
                         .or_insert(MdFilePersistence {
-                            scroll_offset,
+                            anchor: Some(anchor),
                             selection: Default::default(),
                             image_dims,
                         });
@@ -1038,15 +1066,10 @@ impl Editor {
     }
 
     fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
-        let margin: Margin = if cfg!(target_os = "android") {
-            Margin::symmetric(0, 60)
-        } else {
-            Margin::symmetric(0, 15)
-        };
         let prev_seq = self.edit.renderer.buffer.current.seq;
 
         Frame::canvas(ui.style())
-            .inner_margin(margin)
+            .inner_margin(Margin::ZERO)
             .stroke(Stroke::NONE)
             .show(ui, |ui| {
                 // Claim full available width with 0 vertical space so

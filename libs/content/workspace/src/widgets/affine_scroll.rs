@@ -56,15 +56,62 @@ pub trait ScrollContent {
 struct ScrollState {
     /// Position in approx units. `[0, approx_total - viewport_height]`.
     offset_approx: f32,
+    /// Touch-scroll velocity in precise pixels per second. Positive
+    /// means content is moving up on screen (scroll offset growing).
+    /// Decays each frame; non-zero while momentum scrolling.
+    velocity_precise: f32,
+    /// Sliding window of recent drag samples — `(delta_precise, dt)` —
+    /// used to derive velocity from a small chunk of recent history
+    /// rather than the last frame alone. Zero entries contribute to
+    /// the average, so a held finger naturally drops velocity to 0.
+    drag_window: [(f32, f32); DRAG_WINDOW_LEN],
+    drag_window_idx: u8,
 }
+
+const DRAG_WINDOW_LEN: usize = 6;
 
 pub struct AffineScrollArea {
     id_salt: egui::Id,
+    /// When true, drag on the body (not just the scrollbar) scrolls
+    /// the content with momentum. Intended for touch input.
+    touch_scroll: bool,
 }
 
 impl AffineScrollArea {
     pub fn new(id_salt: impl std::hash::Hash) -> Self {
-        Self { id_salt: egui::Id::new(id_salt) }
+        Self { id_salt: egui::Id::new(id_salt), touch_scroll: false }
+    }
+
+    pub fn touch_scroll(mut self, enabled: bool) -> Self {
+        self.touch_scroll = enabled;
+        self
+    }
+
+    /// Current touch-scroll velocity (precise px/sec). y is vertical;
+    /// x is always 0. Non-zero while momentum scroll is in flight.
+    /// Used to block other touch handling (e.g. cursor placement)
+    /// while content is coasting.
+    pub fn velocity(&self, ctx: &egui::Context) -> egui::Vec2 {
+        let state: ScrollState =
+            ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
+        egui::Vec2::new(0.0, state.velocity_precise)
+    }
+
+    /// Current scroll offset in approx units. For persistence.
+    pub fn offset(&self, ctx: &egui::Context) -> f32 {
+        ctx.data(|d| d.get_temp::<ScrollState>(self.id_salt))
+            .unwrap_or_default()
+            .offset_approx
+    }
+
+    /// Set scroll offset directly. For persistence-restore. Skip
+    /// clamping — the scroll area will clamp on next show against the
+    /// current `max_offset`.
+    pub fn set_offset(&self, ctx: &egui::Context, offset_approx: f32) {
+        let mut state: ScrollState =
+            ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
+        state.offset_approx = offset_approx;
+        ctx.data_mut(|d| d.insert_temp(self.id_salt, state));
     }
 
     pub fn show(&mut self, ui: &mut Ui, content: &mut dyn ScrollContent) -> Response {
@@ -73,7 +120,9 @@ impl AffineScrollArea {
         // via `ui.scope_builder().max_rect(...)`).
         let rect = ui.max_rect();
 
-        let response = ui.allocate_rect(rect, Sense::hover());
+        let body_sense =
+            if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
+        let response = ui.allocate_rect(rect, body_sense);
 
         // Scrollbar hit area registered AFTER the body so it shadows
         // the body's hover in z-order. Same dimensions used by
@@ -133,6 +182,61 @@ impl AffineScrollArea {
                 (state.offset_approx + approx_delta).clamp(0.0, max_offset);
         }
 
+        // Touch body drag → scroll + velocity tracking.
+        let dt = ui.input(|i| i.stable_dt).max(0.0001);
+        if max_offset > 0.0 && self.touch_scroll && response.drag_started() {
+            // Tap-during-momentum or drag-start: clear stale velocity
+            // and the sliding-window history so the new gesture
+            // doesn't inherit anything.
+            state.velocity_precise = 0.0;
+            state.drag_window = [(0.0, 0.0); DRAG_WINDOW_LEN];
+            state.drag_window_idx = 0;
+        }
+        if max_offset > 0.0 && self.touch_scroll && response.dragged() {
+            let drag_y = ui.input(|i| i.pointer.delta().y);
+            // Drag UP (negative y) → scroll DOWN (offset grows). Same
+            // sign convention as wheel.
+            let precise_delta = -drag_y;
+            let approx_delta =
+                precise_to_approx_delta(content, state.offset_approx, precise_delta);
+            state.offset_approx =
+                (state.offset_approx + approx_delta).clamp(0.0, max_offset);
+            // Push this frame's sample into the sliding window.
+            // Velocity = sum(deltas) / sum(dts) over the window. Held
+            // frames (delta=0) drag the average toward 0, so a pause
+            // before release won't produce phantom momentum.
+            state.drag_window[state.drag_window_idx as usize] = (precise_delta, dt);
+            state.drag_window_idx =
+                (state.drag_window_idx + 1) % (DRAG_WINDOW_LEN as u8);
+            let (sum_d, sum_dt) = state
+                .drag_window
+                .iter()
+                .fold((0.0, 0.0), |(sd, st), (d, t)| (sd + d, st + t));
+            state.velocity_precise = if sum_dt > 0.001 { sum_d / sum_dt } else { 0.0 };
+        } else if state.velocity_precise.abs() > 1.0 && !response.dragged() {
+            // Coast: apply velocity * dt, decay velocity.
+            const DECAY_PER_SEC: f32 = 4.0;
+            let precise_step = state.velocity_precise * dt;
+            let approx_step =
+                precise_to_approx_delta(content, state.offset_approx, precise_step);
+            let new_offset =
+                (state.offset_approx + approx_step).clamp(0.0, max_offset);
+            // If we hit a scroll boundary, kill momentum.
+            if (new_offset - state.offset_approx).abs() < 0.001 {
+                state.velocity_precise = 0.0;
+            } else {
+                state.offset_approx = new_offset;
+                state.velocity_precise *= (-DECAY_PER_SEC * dt).exp();
+            }
+            ui.ctx().request_repaint();
+        } else {
+            state.velocity_precise = 0.0;
+        }
+        // Tap (click without drag) cancels momentum.
+        if self.touch_scroll && response.clicked() {
+            state.velocity_precise = 0.0;
+        }
+
         // Scrollbar drag/click. The thumb spans `visible_fraction *
         // viewport_height`; the user can drag the thumb across the
         // remaining `(1 - visible_fraction) * viewport_height` of
@@ -172,6 +276,44 @@ impl AffineScrollArea {
 
         response
     }
+}
+
+/// Convert a scroll offset (approx units) into an `(anchor_idx, intra_offset)`
+/// pair. The intra_offset is in approx units within the anchor block.
+/// Used for width-independent scroll persistence.
+pub fn offset_to_anchor(content: &dyn ScrollContent, offset: f32) -> (usize, f32) {
+    let n = content.block_count();
+    if n == 0 {
+        return (0, 0.0);
+    }
+    let mut acc = 0.0f32;
+    for i in 0..n {
+        let h = content.approx_height(i);
+        if acc + h > offset {
+            return (i, (offset - acc).max(0.0));
+        }
+        acc += h;
+    }
+    // Past the end — anchor at the last block, intra at its end.
+    (n - 1, content.approx_height(n - 1))
+}
+
+/// Inverse of `offset_to_anchor`. Bounds-checks: out-of-range
+/// `anchor_idx` clamps to the last block; intra clamps to that block's
+/// approx height.
+pub fn anchor_to_offset(
+    content: &dyn ScrollContent, anchor_idx: usize, intra: f32,
+) -> f32 {
+    let n = content.block_count();
+    if n == 0 {
+        return 0.0;
+    }
+    let idx = anchor_idx.min(n - 1);
+    let mut acc = 0.0f32;
+    for i in 0..idx {
+        acc += content.approx_height(i);
+    }
+    acc + intra.clamp(0.0, content.approx_height(idx))
 }
 
 /// Pure layout: returns `(block_idx, screen_y)` pairs for blocks the
