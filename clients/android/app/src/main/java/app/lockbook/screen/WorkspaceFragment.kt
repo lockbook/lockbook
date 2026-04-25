@@ -125,7 +125,7 @@ class WorkspaceFragment : Fragment() {
             println("ad-tra: set bottom inset ")
             workspaceWrapper.workspaceView.setBottomInset(it)
         }
-        
+
         model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
             if (keyboardVisible) {
                 binding.standardBottomSheet.visibility = View.GONE
