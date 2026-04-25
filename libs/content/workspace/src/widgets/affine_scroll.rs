@@ -92,8 +92,7 @@ impl AffineScrollArea {
     /// Used to block other touch handling (e.g. cursor placement)
     /// while content is coasting.
     pub fn velocity(&self, ctx: &egui::Context) -> egui::Vec2 {
-        let state: ScrollState =
-            ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
+        let state: ScrollState = ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
         egui::Vec2::new(0.0, state.velocity_precise)
     }
 
@@ -108,8 +107,7 @@ impl AffineScrollArea {
     /// clamping — the scroll area will clamp on next show against the
     /// current `max_offset`.
     pub fn set_offset(&self, ctx: &egui::Context, offset_approx: f32) {
-        let mut state: ScrollState =
-            ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
+        let mut state: ScrollState = ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
         state.offset_approx = offset_approx;
         ctx.data_mut(|d| d.insert_temp(self.id_salt, state));
     }
@@ -120,8 +118,7 @@ impl AffineScrollArea {
         // via `ui.scope_builder().max_rect(...)`).
         let rect = ui.max_rect();
 
-        let body_sense =
-            if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
+        let body_sense = if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
         let response = ui.allocate_rect(rect, body_sense);
 
         // Scrollbar hit area registered AFTER the body so it shadows
@@ -130,10 +127,8 @@ impl AffineScrollArea {
         const BAR_WIDTH: f32 = 10.0;
         const BAR_INSET: f32 = 3.0;
         let bar_x = rect.max.x - BAR_WIDTH - BAR_INSET;
-        let bar_track = Rect::from_min_size(
-            Pos2::new(bar_x, rect.min.y),
-            Vec2::new(BAR_WIDTH, rect.height()),
-        );
+        let bar_track =
+            Rect::from_min_size(Pos2::new(bar_x, rect.min.y), Vec2::new(BAR_WIDTH, rect.height()));
         let bar_id = self.id_salt.with("scrollbar");
         let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
 
@@ -143,22 +138,22 @@ impl AffineScrollArea {
             .data(|d| d.get_temp(self.id_salt))
             .unwrap_or_default();
 
-        // Max scroll = max of:
-        // - approx-y top of the last block (user can put it at top of
-        //   viewport — useful when last block is short).
-        // - approx_total − viewport_height (user can scroll within a
-        //   tall single block).
-        // Whichever's larger wins. Both are constant functions of the doc.
+        // Scroll extent: walk precise heights from the end of the doc
+        // until they cover one viewport, then convert that anchor
+        // position back to approx units. This matches what's actually
+        // visible at max scroll regardless of per-block approx/precise
+        // mismatch — the cheap approximation `approx_total - vh` would
+        // mis-clamp when blocks at the bottom of the doc render taller
+        // (or shorter) than approx predicts. Cost stays bounded: only
+        // the tail blocks visible at max scroll get their precise
+        // height computed.
         let n = content.block_count();
         let viewport_height = rect.height();
         let approx_total: f32 = (0..n).map(|i| content.approx_height(i)).sum();
-        let max_offset = if n == 0 {
-            0.0
-        } else {
-            let approx_y_top_last: f32 =
-                (0..n - 1).map(|i| content.approx_height(i)).sum();
-            approx_y_top_last.max(approx_total - viewport_height).max(0.0)
-        };
+        let max_offset = compute_max_offset(content, viewport_height);
+        // Scrollbar dimensions still reason in approx space (cheap
+        // sizing), independent of `max_offset`'s precise-aware clamp.
+        let scrollbar_total = approx_total.max(viewport_height);
 
         // Process scroll events: wheel, drag on scrollbar, programmatic.
         // Wheel events are in screen pixels = precise. Translate to
@@ -173,13 +168,8 @@ impl AffineScrollArea {
             // (content moves down). We want our offset to *increase*
             // when user scrolls down (content moves up), so negate.
             let precise_delta = -raw_scroll_delta;
-            let approx_delta = precise_to_approx_delta(
-                content,
-                state.offset_approx,
-                precise_delta,
-            );
-            state.offset_approx =
-                (state.offset_approx + approx_delta).clamp(0.0, max_offset);
+            let approx_delta = precise_to_approx_delta(content, state.offset_approx, precise_delta);
+            state.offset_approx = (state.offset_approx + approx_delta).clamp(0.0, max_offset);
         }
 
         // Touch body drag → scroll + velocity tracking.
@@ -197,17 +187,14 @@ impl AffineScrollArea {
             // Drag UP (negative y) → scroll DOWN (offset grows). Same
             // sign convention as wheel.
             let precise_delta = -drag_y;
-            let approx_delta =
-                precise_to_approx_delta(content, state.offset_approx, precise_delta);
-            state.offset_approx =
-                (state.offset_approx + approx_delta).clamp(0.0, max_offset);
+            let approx_delta = precise_to_approx_delta(content, state.offset_approx, precise_delta);
+            state.offset_approx = (state.offset_approx + approx_delta).clamp(0.0, max_offset);
             // Push this frame's sample into the sliding window.
             // Velocity = sum(deltas) / sum(dts) over the window. Held
             // frames (delta=0) drag the average toward 0, so a pause
             // before release won't produce phantom momentum.
             state.drag_window[state.drag_window_idx as usize] = (precise_delta, dt);
-            state.drag_window_idx =
-                (state.drag_window_idx + 1) % (DRAG_WINDOW_LEN as u8);
+            state.drag_window_idx = (state.drag_window_idx + 1) % (DRAG_WINDOW_LEN as u8);
             let (sum_d, sum_dt) = state
                 .drag_window
                 .iter()
@@ -217,10 +204,8 @@ impl AffineScrollArea {
             // Coast: apply velocity * dt, decay velocity.
             const DECAY_PER_SEC: f32 = 4.0;
             let precise_step = state.velocity_precise * dt;
-            let approx_step =
-                precise_to_approx_delta(content, state.offset_approx, precise_step);
-            let new_offset =
-                (state.offset_approx + approx_step).clamp(0.0, max_offset);
+            let approx_step = precise_to_approx_delta(content, state.offset_approx, precise_step);
+            let new_offset = (state.offset_approx + approx_step).clamp(0.0, max_offset);
             // If we hit a scroll boundary, kill momentum.
             if (new_offset - state.offset_approx).abs() < 0.001 {
                 state.velocity_precise = 0.0;
@@ -242,8 +227,7 @@ impl AffineScrollArea {
         // remaining `(1 - visible_fraction) * viewport_height` of
         // track. That drag range maps onto `[0, max_offset]` in approx.
         if max_offset > 0.0 && (bar_response.dragged() || bar_response.clicked()) {
-            let approx_total = max_offset + viewport_height;
-            let visible_fraction = (viewport_height / approx_total).clamp(0.0, 1.0);
+            let visible_fraction = (viewport_height / scrollbar_total).clamp(0.0, 1.0);
             let track_drag_range = (rect.height() * (1.0 - visible_fraction)).max(1.0);
             if bar_response.dragged() {
                 let drag_y = ui.input(|i| i.pointer.delta().y);
@@ -253,8 +237,8 @@ impl AffineScrollArea {
             } else if let Some(pos) = bar_response.interact_pointer_pos() {
                 // Click jumps so the thumb's center lands at the cursor.
                 let thumb_h = visible_fraction * rect.height();
-                let target_thumb_top = (pos.y - rect.min.y - thumb_h / 2.0)
-                    .clamp(0.0, track_drag_range);
+                let target_thumb_top =
+                    (pos.y - rect.min.y - thumb_h / 2.0).clamp(0.0, track_drag_range);
                 state.offset_approx = target_thumb_top * (max_offset / track_drag_range);
             }
         }
@@ -267,12 +251,11 @@ impl AffineScrollArea {
 
         // Draw scrollbar (simple vertical bar on the right).
         if max_offset > 0.0 {
-            draw_scrollbar(ui, rect, state.offset_approx, approx_total, viewport_height);
+            draw_scrollbar(ui, rect, state.offset_approx, scrollbar_total, viewport_height);
         }
 
         // Persist state.
-        ui.ctx()
-            .data_mut(|d| d.insert_temp(self.id_salt, state));
+        ui.ctx().data_mut(|d| d.insert_temp(self.id_salt, state));
 
         response
     }
@@ -301,9 +284,7 @@ pub fn offset_to_anchor(content: &dyn ScrollContent, offset: f32) -> (usize, f32
 /// Inverse of `offset_to_anchor`. Bounds-checks: out-of-range
 /// `anchor_idx` clamps to the last block; intra clamps to that block's
 /// approx height.
-pub fn anchor_to_offset(
-    content: &dyn ScrollContent, anchor_idx: usize, intra: f32,
-) -> f32 {
+pub fn anchor_to_offset(content: &dyn ScrollContent, anchor_idx: usize, intra: f32) -> f32 {
     let n = content.block_count();
     if n == 0 {
         return 0.0;
@@ -314,6 +295,45 @@ pub fn anchor_to_offset(
         acc += content.approx_height(i);
     }
     acc + intra.clamp(0.0, content.approx_height(idx))
+}
+
+/// Walk precise heights from the end of the doc backwards until the
+/// cumulative reaches `viewport_height`. The block where it crosses
+/// is the anchor at max scroll; we convert the intra-position back to
+/// approx units (via that block's slope) to get an `offset_approx` cap
+/// that, when rendered, places the doc's tail at the viewport bottom.
+///
+/// Cost is bounded by the tail blocks visible at max scroll — not the
+/// whole doc — so this stays cheap even on long documents.
+///
+/// Edge cases:
+/// - block_count = 0 or viewport_height <= 0: returns 0.
+/// - Total precise content < viewport_height: returns 0 (doc fits).
+/// - Anchor would land in a 0-approx block (e.g. a virtual trailing
+///   pad with `precise = vh/2, approx = 0`): skip and continue
+///   backwards. The 0-approx block can't host an anchor because the
+///   slope is undefined.
+fn compute_max_offset(content: &mut dyn ScrollContent, viewport_height: f32) -> f32 {
+    let n = content.block_count();
+    if n == 0 || viewport_height <= 0.0 {
+        return 0.0;
+    }
+    let approx_total: f32 = (0..n).map(|i| content.approx_height(i)).sum();
+    let mut cumulative_precise = 0.0f32;
+    let mut approx_tail_sum = 0.0f32;
+    for i in (0..n).rev() {
+        let p = content.precise_height(i);
+        let a = content.approx_height(i);
+        cumulative_precise += p;
+        approx_tail_sum += a;
+        if cumulative_precise >= viewport_height && a > 0.0 {
+            let intra_precise = cumulative_precise - viewport_height;
+            let slope = p / a;
+            let intra_approx = if slope > 0.0 { intra_precise / slope } else { 0.0 };
+            return (approx_total - approx_tail_sum + intra_approx).max(0.0);
+        }
+    }
+    0.0
 }
 
 /// Pure layout: returns `(block_idx, screen_y)` pairs for blocks the
@@ -496,13 +516,8 @@ fn draw_scrollbar(
         Vec2::new(BAR_WIDTH, visible_fraction * viewport.height()),
     );
     ui.painter().rect_filled(bar_track, 3.0, track_color);
-    ui.painter().rect(
-        thumb,
-        3.0,
-        thumb_color,
-        Stroke::NONE,
-        egui::epaint::StrokeKind::Inside,
-    );
+    ui.painter()
+        .rect(thumb, 3.0, thumb_color, Stroke::NONE, egui::epaint::StrokeKind::Inside);
 }
 
 #[cfg(test)]
@@ -619,9 +634,8 @@ mod tests {
             // If the offset got clamped, the scroll event was partially
             // consumed; effective precise delta is smaller. Recompute.
             let effective_approx_delta = offset_b - offset_a;
-            let effective_precise_delta = approx_to_precise_delta(
-                &mut c, offset_a, effective_approx_delta,
-            );
+            let effective_precise_delta =
+                approx_to_precise_delta(&mut c, offset_a, effective_approx_delta);
 
             let before = visible_block_positions(&mut c, viewport_height, offset_a);
             let after = visible_block_positions(&mut c, viewport_height, offset_b);

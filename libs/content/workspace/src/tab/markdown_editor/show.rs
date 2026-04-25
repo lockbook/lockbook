@@ -14,9 +14,7 @@
 
 use comrak::Arena;
 use egui::os::OperatingSystem;
-use egui::{
-    Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand,
-};
+use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand};
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
@@ -337,13 +335,14 @@ impl MdEdit {
         self.renderer.viewport.set(ui.clip_rect());
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             let touch_scroll = self.renderer.touch_mode;
-            let mut content =
-                crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
-                    &mut self.renderer,
-                    root,
-                );
-            let mut scroll = crate::widgets::affine_scroll::AffineScrollArea::new(id)
-                .touch_scroll(touch_scroll);
+            let trailing_precise = rect.height() / 2.0;
+            let mut content = crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
+                &mut self.renderer,
+                root,
+                trailing_precise,
+            );
+            let mut scroll =
+                crate::widgets::affine_scroll::AffineScrollArea::new(id).touch_scroll(touch_scroll);
             scroll.show(ui, &mut content);
         });
         self.renderer.galleys.galleys.sort_by_key(|g| g.range);

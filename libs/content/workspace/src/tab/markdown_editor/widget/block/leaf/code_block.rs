@@ -127,11 +127,8 @@ impl<'ast> MdRender {
         let text_format = self.text_format(node);
         if let Some(regions) = regions {
             if regions.is_empty() {
-                wrap.offset += self.span_section(
-                    &wrap,
-                    code_line.start().into_range(),
-                    text_format.clone(),
-                );
+                wrap.offset +=
+                    self.span_section(&wrap, code_line.start().into_range(), text_format.clone());
             }
             for (_style, region) in regions {
                 wrap.offset += self.span_section(&wrap, region, text_format.clone());
@@ -212,8 +209,8 @@ impl<'ast> MdRender {
     /// renderer's screen rect. Mirrors `show_indented_code_block`'s
     /// per-line decision so totals agree.
     pub(crate) fn height_auto_indented_code_block(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        synthetic: bool, top_left: Pos2,
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
+        top_left: Pos2,
     ) -> f32 {
         let viewport = self.viewport.get();
         let mut result = 0.;
@@ -233,8 +230,7 @@ impl<'ast> MdRender {
                 let node_line = self.node_line(node, line);
                 let cheap = self.height_approx_code_block_line(node, node_line);
                 let line_top = top_left.y + result + self.layout.block_padding;
-                let visible =
-                    line_top + cheap > viewport.min.y && line_top < viewport.max.y;
+                let visible = line_top + cheap > viewport.min.y && line_top < viewport.max.y;
                 let h = if visible {
                     self.height_code_block_line(node, node_code_block, line, synthetic)
                 } else {
@@ -279,8 +275,7 @@ impl<'ast> MdRender {
                 result += self.layout.row_spacing;
                 let cheap = self.height_approx_code_block_line(node, node_line);
                 let line_top = top_left.y + result;
-                let visible =
-                    line_top + cheap > viewport.min.y && line_top < viewport.max.y;
+                let visible = line_top + cheap > viewport.min.y && line_top < viewport.max.y;
                 if visible {
                     result += self.height_code_block_line(node, node_code_block, line, false);
                 } else {
@@ -291,7 +286,9 @@ impl<'ast> MdRender {
         result + self.layout.block_padding
     }
 
-    fn height_approx_code_block_line(&self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme)) -> f32 {
+    fn height_approx_code_block_line(
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> f32 {
         let row_height = self.layout.row_height;
         // Use a generous char_width (≈ row_height, the M-width of a
         // typical mono font) so that `chars_per_row` under-counts and
@@ -367,8 +364,7 @@ impl<'ast> MdRender {
                 let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
                 if visible {
                     self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
-                    top_left.y +=
-                        self.height_code_block_line(node, node_code_block, line, false);
+                    top_left.y += self.height_code_block_line(node, node_code_block, line, false);
                 } else {
                     top_left.y += cheap;
                 }
@@ -470,14 +466,7 @@ impl<'ast> MdRender {
                 let line_bot_estimate = line_top + cheap;
                 let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
                 if visible {
-                    self.show_code_block_line(
-                        ui,
-                        node,
-                        top_left,
-                        node_code_block,
-                        line,
-                        synthetic,
-                    );
+                    self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
                     top_left.y +=
                         self.height_code_block_line(node, node_code_block, line, synthetic);
                 } else {
@@ -514,7 +503,6 @@ impl<'ast> MdRender {
         }
         reveal
     }
-
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,

@@ -145,7 +145,11 @@ impl<'ast> MdRender {
             if block_visible || block_needed {
                 if self.debug {
                     self.show_debug_block_highlight(
-                        ui, child, top_left, self.width(child), precise_height,
+                        ui,
+                        child,
+                        top_left,
+                        self.width(child),
+                        precise_height,
                     );
                 }
                 self.show_block(ui, child, top_left, &children);

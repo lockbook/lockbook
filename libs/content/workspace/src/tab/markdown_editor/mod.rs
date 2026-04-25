@@ -16,7 +16,7 @@ use core::time::Duration;
 use egui::os::OperatingSystem;
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, Stroke, Ui, UiBuilder, Vec2, scroll_area,
+    Pos2, Rect, Stroke, Ui, UiBuilder, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -831,8 +831,7 @@ impl Editor {
                     // reads last-frame galleys) sees nothing.
                     self.edit.renderer.touch_consuming_rects.clear();
 
-                    let scroll =
-                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+                    let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
                     let prev_offset = scroll.offset(ui.ctx());
                     self.show_scrollable_editor(ui, root);
                     let new_offset = scroll.offset(ui.ctx());
@@ -854,10 +853,15 @@ impl Editor {
                     if let (Some(scroll_id), Some((anchor_idx, intra))) =
                         (scroll_area_id, persisted.anchor)
                     {
-                        let mut content =
+                        // trailing_precise=0 is safe for persistence:
+                        // anchor_idx always points to a real block (the
+                        // virtual trailing block has 0 approx and
+                        // max_offset is bounded by approx_total).
+                        let content =
                             crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                                 &mut self.edit.renderer,
                                 root,
+                                0.0,
                             );
                         let offset = crate::widgets::affine_scroll::anchor_to_offset(
                             &content, anchor_idx, intra,
@@ -1001,16 +1005,15 @@ impl Editor {
                     // (the parsed root from above may have been dropped).
                     let arena = Arena::new();
                     let root = self.edit.renderer.reparse(&arena);
-                    let scroll =
-                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+                    let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
                     let offset = scroll.offset(ui.ctx());
                     let content =
                         crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                             &mut self.edit.renderer,
                             root,
+                            0.0,
                         );
-                    let anchor =
-                        crate::widgets::affine_scroll::offset_to_anchor(&content, offset);
+                    let anchor = crate::widgets::affine_scroll::offset_to_anchor(&content, offset);
                     let _ = content;
 
                     let image_dims = self.edit.renderer.embeds.image_dims();
@@ -1090,15 +1093,13 @@ impl Editor {
                 // spans the full canvas so its scrollbar sits at the
                 // canvas right edge.
                 let max_width = self.edit.renderer.layout.max_width;
-                let col_width =
-                    (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
                 let col_pad = ((canvas_width - col_width) / 2.0).max(0.0);
 
                 // `width(Document)` returns `renderer.width − 2·margin`.
                 // To make the content's wrap width equal `col_width`,
                 // set `renderer.width = col_width + 2·margin`.
-                self.edit.renderer.top_left =
-                    canvas_rect.min + Vec2::new(col_pad, 0.0);
+                self.edit.renderer.top_left = canvas_rect.min + Vec2::new(col_pad, 0.0);
                 self.edit.renderer.width = col_width + 2.0 * layout_margin;
                 self.edit.renderer.viewport.set(ui.clip_rect());
 

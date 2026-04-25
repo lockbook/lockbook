@@ -14,36 +14,60 @@ use crate::widgets::affine_scroll::ScrollContent;
 
 /// Adapter that lets `MdRender` plug into [`AffineScrollArea`]. Built
 /// fresh per frame from the parsed root.
+///
+/// Presents one extra virtual block at the end of the doc with zero
+/// approx height and `trailing_precise` precise height. This gives the
+/// user vh/2 of trailing whitespace below the last block (so the bottom
+/// of the last block can be scrolled into view) without forcing the
+/// scroll area to compute precise heights for the entire doc.
 pub struct DocScrollContent<'a, 'ast> {
     pub renderer: &'a mut MdRender,
     pub blocks: Vec<&'ast AstNode<'ast>>,
+    pub trailing_precise: f32,
 }
 
 impl<'a, 'ast> DocScrollContent<'a, 'ast> {
-    pub fn new(renderer: &'a mut MdRender, root: &'ast AstNode<'ast>) -> Self {
+    pub fn new(
+        renderer: &'a mut MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32,
+    ) -> Self {
         let blocks: Vec<_> = root.children().collect();
-        Self { renderer, blocks }
+        Self { renderer, blocks, trailing_precise }
     }
 }
 
 impl<'a, 'ast> ScrollContent for DocScrollContent<'a, 'ast> {
     fn block_count(&self) -> usize {
-        self.blocks.len()
+        self.blocks.len() + 1
     }
 
     fn approx_height(&self, i: usize) -> f32 {
-        self.renderer.block_pre_spacing_height_approx(self.blocks[i], &self.blocks)
+        if i == self.blocks.len() {
+            return 0.0;
+        }
+        self.renderer
+            .block_pre_spacing_height_approx(self.blocks[i], &self.blocks)
             + self.renderer.height_approx(self.blocks[i], &self.blocks)
-            + self.renderer.block_post_spacing_height_approx(self.blocks[i], &self.blocks)
+            + self
+                .renderer
+                .block_post_spacing_height_approx(self.blocks[i], &self.blocks)
     }
 
     fn precise_height(&mut self, i: usize) -> f32 {
-        self.renderer.block_pre_spacing_height(self.blocks[i], &self.blocks)
+        if i == self.blocks.len() {
+            return self.trailing_precise;
+        }
+        self.renderer
+            .block_pre_spacing_height(self.blocks[i], &self.blocks)
             + self.renderer.height(self.blocks[i], &self.blocks)
-            + self.renderer.block_post_spacing_height(self.blocks[i], &self.blocks)
+            + self
+                .renderer
+                .block_post_spacing_height(self.blocks[i], &self.blocks)
     }
 
     fn render_block(&mut self, ui: &mut Ui, i: usize, top_left: Pos2) {
+        if i == self.blocks.len() {
+            return;
+        }
         // Use the renderer's pre-set `top_left.x` (the centered
         // content column) for x; take y from the scroll area. This
         // lets the scroll area span the full canvas width while
@@ -51,9 +75,11 @@ impl<'a, 'ast> ScrollContent for DocScrollContent<'a, 'ast> {
         let mut top_left = Pos2::new(self.renderer.top_left.x, top_left.y);
         self.renderer
             .show_block_pre_spacing(ui, self.blocks[i], top_left, &self.blocks);
-        top_left.y +=
-            self.renderer.block_pre_spacing_height(self.blocks[i], &self.blocks);
-        self.renderer.show_block(ui, self.blocks[i], top_left, &self.blocks);
+        top_left.y += self
+            .renderer
+            .block_pre_spacing_height(self.blocks[i], &self.blocks);
+        self.renderer
+            .show_block(ui, self.blocks[i], top_left, &self.blocks);
         top_left.y += self.renderer.height(self.blocks[i], &self.blocks);
         self.renderer
             .show_block_post_spacing(ui, self.blocks[i], top_left, &self.blocks);
