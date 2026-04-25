@@ -89,8 +89,18 @@ impl<'ast> MdRender {
         height_sum
     }
 
-    // blocks are stacked vertically; only visible blocks and blocks whose
-    // node range intersects `galley_required_range` are shown
+    // Anchor-based rendering. Walk children top-down advancing by approx
+    // until we reach a child whose approx-y range crosses the viewport
+    // top — that's the anchor. From the anchor onward, advance by precise
+    // and paint, until y exits the viewport bottom. After viewport, back
+    // to approx and stop painting. Required-range children (cursor /
+    // find) are painted precisely regardless of position.
+    //
+    // The hybrid layout — approx above the anchor, precise from the
+    // anchor through the viewport — keeps the painted layout consistent
+    // with the doc-y coordinates show advances by, while making extent a
+    // function of doc only (computed elsewhere as approx-y of the last
+    // top-level block + viewport_height).
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
@@ -107,33 +117,63 @@ impl<'ast> MdRender {
         let past_all_required =
             |offset: Grapheme| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
+        // Anchor-at-viewport-top: walk children with approx until we
+        // find the one whose approx-y range crosses viewport.min.y —
+        // that's the anchor. Snap the paint origin to viewport.top so
+        // the anchor lands flush. From there, paint precisely
+        // downstream. The bidirectional mapping between egui's
+        // scroll_y and (anchor, intra-offset) is implicit: scroll_y
+        // increments by approx as the anchor advances, so two scrolls
+        // within the same anchor produce the same painted layout
+        // shifted by the scroll delta — visible content's screen-y
+        // stays stable.
+        let mut anchor_reached = false;
+        let mut approx_y = top_left.y;
+
         for child in &children {
             let child_range = self.node_range(child);
             let pre_lines = self.pre_spacing_lines(child, &children);
             let post_lines = self.post_spacing_lines(child, &children);
 
-            // add pre-spacing
             let pre_spacing = self.block_pre_spacing_height_approx(child, &children);
-            let pre_spacing_below_viewport = viewport.max.y < top_left.y;
-            let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
-            let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
-            let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
-            if pre_spacing_visible || pre_spacing_needed {
-                self.show_block_pre_spacing(ui, child, top_left, &children);
-            }
-            top_left.y += pre_spacing;
-
-            // Decide visibility from the cheap approximation first; only
-            // pay precise `height` when we're going to paint. Off-screen
-            // content uses the approximate height for positioning — its
-            // precision doesn't affect what the user sees, only the
-            // scrollbar (Obsidian-style imprecision).
             let approx_height = self.height_approx(child, &children);
-            let block_below_viewport = viewport.max.y < top_left.y;
-            let block_above_viewport = viewport.min.y > top_left.y + approx_height;
-            let block_visible = !block_above_viewport && !block_below_viewport;
+            let post_spacing = self.block_post_spacing_height_approx(child, &children);
+
             let block_needed = intersects_any_required(&child_range);
-            let child_height = if block_visible || block_needed {
+            let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
+            let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
+
+            let is_anchor = !anchor_reached
+                && approx_y + pre_spacing + approx_height >= viewport.min.y;
+
+            if !anchor_reached && !is_anchor {
+                // Strictly before the anchor — don't paint, just advance
+                // approx-y. (Required-range blocks above the anchor are
+                // intentionally not painted; they fall outside the
+                // visible window in the anchor model.)
+                approx_y += pre_spacing + approx_height + post_spacing;
+                continue;
+            }
+
+            if is_anchor {
+                // Snap paint origin to viewport top. Skip the anchor's
+                // pre-spacing — it logically belongs above the
+                // viewport.
+                top_left.y = viewport.min.y;
+                anchor_reached = true;
+            } else {
+                // Already past anchor: paint pre-spacing.
+                if pre_spacing_needed {
+                    self.show_block_pre_spacing(ui, child, top_left, &children);
+                }
+                top_left.y += pre_spacing;
+            }
+
+            let past_viewport = top_left.y > viewport.max.y;
+            let paint_block = !past_viewport || block_needed;
+
+            // child block
+            let child_height = if paint_block {
                 let h = self.height(child, &children);
                 if self.debug {
                     self.show_debug_block_highlight(ui, child, top_left, self.width(child), h);
@@ -144,29 +184,21 @@ impl<'ast> MdRender {
                 let in_buffer = top_left.y + approx_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
                 if in_buffer {
-                    // walks all descendants, not just those within the buffer —
-                    // a tall container may warm images beyond the zone
                     self.warm_images(child);
                 }
                 approx_height
             };
             top_left.y += child_height;
 
-            // add post-spacing
-            let post_spacing = self.block_post_spacing_height_approx(child, &children);
-            let post_spacing_below_viewport = viewport.max.y < top_left.y;
-            let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
-            let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
-            let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
-            if post_spacing_visible || post_spacing_needed {
+            // post-spacing
+            if paint_block || post_spacing_needed {
                 self.show_block_post_spacing(ui, child, top_left, &children);
             }
             top_left.y += post_spacing;
 
-            // safe to stop: everything remaining is below the buffer zone and
-            // past all ranges that need galleys
-            let past_buffer = top_left.y > viewport.max.y + buffer;
-            if past_buffer && past_all_required(child_range.start()) {
+            // Stop walking once we're past the viewport AND past all
+            // required ranges (their galleys must exist for nav).
+            if top_left.y > viewport.max.y + buffer && past_all_required(child_range.start()) {
                 break;
             }
         }

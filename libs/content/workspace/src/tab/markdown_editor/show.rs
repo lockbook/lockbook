@@ -326,11 +326,13 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 
-        // Use approximate height for the scroll-area extent — show
-        // paints at precise positions per visible block, and the gap
-        // between approx total and precise painted total is the
-        // accepted scrollbar imprecision (Obsidian-style).
-        let height = self.renderer.height_approx(root, &[root]);
+        // Anchor-based render rect: matches the scroll-area extent
+        // computed by the outer container (approx-y of last block + vh).
+        // show paints visible blocks precisely starting from each one's
+        // approx-y position. Off-screen content uses approx for layout
+        // advancement only; it isn't painted.
+        self.renderer.viewport.set(ui.clip_rect());
+        let height = self.renderer.scroll_extent(root, ui.clip_rect().height());
         let render_rect = Rect::from_min_size(rect.min, Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             self.renderer.show_block(ui, root, rect.min, &[root]);

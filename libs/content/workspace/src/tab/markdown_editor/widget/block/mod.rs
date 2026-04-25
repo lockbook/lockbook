@@ -1,6 +1,13 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
+
+thread_local! {
+    /// Tunable factor for `height_approx`'s presumed character width
+    /// (multiplied by `row_height`). Production default is 0.5; tests
+    /// override per-thread to sweep values.
+    pub(crate) static APPROX_CHAR_WIDTH_FACTOR: Cell<f32> = const { Cell::new(0.5) };
+}
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
@@ -152,7 +159,7 @@ impl<'ast> MdRender {
                         _ => {}
                     }
                 }
-                let char_width = row_height * 0.5;
+                let char_width = row_height * APPROX_CHAR_WIDTH_FACTOR.with(|c| c.get());
                 let chars_per_row = (width / char_width).floor().max(1.0) as usize;
                 let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
                 rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
@@ -173,6 +180,125 @@ impl<'ast> MdRender {
         };
         self.set_cached_node_height_approx(node, height);
         height
+    }
+
+    /// Viewport-aware height. Picks per-element between `height` (precise)
+    /// and `height_approx` (cheap) based on whether each element is in
+    /// the visible screen rect. Used by `show_block_children` to compute
+    /// the per-child advance — show paints with the same per-element
+    /// decisions, so totals match.
+    ///
+    /// `top_left` is this node's screen-space position. Recursive
+    /// container variants pass updated `top_left` per child as they
+    /// iterate, mirroring `show_block_children`'s positioning loop.
+    /// Code blocks make per-line decisions internally.
+    ///
+    /// For callers without viewport context (chat composer, MdLabel)
+    /// use `height` directly — this function is meaningless without a
+    /// real screen position.
+    pub fn height_auto(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>], top_left: Pos2,
+    ) -> f32 {
+        if self.hidden_by_fold(node, siblings) {
+            return 0.;
+        }
+        if self.width(node) < self.layout.row_height {
+            return 0.;
+        }
+        let viewport = self.viewport.get();
+        let value = &node.data.borrow().value;
+        match value {
+            // Containers: walk children with per-child viewport
+            // decision. Mirrors `show_block_children`'s loop minus the
+            // painting.
+            NodeValue::Document
+            | NodeValue::List(_)
+            | NodeValue::BlockQuote
+            | NodeValue::Item(_)
+            | NodeValue::TaskItem(_)
+            | NodeValue::Alert(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::FootnoteDefinition(_) => {
+                // Match `show_block_children`'s "needed" override:
+                // off-screen blocks intersecting the cursor line are
+                // still painted precisely (so arrow-key navigation has
+                // a galley to land on). Account for them here so the
+                // extent reflects what show actually paints.
+                let required_ranges = self
+                    .galley_required_ranges(self.in_progress_selection, self.find_current_match);
+                let children = self.sorted_children(node);
+                let mut y = top_left.y;
+                let mut total = 0.;
+                for child in &children {
+                    let pre = self.block_pre_spacing_height_approx(child, &children);
+                    total += pre;
+                    y += pre;
+                    let approx = self.height_approx(child, &children);
+                    let visible = y + approx > viewport.min.y && y < viewport.max.y;
+                    let needed = {
+                        let r = self.node_range(child);
+                        required_ranges.iter().any(|rr| r.intersects(rr, true))
+                    };
+                    let h = if visible || needed {
+                        self.height_auto(child, &children, Pos2 { x: top_left.x, y })
+                    } else {
+                        approx
+                    };
+                    total += h;
+                    y += h;
+                    let post = self.block_post_spacing_height_approx(child, &children);
+                    total += post;
+                    y += post;
+                }
+                total
+            }
+            // Code blocks: per-line viewport decision. Visible lines
+            // shape precisely (advance by precise wrap height);
+            // off-screen lines advance by `cheap_code_line_height`.
+            NodeValue::CodeBlock(b) => self.height_auto_code_block(node, b, top_left),
+            NodeValue::HtmlBlock(_) => self.height_auto_html_block(node, top_left),
+            // Other leaves: precise. We're called only when visible
+            // (off-screen content uses `height_approx` via the caller's
+            // gate); precise matches what show paints.
+            _ => self.height(node, siblings),
+        }
+    }
+
+    /// Approx-y position of the top of the last top-level block in the
+    /// doc — i.e., the scroll offset at which the last block sits at
+    /// viewport top. Function of doc + width only.
+    ///
+    /// Walks children with the same per-child accounting that
+    /// `show_block_children` uses, so the value matches the y position
+    /// at which the anchor walk lands on the last block.
+    pub fn approx_y_top_last_block(&self, root: &'ast AstNode<'ast>) -> f32 {
+        let children = self.sorted_children(root);
+        if children.is_empty() {
+            return 0.;
+        }
+        let last_idx = children.len() - 1;
+        let mut y = 0.;
+        for child in &children[..last_idx] {
+            y += self.block_pre_spacing_height_approx(child, &children);
+            y += self.height_approx(child, &children);
+            y += self.block_post_spacing_height_approx(child, &children);
+        }
+        y += self.block_pre_spacing_height_approx(&children[last_idx], &children);
+        y
+    }
+
+    /// Scroll-area extent for anchor-based rendering. Sized so the
+    /// user can scroll until the last block's top sits at the viewport
+    /// top. If the last block is taller than the viewport, the
+    /// overflow below isn't reachable — cursor navigation handles that
+    /// case.
+    ///
+    /// Function of (doc, width); viewport-independent.
+    pub fn scroll_extent(
+        &self, root: &'ast AstNode<'ast>, viewport_height: f32,
+    ) -> f32 {
+        self.approx_y_top_last_block(root) + viewport_height
     }
 
     pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {

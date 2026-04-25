@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
@@ -144,6 +145,14 @@ pub struct MdRender {
     pub top_left: Pos2,
     pub width: f32,
     pub height: f32,
+    /// Visible region in screen-space, set by the caller per frame.
+    /// `height_auto` and the per-line code-block visibility checks
+    /// consult this rect to decide precise vs approximate height. The
+    /// scroll-area extent computation uses `height_auto` against this
+    /// rect so the visible region's precise/approx delta is folded into
+    /// the extent — at max scroll the end-of-doc gets compensated and
+    /// stays reachable.
+    pub viewport: Cell<Rect>,
 
     // debug
     pub debug: bool,
@@ -385,6 +394,7 @@ impl MdRender {
             top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
+            viewport: Cell::new(Rect::EVERYTHING),
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -431,6 +441,7 @@ impl MdRender {
             top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
+            viewport: Cell::new(Rect::EVERYTHING),
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -535,6 +546,7 @@ impl Editor {
             top_left: Default::default(),
             width: Default::default(),
             height: Default::default(),
+            viewport: Cell::new(Rect::EVERYTHING),
 
             debug: false,
             frame_times: [Instant::now(); 10],
@@ -1076,17 +1088,17 @@ impl Editor {
                             // renderer.width. Otherwise margin gets subtracted twice,
                             // cell widths diverge, and cached heights go stale.
                             self.edit.renderer.width -= 2. * self.edit.renderer.layout.margin;
-                            let height = {
-                                let document_height = self.edit.renderer.height(root, &[root]);
-                                let unfilled_space = if document_height < scroll_view_height {
-                                    scroll_view_height - document_height
-                                } else {
-                                    0.
-                                };
-                                let end_of_text_padding = scroll_view_height / 2.;
-
-                                document_height + unfilled_space.max(end_of_text_padding)
-                            };
+                            // Anchor-based extent: scroll bound is the
+                            // approx-y of the last block's top, plus one
+                            // viewport. At max scroll the last block sits
+                            // at the top of the viewport (with empty space
+                            // below if shorter). Constant function of
+                            // (doc, width) — viewport-independent, no
+                            // cycle. show paints visible blocks precisely
+                            // anchored to their approx-y top.
+                            self.edit.renderer.viewport.set(ui.clip_rect());
+                            let height =
+                                self.edit.renderer.scroll_extent(root, scroll_view_height);
                             let rect = Rect::from_min_size(
                                 self.edit.renderer.top_left,
                                 Vec2::new(self.edit.renderer.width, height),

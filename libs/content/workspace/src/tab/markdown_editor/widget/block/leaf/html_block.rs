@@ -17,6 +17,17 @@ impl<'ast> MdRender {
         )
     }
 
+    pub(crate) fn height_auto_html_block(
+        &self, node: &'ast AstNode<'ast>, top_left: Pos2,
+    ) -> f32 {
+        self.height_auto_indented_code_block(
+            node,
+            &NodeCodeBlock { info: "html".into(), ..Default::default() },
+            true,
+            top_left,
+        )
+    }
+
     pub fn show_html_block(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         self.show_indented_code_block(
             ui,

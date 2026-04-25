@@ -49,6 +49,16 @@ impl<'ast> MdRender {
         }
     }
 
+    pub(crate) fn height_auto_code_block(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, top_left: Pos2,
+    ) -> f32 {
+        if node_code_block.fenced {
+            self.height_auto_fenced_code_block(node, node_code_block, top_left)
+        } else {
+            self.height_auto_indented_code_block(node, node_code_block, false, top_left)
+        }
+    }
+
     pub fn show_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
@@ -90,12 +100,210 @@ impl<'ast> MdRender {
                     );
                 }
             } else {
+                // Code is monospace — char-count × char_width gives the
+                // wrapped row count without cosmic-text shape. Avoids
+                // shape per line, which dominates init for a giant
+                // code block (e.g. one 100KB block ≈ 400 lines).
                 result += self.layout.row_spacing;
-                result += self.height_code_block_line(node, node_code_block, line, false);
+                result += self.height_approx_code_block_line(node, node_line);
             }
         }
 
         result + self.layout.block_padding
+    }
+
+    /// Precise per-line height: mirrors `show_code_block_line`'s shape
+    /// calls (same indent strip, same syntax-region chunking) but
+    /// advances the wrap via `span_section` instead of painting via
+    /// `show_section`. Same content + same chunking → same cosmic-text
+    /// wrap → same `wrap.height()` as what show paints.
+    fn height_code_block_line(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> f32 {
+        let (code_line, regions) =
+            self.code_block_line_chunks(node, node_code_block, line, synthetic);
+        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
+        let text_format = self.text_format(node);
+        if let Some(regions) = regions {
+            if regions.is_empty() {
+                wrap.offset += self.span_section(
+                    &wrap,
+                    code_line.start().into_range(),
+                    text_format.clone(),
+                );
+            }
+            for (_style, region) in regions {
+                wrap.offset += self.span_section(&wrap, region, text_format.clone());
+            }
+        } else {
+            wrap.offset += self.span_section(&wrap, code_line, text_format);
+        }
+        wrap.height()
+    }
+
+    /// Shared chunking logic used by both `height_code_block_line` and
+    /// `show_code_block_line` so they produce identical wrap geometry.
+    /// Returns the indent-stripped line range and (when syntax
+    /// highlighting applies) the per-region breakdown.
+    fn code_block_line_chunks(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> ((Grapheme, Grapheme), Option<Vec<(Style, (Grapheme, Grapheme))>>) {
+        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
+        let node_line = self.node_line(node, line);
+        let code_line = if *fenced {
+            let text = &self.buffer[node_line];
+            let indentation = text
+                .chars()
+                .take_while(|&c| c == ' ')
+                .count()
+                .min(*fence_offset);
+            (node_line.start() + indentation, node_line.end())
+        } else {
+            let target_cols = if synthetic {
+                0
+            } else {
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
+            };
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
+            (chunk_start, node_line.end())
+        };
+        let code_line_text = &self.buffer[code_line];
+        let mut highlighter = if should_skip_highlight(info) {
+            None
+        } else {
+            syntax_set()
+                .find_syntax_by_token(info)
+                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
+        };
+        let regions = highlighter.as_mut().and_then(|h| {
+            self.syntax.get(code_line_text, code_line).or_else(|| {
+                let line_start = self.offset_to_byte(code_line.start());
+                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
+                let mut regions = Vec::new();
+                let mut region_start = line_start;
+                for (style, region_str) in highlighted {
+                    let region_end = region_start + region_str.len();
+                    let region = self.range_to_char((region_start, region_end));
+                    regions.push((style, region));
+                    region_start = region_end;
+                }
+                self.syntax
+                    .insert(code_line_text.into(), code_line, regions.clone());
+                Some(regions)
+            })
+        });
+        (code_line, regions)
+    }
+
+    /// Viewport-aware total height for an indented (or HtmlBlock) code
+    /// block. Walks lines; per line, decides precise (visible) vs
+    /// `height_approx_code_block_line` (off-screen) using `top_left.y` and the
+    /// renderer's screen rect. Mirrors `show_indented_code_block`'s
+    /// per-line decision so totals agree.
+    pub(crate) fn height_auto_indented_code_block(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        synthetic: bool, top_left: Pos2,
+    ) -> f32 {
+        let viewport = self.viewport.get();
+        let mut result = 0.;
+        let reveal = self.reveal_indented_code_block(node, synthetic);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+            if reveal {
+                let node_line = self.node_line(node, line);
+                result += self.height_section(
+                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
+                    node_line,
+                    self.text_format_syntax(),
+                );
+            } else {
+                let node_line = self.node_line(node, line);
+                let cheap = self.height_approx_code_block_line(node, node_line);
+                let line_top = top_left.y + result + self.layout.block_padding;
+                let visible =
+                    line_top + cheap > viewport.min.y && line_top < viewport.max.y;
+                let h = if visible {
+                    self.height_code_block_line(node, node_code_block, line, synthetic)
+                } else {
+                    cheap
+                };
+                result += h;
+            }
+            if line_idx != last_line_idx {
+                result += self.layout.row_spacing;
+            }
+        }
+        result + 2. * self.layout.block_padding
+    }
+
+    pub(crate) fn height_auto_fenced_code_block(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, top_left: Pos2,
+    ) -> f32 {
+        let viewport = self.viewport.get();
+        let width = self.width(node) - 2. * self.layout.block_padding;
+        let mut result = self.layout.block_padding;
+        result -= self.layout.row_spacing;
+        let reveal = self.reveal_fenced_code_block(node, node_code_block);
+        let first_line_idx = self.node_first_line_idx(node);
+        let last_line_idx = self.node_last_line_idx(node);
+        for line_idx in first_line_idx..=last_line_idx {
+            let line = self.bounds.source_lines[line_idx];
+            let node_line = self.node_line(node, line);
+            let is_opening_fence = line_idx == first_line_idx;
+            let is_closing_fence = !is_opening_fence
+                && line_idx == last_line_idx
+                && self.is_closing_fence(node, node_code_block, line);
+            if is_opening_fence || is_closing_fence {
+                if reveal {
+                    result += self.layout.row_spacing;
+                    result += self.height_section(
+                        &mut self.new_wrap(width),
+                        node_line,
+                        self.text_format_syntax(),
+                    );
+                }
+            } else {
+                result += self.layout.row_spacing;
+                let cheap = self.height_approx_code_block_line(node, node_line);
+                let line_top = top_left.y + result;
+                let visible =
+                    line_top + cheap > viewport.min.y && line_top < viewport.max.y;
+                if visible {
+                    result += self.height_code_block_line(node, node_code_block, line, false);
+                } else {
+                    result += cheap;
+                }
+            }
+        }
+        result + self.layout.block_padding
+    }
+
+    fn height_approx_code_block_line(&self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme)) -> f32 {
+        let row_height = self.layout.row_height;
+        // Use a generous char_width (≈ row_height, the M-width of a
+        // typical mono font) so that `chars_per_row` under-counts and
+        // `rows` over-counts. Show paints precisely; if our estimate
+        // were too small, painted glyphs would overflow this advance and
+        // overlap subsequent content. Better to leave a tiny gap.
+        let char_width = row_height;
+        let width = self.width(node) - 2.0 * self.layout.block_padding;
+        let usable = (width / char_width).floor().max(1.0) as usize;
+        let chars = self.buffer[line].chars().count();
+        let rows = ((chars as f32) / usable as f32).ceil().max(1.0);
+        rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
     }
 
     pub fn show_fenced_code_block(
@@ -103,6 +311,9 @@ impl<'ast> MdRender {
         node_code_block: &NodeCodeBlock,
     ) {
         let mut width = self.width(node);
+        // Use `cheap` total for the background rect — same approximation
+        // we account for in advance per line. (`height_fenced_code_block`
+        // already uses the cheap path.)
         let height = self.height_fenced_code_block(node, node_code_block);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
@@ -121,6 +332,7 @@ impl<'ast> MdRender {
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
+        let clip = ui.clip_rect();
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
@@ -146,8 +358,20 @@ impl<'ast> MdRender {
                 }
             } else {
                 top_left.y += self.layout.row_spacing;
-                self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
-                top_left.y += self.height_code_block_line(node, node_code_block, line, false);
+                // Per-line viewport check: visible lines shape precisely
+                // and advance by the precise wrap height; off-screen
+                // lines skip shape and advance by `height_approx_code_block_line`.
+                let cheap = self.height_approx_code_block_line(node, node_line);
+                let line_top = top_left.y;
+                let line_bot_estimate = line_top + cheap;
+                let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
+                if visible {
+                    self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
+                    top_left.y +=
+                        self.height_code_block_line(node, node_code_block, line, false);
+                } else {
+                    top_left.y += cheap;
+                }
             }
         }
     }
@@ -181,15 +405,18 @@ impl<'ast> MdRender {
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
 
+            let width = self.width(node) - 2. * self.layout.block_padding;
             if reveal {
                 let node_line = self.node_line(node, line);
                 result += self.height_section(
-                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
+                    &mut self.new_wrap(width),
                     node_line,
                     self.text_format_syntax(),
                 );
             } else {
-                result += self.height_code_block_line(node, node_code_block, line, synthetic);
+                let _ = (node_code_block, synthetic);
+                let node_line = self.node_line(node, line);
+                result += self.height_approx_code_block_line(node, node_line);
             }
 
             if line_idx != last_line_idx {
@@ -224,6 +451,7 @@ impl<'ast> MdRender {
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
+        let clip = ui.clip_rect();
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
 
@@ -234,8 +462,27 @@ impl<'ast> MdRender {
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
-                self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
-                top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
+                // See `show_fenced_code_block` for the per-line viewport
+                // rationale.
+                let node_line = self.node_line(node, line);
+                let cheap = self.height_approx_code_block_line(node, node_line);
+                let line_top = top_left.y;
+                let line_bot_estimate = line_top + cheap;
+                let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
+                if visible {
+                    self.show_code_block_line(
+                        ui,
+                        node,
+                        top_left,
+                        node_code_block,
+                        line,
+                        synthetic,
+                    );
+                    top_left.y +=
+                        self.height_code_block_line(node, node_code_block, line, synthetic);
+                } else {
+                    top_left.y += cheap;
+                }
             }
 
             top_left.y += self.layout.row_spacing;
@@ -268,188 +515,14 @@ impl<'ast> MdRender {
         reveal
     }
 
-    fn height_code_block_line(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (Grapheme, Grapheme), synthetic: bool,
-    ) -> f32 {
-        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
-
-        let node_line = self.node_line(node, line);
-
-        let code_line = if *fenced {
-            // "If the leading code fence is indented N spaces, then up to N spaces
-            // of indentation are removed from each line of the content (if
-            // present). (If a content line is not indented, it is preserved
-            // unchanged. If it is indented less than N spaces, all of the
-            // indentation is removed.)"
-            // https://github.github.com/gfm/#fenced-code-blocks
-            let text = &self.buffer[node_line];
-            let indentation = text
-                .chars()
-                .take_while(|&c| c == ' ')
-                .count()
-                .min(*fence_offset);
-            (node_line.start() + indentation, node_line.end())
-        } else {
-            // "An indented code block is composed of one or more indented chunks
-            // separated by blank lines. An indented chunk is a sequence of
-            // non-blank lines, each indented four or more spaces. The contents of
-            // the code block are the literal contents of the lines, including
-            // trailing line endings, minus four spaces of indentation."
-            // https://github.github.com/gfm/#indented-code-blocks
-            //
-            // Strip column-aware. If the code block is inside a list
-            // item, combine its 4-col strip with the item's padding —
-            // `item.rs` defers to us for code-block lines so a tab
-            // straddling the item/code-block boundary doesn't get
-            // attributed entirely to one side (which would make tab
-            // and 4-space forms render differently).
-            let target_cols = if synthetic {
-                0
-            } else {
-                let parent_item_padding = node
-                    .ancestors()
-                    .find_map(|a| match &a.data.borrow().value {
-                        NodeValue::Item(nl) => Some(nl.padding),
-                        _ => None,
-                    })
-                    .unwrap_or(0);
-                parent_item_padding + 4
-            };
-            let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
-            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
-            (chunk_start, node_line.end())
-        };
-        let code_line_text = &self.buffer[code_line];
-
-        // syntax highlighting
-        let mut highlighter = if should_skip_highlight(info) {
-            None
-        } else {
-            syntax_set()
-                .find_syntax_by_token(info)
-                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
-        };
-
-        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
-
-        let regions = highlighter.as_mut().and_then(|h| {
-            self.syntax.get(code_line_text, code_line).or_else(|| {
-                let line_start = self.offset_to_byte(code_line.start());
-                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
-                let mut regions = Vec::new();
-                let mut region_start = line_start;
-                for (style, region_str) in highlighted {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                self.syntax
-                    .insert(code_line_text.into(), code_line, regions.clone());
-                Some(regions)
-            })
-        });
-
-        if let Some(regions) = regions {
-            let text_format = self.text_format(node);
-            for (_, region) in regions {
-                // color doesn't matter for layout, just how the regions are divided
-                wrap.offset += self.span_section(&wrap, region, text_format.clone());
-            }
-        } else {
-            // no syntax highlighting
-            wrap.offset += self.span_section(&wrap, code_line, self.text_format(node));
-        }
-
-        wrap.height()
-    }
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
-        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
-
-        let node_line = self.node_line(node, line);
-
-        let code_line = if *fenced {
-            // "If the leading code fence is indented N spaces, then up to N spaces
-            // of indentation are removed from each line of the content (if
-            // present). (If a content line is not indented, it is preserved
-            // unchanged. If it is indented less than N spaces, all of the
-            // indentation is removed.)"
-            // https://github.github.com/gfm/#fenced-code-blocks
-            let text = &self.buffer[node_line];
-            let indentation = text
-                .chars()
-                .take_while(|&c| c == ' ')
-                .count()
-                .min(*fence_offset);
-            (node_line.start() + indentation, node_line.end())
-        } else {
-            // "An indented code block is composed of one or more indented chunks
-            // separated by blank lines. An indented chunk is a sequence of
-            // non-blank lines, each indented four or more spaces. The contents of
-            // the code block are the literal contents of the lines, including
-            // trailing line endings, minus four spaces of indentation."
-            // https://github.github.com/gfm/#indented-code-blocks
-            //
-            // Strip column-aware. If the code block is inside a list
-            // item, combine its 4-col strip with the item's padding —
-            // `item.rs` defers to us for code-block lines so a tab
-            // straddling the item/code-block boundary doesn't get
-            // attributed entirely to one side (which would make tab
-            // and 4-space forms render differently).
-            let target_cols = if synthetic {
-                0
-            } else {
-                let parent_item_padding = node
-                    .ancestors()
-                    .find_map(|a| match &a.data.borrow().value {
-                        NodeValue::Item(nl) => Some(nl.padding),
-                        _ => None,
-                    })
-                    .unwrap_or(0);
-                parent_item_padding + 4
-            };
-            let text = &self.buffer[node_line];
-            let strip_graphemes = consume_indent_columns(text, target_cols);
-            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
-            (chunk_start, node_line.end())
-        };
-        let code_line_text = &self.buffer[code_line];
-
-        // syntax highlighting
-        let mut highlighter = if should_skip_highlight(info) {
-            None
-        } else {
-            syntax_set()
-                .find_syntax_by_token(info)
-                .map(|syntax| HighlightLines::new(syntax, syntax_theme()))
-        };
-
+        let (code_line, regions) =
+            self.code_block_line_chunks(node, node_code_block, line, synthetic);
         let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
-
-        let regions = highlighter.as_mut().and_then(|h| {
-            self.syntax.get(code_line_text, code_line).or_else(|| {
-                let line_start = self.offset_to_byte(code_line.start());
-                let highlighted = h.highlight_line(code_line_text, syntax_set()).ok()?;
-                let mut regions = Vec::new();
-                let mut region_start = line_start;
-                for (style, region_str) in highlighted {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                self.syntax
-                    .insert(code_line_text.into(), code_line, regions.clone());
-                Some(regions)
-            })
-        });
-
         if let Some(regions) = regions {
             let mut text_format = self.text_format(node);
             if regions.is_empty() {
