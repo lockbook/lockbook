@@ -853,18 +853,21 @@ impl Editor {
                     if let (Some(scroll_id), Some((anchor_idx, intra))) =
                         (scroll_area_id, persisted.anchor)
                     {
-                        // trailing_precise=0 is safe for persistence:
-                        // anchor_idx always points to a real block (the
-                        // virtual trailing block has 0 approx and
-                        // max_offset is bounded by approx_total).
-                        let content =
+                        // Persistence anchors only land on real rows
+                        // (the virtual trailing pad has zero approx
+                        // height, so the offset never falls inside
+                        // it), so the trailing-pad height doesn't
+                        // matter here.
+                        let mut content =
                             crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                                 &mut self.edit.renderer,
                                 root,
                                 0.0,
                             );
                         let offset = crate::widgets::affine_scroll::anchor_to_offset(
-                            &content, anchor_idx, intra,
+                            &mut content,
+                            anchor_idx,
+                            intra,
                         );
                         crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
                             .set_offset(ui.ctx(), offset);
@@ -1007,13 +1010,14 @@ impl Editor {
                     let root = self.edit.renderer.reparse(&arena);
                     let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
                     let offset = scroll.offset(ui.ctx());
-                    let content =
+                    let mut content =
                         crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                             &mut self.edit.renderer,
                             root,
                             0.0,
                         );
-                    let anchor = crate::widgets::affine_scroll::offset_to_anchor(&content, offset);
+                    let anchor =
+                        crate::widgets::affine_scroll::offset_to_anchor(&mut content, offset);
                     let _ = content;
 
                     let image_dims = self.edit.renderer.embeds.image_dims();
@@ -1071,7 +1075,7 @@ impl Editor {
     fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
         let prev_seq = self.edit.renderer.buffer.current.seq;
 
-        Frame::canvas(ui.style())
+        let canvas_height = Frame::canvas(ui.style())
             .inner_margin(Margin::ZERO)
             .stroke(Stroke::NONE)
             .show(ui, |ui| {
@@ -1105,7 +1109,9 @@ impl Editor {
 
                 self.edit.show(ui, canvas_rect, self.id());
                 ui.advance_cursor_after_rect(canvas_rect);
-            });
+                canvas_rect.height()
+            })
+            .inner;
 
         // if text changed during MdEdit::show, recompute find matches
         // before painting match highlights (which index by offset).
@@ -1139,7 +1145,7 @@ impl Editor {
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
-            self.scroll_to_find_match(ui);
+            self.scroll_to_find_match(ui, self.id(), canvas_height);
         }
     }
 
@@ -1199,14 +1205,28 @@ impl Editor {
         }
     }
 
-    fn scroll_to_find_match(&self, ui: &mut Ui) {
-        if let Some(idx) = self.find.current_match {
-            if let Some(match_range) = self.find.matches.get(idx) {
-                let rects = self.edit.range_rects(*match_range);
-                if let Some(rect) = rects.first() {
-                    ui.scroll_to_rect(rect.expand(rect.height()), Some(egui::Align::Center));
-                }
-            }
+    fn scroll_to_find_match(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
+
+        let Some(idx) = self.find.current_match else { return };
+        let Some(&(target, _)) = self.find.matches.get(idx) else { return };
+
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let mut content = DocScrollContent::new(
+            &mut self.edit.renderer,
+            root,
+            viewport_height / 2.0,
+        );
+
+        let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
+            c.text_range()
+                .is_some_and(|(start, end)| target >= start && target < end)
+        });
+
+        if let Some(o) = offset {
+            AffineScrollArea::new(scroll_id).set_offset(ui.ctx(), o);
         }
     }
 }

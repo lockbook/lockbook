@@ -186,14 +186,27 @@ impl MdEdit {
         }
     }
 
-    pub fn scroll_to_cursor(&self, ui: &mut Ui) {
-        let selection = self
-            .in_progress_selection
-            .unwrap_or(self.renderer.buffer.current.selection);
+    pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
 
-        if let Some([top, bot]) = self.cursor_line(selection.1) {
-            let rect = Rect::from_min_max(top, bot);
-            ui.scroll_to_rect(rect.expand(rect.height()), None);
+        let target = self
+            .in_progress_selection
+            .unwrap_or(self.renderer.buffer.current.selection)
+            .1;
+
+        let arena = comrak::Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let mut content =
+            DocScrollContent::new(&mut self.renderer, root, viewport_height / 2.0);
+
+        let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
+            c.text_range()
+                .is_some_and(|(start, end)| target >= start && target < end)
+        });
+
+        if let Some(o) = offset {
+            AffineScrollArea::new(scroll_id).set_offset(ui.ctx(), o);
         }
     }
 
