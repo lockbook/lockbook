@@ -1,7 +1,7 @@
 #![cfg(unix)]
 
-use lb_rs::service::events::Event;
 use lb_rs::Lb;
+use lb_rs::service::events::Event;
 use std::time::Duration;
 use test_utils::{random_name, test_config, url};
 use tokio::sync::broadcast::Receiver;
@@ -337,16 +337,9 @@ async fn create_file_recovers_after_host_death() {
     host_thread.join().unwrap();
 
     let f = guest
-        .create_file(
-            "post-recovery.md",
-            &root.id,
-            lb_rs::model::file_metadata::FileType::Document,
-        )
+        .create_file("post-recovery.md", &root.id, lb_rs::model::file_metadata::FileType::Document)
         .await
         .expect("create_file should succeed after recovery");
     assert_eq!(f.name, "post-recovery.md");
-    assert!(
-        guest.is_local(),
-        "guest should have promoted itself to Local during recovery"
-    );
+    assert!(guest.is_local(), "guest should have promoted itself to Local during recovery");
 }
